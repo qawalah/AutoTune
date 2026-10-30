@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-30T02:09:24.306874Z",
+  "title": "Design System: AutoTune",
+  "extensions": {
+    "colorMeta": {
+      "marker-orange": {
+        "role": "primary",
+        "displayName": "Marker Orange"
+      },
+      "shop-green": {
+        "role": "secondary",
+        "displayName": "Shop Green"
+      },
+      "chart-paper": {
+        "role": "neutral",
+        "displayName": "Chart Paper"
+      },
+      "graphite": {
+        "role": "neutral",
+        "displayName": "Graphite"
+      },
+      "pen-stock": {
+        "role": "data",
+        "displayName": "Stock Ink (dashed)"
+      }
+    },
+    "typographyMeta": {
+      "reading": {
+        "displayName": "Reading",
+        "purpose": "Figures in run-sheet cells, lists and the pinned action."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Screen and step titles."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "tune-pulse",
+        "value": "1800ms linear, repeat",
+        "purpose": "The Tune disc's rings while it waits; off when animations are off."
+      },
+      {
+        "name": "toggle",
+        "value": "160ms",
+        "purpose": "Power toggle knob."
+      }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Pinned action",
+      "kind": "button",
+      "refersTo": "pinned-action",
+      "description": "The screen's one recommended move, above the navigation band.",
+      "html": "<div class=\"ds-pin\"><button>Apply the new suggested EQ</button></div>",
+      "css": ".ds-pin{border-top:1px solid #C6D2C3;background:#ECEFE8;padding:8px 16px 10px}.ds-pin button{width:100%;height:60px;border:0;border-radius:6px;background:#C23E0A;color:#fff;font:600 21px/26px 'Barlow Condensed',sans-serif}"
+    },
+    {
+      "name": "Run sheet",
+      "kind": "custom",
+      "refersTo": "run-sheet-header",
+      "description": "Shop-green header strip naming test and run, then ruled reading cells.",
+      "html": "<div class=\"ds-sheet\"><div class=\"ds-head\"><b>F-150 driver seat</b><span>Run 2 against the stock</span></div><div class=\"ds-cells\"><div><em>6.2</em> dB<small>Stock</small></div><div><em class=\"g\">2.1</em> dB<small>Run 2</small></div><div><em>&minus;4.1</em> dB<small>change from stock</small></div></div></div>",
+      "css": ".ds-sheet{border:1px solid #C6D2C3;border-radius:6px;background:#F9FAF6;overflow:hidden;font-family:Barlow,sans-serif;color:#141B16}.ds-head{background:#173A2B;color:#F1F6F0;padding:8px 14px;display:flex;flex-direction:column}.ds-head span{color:#A9C4B3;font-size:14px}.ds-cells{display:flex;padding:14px}.ds-cells>div{flex:1;padding:0 12px;border-left:1px solid #C6D2C3}.ds-cells>div:first-child{border:0;padding-left:0}.ds-cells em{font:600 24px 'Barlow Condensed';font-style:normal;font-variant-numeric:tabular-nums}.ds-cells em.g{color:#17784A}.ds-cells small{display:block;color:#515E55;font-size:14px}"
+    },
+    {
+      "name": "Drop-down field",
+      "kind": "input",
+      "refersTo": "drop-select",
+      "description": "Every choice: current value in a field, options in a menu.",
+      "html": "<div class=\"ds-drop\">Car<span>&#8964;</span></div>",
+      "css": ".ds-drop{display:flex;justify-content:space-between;align-items:center;height:52px;padding:0 10px 0 14px;border-radius:5px;background:#E3E8DF;color:#141B16;font:17px Barlow,sans-serif}"
+    },
+    {
+      "name": "Navigation band",
+      "kind": "nav",
+      "refersTo": "navigation-band",
+      "description": "Three tabs on shop green.",
+      "html": "<nav class=\"ds-nav\"><a>Tests</a><a class=\"on\">Tune</a><a>EQ</a></nav>",
+      "css": ".ds-nav{display:flex;justify-content:center;gap:48px;background:#173A2B;padding:12px;font:500 14px Barlow,sans-serif}.ds-nav a{color:#A9C4B3}.ds-nav a.on{color:#F1F6F0;background:#3D5A4C;border-radius:16px;padding:2px 16px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The dyno run sheet",
+    "overview": "Every result reads like a tuning shop's dyno printout: a ruled header naming the run, condensed figures, the stock dashed under the tuned curve on chart paper. Material 3 navigation and controls stay standard.",
+    "keyCharacteristics": [
+      "Chart paper by day, graphite by night",
+      "Shop-green shell",
+      "Marker orange only for what you act on",
+      "Plotter-pen runs, stock dashed",
+      "Barlow / Barlow Condensed with tabular figures",
+      "Rules, not shadows"
+    ],
+    "rules": [
+      {
+        "name": "One job for orange",
+        "body": "Orange is the user's EQ or something they can press.",
+        "section": "colors"
+      },
+      {
+        "name": "Stock is the dashed baseline",
+        "body": "Only the stock run is dashed; target thin solid, prediction dotted.",
+        "section": "colors"
+      },
+      {
+        "name": "Figures are condensed",
+        "body": "Every reading in Barlow Condensed with tabular figures.",
+        "section": "typography"
+      },
+      {
+        "name": "Rules, not shadows",
+        "body": "Depth from 1dp rules only.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do open every result with a run sheet, then the graph, then the pinned action.",
+      "Do open detail screens as pages over the current tab."
+    ],
+    "donts": [
+      "Don't dash anything but the stock run.",
+      "Don't use pills or segmented buttons for choices.",
+      "Don't put an eyebrow above a heading."
+    ]
+  }
+}

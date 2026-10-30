@@ -14,4 +14,5 @@ captures/
 .DS_Store
 
 # Impeccable design-skill working files
-.impeccable/
+.impeccable/*
+!.impeccable/design.json

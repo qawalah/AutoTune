@@ -54,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -838,8 +839,11 @@ fun PinAction(text: String, onClick: () -> Unit, icon: Ic? = null, enabled: Bool
 /** The big button itself: tall, full width, the accent colour. */
 @Composable
 fun BigActionBar(a: PinnedAction) {
+    val rule = At.c.line
     Column(
-        Modifier.fillMaxWidth().background(At.c.bg).padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 10.dp),
+        // ruled off from the page, so content scrolling under it reads as passing under, not cut off
+        Modifier.fillMaxWidth().background(At.c.bg).drawBehind { drawLine(rule, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1.dp.toPx()) }
+            .padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         a.hint?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 2) }

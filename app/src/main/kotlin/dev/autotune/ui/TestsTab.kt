@@ -122,7 +122,8 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
 
     if (s.runs.isNotEmpty()) {
         // the same summary as the Tune result screens, then the one action; diagnostics follow, closed
-        ResultSummary(s, showNext = true)
+        // the page title names the test; the pinned button is the one next move
+        ResultSummary(s, showNext = false, namesTest = false)
         PinAction("Continue tuning", { vm.tuneContinue(); go(Tab.MEASURE) }, icon = Ic.TUNE)
         // the graph is always there
         s.chart?.let { c -> Panel { ResponseChart(c, height = 200.dp, showTarget = s.showTargetResults, onToggleTarget = { vm.setShowTarget(true, !s.showTargetResults) }) } }

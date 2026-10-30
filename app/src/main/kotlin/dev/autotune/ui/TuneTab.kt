@@ -507,7 +507,7 @@ private fun DoneStep(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, openResul
     Column(Modifier.fillMaxWidth().padding(top = 32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         AtIcon(Ic.DONE, At.c.good, size = 64.dp)
         Text("Tuned", style = MaterialTheme.typography.headlineMedium)
-        if (stock != null && last != null) Text("%.1f dB → %.1f dB from the target".format(stock.rmsDb, last.rmsDb), style = MaterialTheme.typography.titleMedium)
+        if (stock != null && last != null) Text("%.1f dB → %.1f dB from the target".format(stock.rmsDb, last.rmsDb), style = MaterialTheme.typography.headlineSmall)
         Text(
             when {
                 s.systemEqOn -> "Saved as a profile and AutoTune EQ is on with it: ${s.eqSource}."

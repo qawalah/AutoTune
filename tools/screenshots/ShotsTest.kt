@@ -95,7 +95,7 @@ class ShotsTest {
     @Test fun t8_done() = shot("t8_done") { tune(s.copy(tuneStep = TuneStep.DONE, systemEqOn = true, eqSource = "Profile · F-150 · tuned (Run 2)"))() }
     @Test fun t9_light_home() = shot("t9_light_home", dark = false) { tune(s.copy(tuneStep = TuneStep.HOME))() }
     @Test fun e1_eq() = shot("e1_eq") { EqTab(s, vm, {}, pick) }
-    @Test fun r1_results() = shot("r1_results") { ResultsPage(s, vm, {}, {}) }
+    @Test fun r1_results() = shot("r1_results") { androidx.compose.runtime.CompositionLocalProvider(LocalBack provides {}) { ResultsPage(s, vm, {}, {}) } }
     @Test fun e2_export() = shot("e2_export") { ExportTab(s, vm, {}) }
     @Test fun r2_tests() = shot("r2_tests") { TestsTab(s, vm, {}) }
     private val checksDone = listOf(
@@ -180,7 +180,7 @@ class ShotsTest {
     @Test fun t7b_result_refine() = shot("t7b_result_refine") { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns.take(2), false), runs = runs3.take(2)))() }
     @Test fun t7c_result_keep() = shot("t7c_result_keep") { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns, false)))() }
 
-    @Test fun u1_results_summary() = shot("u1_results_summary") { ResultsPage(s.copy(stock = stockA, recommendation = recommendNext(savedRuns, false)), vm, {}, {}) }
+    @Test fun u1_results_summary() = shot("u1_results_summary") { androidx.compose.runtime.CompositionLocalProvider(LocalBack provides {}) { ResultsPage(s.copy(stock = stockA, recommendation = recommendNext(savedRuns, false)), vm, {}, {}) } }
     @Test fun u2_apply() = shot("u2_apply") { tune(s.copy(tuneStep = TuneStep.APPLY, runs = runs3.take(1), eqPick = "suggest:a"))() }
     @Test fun u3_apply_other_eq() = shot("u3_apply_other_eq", dark = false) { tune(s.copy(tuneStep = TuneStep.APPLY, runs = runs3.take(1), eqPick = "run:b:8", eqSource = "LG (3) · Run 8"))() }
     @Test fun u4_home_resume() = shot("u4_home_resume") { tune(s.copy(tuneStep = TuneStep.HOME, resumeStep = TuneStep.APPLY, systemEqOn = true, eqSource = "F-150 driver seat · Suggested EQ"))() }

@@ -27,7 +27,7 @@ import dev.autotune.moveLabel
  * Continue tuning); the Tune screens show that move as their own button instead.
  */
 @Composable
-fun ResultSummary(s: UiState, showNext: Boolean) {
+fun ResultSummary(s: UiState, showNext: Boolean, namesTest: Boolean = true) {
     val runs = s.runs
     val stock = runs.firstOrNull() ?: return
     val latest = runs.last()
@@ -39,8 +39,10 @@ fun ResultSummary(s: UiState, showNext: Boolean) {
     if (runs.size == 1) {
         val a = s.stock
         val suspicious = a?.suspicious == true
+        // on a page already titled with the test, the sheet names the reading instead
         RunSheet(
-            name, "Stock reading, no EQ · ${stock.whenText}",
+            if (namesTest) name else "Stock reading, no EQ",
+            if (namesTest) "Stock reading, no EQ · ${stock.whenText}" else stock.whenText,
             trailing = { AtIcon(if (suspicious) Ic.ALERT else Ic.MEASURE, c.onShell, size = 22.dp) },
         ) {
             ReadingCells(
@@ -57,7 +59,8 @@ fun ResultSummary(s: UiState, showNext: Boolean) {
         val better = latest.rmsDb < stock.rmsDb - 0.3
         val best = runs.drop(1).minByOrNull { it.rmsDb }
         RunSheet(
-            name, "${latest.label} against the stock · ${latest.whenText}",
+            if (namesTest) name else "${latest.label} against the stock",
+            if (namesTest) "${latest.label} against the stock · ${latest.whenText}" else latest.whenText,
             trailing = { AtIcon(if (better) Ic.DONE else Ic.ALERT, c.onShell, size = 22.dp) },
         ) {
             ReadingCells(
