@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Equaliser-style bars forming a flattened response curve with a tuning dot. 108dp canvas, safe zone 66dp centred. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#2A4A73" android:pathData="M30,60h6v18h-6z"/>
+    <path android:fillColor="#2A4A73" android:pathData="M40,50h6v28h-6z"/>
+    <path android:fillColor="#2A4A73" android:pathData="M50,42h6v36h-6z"/>
+    <path android:fillColor="#2A4A73" android:pathData="M60,48h6v30h-6z"/>
+    <path android:fillColor="#2A4A73" android:pathData="M70,56h6v22h-6z"/>
+    <path android:strokeColor="#34E0A1" android:strokeWidth="3.5" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M27,46C36,46 40,36 53,36C66,36 70,46 81,46"/>
+    <path android:fillColor="#34E0A1" android:pathData="M53,30m-4.5,0a4.5,4.5 0,1 1,9 0a4.5,4.5 0,1 1,-9 0"/>
+</vector>

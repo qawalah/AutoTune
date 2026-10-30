@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_panel_desc">Tune, EQ and automatic switching in one row</string>
+    <string name="widget_eq_desc">Switch the AutoTune EQ on or off</string>
+    <string name="widget_auto_desc">Switch automatic profile switching on or off</string>
+    <string name="widget_profile_desc">Shows the active EQ profile; tap for the next one</string>
+</resources>
