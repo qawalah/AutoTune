@@ -128,7 +128,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
     s.eqChart?.let { chart ->
         Panel {
             ResponseChart(chart, height = 200.dp, showTarget = s.showTargetEq, onToggleTarget = { vm.setShowTarget(false, !s.showTargetEq) })
-            if (s.runs.isNotEmpty()) Muted("The dashed white line is a prediction from the last measurement plus this EQ. Measure to confirm.")
+            if (s.runs.isNotEmpty()) Muted("The dotted line is a prediction from the last measurement plus this EQ. Measure to confirm.")
         }
     }
 
