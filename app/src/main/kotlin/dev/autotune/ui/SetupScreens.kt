@@ -140,9 +140,9 @@ fun SetupScreen(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
                 Look.entries.map { it.title }, Look.entries.indexOf(s.look), { vm.setLook(Look.entries[it]) }, label = "Look",
                 details = Look.entries.map { it.detail }, icon = Ic.EQ,
             )
-            // a strip of the look's colours as it is now: accent, panel, two measurement colours
+            // a strip of the look's colours as it is now: navigation, accent, fields, two measurement colours
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(At.c.signal, At.c.panelHigh, runColor(1), runColor(2), At.c.good).forEach { col ->
+                listOf(At.c.shell, At.c.signal, At.c.panelHigh, runColor(1), runColor(2)).forEach { col ->
                     androidx.compose.foundation.layout.Box(Modifier.size(28.dp).clip(MaterialTheme.shapes.small).background(col))
                 }
             }
@@ -171,9 +171,9 @@ fun SetupScreen(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
         }
 
         Group("About") {
-            Text("AutoTune ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.titleSmall, fontFamily = PlexMono)
+            Text("AutoTune ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures)
             Muted("Measure, correct and re-measure car and home audio with a USB microphone. Nothing here is verified on every phone: the AutoTune EQ in particular depends on the phone and Android version, and Samsung's own sound settings can't be controlled by apps.")
-            Muted("Type set in IBM Plex, licensed under the SIL Open Font License 1.1.")
+            Muted("Type set in Barlow, licensed under the SIL Open Font License 1.1.")
         }
     }
 }

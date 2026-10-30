@@ -34,25 +34,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.autotune.TestSummary
 import dev.autotune.TuneViewModel
 import dev.autotune.UiState
 import dev.autotune.dsp.SystemReport
 
+/** The list of tests. One tap on a test opens its results; a new test starts from the button at the bottom. */
 @Composable
-fun TestsTab(s: UiState, vm: TuneViewModel, detail: Boolean, setDetail: (Boolean) -> Unit, go: (Tab) -> Unit, openSetup: () -> Unit) {
-    if (detail && s.currentTestId != null) TestDetail(s, vm, { setDetail(false) }, go)
-    else TestList(s, vm, { vm.openTest(it); setDetail(true) }, openSetup, go)
-}
-
-// ------------------------------------------------------------------ list
-
-@Composable
-private fun TestList(s: UiState, vm: TuneViewModel, open: (String) -> Unit, openSetup: () -> Unit, go: (Tab) -> Unit) {
-    var expandedId by rememberSaveable { mutableStateOf<String?>(null) }
-    var deleteId by remember { mutableStateOf<String?>(null) }
-    ScreenTitle("Tests")
+fun TestsTab(s: UiState, vm: TuneViewModel, openResults: (String) -> Unit) {
+    ScreenTitle("Tests", if (s.tests.isEmpty()) null else "${s.tests.size} ${if (s.tests.size == 1) "system" else "systems"} measured")
     if (s.tests.isEmpty()) {
         Panel {
             Text("No tests yet", style = MaterialTheme.typography.titleLarge)
@@ -68,37 +61,15 @@ private fun TestList(s: UiState, vm: TuneViewModel, open: (String) -> Unit, open
     Column {
         s.tests.forEachIndexed { i, t ->
             if (i > 0) HorizontalDivider(color = At.c.line)
-            // a tap shows the test's actions right in the list
-            TestRow(
-                t, t.id == s.currentTestId, expanded = expandedId == t.id,
-                onToggle = { expandedId = if (expandedId == t.id) null else t.id },
-                onResults = { open(t.id) },
-                onTune = { vm.openTest(t.id); vm.tuneContinue(); go(Tab.MEASURE) },
-                onEq = { vm.openTest(t.id); go(Tab.EQ) },
-                onDelete = { deleteId = t.id },
-            )
+            TestRow(t, t.id == s.currentTestId) { openResults(t.id) }
         }
-    }
-    deleteId?.let { id ->
-        val name = s.tests.firstOrNull { it.id == id }?.name.orEmpty()
-        AlertDialog(
-            onDismissRequest = { deleteId = null },
-            title = { Text("Delete “$name”?") },
-            text = { Text("All its readings are removed. Saved EQ profiles from it stay.") },
-            confirmButton = { TextButton(onClick = { deleteId = null; expandedId = null; vm.deleteTest(id) }) { Text("Delete", color = At.c.bad) } },
-            dismissButton = { TextButton(onClick = { deleteId = null }) { Text("Keep") } },
-        )
     }
 }
 
 @Composable
-private fun TestRow(
-    t: TestSummary, isOpen: Boolean, expanded: Boolean, onToggle: () -> Unit,
-    onResults: () -> Unit, onTune: () -> Unit, onEq: () -> Unit, onDelete: () -> Unit,
-) {
-  Column {
+private fun TestRow(t: TestSummary, isOpen: Boolean, onOpen: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 76.dp).clickable(onClickLabel = if (expanded) "Hide the actions of ${t.name}" else "Show the actions of ${t.name}", onClick = onToggle).padding(vertical = 12.dp),
+        Modifier.fillMaxWidth().heightIn(min = 76.dp).clickable(onClickLabel = "Open the results of ${t.name}", onClick = onOpen).padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.padding(end = 12.dp)) { AtIcon(kindIcon(t.kind), if (isOpen) At.c.signal else At.c.muted, size = 26.dp) }
@@ -106,7 +77,7 @@ private fun TestRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(t.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 if (isOpen) {
-                    Box(Modifier.padding(start = 8.dp).size(8.dp).clip(CircleShape).background(At.c.signal))
+                    Box(Modifier.padding(start = 8.dp).size(8.dp).clip(CircleShape).background(At.c.signal).semantics { contentDescription = "open now" })
                 }
             }
             Muted("${t.target} · ${if (t.runCount == 0) "no readings" else "${t.runCount} ${if (t.runCount == 1) "reading" else "readings"}"} · ${t.whenText}")
@@ -114,44 +85,40 @@ private fun TestRow(
         if (t.stockRms != null && t.latestRms != null) {
             val better = t.runCount > 1 && t.latestRms < t.stockRms - 0.05
             Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    if (t.runCount > 1) "%.1f → %.1f".format(t.stockRms, t.latestRms) else "%.1f".format(t.stockRms),
-                    style = MaterialTheme.typography.titleSmall, fontFamily = PlexMono,
-                    color = if (better) At.c.good else At.c.text,
-                )
+                Row(verticalAlignment = Alignment.Bottom) {
+                    if (t.runCount > 1) Text("%.1f → ".format(t.stockRms), style = MaterialTheme.typography.titleMedium, fontFamily = AtFigures, color = At.c.muted)
+                    Text(
+                        "%.1f".format(if (t.runCount > 1) t.latestRms else t.stockRms),
+                        style = MaterialTheme.typography.headlineSmall, color = if (better) At.c.good else At.c.text,
+                    )
+                }
                 Muted("dB from target")
             }
         }
-        Box(Modifier.padding(start = 6.dp)) { AtIcon(if (expanded) Ic.CHEVRON_DOWN else Ic.CHEVRON, At.c.muted, size = 20.dp) }
+        Box(Modifier.padding(start = 6.dp)) { AtIcon(Ic.CHEVRON, At.c.muted, size = 20.dp) }
     }
-    if (expanded) {
-        Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            TextAction("Results", onResults, enabled = t.runCount > 0, icon = Ic.TESTS)
-            TextAction("Tune", onTune, icon = Ic.TUNE)
-            TextAction("EQ", onEq, icon = Ic.EQ)
-            TextAction("Delete", onDelete, danger = true, icon = Ic.TRASH)
-        }
-    }
-  }
 }
 
-// ------------------------------------------------------------------ detail (results)
+// ------------------------------------------------------------------ the results of one test (a page)
 
+/** A test's results, opened over the tab it came from; [back] returns there. */
 @Composable
-private fun TestDetail(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Unit) {
+fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Unit) {
     var rename by remember { mutableStateOf(false) }
     var delete by remember { mutableStateOf(false) }
     var renameText by remember { mutableStateOf("") }
-    var bars by rememberSaveable { mutableStateOf(false) }
     var discard by remember { mutableStateOf(false) }
-
-    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconAction(Ic.BACK, "Back to tests", back)
-        Column(Modifier.weight(1f)) {
-            Text(s.testName, style = MaterialTheme.typography.headlineSmall, maxLines = 2)
-            Muted("${dev.autotune.dsp.Target.ALL[s.targetIdx.coerceIn(0, dev.autotune.dsp.Target.ALL.size - 1)].name} · ${s.source.title}")
-        }
+    // the test went away (deleted elsewhere): nothing to show here
+    if (s.currentTestId == null) {
+        androidx.compose.runtime.LaunchedEffect(Unit) { back() }
+        return
     }
+
+    ScreenTitle(
+        s.testName,
+        "${dev.autotune.dsp.Target.ALL[s.targetIdx.coerceIn(0, dev.autotune.dsp.Target.ALL.size - 1)].name} · ${s.source.title}",
+        contextIcon = s.tests.firstOrNull { it.id == s.currentTestId }?.kind?.let { kindIcon(it) },
+    )
 
     if (s.runs.isNotEmpty()) {
         // the same summary as the Tune result screens, then the one action; diagnostics follow, closed
@@ -218,7 +185,7 @@ private fun TestDetail(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab
                         )
                         if (r.note.isNotBlank()) Muted("“${r.note}”")
                     }
-                    Text("%.2f".format(r.rmsDb), style = MaterialTheme.typography.titleSmall, fontFamily = PlexMono)
+                    Text("%.2f".format(r.rmsDb), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures)
                     Muted(" dB")
                 }
             }
@@ -337,7 +304,7 @@ private fun TestDetail(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab
             onDismissRequest = { delete = false },
             title = { Text("Delete this test?") },
             text = { Text("The stock reading and every run are removed. This can't be undone.") },
-            confirmButton = { TextButton(onClick = { s.currentTestId?.let { id -> vm.deleteTest(id) }; delete = false; back() }) { Text("Delete", color = At.c.bad) } },
+            confirmButton = { TextButton(onClick = { delete = false; back(); s.currentTestId?.let { id -> vm.deleteTest(id) } }) { Text("Delete", color = At.c.bad) } },
             dismissButton = { TextButton(onClick = { delete = false }) { Text("Cancel") } },
         )
     }
@@ -358,7 +325,7 @@ private fun TableRow(cells: List<String>, header: Boolean = false, bold: Boolean
                     Text(
                         text, maxLines = 1,
                         style = if (header) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodySmall,
-                        fontFamily = if (header) PlexSans else PlexMono,
+                        fontFamily = if (header) AtSans else AtFigures,
                         fontWeight = if (bold) FontWeight.Medium else null,
                     )
                 }
@@ -395,7 +362,7 @@ fun ReportCard(r: SystemReport, label: String) {
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Row(Modifier.fillMaxWidth()) {
                     Text(c.name + if (c.eqFixable) "" else "  (hardware or room)", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
-                    Text("${c.score}", style = MaterialTheme.typography.labelLarge, fontFamily = PlexMono)
+                    Text("${c.score}", style = MaterialTheme.typography.labelLarge, fontFamily = AtFigures)
                 }
                 Box(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape).background(At.c.panelHigh)) {
                     Box(
@@ -423,7 +390,7 @@ private fun ResonanceGroup(s: UiState) {
         s.resonances.forEach { r ->
             val t60 = r.t60Ms?.let { "  rings ${if (r.t60IsLowerBound) ">" else "~"}%.0f ms".format(it) } ?: ""
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("%.0f Hz   +%.1f dB   Q %.1f%s".format(r.freqHz, r.prominenceDb, r.q, t60), style = MaterialTheme.typography.titleSmall, fontFamily = PlexMono)
+                Text("%.0f Hz   +%.1f dB   Q %.1f%s".format(r.freqHz, r.prominenceDb, r.q, t60), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures)
                 Muted(r.suggestion)
             }
         }

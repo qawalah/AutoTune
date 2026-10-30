@@ -152,7 +152,7 @@ fun AiScreen(a: AiUi, s: UiState, vm: TuneViewModel, go: (Tab) -> Unit) {
                             Row(verticalAlignment = Alignment.Top) {
                                 Text(
                                     "%+.1f dB  %s  Q %.1f".format(b.filter.gainDb, hz(b.filter.freqHz), b.filter.q),
-                                    Modifier.widthIn(min = 150.dp), style = MaterialTheme.typography.bodyMedium, fontFamily = PlexMono,
+                                    Modifier.widthIn(min = 150.dp), style = MaterialTheme.typography.bodyMedium, fontFamily = AtFigures,
                                 )
                                 b.reason?.let { Text(it, Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodySmall, color = At.c.muted) }
                             }
@@ -163,7 +163,7 @@ fun AiScreen(a: AiUi, s: UiState, vm: TuneViewModel, go: (Tab) -> Unit) {
                             val after = eq.predictedAiDb
                             if (before != null && after != null) {
                                 Panel(pad = 12.dp) {
-                                    Text("%.1f → %.1f dB".format(before, after), style = MaterialTheme.typography.titleMedium, fontFamily = PlexMono)
+                                    Text("%.1f → %.1f dB".format(before, after), style = MaterialTheme.typography.titleMedium, fontFamily = AtFigures)
                                     Muted("Predicted distance from the target for ${run ?: "the run"}: AutoTune's suggestion → with these changes")
                                 }
                                 if (after > before + 0.1) Warning("The app predicts this does worse than AutoTune's own suggestion. Measure it before keeping it.")

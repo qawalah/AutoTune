@@ -54,7 +54,8 @@ internal fun chartRange(series: List<DoubleArray>, freqs: DoubleArray): Pair<Dou
 }
 
 /**
- * Frequency response on a log axis around the target. Solid cool lines = measured runs, dashed = target, solid amber =
+ * Frequency response on chart paper, log axis, around the target. Plotter-pen lines = measured runs (the stock dashed
+ * as the baseline), thin dashed = target, solid in the accent colour =
  * the EQ, dashed text colour = predicted with the EQ. Tap a name in the legend to hide or show its curve; the corner
  * button opens the graph full screen. The range grows to fit the curves, so nothing is cut off at the edge.
  */
@@ -98,7 +99,7 @@ fun ResponseChart(
 private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean, hidden: List<String>) {
     val tm = rememberTextMeasurer()
     val c = At.c
-    val label = TextStyle(fontFamily = PlexMono, fontSize = 10.sp, color = c.muted)
+    val label = TextStyle(fontFamily = AtFigures, fontSize = 11.sp, color = c.muted, fontFeatureSettings = "tnum")
     val runCols = data.curves.map { runColor(it.colorIdx) }
     val visible = buildList {
         data.curves.forEach { if ("run:" + it.label !in hidden) add(it.values) }
@@ -115,18 +116,28 @@ private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean
         fun x(f: Double) = (left + w * (ln(f / 20.0) / ln(1000.0))).toFloat()
         fun y(db: Double) = (bottom * (1.0 - (db.coerceIn(yMin, yMax) - yMin) / (yMax - yMin))).toFloat()
 
-        val step = if (yMax - yMin > 50) 10 else 5
+        // chart paper: a fine grid at every dB step and every 1-2-3...9 of each decade, heavier rules at the decades,
+        // every 10 dB and at the target (0 dB)
+        val minor = c.line.copy(alpha = 0.55f)
+        val major = c.line
+        val hair = 1.dp.toPx() / 2f
         var db = yMin.toInt()
         while (db <= yMax.toInt()) {
+            val yy = y(db.toDouble())
             drawLine(
-                if (db == 0) c.muted.copy(alpha = 0.7f) else c.line,
-                Offset(left, y(db.toDouble())), Offset(size.width - right, y(db.toDouble())), if (db == 0) 1.5f else 1f,
+                when { db == 0 -> c.muted; db % 10 == 0 -> major; else -> minor },
+                Offset(left, yy), Offset(size.width - right, yy), if (db == 0) 1.5.dp.toPx() else if (db % 10 == 0) hair * 2 else hair,
             )
-            if (db % 10 == 0) drawText(tm, "$db", Offset(2.dp.toPx(), y(db.toDouble()) - 7.dp.toPx()), label)
-            db += step
+            if (db % 10 == 0) drawText(tm, "$db", Offset(2.dp.toPx(), yy - 7.dp.toPx()), label)
+            db += 5
         }
+        for (decade in listOf(10, 100, 1000, 10000)) for (k in 1..9) {
+            val f = decade * k
+            if (f < 20 || f > 20000) continue
+            drawLine(if (k == 1) major else minor, Offset(x(f.toDouble()), 0f), Offset(x(f.toDouble()), bottom), if (k == 1) hair * 2 else hair)
+        }
+        drawLine(major, Offset(left, bottom), Offset(size.width - right, bottom), hair * 2)
         for (f in listOf(20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000)) {
-            drawLine(c.line.copy(alpha = 0.6f), Offset(x(f.toDouble()), 0f), Offset(x(f.toDouble()), bottom), 1f)
             val t = if (f >= 1000) "${f / 1000}k" else "$f"
             drawText(tm, t, Offset(x(f.toDouble()) - 6.dp.toPx(), bottom + 2.dp.toPx()), label)
         }
@@ -143,8 +154,11 @@ private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean
             )
         }
         if (showTarget && "target" !in hidden) curve(data.target, c.target.copy(alpha = 0.55f), 1.2.dp.toPx(), dashed = true)
+        // the stock reading is the baseline, drawn dashed like the base run on a dyno sheet; the latest run is the heaviest
         data.curves.forEachIndexed { i, cv ->
-            if ("run:" + cv.label !in hidden) curve(cv.values, runCols[i], if (i == data.curves.lastIndex) 3.dp.toPx() else 2.dp.toPx())
+            if ("run:" + cv.label !in hidden) {
+                curve(cv.values, runCols[i], if (i == data.curves.lastIndex) 3.dp.toPx() else 2.dp.toPx(), dashed = cv.colorIdx == 0 && data.curves.size > 1)
+            }
         }
         data.predicted?.let { if ("predicted" !in hidden) curve(it, c.text, 2.5.dp.toPx(), dashed = true) }
         data.eq?.let { if ("eq" !in hidden) curve(it, c.signal, 2.5.dp.toPx()) }
@@ -155,24 +169,32 @@ private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean
 private fun Legend(data: ChartData, showTarget: Boolean, onToggleTarget: (() -> Unit)?, hidden: List<String>, toggle: (String) -> Unit, targetLabel: String) {
     val c = At.c
     FlowRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
-        data.curves.forEach { cv -> Key(cv.label, runColor(cv.colorIdx), on = "run:" + cv.label !in hidden) { toggle("run:" + cv.label) } }
+        data.curves.forEach { cv ->
+            Key(cv.label, runColor(cv.colorIdx), on = "run:" + cv.label !in hidden, dashed = cv.colorIdx == 0 && data.curves.size > 1) { toggle("run:" + cv.label) }
+        }
         // the target's visibility is a saved setting where the screen offers one
         val targetOn = showTarget && "target" !in hidden
-        Key(targetLabel, c.target, on = targetOn) { if (onToggleTarget != null) onToggleTarget() else toggle("target") }
-        if (data.predicted != null) Key("Predicted with EQ", c.text, on = "predicted" !in hidden) { toggle("predicted") }
+        Key(targetLabel, c.target.copy(alpha = 0.7f), on = targetOn, dashed = true) { if (onToggleTarget != null) onToggleTarget() else toggle("target") }
+        if (data.predicted != null) Key("Predicted with EQ", c.text, on = "predicted" !in hidden, dashed = true) { toggle("predicted") }
         if (data.eq != null) Key(data.eqLabel, c.signal, on = "eq" !in hidden) { toggle("eq") }
     }
 }
 
+/** One entry of the key: a short stroke drawn the way its curve is drawn (solid or dashed), then the name. */
 @Composable
-private fun Key(text: String, color: Color, on: Boolean = true, onClick: (() -> Unit)? = null) {
+private fun Key(text: String, color: Color, on: Boolean = true, dashed: Boolean = false, onClick: (() -> Unit)? = null) {
+    val muted = At.c.muted
     Row(
         (if (onClick != null) Modifier.heightIn(min = 40.dp).clickable(role = androidx.compose.ui.semantics.Role.Switch, onClickLabel = if (on) "Hide $text" else "Show $text", onClick = onClick) else Modifier),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.size(10.dp).clip(CircleShape).then(if (on) Modifier.background(color) else Modifier.border(1.5.dp, At.c.muted, CircleShape)),
-        )
+        Canvas(Modifier.size(width = 20.dp, height = 10.dp)) {
+            val yy = size.height / 2
+            drawLine(
+                if (on) color else muted.copy(alpha = 0.6f), Offset(0f, yy), Offset(size.width, yy), 3.dp.toPx(),
+                cap = StrokeCap.Butt, pathEffect = if (dashed) PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())) else null,
+            )
+        }
         Text(
             "  $text", style = MaterialTheme.typography.bodySmall, color = if (on) At.c.text else At.c.muted,
             textDecoration = if (on) null else androidx.compose.ui.text.style.TextDecoration.LineThrough,

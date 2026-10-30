@@ -1,6 +1,6 @@
 # AutoTune: handover
 
-Handover of AutoTune 1.18.0 (versionCode 38) for development in https://github.com/qawalah/AutoTune with Claude Code. Written 2026-10-30. It replaces the per-version notes kept until now. Those notes are condensed in the "Code notes" appendix at the end.
+Handover of AutoTune 1.18.0 (versionCode 38), now continued at 1.19.0 (versionCode 40), for development in https://github.com/qawalah/AutoTune with Claude Code. Written 2026-10-30. It replaces the per-version notes kept until now. Those notes are condensed in the "Code notes" appendix at the end.
 
 ## What the app does
 
@@ -20,7 +20,7 @@ Main features:
 - **Outside the app.** Profiles, with automatic switching when a Bluetooth device connects. Home-screen widgets (panel, EQ toggle, auto toggle, profile) run in the background without opening the app. Notification actions: "Switch EQ off" and "Stop auto-detect". Shortcuts and intents work with Samsung Routines. The EQ is restored after a reboot.
 - **Export.** ParametricEQ.txt (Equalizer APO, Poweramp), GraphicEQ.txt (Wavelet), a report and a CSV, and test WAVs (sweep, pink noise, sweep plus pink, left only, right only) for head units. Files go to a chosen folder or to Downloads.
 - **Live spectrum.** A 1/3-octave RTA with an SPL reading.
-- **Looks.** Studio, Mixing console, Hi-fi blue meters, Analog VU and Synthwave, each with its own slider style. Light, dark and wallpaper colours are available.
+- **Looks.** Dyno sheet (the default since 1.19: chart paper, shop green, marker orange), Studio, Mixing console, Hi-fi blue meters, Analog VU and Synthwave, each with its own slider style. Light, dark and wallpaper colours are available.
 - **Send diagnostics.** A zip containing a JSONL log, the last 12 recordings, the tests and the settings.
 
 ## Platform and type
@@ -34,8 +34,8 @@ A single **Android app** (phone), written in native Kotlin with Jetpack Compose 
 | | |
 |---|---|
 | applicationId / namespace | `dev.autotune` |
-| versionName | `1.18.0` |
-| versionCode | `38` |
+| versionName | `1.19.0` |
+| versionCode | `40` |
 | min / target / compile SDK | 26 / 35 / 35 |
 | Version source | `gradle.properties`: `APP_VERSION_NAME`, `APP_VERSION_CODE` (the single source of truth) |
 | APK name | `AutoTune-<versionName>-<buildType>.apk` |
@@ -54,7 +54,7 @@ Requirements:
    ```
    ./gradlew :dsp:test :app:testDebugUnitTest :app:assembleDebug
    ```
-   The APK lands in `app/build/outputs/apk/debug/AutoTune-1.18.0-debug.apk`.
+   The APK lands in `app/build/outputs/apk/debug/AutoTune-<versionName>-debug.apk`.
    - DSP tests: `dsp/src/test`. They simulate rooms with planted resonances and a coloured mic and check the loop converges.
    - App unit tests: `app/src/test`, covering FlowTest, PlayTest, TuningLogicTest, TestStoreTest and the AI tests.
 3. Install the APK on a phone. On first launch, grant the microphone permission. Notifications (Android 13 and later) and Bluetooth (for automatic switching) are asked for when needed.
@@ -141,6 +141,7 @@ Before publishing to Google Play:
 ## Decisions to keep (and why)
 
 - **Choices are drop-downs, never pills or segmented buttons.** The owner asked for this. Use icons, clean Material, minimal scrolling and taps.
+- **Back returns to where you were (1.19).** A test's results, Live and Export open as pages over the current tab (`Page` in AutoTuneScreen); they never switch tabs. One tap on a test opens its results. The owner asked for this after Back from those screens kept landing on Tests.
 - **Every reading ends the same way:** a short summary, then one recommended action pinned above the tabs (`PinAction` / `BigActionBar`), then the other choices, then Details. The graph is always shown after a reading. This came out of several navigation rounds (1.14, 1.15, 1.17) after the flow confused even the owner.
 - **The stock run is the permanent reference, and each suggestion is a complete EQ fitted from it** (`EqFitter.fitFromStock`, corrected by the measured-vs-predicted difference). Suggestions never stack on top of each other, so a bad run cannot compound.
 - **Gentle boosts.** The fitter allows at most 3 dB per boost, the suggested EQ caps total boost at about +4 dB (`EqChain.capBoost`), and boosts stop below the measured boost floor. Speakers often cannot follow deep bass boosts, and boosts eat headroom.
@@ -259,3 +260,9 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - Measuring: `measureRun` applies `withSafePreamp(shown)` before reading `SystemEq.applied`; `run {}`'s finally re-applies `playChain()` when AutoTune EQ is on; `eqCheck` restores `playChain()`.
 - `SystemEqConfig.fine` (prefs `eqFine`): `SystemEq` uses 61 centres at 1/6 octave (edge 2^(1/12), band Q 8.65) or the 31 RTA centres; `setFine` rebuilds the effect. `SYSTEM_EQ_FIT` is a getter: Q ≤ 2 / 1.4 (31 bands) or ≤ 4 / 2.5 (61 bands).
 - `eqFollow(stock, run, applied, grid)`: 1/3-octave smoothed change vs the applied EQ per octave (31.5 Hz-8 kHz), level-matched over 250 Hz-2.5 kHz; `share` from `judgeEqCheck`; `deafBelowHz` = top of the bottom octaves whose boost (≥ 1.5 dB) came out below 30%. Saved as `SavedTest.boostFloorHz` (file line `boostfloor=`), used as `FitConfig.boostMinHz` (fitter skips boosts below it). `suggestChecks()` → `UiState.checkSuggestions`, acted on by `vm.doCheck(action)`. UI: `FlavourAndPreamp`, `FollowAndChecks` in ResultViews.kt. Tests: PlayTest.
+
+### Dyno sheet look, pages, run sheet (1.19.0)
+- Theme.kt: `Look.DYNO` is first and the default (`Look.of(null)`); `AtColors` gained `shell`, `onShell`, `onShellMuted` (the navigation band and run-sheet header strip; other looks fall back to their panel colours). `Look.allowsWallpaper` (Dyno and Studio) replaces the old Studio-only check in `setLook`. Fonts: `AtSans` (Barlow) and `AtFigures` (Barlow Condensed), every style with `fontFeatureSettings = "tnum"`; the Plex files are gone (licence in `licenses/Barlow-OFL.txt`).
+- Kit.kt: `Panel` is a ruled sheet (1dp border); `RunSheet(title, sub, trailing)` and `ReadingCells(List<Reading>)` are the run-sheet header and its ruled cells, used by `ResultSummary`; `ScreenTitle` draws `SheetRule()` under the title and, when `LocalBack` is set, a back arrow instead of the menu; `StepHeader` is one row (Back, title with "Step n of N · Next: …", Exit) over a slim segmented bar.
+- AutoTuneScreen: `Tab.isPage` (LIVE, EXPORT); `go(LIVE/EXPORT)` opens a `Page` over the current tab, any other tab clears the pages. `openResults` opens `Page.RESULTS` (`ResultsPage` in TestsTab.kt, the old TestDetail). Back pops the newest page first. Each tab and page has its own `ScrollState`; a page opens at its top. The nav bar is hidden while a page is open.
+- ResponseChart: chart-paper grid (minor lines every 5 dB and at 2..9 of each decade, majors at decades and every 10 dB), the stock curve (`colorIdx == 0`, with other curves present) dashed, the key draws line swatches.

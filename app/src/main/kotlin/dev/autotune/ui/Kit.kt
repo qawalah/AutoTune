@@ -14,11 +14,13 @@ import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -66,6 +68,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.io.File
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -275,13 +278,61 @@ fun AtIcon(kind: Ic, tint: Color, modifier: Modifier = Modifier, size: Dp = 24.d
 
 // ---------------------------------------------------------------- structure
 
-/** A filled surface for instruments (graph, meter, controls). Everything else stays flat. */
+/** A sheet: a ruled surface for what was measured and what is set (graph, meter, controls). Everything else stays flat. */
 @Composable
 fun Panel(modifier: Modifier = Modifier, pad: Dp = 16.dp, content: @Composable () -> Unit) {
     Column(
-        modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(At.c.panel).padding(pad),
+        modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(At.c.panel)
+            .border(1.dp, At.c.line, MaterialTheme.shapes.medium).padding(pad),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) { content() }
+}
+
+/**
+ * A run sheet: the shop-green header strip that names what the sheet is about, ruled from the content below it, like
+ * the header of a dyno printout. [trailing] sits at the strip's right end.
+ */
+@Composable
+fun RunSheet(title: String, sub: String? = null, trailing: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
+    val c = At.c
+    Column(
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(c.panel)
+            .border(1.dp, c.line, MaterialTheme.shapes.medium),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().background(c.shell).heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, color = c.onShell, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                if (sub != null) Text(sub, style = MaterialTheme.typography.bodySmall, color = c.onShellMuted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+            trailing?.invoke()
+        }
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
+    }
+}
+
+/**
+ * One row of ruled cells, each a reading with its name under it, the way a dyno sheet prints its figures. A cell's
+ * [Reading.tint] colours the figure only.
+ */
+class Reading(val value: String, val unit: String?, val name: String, val tint: Color? = null)
+
+@Composable
+fun ReadingCells(cells: List<Reading>) {
+    Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min)) {
+        cells.forEachIndexed { i, r ->
+            if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(At.c.line))
+            Column(Modifier.weight(1f).padding(start = if (i == 0) 0.dp else 12.dp, end = 8.dp)) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(r.value, style = MaterialTheme.typography.headlineSmall, color = r.tint ?: At.c.text, maxLines = 1)
+                    if (r.unit != null) Text(" ${r.unit}", Modifier.padding(bottom = 3.dp), style = MaterialTheme.typography.labelMedium, color = At.c.muted, maxLines = 1)
+                }
+                Text(r.name, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 2)
+            }
+        }
+    }
 }
 
 /** A section that stays closed until opened. The summary line says what is inside without opening it. */
@@ -339,29 +390,49 @@ fun InfoButton(title: String, text: String) {
     }
 }
 
-/** Page title with an optional line of context under it. */
+/**
+ * Page title with an optional line of context under it, ruled off from the page like a sheet's header. On a page
+ * opened over a tab ([LocalBack] set) it starts with a back arrow and leaves the menu out.
+ */
 @Composable
 fun ScreenTitle(title: String, context: String? = null, onContext: (() -> Unit)? = null, contextIcon: Ic? = null, actions: @Composable () -> Unit = {}) {
-    Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.headlineMedium)
-            if (context != null) {
-                Row(
-                    if (onContext != null) Modifier.clickable(onClick = onContext).heightIn(min = 24.dp) else Modifier,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (contextIcon != null) { AtIcon(contextIcon, At.c.signal, size = 18.dp); androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp)) }
-                    Text(context, style = MaterialTheme.typography.bodyMedium, color = At.c.muted, maxLines = 1)
+    val back = LocalBack.current
+    Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            if (back != null) Box(Modifier.offset(x = (-12).dp)) { IconAction(Ic.BACK, "Back", back) }
+            Column(Modifier.weight(1f).then(if (back != null) Modifier.offset(x = (-8).dp) else Modifier)) {
+                Text(title, style = MaterialTheme.typography.headlineMedium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                if (context != null) {
+                    Row(
+                        if (onContext != null) Modifier.clickable(onClick = onContext).heightIn(min = 24.dp) else Modifier,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (contextIcon != null) { AtIcon(contextIcon, At.c.signal, size = 18.dp); androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp)) }
+                        Text(context, style = MaterialTheme.typography.bodyMedium, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
                 }
             }
+            actions()
+            if (back == null) LocalMenu.current()
         }
-        actions()
-        LocalMenu.current()
+        SheetRule()
+    }
+}
+
+/** The rule under a sheet's header: a band in the shell colour over a hairline. */
+@Composable
+fun SheetRule() {
+    Column(Modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().height(3.dp).background(At.c.shell))
+        Box(Modifier.fillMaxWidth().padding(top = 2.dp).height(1.dp).background(At.c.line))
     }
 }
 
 /** The hamburger menu, supplied once by the screen and shown in every tab's title row. */
 val LocalMenu = androidx.compose.runtime.compositionLocalOf<@Composable () -> Unit> { {} }
+
+/** Set while a page is open over a tab: what its back arrow does. Null on the tabs themselves. */
+val LocalBack = androidx.compose.runtime.compositionLocalOf<(() -> Unit)?> { null }
 
 @Composable
 fun IconAction(kind: Ic, description: String, onClick: () -> Unit) {
@@ -493,39 +564,39 @@ fun PulsingButton(label: String, sub: String?, icon: Ic, enabled: Boolean, onCli
     }
 }
 
-/** Where the user is in a multi-step flow: dots, the step's title, and a way out. */
+/**
+ * Where the user is in a multi-step flow, in one row: Back, the step's title with where it sits and what comes next,
+ * and Exit; then a slim bar with one segment per step. Back goes one screen back; Exit leaves and keeps the place.
+ */
 @Composable
 fun StepHeader(index: Int, total: Int, title: String, onExit: (() -> Unit)?, onBack: (() -> Unit)? = null, names: List<String>? = null) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        // explicit words, not just icons: Back goes one screen back, Exit leaves and keeps the place
+    val c = At.c
+    val next = names?.getOrNull(index + 1)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            if (onBack != null) TextAction("Back", onBack, icon = Ic.BACK)
-            Box(Modifier.weight(1f))
+            if (onBack != null) Box(Modifier.offset(x = (-12).dp)) { IconAction(Ic.BACK, "Back", onBack) }
+            Column(Modifier.weight(1f).then(if (onBack != null) Modifier.offset(x = (-8).dp) else Modifier)) {
+                Text(title, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(
+                    "Step ${index + 1} of $total" + (next?.let { " · Next: $it" } ?: ""),
+                    style = MaterialTheme.typography.bodySmall, color = c.muted, maxLines = 1,
+                )
+            }
             if (onExit != null) TextAction("Exit", onExit, icon = Ic.CLOSE)
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            Modifier.fillMaxWidth().semantics { contentDescription = "Step ${index + 1} of $total" },
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
             for (i in 0 until total) {
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Box(
-                        Modifier.fillMaxWidth().height(if (i == index) 5.dp else 3.dp).clip(RoundedCornerShape(2.dp))
-                            .background(if (i <= index) c0().signal else c0().line),
-                    )
-                    names?.getOrNull(i)?.let { n ->
-                        Text(
-                            n, style = MaterialTheme.typography.labelSmall, maxLines = 1,
-                            color = if (i == index) At.c.text else At.c.muted,
-                            fontWeight = if (i == index) androidx.compose.ui.text.font.FontWeight.SemiBold else null,
-                        )
-                    }
-                }
+                Box(
+                    Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(1.dp))
+                        .background(if (i < index) (if (c.dark) c.muted else c.shell) else if (i == index) c.signal else c.line),
+                )
             }
         }
-        Text("Step ${index + 1} of $total · $title", style = MaterialTheme.typography.titleMedium)
     }
 }
-
-@Composable
-private fun c0() = At.c
 
 /** Big on/off switch for the system EQ. */
 @Composable
@@ -774,7 +845,7 @@ fun BigActionBar(a: PinnedAction) {
         a.hint?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 2) }
         androidx.compose.material3.Button(
             onClick = a.onClick, enabled = a.enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp),
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.medium,
             colors = ButtonDefaults.buttonColors(
                 containerColor = At.c.signal, contentColor = At.c.onSignal,
                 disabledContainerColor = At.c.panelHigh, disabledContentColor = At.c.muted,
@@ -784,7 +855,8 @@ fun BigActionBar(a: PinnedAction) {
                 AtIcon(a.icon, if (a.enabled) At.c.onSignal else At.c.muted, size = 24.dp)
                 androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
             }
-            Text(a.text, style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+            // the condensed cut, so long actions still fit on one line in big type
+            Text(a.text, style = MaterialTheme.typography.headlineSmall.copy(fontSize = 21.sp, lineHeight = 26.sp), maxLines = 2)
         }
     }
 }

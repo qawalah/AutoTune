@@ -219,7 +219,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
                         s.sliderLayer.forEach { f ->
                             Row(Modifier.fillMaxWidth().heightIn(min = 36.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(hzText(f.freqHz) + " Hz\u00B7Q" + "%.1f".format(f.q), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                                Text(signed(f.gainDb) + " dB", style = MaterialTheme.typography.bodyMedium, fontFamily = PlexMono)
+                                Text(signed(f.gainDb) + " dB", style = MaterialTheme.typography.bodyMedium, fontFamily = AtFigures)
                             }
                         }
                     }
@@ -424,9 +424,9 @@ private fun BandRow(i: Int, f: EqFilter, open: Boolean, onToggle: () -> Unit, vm
             Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onToggle).padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("%.0f Hz".format(f.freqHz), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontFamily = PlexMono)
-            Text("%+.1f dB".format(f.gainDb), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontFamily = PlexMono, color = if (f.gainDb < 0) At.c.text else At.c.signal)
-            Text("Q %.1f".format(f.q), Modifier.weight(0.8f), style = MaterialTheme.typography.titleSmall, fontFamily = PlexMono, color = At.c.muted)
+            Text("%.0f Hz".format(f.freqHz), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures)
+            Text("%+.1f dB".format(f.gainDb), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures, color = if (f.gainDb < 0) At.c.text else At.c.signal)
+            Text("Q %.1f".format(f.q), Modifier.weight(0.8f), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures, color = At.c.muted)
             AtIcon(if (open) Ic.CHEVRON_DOWN else Ic.CHEVRON, At.c.muted, size = 20.dp)
         }
         if (open) {
@@ -465,7 +465,7 @@ private fun SliderRow(label: String, value: String, slider: @Composable () -> Un
     Column {
         Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
             Text(label, Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = At.c.muted)
-            Text(value, style = MaterialTheme.typography.labelMedium, fontFamily = PlexMono)
+            Text(value, style = MaterialTheme.typography.labelMedium, fontFamily = AtFigures)
         }
         slider()
     }
@@ -497,7 +497,7 @@ fun BandTable(lines: List<BandLine>, preampDb: Double, compared: Boolean) {
             Text("Preamp", style = MaterialTheme.typography.titleSmall)
             Muted("Set this first")
         }
-        Text(signed(preampDb) + " dB", style = MaterialTheme.typography.titleMedium, fontFamily = PlexMono, color = if (preampDb < -0.05) At.c.bad else At.c.text)
+        Text(signed(preampDb) + " dB", style = MaterialTheme.typography.titleMedium, fontFamily = AtFigures, color = if (preampDb < -0.05) At.c.bad else At.c.text)
     }
 
     if (compared) {
@@ -532,10 +532,10 @@ private fun BandLineRow(l: BandLine, compared: Boolean) {
     ) {
         Column(Modifier.width(76.dp)) {
             Text(
-                l.label.substringBefore('\u00B7'), style = MaterialTheme.typography.titleSmall, fontFamily = PlexMono,
+                l.label.substringBefore('\u00B7'), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures,
                 color = if (flat || dim) At.c.muted else At.c.text,
             )
-            if ('\u00B7' in l.label) Text("Q " + l.label.substringAfter("\u00B7Q"), style = MaterialTheme.typography.labelSmall, fontFamily = PlexMono, color = At.c.muted)
+            if ('\u00B7' in l.label) Text("Q " + l.label.substringAfter("\u00B7Q"), style = MaterialTheme.typography.labelSmall, fontFamily = AtFigures, color = At.c.muted)
         }
         androidx.compose.foundation.Canvas(Modifier.weight(1f).height(18.dp).padding(horizontal = 4.dp)) {
             val mid = size.width / 2f
@@ -551,14 +551,14 @@ private fun BandLineRow(l: BandLine, compared: Boolean) {
         }
         Column(Modifier.width(66.dp), horizontalAlignment = Alignment.End) {
             Text(
-                signed(g), style = MaterialTheme.typography.titleSmall, fontFamily = PlexMono,
+                signed(g), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures,
                 fontWeight = if (g < 0 && !flat) FontWeight.Bold else FontWeight.Medium,
                 color = if (dim) tone.copy(alpha = 0.6f) else tone,
             )
             if (l.changed) {
                 Text(
                     l.note ?: ("was " + signed(l.was ?: 0.0)),
-                    style = MaterialTheme.typography.labelSmall, fontFamily = PlexMono, color = At.c.muted, maxLines = 1,
+                    style = MaterialTheme.typography.labelSmall, fontFamily = AtFigures, color = At.c.muted, maxLines = 1,
                 )
             }
         }
@@ -650,7 +650,7 @@ internal fun GraphicSliders(s: UiState, vm: TuneViewModel, centres: List<Double>
                 val g = gains[i]
                 Text(
                     if (abs(g) < 0.05) "0" else "%+.1f".format(g).replace('-', '\u2212'),
-                    style = MaterialTheme.typography.labelSmall, fontFamily = PlexMono,
+                    style = MaterialTheme.typography.labelSmall, fontFamily = AtFigures,
                     color = if (g < -0.05) At.c.bad else if (g > 0.05) At.c.signal else At.c.muted,
                     maxLines = 1,
                 )

@@ -12,3 +12,6 @@ docs/
 keystore.properties
 captures/
 .DS_Store
+
+# Impeccable design-skill working files
+.impeccable/

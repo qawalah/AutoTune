@@ -404,7 +404,7 @@ data class UiState(
     // --- appearance
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     /** The app's look (colours and slider style). */
-    val look: dev.autotune.ui.Look = dev.autotune.ui.Look.STUDIO,
+    val look: dev.autotune.ui.Look = dev.autotune.ui.Look.DYNO,
     val dynamicColor: Boolean = false,
 )
 
@@ -1416,8 +1416,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     fun setLook(l: dev.autotune.ui.Look) {
         prefs.edit().putString("look", l.name).apply()
         // a look's own colours only show with the wallpaper colours off
-        state.update { it.copy(look = l, dynamicColor = if (l != dev.autotune.ui.Look.STUDIO) false else it.dynamicColor) }
-        if (l != dev.autotune.ui.Look.STUDIO) prefs.edit().putBoolean("dynamic", false).apply()
+        state.update { it.copy(look = l, dynamicColor = if (!l.allowsWallpaper) false else it.dynamicColor) }
+        if (!l.allowsWallpaper) prefs.edit().putBoolean("dynamic", false).apply()
     }
 
     fun setDefaults(target: String?, bassDb: Double, trebleDb: Double, spots: Int, gateMs: Int) {

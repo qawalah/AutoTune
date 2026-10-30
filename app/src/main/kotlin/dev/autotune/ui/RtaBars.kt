@@ -35,7 +35,7 @@ fun RtaBars(
 ) {
     val c = At.c
     val tm = rememberTextMeasurer()
-    val label = TextStyle(fontFamily = PlexMono, fontSize = 9.sp, color = c.muted)
+    val label = TextStyle(fontFamily = AtFigures, fontSize = 9.sp, color = c.muted)
     val labelled = setOf(31.5, 63.0, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0)
     Column(modifier) {
         Canvas(Modifier.fillMaxWidth().height(height)) {

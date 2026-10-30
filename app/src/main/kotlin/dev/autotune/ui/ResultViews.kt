@@ -31,40 +31,44 @@ fun ResultSummary(s: UiState, showNext: Boolean) {
     val runs = s.runs
     val stock = runs.firstOrNull() ?: return
     val latest = runs.last()
-    Panel {
-        Text("Summary", style = MaterialTheme.typography.labelLarge, color = At.c.muted)
-        if (runs.size == 1) {
-            val a = s.stock
-            val suspicious = a?.suspicious == true
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                AtIcon(if (suspicious) Ic.ALERT else Ic.MEASURE, if (suspicious) At.c.warn else At.c.signal, size = 28.dp)
-                Column(Modifier.padding(start = 12.dp)) {
-                    Text("%.1f dB from the target".format(stock.rmsDb), style = MaterialTheme.typography.headlineSmall)
-                    Muted("Stock system, no EQ")
-                }
-            }
+    val c = At.c
+    val targets = dev.autotune.dsp.Target.ALL
+    val target = targets[s.targetIdx.coerceIn(0, targets.size - 1)].name + dev.autotune.dsp.Target.tasteSuffix(s.bassDb, s.trebleDb)
+    val name = s.testName.ifBlank { "This test" }
+    fun db(v: Double) = "%.1f".format(v)
+    if (runs.size == 1) {
+        val a = s.stock
+        val suspicious = a?.suspicious == true
+        RunSheet(
+            name, "Stock reading, no EQ · ${stock.whenText}",
+            trailing = { AtIcon(if (suspicious) Ic.ALERT else Ic.MEASURE, c.onShell, size = 22.dp) },
+        ) {
+            ReadingCells(
+                listOfNotNull(
+                    Reading(db(stock.rmsDb), "dB", "from the target", if (suspicious) c.warn else null),
+                    a?.predictedDb?.takeIf { !suspicious }?.let { Reading("≈" + db(it), "dB", "with the suggested EQ (${a.bands} bands)", c.signal) },
+                ),
+            )
+            Muted("Target: $target")
             a?.let { Text(it.verdict, style = MaterialTheme.typography.bodyMedium) }
-            if (a != null && !suspicious && a.predictedDb != null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    AtIcon(Ic.EQ, At.c.signal, size = 18.dp)
-                    Text(
-                        "  With the suggested EQ (${a.bands} bands): about %.1f dB".format(a.predictedDb),
-                        style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium,
-                    )
-                }
-            }
             if (showNext) NextLine(if (suspicious) "Measure the stock again" else "Review the suggested EQ", null)
-        } else {
-            val better = latest.rmsDb < stock.rmsDb - 0.3
-            val best = runs.drop(1).minByOrNull { it.rmsDb }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                AtIcon(if (better) Ic.DONE else Ic.ALERT, if (better) At.c.good else At.c.warn, size = 28.dp)
-                Column(Modifier.padding(start = 12.dp)) {
-                    Text("%.1f → %.1f dB".format(stock.rmsDb, latest.rmsDb), style = MaterialTheme.typography.headlineSmall)
-                    Muted("Distance from the target: stock → ${latest.label}")
-                }
-            }
-            if (best != null && best != latest) Muted("Best so far: ${best.label}, %.1f dB".format(best.rmsDb))
+        }
+    } else {
+        val better = latest.rmsDb < stock.rmsDb - 0.3
+        val best = runs.drop(1).minByOrNull { it.rmsDb }
+        RunSheet(
+            name, "${latest.label} against the stock · ${latest.whenText}",
+            trailing = { AtIcon(if (better) Ic.DONE else Ic.ALERT, c.onShell, size = 22.dp) },
+        ) {
+            ReadingCells(
+                listOfNotNull(
+                    Reading(db(stock.rmsDb), "dB", "Stock"),
+                    Reading(db(latest.rmsDb), "dB", latest.label, if (better) c.good else c.warn),
+                    if (best != null && best != latest) Reading(db(best.rmsDb), "dB", "${best.label}, best so far")
+                    else Reading("%+.1f".format(latest.rmsDb - stock.rmsDb).replace('-', '−'), "dB", "change from stock"),
+                ),
+            )
+            Muted("Distance from the target · $target")
             s.resultWarnings.forEach { Warning(it) }
             val rec = s.recommendation
             if (showNext && rec != null) NextLine(moveLabel(rec.move, runs.getOrNull(rec.bestIdx)?.label), rec.why)
@@ -188,7 +192,7 @@ fun FlavourAndPreamp(s: UiState, vm: dev.autotune.TuneViewModel) {
                     activeTickColor = At.c.onSignal.copy(alpha = 0.4f), inactiveTickColor = At.c.muted.copy(alpha = 0.4f),
                 ),
             )
-            Text("  %.1f dB".format(s.manualPreampDb), style = MaterialTheme.typography.titleSmall, fontFamily = PlexMono)
+            Text("  %.1f dB".format(s.manualPreampDb), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures)
         }
     }
     s.playPreampDb?.takeIf { s.systemEqOn }?.let {
@@ -209,8 +213,8 @@ fun FollowAndChecks(s: UiState, vm: dev.autotune.TuneViewModel) {
                 f.bands.forEach { b ->
                     val ok = kotlin.math.abs(b.askedDb) < 1.5 || (b.gotDb / b.askedDb) in 0.5..1.6
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("%+.0f".format(b.askedDb), style = MaterialTheme.typography.labelSmall, fontFamily = PlexMono, color = At.c.muted)
-                        Text("%+.0f".format(b.gotDb), style = MaterialTheme.typography.labelMedium, fontFamily = PlexMono, color = if (ok) At.c.text else At.c.warn)
+                        Text("%+.0f".format(b.askedDb), style = MaterialTheme.typography.labelSmall, fontFamily = AtFigures, color = At.c.muted)
+                        Text("%+.0f".format(b.gotDb), style = MaterialTheme.typography.labelMedium, fontFamily = AtFigures, color = if (ok) At.c.text else At.c.warn)
                         Text(if (b.centreHz >= 1000) "${(b.centreHz / 1000).toInt()}k" else "${b.centreHz.toInt()}", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
                     }
                 }

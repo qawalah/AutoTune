@@ -67,7 +67,7 @@ class StoreShots {
         ),
     )
 
-    @Composable private fun Frame(dark: Boolean, look: Look = Look.STUDIO, content: @Composable () -> Unit) {
+    @Composable private fun Frame(dark: Boolean, look: Look = Look.DYNO, content: @Composable () -> Unit) {
         AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, look) {
             val slot = androidx.compose.runtime.remember { PinSlot() }
             androidx.compose.runtime.CompositionLocalProvider(LocalPin provides slot) {
@@ -80,7 +80,7 @@ class StoreShots {
             }
         }
     }
-    private fun shot(name: String, dark: Boolean = true, look: Look = Look.STUDIO, content: @Composable () -> Unit) {
+    private fun shot(name: String, dark: Boolean = true, look: Look = Look.DYNO, content: @Composable () -> Unit) {
         paparazzi.snapshot(name) { Frame(dark, look, content) }
     }
     private fun tune(st: UiState) = @Composable { TuneTab(st, vm, sharer, {}, {}, pick) }
@@ -95,9 +95,9 @@ class StoreShots {
     @Test fun t8_done() = shot("t8_done") { tune(s.copy(tuneStep = TuneStep.DONE, systemEqOn = true, eqSource = "Profile · F-150 · tuned (Run 2)"))() }
     @Test fun t9_light_home() = shot("t9_light_home", dark = false) { tune(s.copy(tuneStep = TuneStep.HOME))() }
     @Test fun e1_eq() = shot("e1_eq") { EqTab(s, vm, {}, pick) }
-    @Test fun r1_results() = shot("r1_results") { TestsTab(s, vm, true, {}, {}, {}) }
+    @Test fun r1_results() = shot("r1_results") { ResultsPage(s, vm, {}, {}) }
     @Test fun e2_export() = shot("e2_export") { ExportTab(s, vm, {}) }
-    @Test fun r2_tests() = shot("r2_tests") { TestsTab(s, vm, false, {}, {}, {}) }
+    @Test fun r2_tests() = shot("r2_tests") { TestsTab(s, vm, {}) }
     private val checksDone = listOf(
         CheckItem("Microphone", 1, "iMM-6C · unprocessed"), CheckItem("Sound output", 1, "Bluetooth: LG HTS"), CheckItem("Start beeps", 1, "found"),
         CheckItem("Whole sweep heard", 1), CheckItem("No clipping", 1), CheckItem("Signal above the background", 1, "63 dB"),
@@ -115,7 +115,19 @@ class StoreShots {
     @Test fun m3_saved() = mshot("m3_saved", MeasureView("Run 3", MeasureStage.SAVED, "Run 3 saved", checksDone, 1, 1, true, "5.6 dB from the target (stock 7.0)"), false)
     @Test fun m4_failed() = mshot("m4_failed", MeasureView("Stock reading", MeasureStage.FAILED, "The microphone barely heard the test sound (signal-to-noise 9 dB). Raise the volume, move the mic closer to the speakers, or check the sound is playing.", checksDone.map { if (it.label.startsWith("Signal")) CheckItem(it.label, 3, "9 dB: far too quiet") else it }, 1, 3, true), false)
     @Test fun m5_light() = mshot("m5_light", MeasureView("Run 3", MeasureStage.MEASURING, "", checksDone.take(3) + checksWait.drop(3), 1, 1, true), true, dark = false)
-    @Test fun x1_settings() = shot("x1_settings") { SetupScreen(s, AiUi(hasKey = true, keyMasked = "sk-ant-…a1F9", keyMessage = "The key works with Claude Sonnet."), vm, pick) {} }
+    // the settings overlay fills the screen itself, so it gets a plain surface rather than the scrolling frame
+    private fun settingsShot(name: String, dark: Boolean) = paparazzi.also {
+        // long page: a taller canvas so Appearance and About are in the picture
+        it.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenHeight = 6400))
+    }.snapshot(name) {
+        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, Look.DYNO) {
+            androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
+                SetupScreen(s, AiUi(hasKey = true, keyMasked = "sk-ant-…a1F9", keyMessage = "The key works with Claude Sonnet."), vm, pick) {}
+            }
+        }
+    }
+    @Test fun x1_settings() = settingsShot("x1_settings", dark = true)
+    @Test fun x2_settings_light() = settingsShot("x2_settings_light", dark = false)
 
     private val aiReview = dev.autotune.ai.AiReview.fromTool(
         mapOf(
@@ -168,7 +180,7 @@ class StoreShots {
     @Test fun t7b_result_refine() = shot("t7b_result_refine") { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns.take(2), false), runs = runs3.take(2)))() }
     @Test fun t7c_result_keep() = shot("t7c_result_keep") { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns, false)))() }
 
-    @Test fun u1_results_summary() = shot("u1_results_summary") { TestsTab(s.copy(stock = stockA, recommendation = recommendNext(savedRuns, false)), vm, true, {}, {}, {}) }
+    @Test fun u1_results_summary() = shot("u1_results_summary") { ResultsPage(s.copy(stock = stockA, recommendation = recommendNext(savedRuns, false)), vm, {}, {}) }
     @Test fun u2_apply() = shot("u2_apply") { tune(s.copy(tuneStep = TuneStep.APPLY, runs = runs3.take(1), eqPick = "suggest:a"))() }
     @Test fun u3_apply_other_eq() = shot("u3_apply_other_eq", dark = false) { tune(s.copy(tuneStep = TuneStep.APPLY, runs = runs3.take(1), eqPick = "run:b:8", eqSource = "LG (3) · Run 8"))() }
     @Test fun u4_home_resume() = shot("u4_home_resume") { tune(s.copy(tuneStep = TuneStep.HOME, resumeStep = TuneStep.APPLY, systemEqOn = true, eqSource = "F-150 driver seat · Suggested EQ"))() }
@@ -193,7 +205,7 @@ class StoreShots {
         EqCheckCard(EqCheckView(judgeEqCheck(g.freqs, DoubleArray(g.size), DoubleArray(g.size) { big[it] * 0.1 }, big), ch, "F-150 · Suggested EQ", "17 Oct 04:40"), vm)
     }
     @Test fun w7_settings_defaults() = paparazzi.snapshot("w7_settings_defaults") {
-        AutoTuneTheme(ThemeMode.DARK, false, Look.STUDIO) {
+        AutoTuneTheme(ThemeMode.DARK, false, Look.DYNO) {
             androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
                 SetupScreen(s.copy(defTarget = Target.HARMAN_CAR.name, defBassDb = 2.0, exportFolder = "Documents/AutoTune"), AiUi(), vm, pick) {}
             }
@@ -210,7 +222,7 @@ class StoreShots {
     }
 
     // ---- store screenshots: the real app chrome (bottom tabs, pinned action) around each screen ----
-    @Composable private fun App(tab: Tab, dark: Boolean = true, look: Look = Look.STUDIO, content: @Composable () -> Unit) {
+    @Composable private fun App(tab: Tab, dark: Boolean = true, look: Look = Look.DYNO, content: @Composable () -> Unit) {
         AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, look) {
             val slot = androidx.compose.runtime.remember { PinSlot() }
             androidx.compose.runtime.CompositionLocalProvider(LocalPin provides slot, LocalMenu provides { IconAction(Ic.MENU, "Menu") {} }) {
@@ -224,7 +236,7 @@ class StoreShots {
             }
         }
     }
-    private fun store(name: String, tab: Tab, dark: Boolean = true, look: Look = Look.STUDIO, content: @Composable () -> Unit) =
+    private fun store(name: String, tab: Tab, dark: Boolean = true, look: Look = Look.DYNO, content: @Composable () -> Unit) =
         paparazzi.snapshot(name) { App(tab, dark, look, content) }
 
     @Test fun s1_stock() = store("s1_stock", Tab.MEASURE) { tune(s.copy(tuneStep = TuneStep.STOCK_RESULT, runs = runs3.take(1), selectedRuns = setOf(0), stock = stockA))() }

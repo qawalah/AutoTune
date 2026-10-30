@@ -36,7 +36,9 @@ phone through Obtainium.
 - Use line icons from `Ic` in `ui/Kit.kt`.
 - Keep to clean Material 3, with minimal scrolling and taps.
 - After every reading, show a short summary, then one recommended action pinned above the tabs (`PinAction`), then the other choices, then Details. The graph is always shown.
-- Use plain, short wording. Use IBM Plex Sans for text and IBM Plex Mono only for readings.
+- Use plain, short wording. Use Barlow (`AtSans`) for text and Barlow Condensed (`AtFigures`) for readings and headings; figures are tabular everywhere.
+- Results open with a run sheet (`RunSheet` + `ReadingCells` in `ui/Kit.kt`); charts sit on chart paper with the stock dashed. See `DESIGN.md`.
+- A test's results, Live and Export are pages over the current tab (`Page` in `ui/AutoTuneScreen.kt`): Back returns where you were. Keep new detail screens as pages, not tabs.
 
 ## Don't break
 - **Saved tests** (`TestStore` text format): keep loading every older version.

@@ -141,7 +141,7 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         when {
                             hasLevel -> {
-                                Text("%.0f".format(level), style = MaterialTheme.typography.displaySmall, fontFamily = PlexMono)
+                                Text("%.0f".format(level), style = MaterialTheme.typography.displaySmall, fontFamily = AtFigures)
                                 Muted("dBFS")
                             }
                             v.stage == MeasureStage.SAVED -> AtIcon(if (allGood) Ic.DONE else Ic.ALERT, accent, size = 56.dp)
@@ -223,7 +223,7 @@ private fun SignalMeter(level: Float, active: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row {
             Text("Signal", style = MaterialTheme.typography.labelLarge, color = At.c.muted, modifier = Modifier.weight(1f))
-            Text(if (active) "%.0f dBFS".format(level) else "–", style = MaterialTheme.typography.labelLarge, fontFamily = PlexMono)
+            Text(if (active) "%.0f dBFS".format(level) else "–", style = MaterialTheme.typography.labelLarge, fontFamily = AtFigures)
         }
         Canvas(Modifier.fillMaxWidth().height(8.dp)) {
             val w = size.width

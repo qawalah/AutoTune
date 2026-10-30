@@ -16,6 +16,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
@@ -29,8 +30,8 @@ import dev.autotune.R
 import dev.autotune.ThemeMode
 
 /**
- * AutoTune's palette. Amber is what the user acts on (their EQ, the primary action). Cool colours are measurements,
- * grey-blue is the stock reference.
+ * AutoTune's palette. [signal] is what the user acts on (their EQ, the primary action). [runs] are the measured runs,
+ * index 0 the stock reference. [shell] is the navigation band and the header strip of a run sheet.
  */
 @Immutable
 class AtColors(
@@ -50,6 +51,9 @@ class AtColors(
     val runs: List<Color>,
     /** How the EQ sliders are drawn in this look. */
     val slider: SliderStyle = SliderStyle.ROUND,
+    val shell: Color = panel,
+    val onShell: Color = text,
+    val onShellMuted: Color = muted,
 )
 
 /** Slider looks: a round knob on a line, a mixing-desk fader cap, or a column of LEDs. */
@@ -57,15 +61,49 @@ enum class SliderStyle { ROUND, FADER, LED }
 
 /** The app's looks, each with a dark and a light version (Light / Dark / System picks between them). */
 enum class Look(val title: String, val detail: String) {
-    STUDIO("Studio", "Amber on graphite, the original"),
+    DYNO("Dyno sheet", "Chart paper, shop green and marker orange, the default"),
+    STUDIO("Studio", "Amber on graphite"),
     CONSOLE("Mixing console", "Charcoal desk, white fader caps, green signal LEDs"),
     HIFI("Hi-fi blue meters", "Black glass with blue meter glow and LED sliders"),
     VU("Analog VU", "Warm cream meter face with a red needle"),
     SYNTH("Synthwave", "Deep purple with magenta and cyan"),
     ;
 
-    companion object { fun of(name: String?) = entries.firstOrNull { it.name == name } ?: STUDIO }
+    /** Wallpaper colours replace a look's own colours, so only the two plain looks offer them. */
+    val allowsWallpaper: Boolean get() = this == DYNO || this == STUDIO
+
+    companion object { fun of(name: String?) = entries.firstOrNull { it.name == name } ?: DYNO }
 }
+
+// A dyno run sheet. By day, chart paper with a fine green grid; by night, graphite with the grid dimmed. Marker orange
+// is the tune, plotter pens are the runs, the stock is grey ink (drawn dashed), shop green carries the navigation.
+private val DynoLight = AtColors(
+    dark = false,
+    bg = Color(0xFFECEFE8), panel = Color(0xFFF9FAF6), panelHigh = Color(0xFFE3E8DF), line = Color(0xFFC6D2C3),
+    text = Color(0xFF141B16), muted = Color(0xFF515E55),
+    signal = Color(0xFFC23E0A), onSignal = Color(0xFFFFFFFF),
+    good = Color(0xFF17784A), warn = Color(0xFF855600), bad = Color(0xFFB0123F),
+    target = Color(0xFF141B16),
+    runs = listOf(
+        Color(0xFF4A524D), Color(0xFF1C5FC4), Color(0xFF7A3DC2), Color(0xFF0B8794),
+        Color(0xFFB0198F), Color(0xFF8A5A2B), Color(0xFF2E3F9E), Color(0xFF657300),
+    ),
+    shell = Color(0xFF173A2B), onShell = Color(0xFFF1F6F0), onShellMuted = Color(0xFFA9C4B3),
+)
+
+private val DynoDark = AtColors(
+    dark = true,
+    bg = Color(0xFF0F1311), panel = Color(0xFF161C18), panelHigh = Color(0xFF1F2722), line = Color(0xFF2B3730),
+    text = Color(0xFFE6ECE6), muted = Color(0xFF97A79C),
+    signal = Color(0xFFFF8A4C), onSignal = Color(0xFF1C0B02),
+    good = Color(0xFF4CD08E), warn = Color(0xFFE8C55A), bad = Color(0xFFFF6685),
+    target = Color(0xFFE6ECE6),
+    runs = listOf(
+        Color(0xFFA3ADA6), Color(0xFF6EA8FF), Color(0xFFB892FF), Color(0xFF3FD0DC),
+        Color(0xFFF07AD8), Color(0xFFD9A066), Color(0xFF9AA6FF), Color(0xFFC2D152),
+    ),
+    shell = Color(0xFF1B4532), onShell = Color(0xFFE9F3EC), onShellMuted = Color(0xFFA6C5B2),
+)
 
 private val DarkAt = AtColors(
     dark = true,
@@ -107,6 +145,7 @@ private fun look(
 
 /** The colours of [l] in its dark or light version. Run colours stay far from each look's accent. */
 fun lookColors(l: Look, dark: Boolean): AtColors = when (l) {
+    Look.DYNO -> if (dark) DynoDark else DynoLight
     Look.STUDIO -> if (dark) DarkAt else LightAt
     Look.CONSOLE -> if (dark) look(
         true, 0xFF121214, 0xFF1B1B1F, 0xFF26262C, 0xFF35353D, 0xFFEDEDF0, 0xFF9C9CA6, 0xFF3EE07A, 0xFF04220F,
@@ -138,7 +177,7 @@ fun lookColors(l: Look, dark: Boolean): AtColors = when (l) {
     )
 }
 
-val LocalAt = staticCompositionLocalOf { DarkAt }
+val LocalAt = staticCompositionLocalOf { DynoDark }
 
 object At {
     val c: AtColors @Composable get() = LocalAt.current
@@ -148,52 +187,55 @@ object At {
 @Composable
 fun runColor(idx: Int): Color = LocalAt.current.runs[idx.coerceAtLeast(0) % LocalAt.current.runs.size]
 
-val PlexSans = FontFamily(
-    Font(R.font.plex_sans_regular, FontWeight.Normal),
-    Font(R.font.plex_sans_medium, FontWeight.Medium),
-    Font(R.font.plex_sans_semibold, FontWeight.SemiBold),
-    Font(R.font.plex_sans_semibold, FontWeight.Bold),
+/** Interface text. Barlow's letterforms come from California licence plates and highway signs. */
+val AtSans = FontFamily(
+    Font(R.font.barlow_regular, FontWeight.Normal),
+    Font(R.font.barlow_medium, FontWeight.Medium),
+    Font(R.font.barlow_semibold, FontWeight.SemiBold),
+    Font(R.font.barlow_semibold, FontWeight.Bold),
 )
 
-/** Only for readings: frequencies, levels, scores. */
-val PlexMono = FontFamily(
-    Font(R.font.plex_mono_regular, FontWeight.Normal),
-    Font(R.font.plex_mono_medium, FontWeight.Medium),
-    Font(R.font.plex_mono_medium, FontWeight.SemiBold),
-    Font(R.font.plex_mono_medium, FontWeight.Bold),
+/** Readings and headings: the condensed cut, like the figures printed on a dyno sheet. */
+val AtFigures = FontFamily(
+    Font(R.font.barlow_condensed_medium, FontWeight.Normal),
+    Font(R.font.barlow_condensed_medium, FontWeight.Medium),
+    Font(R.font.barlow_condensed_semibold, FontWeight.SemiBold),
+    Font(R.font.barlow_condensed_semibold, FontWeight.Bold),
 )
 
-private fun t(size: Int, line: Int, weight: FontWeight, family: FontFamily = PlexSans, tracking: Double = 0.0) =
-    TextStyle(fontFamily = family, fontSize = size.sp, lineHeight = line.sp, fontWeight = weight, letterSpacing = tracking.sp)
+// tabular figures everywhere, so readings line up in columns and never jitter while they update
+private fun t(size: Int, line: Int, weight: FontWeight, family: FontFamily = AtSans, tracking: Double = 0.0) =
+    TextStyle(fontFamily = family, fontSize = size.sp, lineHeight = line.sp, fontWeight = weight, letterSpacing = tracking.sp, fontFeatureSettings = "tnum")
 
 private val AtTypography = Typography(
-    displayLarge = t(48, 52, FontWeight.Medium, PlexMono, -1.0),
-    displayMedium = t(36, 40, FontWeight.Medium, PlexMono, -0.5),
-    displaySmall = t(28, 34, FontWeight.Medium, PlexMono),
-    headlineLarge = t(30, 36, FontWeight.SemiBold, tracking = -0.3),
-    headlineMedium = t(24, 30, FontWeight.SemiBold, tracking = -0.2),
-    headlineSmall = t(21, 28, FontWeight.SemiBold, tracking = -0.1),
-    titleLarge = t(19, 26, FontWeight.SemiBold),
-    titleMedium = t(16, 22, FontWeight.SemiBold),
-    titleSmall = t(14, 20, FontWeight.Medium),
-    bodyLarge = t(16, 24, FontWeight.Normal),
-    bodyMedium = t(14, 21, FontWeight.Normal),
-    bodySmall = t(13, 19, FontWeight.Normal),
-    labelLarge = t(14, 20, FontWeight.Medium),
-    labelMedium = t(13, 18, FontWeight.Medium),
-    labelSmall = t(12, 16, FontWeight.Medium),
+    displayLarge = t(54, 58, FontWeight.Medium, AtFigures, -0.5),
+    displayMedium = t(42, 46, FontWeight.Medium, AtFigures, -0.3),
+    displaySmall = t(32, 38, FontWeight.Medium, AtFigures),
+    headlineLarge = t(32, 38, FontWeight.SemiBold, AtFigures, -0.2),
+    headlineMedium = t(29, 34, FontWeight.SemiBold, AtFigures, -0.2),
+    headlineSmall = t(24, 30, FontWeight.SemiBold, AtFigures),
+    titleLarge = t(20, 26, FontWeight.SemiBold),
+    titleMedium = t(17, 23, FontWeight.SemiBold),
+    titleSmall = t(15, 21, FontWeight.Medium),
+    bodyLarge = t(17, 25, FontWeight.Normal),
+    bodyMedium = t(15, 22, FontWeight.Normal),
+    bodySmall = t(14, 20, FontWeight.Normal),
+    labelLarge = t(15, 20, FontWeight.Medium),
+    labelMedium = t(14, 18, FontWeight.Medium),
+    labelSmall = t(13, 16, FontWeight.Medium),
 )
 
+// sheets, not cards: nearly square corners
 private val AtShapes = Shapes(
-    extraSmall = RoundedCornerShape(6.dp),
-    small = RoundedCornerShape(10.dp),
-    medium = RoundedCornerShape(14.dp),
-    large = RoundedCornerShape(16.dp),
-    extraLarge = RoundedCornerShape(28.dp),
+    extraSmall = RoundedCornerShape(3.dp),
+    small = RoundedCornerShape(5.dp),
+    medium = RoundedCornerShape(6.dp),
+    large = RoundedCornerShape(8.dp),
+    extraLarge = RoundedCornerShape(16.dp),
 )
 
 @Composable
-fun AutoTuneTheme(mode: ThemeMode, dynamic: Boolean, lookChoice: Look = Look.STUDIO, content: @Composable () -> Unit) {
+fun AutoTuneTheme(mode: ThemeMode, dynamic: Boolean, lookChoice: Look = Look.DYNO, content: @Composable () -> Unit) {
     val dark = when (mode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false
@@ -234,7 +276,8 @@ fun AutoTuneTheme(mode: ThemeMode, dynamic: Boolean, lookChoice: Look = Look.STU
         (view.context as? Activity)?.window?.let {
             val c = WindowCompat.getInsetsController(it, view)
             c.isAppearanceLightStatusBars = !dark
-            c.isAppearanceLightNavigationBars = !dark
+            // the navigation band sits behind the system bar, so its icons follow the band, not the page
+            c.isAppearanceLightNavigationBars = at.shell.luminance() > 0.5f
         }
     }
     androidx.compose.runtime.CompositionLocalProvider(LocalAt provides at) {

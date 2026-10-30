@@ -46,13 +46,23 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import dev.autotune.TuneViewModel
 
+/**
+ * Where [go] can take the user. The first three are the tabs of the navigation bar; Live and Export open as pages over
+ * the tab you are on, so Back returns there.
+ */
 enum class Tab(val title: String, val icon: Ic) {
     TESTS("Tests", Ic.TESTS),
     MEASURE("Tune", Ic.TUNE),
     EQ("EQ", Ic.EQ),
     LIVE("Live", Ic.LIVE),
     EXPORT("Export", Ic.EXPORT),
+    ;
+
+    val isPage: Boolean get() = this == LIVE || this == EXPORT
 }
+
+/** Pages opened over a tab, newest last. Back closes the newest. */
+private enum class Page { RESULTS, LIVE, EXPORT }
 
 /** The system pickers and permission prompts, launched from any tab. */
 class Pickers(
@@ -81,18 +91,26 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     val pin = androidx.compose.runtime.remember { PinSlot() }
     var tabIdx by rememberSaveable { mutableIntStateOf(Tab.TESTS.ordinal) }
     var overlay by rememberSaveable { mutableIntStateOf(OVERLAY_NONE) }
-    var detail by rememberSaveable { mutableStateOf(false) }
+    // pages over the tab, as ordinals (saveable), newest last
+    var pages by rememberSaveable { mutableStateOf(listOf<Int>()) }
     val tab = Tab.entries[tabIdx]
+    val page = pages.lastOrNull()?.let { Page.entries[it] }
+    // each tab and page keeps its own place, so Back lands where you left it
+    val scrolls = androidx.compose.runtime.remember { mutableMapOf<String, androidx.compose.foundation.ScrollState>() }
+    val scrollFor: (String) -> androidx.compose.foundation.ScrollState = { k -> scrolls.getOrPut(k) { androidx.compose.foundation.ScrollState(0) } }
+    // a page opens at its top; the tab under it keeps its place
+    val open: (Page) -> Unit = { p -> scrolls.remove(p.name); pages = pages.filter { it != p.ordinal } + p.ordinal }
+    val back: () -> Unit = { pages = pages.dropLast(1) }
 
     LaunchedEffect(Unit) {
         LaunchRequest.tab.collect { t ->
-            if (t != null) { tabIdx = if (t == "eq") Tab.EQ.ordinal else Tab.MEASURE.ordinal; overlay = OVERLAY_NONE; LaunchRequest.tab.value = null }
+            if (t != null) { tabIdx = if (t == "eq") Tab.EQ.ordinal else Tab.MEASURE.ordinal; pages = emptyList(); overlay = OVERLAY_NONE; LaunchRequest.tab.value = null }
         }
     }
     // a finished measurement stays in the Tune workflow, which shows the result itself
     LaunchedEffect(Unit) { vm.fileToShare.collect { sharer.files(it.files, it.mime, it.title) } }
-    // Leaving a tab stops any sound it started and drops its messages.
-    LaunchedEffect(tabIdx) { vm.onTabChanged() }
+    // Leaving a tab or a page stops any sound it started and drops its messages.
+    LaunchedEffect(tabIdx, page) { vm.onTabChanged() }
 
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { vm.setPermission(it) }
     val calPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(vm::importCalibration) }
@@ -110,14 +128,25 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
         bluetooth = { if (Build.VERSION.SDK_INT >= 31) btPerm.launch(Manifest.permission.BLUETOOTH_CONNECT) else vm.refreshBluetooth() },
         exportFolder = { folderPicker.launch(null) },
     )
-    val go: (Tab) -> Unit = { tabIdx = it.ordinal; overlay = OVERLAY_NONE }
+    // a tab replaces whatever was open over it; Live and Export open as pages over the current tab
+    val go: (Tab) -> Unit = { t ->
+        overlay = OVERLAY_NONE
+        when (t) {
+            Tab.LIVE -> open(Page.LIVE)
+            Tab.EXPORT -> open(Page.EXPORT)
+            else -> { tabIdx = t.ordinal; pages = emptyList() }
+        }
+    }
+    // the results of the open test, over the tab you are on
+    val openResults: () -> Unit = { overlay = OVERLAY_NONE; open(Page.RESULTS) }
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
     BackHandler(overlay != OVERLAY_NONE) { overlay = OVERLAY_NONE }
-    BackHandler(overlay == OVERLAY_NONE && tab == Tab.TESTS && detail) { detail = false }
-    BackHandler(overlay == OVERLAY_NONE && tab != Tab.TESTS) { tabIdx = Tab.TESTS.ordinal }
+    BackHandler(overlay == OVERLAY_NONE && page == null && tab != Tab.TESTS) { tabIdx = Tab.TESTS.ordinal }
     // inside the Tune workflow, Back goes to the previous screen of the workflow, not to another tab
-    BackHandler(overlay == OVERLAY_NONE && tab == Tab.MEASURE && s.tuneStep != dev.autotune.TuneStep.HOME && !s.busy) { vm.tuneBack() }
+    BackHandler(overlay == OVERLAY_NONE && page == null && tab == Tab.MEASURE && s.tuneStep != dev.autotune.TuneStep.HOME && !s.busy) { vm.tuneBack() }
+    // a page always goes back to where it was opened from
+    BackHandler(overlay == OVERLAY_NONE && page != null) { back() }
     BackHandler(ai.open) { vm.aiClose() }
     // registered last so it wins while the measuring screen is up
     // Back on the measuring screen: stop a running measurement, otherwise close the screen
@@ -134,8 +163,8 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                         Column {
                             // the screen's main action, always in reach
                             pin.action?.let { a -> if (!s.busy) BigActionBar(a) }
-                            // a measurement keeps running when you leave the Measure tab
-                            if (s.busy && tab != Tab.MEASURE) {
+                            // a measurement keeps running when you leave the Tune tab
+                            if (s.busy && (tab != Tab.MEASURE || page != null)) {
                                 Row(
                                     Modifier.fillMaxWidth().background(At.c.panelHigh).clickable { go(Tab.MEASURE) }.padding(horizontal = 16.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -147,12 +176,14 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                                 if (p != null) LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth(), color = At.c.signal, trackColor = At.c.line)
                                 else LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = At.c.signal, trackColor = At.c.line)
                             }
-                            AtNavBar(tab) { t -> if (t == tab && t == Tab.TESTS) detail = false; tabIdx = t.ordinal }
+                            // a page is a step away from its tab: the tabs come back with Back
+                            if (page == null) AtNavBar(tab) { t -> go(t) }
+                            else Box(Modifier.fillMaxWidth().background(At.c.bg).navigationBarsPadding())
                         }
                     }
                 },
                 floatingActionButton = {
-                    if (tab == Tab.TESTS && !detail && overlay == OVERLAY_NONE && !keyboardOpen) {
+                    if (tab == Tab.TESTS && page == null && overlay == OVERLAY_NONE && !keyboardOpen) {
                         ExtendedFloatingActionButton(
                             onClick = { vm.tuneStart(); go(Tab.MEASURE) },
                             containerColor = At.c.signal, contentColor = At.c.onSignal,
@@ -163,16 +194,24 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                 },
             ) { pad ->
                 Column(
-                    Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState(), enabled = true)
+                    Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(scrollFor(page?.name ?: tab.name), enabled = true)
                         .padding(horizontal = 16.dp).padding(bottom = 96.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    when (tab) {
-                        Tab.TESTS -> TestsTab(s, vm, detail, { detail = it }, go) { overlay = OVERLAY_SETUP }
-                        Tab.MEASURE -> TuneTab(s, vm, sharer, go, { detail = true; tabIdx = Tab.TESTS.ordinal }, pick)
+                    if (page != null) {
+                        androidx.compose.runtime.CompositionLocalProvider(LocalBack provides back) {
+                            when (page) {
+                                Page.RESULTS -> ResultsPage(s, vm, back, go)
+                                Page.LIVE -> LiveTab(s, live, level, vm, pick, go)
+                                Page.EXPORT -> ExportTab(s, vm, go)
+                            }
+                        }
+                    } else when (tab) {
+                        Tab.TESTS -> TestsTab(s, vm, { id -> vm.openTest(id); openResults() })
+                        Tab.MEASURE -> TuneTab(s, vm, sharer, go, openResults, pick)
                         Tab.EQ -> EqTab(s, vm, go, pick)
-                        Tab.LIVE -> LiveTab(s, live, level, vm, pick, go)
-                        Tab.EXPORT -> ExportTab(s, vm, go)
+                        // Live and Export always open as pages
+                        Tab.LIVE, Tab.EXPORT -> Unit
                     }
                 }
             }
@@ -206,20 +245,21 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
 
 @Composable
 fun AtNavBar(tab: Tab, onSelect: (Tab) -> Unit) {
-    // three destinations, centred; Live, Export and Settings live in the menu
-    Box(Modifier.fillMaxWidth().background(At.c.panel), contentAlignment = Alignment.Center) {
-        NavigationBar(Modifier.widthIn(max = 360.dp), containerColor = androidx.compose.ui.graphics.Color.Transparent, contentColor = At.c.text) {
-            Tab.entries.filter { it != Tab.LIVE && it != Tab.EXPORT }.forEach { t ->
+    // the shell band: three destinations, centred; Live, Export and Settings live in the menu
+    val c = At.c
+    Box(Modifier.fillMaxWidth().background(c.shell), contentAlignment = Alignment.Center) {
+        NavigationBar(Modifier.widthIn(max = 360.dp), containerColor = androidx.compose.ui.graphics.Color.Transparent, contentColor = c.onShell) {
+            Tab.entries.filter { !it.isPage }.forEach { t ->
                 val here = t == tab
                 NavigationBarItem(
                     selected = here,
                     onClick = { onSelect(t) },
-                    icon = { AtIcon(t.icon, if (here) At.c.signal else At.c.muted) },
-                    label = { Text(t.title, style = MaterialTheme.typography.labelSmall) },
+                    icon = { AtIcon(t.icon, if (here) c.onShell else c.onShellMuted) },
+                    label = { Text(t.title, style = MaterialTheme.typography.labelMedium) },
                     alwaysShowLabel = true,
                     colors = NavigationBarItemDefaults.colors(
-                        selectedTextColor = At.c.signal, unselectedTextColor = At.c.muted,
-                        indicatorColor = androidx.compose.ui.graphics.lerp(At.c.panel, At.c.signal, if (At.c.dark) 0.22f else 0.18f),
+                        selectedTextColor = c.onShell, unselectedTextColor = c.onShellMuted,
+                        indicatorColor = androidx.compose.ui.graphics.lerp(c.shell, c.onShell, 0.16f),
                     ),
                 )
             }

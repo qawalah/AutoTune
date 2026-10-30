@@ -4,6 +4,16 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [1.19.0] - 2026-10-30
+### Changed
+- New look, Dyno sheet, now the default: every result reads like a dyno run sheet. Chart-paper ground with a fine grid (graphite at night), a shop-green navigation band, marker orange for what you act on (your EQ, the main button, the Tune disc) and plotter-pen colours for the runs. The other looks (Studio, Mixing console, Hi-fi blue meters, Analog VU, Synthwave) stay in Settings > Appearance; a look you picked before is kept.
+- Type is Barlow (text) and Barlow Condensed (readings and headings), with tabular figures so readings line up and don't jitter while they update. It replaces IBM Plex.
+- Results open with a run sheet: a header strip naming the test and run, then the readings in ruled cells (stock, latest, best so far or the change from stock), the target, the warnings and the next move.
+- The response graph is drawn on chart paper (minor lines at every step, heavier ones at each decade and every 10 dB), and the stock reading is the dashed baseline under the runs. The key draws each curve's stroke, dashed or solid, instead of a dot.
+- Back always returns to where you were: a test's results, Live spectrum and Export open as pages over the tab you came from, with a back arrow, instead of switching tabs. Each tab keeps its scroll position.
+- One tap on a test in the list opens its results; Continue tuning is pinned there and Delete is under Manage test (replaces the inline actions from 1.17.0).
+- The Tune step header is one row: Back, the step's name with "Step n of 7 · Next: …" under it, and Exit, over a slim progress bar.
+
 ## [1.18.0] - 2026-10-17
 ### Added
 - Preamp setting on the EQ tab: Safe (lowers everything by the biggest boost, never clips), Balanced (half the boost, the limiter catches the rare peak), Off (full level, limiter only) and Manual with a slider (-15 to 0 dB). The preamp in use is shown, with a reminder that turning the volume up is the normal fix for a quieter EQ.
