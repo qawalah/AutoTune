@@ -21,3 +21,12 @@ Status: planned only. Part of the card-style overhaul above; do not start until 
 - Follow the owner's design language from the shared DevStore repo where it applies. That repo is not attached to this session, so it must be added (or its design notes pasted) before this starts.
 - Constraints still hold: the UI rules in `CLAUDE.md`, the look in `DESIGN.md`, and no change to `applicationId`.
 - When executed: update `DESIGN.md` (motion section), add a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
+
+## UI overhaul: five-tab navigation bar (asked 2026-11-04, HOLD until the owner says "execute")
+Status: planned only. Part of the UI overhaul above; do not start until told to execute.
+- Today the bar has 3 tabs (Tests, Tune, EQ); Live and Export open as pages over the current tab (`Tab` and `Page` in `ui/AutoTuneScreen.kt`).
+- Change to 5 tabs, with **Tune in the centre**: Tests, EQ, **Tune**, Live, Settings (suggested order; the owner only fixed Tune in the centre, plus a Live tab and a Settings tab).
+- Live becomes a real tab instead of a page. Settings becomes a tab that gathers the settings now spread around the app.
+- Open points to settle with the owner: where Export goes (a page opened from Tests or a test's results, or inside Settings), the exact order of the other four tabs, and which settings move into the Settings tab.
+- Keep: Back from a non-start tab returns to the start tab; the Tune workflow's own Back steps; each tab keeps its scroll place; widgets that open a tab (`LaunchRequest`) still land correctly; the rule that detail screens stay pages, not tabs.
+- When executed: update the `Tab` enum and nav bar, tests for any changed navigation logic, `DESIGN.md`, a `CHANGELOG.md` entry, and the version bump.
