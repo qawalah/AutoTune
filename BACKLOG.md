@@ -13,3 +13,11 @@ Status: planned only. Do not start until told to execute.
 - Keep the existing UI rules: drop-downs for choices, `Ic` line icons, Barlow / Barlow Condensed, tabular figures, run sheet and chart paper, pages over the current tab, minimal scrolling and taps.
 - Open points to settle with the owner before building: which screens go first, card elevation vs outline, and how this fits the "dyno sheet" look in `DESIGN.md`.
 - When executed: add a shared card component in `ui/Kit.kt`, update `DESIGN.md`, add a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
+
+## UI overhaul: visual skills, transitions and animations (asked 2026-11-04, HOLD until the owner says "execute")
+Status: planned only. Part of the card-style overhaul above; do not start until told to execute.
+- Use the visual design skills (`impeccable`, plus the other design skills available) to review and polish the whole app: hierarchy, spacing, typography, colour, motion and states.
+- Add transitions and animations: page open and Back (`Page` in `ui/AutoTuneScreen.kt`), card appear and expand, `PinAction` changes, graph and reading updates, and loading and measuring states. Keep them short and subtle, and respect the system "remove animations" setting.
+- Follow the owner's design language from the shared DevStore repo where it applies. That repo is not attached to this session, so it must be added (or its design notes pasted) before this starts.
+- Constraints still hold: the UI rules in `CLAUDE.md`, the look in `DESIGN.md`, and no change to `applicationId`.
+- When executed: update `DESIGN.md` (motion section), add a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
