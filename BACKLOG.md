@@ -39,5 +39,6 @@ Status: planned only. Part of the UI overhaul above; do not start until told to 
   - Advanced: today's fuller wording and the extra controls and explanations.
 - Suggested treatment of that step: Simple keeps "Run 1", the mic status dot with a short label, the "Plays through" drop-down and the main button. Advanced adds the loudness note, "Test sound" and "Check the level".
 - Fix on the same screen: the long step title ("Verify: Measure with the EQ") wraps and its first line is clipped under the status bar. Shorten the titles or let the header grow.
-- Open points to settle with the owner: Simple as the default or Advanced; whether the choice is global or per screen; and where the switch sits on pages (Live, results) that have no top bar action today.
+- Decided by the owner (2026-11-04): **Simple is the default**, and the choice applies to the **whole app**, not per screen.
+- Open point: where the switch sits on pages (Live, results) that have no top bar action today.
 - When executed: store the choice in settings, keep strings in one place so both wordings are easy to edit, add tests for any logic, update `DESIGN.md`, add a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
