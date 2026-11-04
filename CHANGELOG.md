@@ -4,6 +4,11 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [1.20.0] - 2026-11-05
+### Changed
+- Closer EQ suggestions: after placing its filters one at a time, the fitter now fine-tunes all of them together (gain, Q and frequency), as REW does. Overlapping filters no longer overshoot each other. On the simulated room the error left after EQ fell from 0.48 to 0.30 dB, and on the phone's system EQ from 1.04 to 0.77 dB. All limits stay: 3 dB per boost, the boost floor, the system EQ's Q limits, and the half-step fit.
+- Cuts above 1 kHz now get gradually wider towards 10 kHz (Q up to 4 at 1 kHz, 3 at 10 kHz, as in REW), and a boost is never narrow enough to ring for more than half a second.
+
 ## [1.19.0] - 2026-10-30
 ### Changed
 - New look, Dyno sheet, now the default: every result reads like a dyno run sheet. Chart-paper ground with a fine grid (graphite at night), a shop-green navigation band, marker orange for what you act on (your EQ, the main button, the Tune disc) and plotter-pen colours for the runs. The other looks (Studio, Mixing console, Hi-fi blue meters, Analog VU, Synthwave) stay in Settings > Appearance; a look you picked before is kept.

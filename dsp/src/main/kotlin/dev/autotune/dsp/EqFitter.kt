@@ -1,9 +1,14 @@
 package dev.autotune.dsp
 
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.ln
+import kotlin.math.log10
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
+import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.math.sinh
 
@@ -119,7 +124,36 @@ data class FitConfig(
     val maxCutQHigh: Double = 4.0,
     /** No boosts below this frequency (the speakers were measured not to follow boosts down there). 0 = no floor. */
     val boostMinHz: Double = 0.0,
-)
+    /** After placing the filters, adjust all of them together (REW's "optimise gains, Qs and frequencies"). */
+    val refine: Boolean = true,
+    /**
+     * Below [smoothAboveHz] cuts follow REW's variable smoothing (finer in the bass, where room modes are narrow).
+     * Off by default: on the simulated car comb and the moving-mic loop it fitted worse than the fixed 1/6 octave.
+     */
+    val variableSmoothing: Boolean = false,
+    /** Longest 60 dB ring a boost may add, in seconds (REW holds boosts to about half a second). */
+    val maxBoostRingS: Double = 0.5,
+    /** Highest cut Q at 10 kHz: from 1 kHz the cap slides from [maxCutQHigh] down to this (REW: 3 at 10 kHz). */
+    val maxCutQTop: Double = 3.0,
+) {
+    /** Highest Q a cut at [f] may use. */
+    fun cutQCap(f: Double): Double {
+        if (f < 1000.0) return maxCutQ
+        val hi = min(maxCutQ, maxCutQHigh)
+        val top = min(hi, maxCutQTop)
+        return hi * (top / hi).pow(log10(f / 1000.0).coerceIn(0.0, 1.0))
+    }
+
+    /**
+     * Highest Q a boost of [gainDb] at [f] may use: [maxBoostQ], and never so narrow that the boost itself rings longer
+     * than [maxBoostRingS]. A peaking boost's poles have a Q of about A*Q (A = 10^(gain/40)) and a resonance of that Q
+     * takes about 2.2*Q/f seconds to fall 60 dB.
+     */
+    fun boostQCap(f: Double, gainDb: Double): Double {
+        val a = 10.0.pow(abs(gainDb) / 40.0)
+        return min(maxBoostQ, maxBoostRingS * f / (2.2 * a))
+    }
+}
 
 class FitResult(
     val filters: List<EqFilter>,
@@ -165,7 +199,10 @@ object EqFitter {
         // Total response of the filters chosen so far. The per-filter limits alone let the fitter stack several +3 dB
         // boosts on the same dip (36 Hz three times = +9 dB), so the limits are applied to this running total.
         val acc = DoubleArray(grid.size)
-        val real = e.copyOf() // true remaining error (e has unfixable lobes zeroed so the search moves on)
+        val e0 = e.copyOf() // the error before any filter
+        // where the error still counts: lobes the search gives up on (below the boost floor, or at the limit already)
+        // are left out of the fine-tuning too, so it does not try to fix them another way
+        val weight = DoubleArray(grid.size) { 1.0 }
         var guard = 0
         while (out.size < cfg.maxFilters && guard++ < 200) {
             var bi = lo
@@ -177,7 +214,7 @@ object EqFitter {
             if (!cut && grid.freqs[bi] < cfg.boostMinHz) { // the speakers cannot play this: leave the dip alone
                 var l0 = bi; while (l0 > 0 && e[l0] < 0) l0--
                 var r0 = bi; while (r0 < grid.size - 1 && e[r0] < 0) r0++
-                for (i in l0..r0) e[i] = 0.0
+                for (i in l0..r0) { e[i] = 0.0; weight[i] = 0.0 }
                 continue
             }
             var gain = (-v * stepScale).coerceIn(-cfg.maxCutDb, cfg.maxBoostDb)
@@ -191,27 +228,141 @@ object EqFitter {
             var r = bi
             while (r < grid.size - 1 && e[r] * v > 0 && abs(e[r]) > half) r++
             if (abs(gain) < 0.3) { // limit already reached here: leave this lobe alone and look at the next one
-                for (i in l..r) e[i] = 0.0
+                for (i in l..r) { e[i] = 0.0; weight[i] = 0.0 }
                 continue
             }
             val bwOct = max((r - l).toDouble() / grid.ppo, 2.0 / grid.ppo)
+            val fc = grid.freqs[bi]
             val q = (1.0 / (2.0 * sinh(ln(2.0) / 2.0 * bwOct)))
-                .coerceIn(0.5, if (cut) (if (grid.freqs[bi] >= 1000.0) min(cfg.maxCutQ, cfg.maxCutQHigh) else cfg.maxCutQ) else cfg.maxBoostQ)
+                .coerceIn(0.5, max(0.5, if (cut) cfg.cutQCap(fc) else cfg.boostQCap(fc, gain)))
 
-            val f = EqFilter(grid.freqs[bi], gain, q)
+            val f = EqFilter(fc, gain, q)
             out += f
             for (i in e.indices) {
                 val m = f.magnitudeDb(grid.freqs[i])
-                e[i] += m; real[i] += m; acc[i] += m
+                e[i] += m; acc[i] += m
             }
         }
 
-        return FitResult(out.sortedBy { it.freqHz }, rmsBefore, rms(real, lo, hi), maxAbs(real, lo, hi), errCut)
+        // a deliberately partial step (stepScale < 1) is left as it is: fine-tuning would turn it back into a full one
+        val filters = if (cfg.refine && stepScale == 1.0 && out.isNotEmpty()) refine(out, e0, weight, grid, cfg, lo, hi) else out
+        val real = DoubleArray(grid.size) { i -> e0[i] + filters.sumOf { it.magnitudeDb(grid.freqs[i]) } }
+        return FitResult(filters.sortedBy { it.freqHz }, rmsBefore, rms(real, lo, hi), maxAbs(real, lo, hi), errCut)
+    }
+
+    /**
+     * Fine-tunes the filters together, as REW's "optimise gains, Qs and frequencies" does after it has placed them:
+     * the one-at-a-time search sets each filter against the error left by the ones before it, so overlapping filters
+     * overshoot. Small steps on every gain, Q and frequency are kept only when they lower the remaining error. Each
+     * filter keeps its direction (a cut stays a cut), its frequency stays within 10% of where it was placed (and inside
+     * the fit band, and above the boost floor), Q stays within the caps, and no step may push the running total
+     * further past the boost or cut limit than it already was. Lobes the search gave up on are not chased, and the
+     * error over the whole fit band never ends up higher than the search left it.
+     */
+    private fun refine(
+        start: List<EqFilter>, e0: DoubleArray, weight: DoubleArray, grid: FreqGrid, cfg: FitConfig, lo: Int, hi: Int,
+    ): List<EqFilter> {
+        val n = grid.size
+        val fs = 48000.0 // the rate magnitudeDb uses
+        val c1 = DoubleArray(n); val s1 = DoubleArray(n); val c2 = DoubleArray(n); val s2 = DoubleArray(n)
+        for (i in 0 until n) {
+            val w = 2.0 * PI * grid.freqs[i] / fs
+            c1[i] = cos(w); s1[i] = sin(w); c2[i] = cos(2 * w); s2[i] = sin(2 * w)
+        }
+        fun response(f: EqFilter): DoubleArray {
+            val c = f.coefficients(fs)
+            return DoubleArray(n) { i ->
+                val nr = c[0] + c[1] * c1[i] + c[2] * c2[i]
+                val ni = -(c[1] * s1[i] + c[2] * s2[i])
+                val dr = 1.0 + c[3] * c1[i] + c[4] * c2[i]
+                val di = -(c[3] * s1[i] + c[4] * s2[i])
+                10.0 * log10((nr * nr + ni * ni) / (dr * dr + di * di) + 1e-30)
+            }
+        }
+        fun cost(a: DoubleArray): Double {
+            var s = 0.0
+            for (i in lo..hi) { val d = e0[i] + a[i]; s += weight[i] * d * d }
+            return s
+        }
+        fun costAll(a: DoubleArray): Double {
+            var s = 0.0
+            for (i in lo..hi) { val d = e0[i] + a[i]; s += d * d }
+            return s
+        }
+        fun overLimits(a: DoubleArray): Double {
+            var s = 0.0
+            for (v in a) {
+                if (v > cfg.maxBoostDb) s += v - cfg.maxBoostDb
+                if (v < -cfg.maxCutDb) s += -cfg.maxCutDb - v
+            }
+            return s
+        }
+
+        val fLo = grid.freqs[lo]; val fHi = grid.freqs[hi]
+        fun legal(f: EqFilter, k: Int): EqFilter {
+            val cut = start[k].gainDb < 0
+            val home = start[k].freqHz
+            var fMin = max(home / 1.1, fLo)
+            if (!cut) fMin = max(fMin, min(cfg.boostMinHz, home))
+            val freq = f.freqHz.coerceIn(fMin, max(fMin, min(home * 1.1, fHi)))
+            val g = if (cut) f.gainDb.coerceIn(-cfg.maxCutDb, 0.0) else f.gainDb.coerceIn(0.0, cfg.maxBoostDb)
+            val cap = max(0.5, if (cut) cfg.cutQCap(freq) else cfg.boostQCap(freq, g))
+            return EqFilter(freq, g, f.q.coerceIn(0.5, cap))
+        }
+
+        val fl = start.mapIndexed { k, f -> legal(f, k) }.toMutableList()
+        val resp = fl.map { response(it) }.toMutableList()
+        val acc = DoubleArray(n)
+        for (r in resp) for (i in 0 until n) acc[i] += r[i]
+        var j = cost(acc)
+        var over = overLimits(acc)
+        val ceiling = costAll(acc) // the whole band's error may never end up above where the search left it
+        val trial = DoubleArray(n)
+
+        var stepDb = 0.5; var stepQ = 1.2; var stepF = 1.02
+        var sweeps = 0
+        while (sweeps++ < 60) {
+            var improved = false
+            for (k in fl.indices) {
+                for (move in 0 until 6) {
+                    val cur = fl[k]
+                    val raw = when (move) {
+                        0 -> cur.copy(gainDb = cur.gainDb + stepDb)
+                        1 -> cur.copy(gainDb = cur.gainDb - stepDb)
+                        2 -> cur.copy(q = cur.q * stepQ)
+                        3 -> cur.copy(q = cur.q / stepQ)
+                        4 -> cur.copy(freqHz = cur.freqHz * stepF)
+                        else -> cur.copy(freqHz = cur.freqHz / stepF)
+                    }
+                    val c = legal(raw, k)
+                    if (c == cur) continue
+                    val nr = response(c)
+                    val old = resp[k]
+                    for (i in 0 until n) trial[i] = acc[i] - old[i] + nr[i]
+                    val jt = cost(trial)
+                    val ot = overLimits(trial)
+                    if (ot <= over + 1e-9 && jt < j - 1e-9 && costAll(trial) <= ceiling + 1e-9) {
+                        fl[k] = c; resp[k] = nr
+                        System.arraycopy(trial, 0, acc, 0, n)
+                        j = jt; over = ot; improved = true
+                    }
+                }
+            }
+            if (!improved) {
+                stepDb /= 2.0; stepQ = sqrt(stepQ); stepF = sqrt(stepF)
+                if (stepDb < 0.05) break
+            }
+        }
+        return fl.filter { abs(it.gainDb) >= 0.2 }
     }
 
     private fun cutSmoothing(magDb: DoubleArray, grid: FreqGrid, cfg: FitConfig): DoubleArray {
-        val narrow = grid.smoothOctave(magDb, 6.0)
         val wide = grid.smoothOctave(magDb, 3.0)
+        val narrow = if (cfg.variableSmoothing) {
+            grid.smoothVariable(magDb) { f -> FreqGrid.variableFraction(f) }
+        } else {
+            grid.smoothOctave(magDb, 6.0)
+        }
         return DoubleArray(grid.size) { if (grid.freqs[it] < cfg.smoothAboveHz) narrow[it] else wide[it] }
     }
 

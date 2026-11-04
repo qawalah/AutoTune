@@ -34,4 +34,32 @@ class FreqGrid(
             10.0 * log10((prefix[hi + 1] - prefix[lo]) / (hi - lo + 1) + 1e-30)
         }
     }
+
+    /**
+     * Smoothing whose width changes with frequency (power average). [fractionAt] gives the octave fraction at each
+     * frequency, 6.0 meaning 1/6 octave.
+     */
+    fun smoothVariable(db: DoubleArray, fractionAt: (Double) -> Double): DoubleArray {
+        val prefix = DoubleArray(db.size + 1)
+        for (i in db.indices) prefix[i + 1] = prefix[i] + 10.0.pow(db[i] / 10.0)
+        return DoubleArray(db.size) { i ->
+            val half = (ppo / fractionAt(freqs[i]) / 2.0).roundToInt().coerceAtLeast(0)
+            val lo = (i - half).coerceAtLeast(0)
+            val hi = (i + half).coerceAtMost(db.size - 1)
+            10.0 * log10((prefix[hi + 1] - prefix[lo]) / (hi - lo + 1) + 1e-30)
+        }
+    }
+
+    companion object {
+        /**
+         * REW's "variable" smoothing, the one it recommends before fitting EQ: 1/48 octave below 100 Hz, 1/6 at 1 kHz,
+         * 1/3 above 10 kHz, changing smoothly in between. Returns the octave fraction at [f].
+         */
+        fun variableFraction(f: Double): Double = when {
+            f <= 100.0 -> 48.0
+            f <= 1000.0 -> 48.0 * (6.0 / 48.0).pow(log10(f / 100.0))
+            f <= 10000.0 -> 6.0 * (3.0 / 6.0).pow(log10(f / 1000.0))
+            else -> 3.0
+        }
+    }
 }
