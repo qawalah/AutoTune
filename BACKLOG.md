@@ -42,3 +42,11 @@ Status: planned only. Part of the UI overhaul above; do not start until told to 
 - Decided by the owner (2026-11-04): **Simple is the default**, and the choice applies to the **whole app**, not per screen.
 - Open point: where the switch sits on pages (Live, results) that have no top bar action today.
 - When executed: store the choice in settings, keep strings in one place so both wordings are easy to edit, add tests for any logic, update `DESIGN.md`, add a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
+
+## UI overhaul: simpler Tune step page, stacked actions (asked 2026-11-04, HOLD until the owner says "execute")
+Status: planned only. Part of the UI overhaul above; do not start until told to execute. Seen on the Verify step (step 6 of 7, same screenshot as the Simple / Advanced entry).
+- **Stack actions vertically.** The secondary actions ("Test sound", "Check the level", "Back to the EQ") sit side by side or inline today. Put them in one column under each other, one per row, same width and style.
+- **One default action.** The main button is the step's continue action ("Continue tuning" style wording, so the user always knows the next move in the Tune flow), with a short **"Suggested"** label above it, in line with the existing `PinAction` rule (one recommended action, then the other choices). Interpretation of the request: the label sits directly above the main button. Confirm with the owner.
+- **Simplify the page.** Drop or fold away the explainer lines, the mic note wording, and the loudness paragraph. These show in Advanced only (see the Simple / Advanced entry).
+- Order on the page: card with the step's key info and choices, then "Suggested" label, main button, then the stacked secondary actions.
+- When executed: update the shared step layout so every Tune step gets the same pattern, add tests for any logic, update `DESIGN.md`, add a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
