@@ -30,7 +30,7 @@ import dev.autotune.dsp.Target
 @Composable
 fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel, pick: Pickers, go: (Tab) -> Unit) {
     val ready = s.hasPermission
-    ScreenTitle("Live", "Real-time spectrum and level from the mic")
+    ScreenTitle("Live", "Spectrum and sound level")
 
     if (!ready) {
         Panel {
@@ -93,7 +93,7 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
         if (live != null && s.rtaRunning) RtaBars(live, target, height = 240.dp)
         else RtaBars(DoubleArray(target.size) { target[it] }, target, height = 240.dp, caption = false)
         if (!s.rtaRunning && s.status?.startsWith("RTA stopped") == true) Warning(s.status!!)
-        Muted("Bars level with the white ticks mean the system matches the target.")
+        Hint("Bars level with the white ticks mean the system matches the target.")
     }
 
     // ---- sound source
@@ -107,7 +107,7 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
                 listOf("Pink noise", "Sweep", "Off"), s.liveSignal.ordinal,
                 { vm.setLiveSignal(dev.autotune.LiveSignal.entries[it]) },
             )
-            Muted(if (s.rtaRunning) "Changes the sound right away." else "Starts when you press Start. The sweep repeats every 12 seconds.")
+            Hint(if (s.rtaRunning) "Changes the sound right away." else "Starts when you press Start. The sweep repeats every 12 seconds.")
             if (s.exportChain?.filters?.isNotEmpty() == true && !s.systemEqOn) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Play the noise through my EQ", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
@@ -118,7 +118,7 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
                 }
             }
         } else {
-            Muted("Keep sound playing on the other device. Our pink noise file works well.")
+            Hint("Keep sound playing on the other device. Our pink noise file works well.")
         }
         SecondaryButton("Open EQ", { go(Tab.EQ) }, icon = Ic.EQ)
     }

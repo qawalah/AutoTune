@@ -122,7 +122,7 @@ class StoreShots {
     }.snapshot(name) {
         AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, Look.DYNO) {
             androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
-                SetupScreen(s, AiUi(hasKey = true, keyMasked = "sk-ant-…a1F9", keyMessage = "The key works with Claude Sonnet."), vm, pick) {}
+                SettingsTab(s, AiUi(hasKey = true, keyMasked = "sk-ant-…a1F9", keyMessage = "The key works with Claude Sonnet."), vm, pick)
             }
         }
     }
@@ -207,7 +207,7 @@ class StoreShots {
     @Test fun w7_settings_defaults() = paparazzi.snapshot("w7_settings_defaults") {
         AutoTuneTheme(ThemeMode.DARK, false, Look.DYNO) {
             androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
-                SetupScreen(s.copy(defTarget = Target.HARMAN_CAR.name, defBassDb = 2.0, exportFolder = "Documents/AutoTune"), AiUi(), vm, pick) {}
+                SettingsTab(s.copy(defTarget = Target.HARMAN_CAR.name, defBassDb = 2.0, exportFolder = "Documents/AutoTune"), AiUi(), vm, pick)
             }
         }
     }
@@ -230,7 +230,7 @@ class StoreShots {
                     Column(Modifier.fillMaxSize().background(At.c.bg)) {
                         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 28.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) { content() }
                         slot.action?.let { BigActionBar(it) }
-                        AtNavBar(tab) {}
+                        AtNavBar(tab, busy = false) {}
                     }
                 }
             }

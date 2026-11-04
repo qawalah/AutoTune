@@ -42,30 +42,24 @@ import dev.autotune.ThemeMode
 import dev.autotune.TuneViewModel
 import dev.autotune.UiState
 
-@Composable
-private fun OverlayFrame(title: String, onClose: () -> Unit, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconAction(Ic.CLOSE, "Close", onClose)
-            Text(title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(start = 4.dp))
-        }
-        Column(
-            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) { content() }
-    }
-}
-
 // ------------------------------------------------------------------ setup
 
+/** The Settings tab: how much the app shows, the mic, defaults, the EQ, files, AI, diagnostics and the look. */
 @Composable
-fun SetupScreen(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pickers, onClose: () -> Unit) {
-    OverlayFrame("Setup", onClose) {
+fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pickers) {
+    run {
+        ScreenTitle("Settings")
+        Group("Show", divider = false, info = "Simple keeps each screen to the essentials and the main choices. Advanced adds the explanations, extra checks and every option. The switch at the top of each screen changes the same setting.") {
+            DropSelect(
+                listOf("Simple", "Advanced"), if (s.advanced) 1 else 0, { vm.setAdvanced(it == 1) }, label = "How much to show",
+                details = listOf("Less text, the main choices (default)", "Every option and explanation"),
+            )
+        }
         Group("Microphone", divider = false, info = "The calibration file removes the microphone's own frequency response from the measurement. For a UMIK-1 use the file for your serial number from miniDSP (a .txt file). Without it, results include the mic's own response (small for a UMIK-1, but not zero).") {
             StatusLine(true, if (s.phoneMic) "Phone microphone (plug in a USB mic for better accuracy)" else "USB microphone: ${s.micName}")
             StatusLine(s.hasPermission, if (s.hasPermission) "Microphone access allowed" else "Microphone access needed")
             StatusLine(s.calibrationName != null, if (s.calibrationName != null) "${s.calibrationName} (${s.calibrationInfo})" else "No calibration loaded")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Actions {
                 if (!s.hasPermission) SecondaryButton("Allow microphone", pick.permission, icon = Ic.MIC)
                 SecondaryButton(if (s.calibrationName == null) "Import calibration" else "Replace calibration", pick.calibration, icon = Ic.FILE)
                 if (s.calibrationName != null) TextAction("Remove", vm::removeCalibration, danger = true, icon = Ic.TRASH)
@@ -111,7 +105,7 @@ fun SetupScreen(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
 
         Group("Saved files", info = "Where Save puts the EQ files, the report and the measurements. Share always goes through the share sheet instead.") {
             StatusLine(true, "Saved to " + (s.exportFolder ?: "Downloads/AutoTune"))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Actions {
                 SecondaryButton(if (s.exportFolder == null) "Choose a folder" else "Choose another folder", pick.exportFolder, icon = Ic.FILE)
                 if (s.exportFolder != null) TextAction("Use Downloads", { vm.setExportFolder(null) }, icon = Ic.UNDO)
             }
@@ -129,7 +123,7 @@ fun SetupScreen(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
                     colors = SwitchDefaults.colors(checkedTrackColor = At.c.signal, checkedThumbColor = At.c.onSignal),
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Actions {
                 SecondaryButton("Send diagnostics", vm::shareDiagnostics, icon = Ic.DIAG)
                 TextAction("Clear", vm::clearDiagnostics, danger = true, icon = Ic.TRASH)
             }
@@ -172,7 +166,7 @@ fun SetupScreen(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
 
         Group("About") {
             Text("AutoTune ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures)
-            Muted("Measure, correct and re-measure car and home audio with a USB microphone. Nothing here is verified on every phone: the AutoTune EQ in particular depends on the phone and Android version, and Samsung's own sound settings can't be controlled by apps.")
+            Hint("Measure, correct and re-measure car and home audio with a USB microphone. Nothing here is verified on every phone: the AutoTune EQ in particular depends on the phone and Android version, and Samsung's own sound settings can't be controlled by apps.")
             Muted("Type set in Barlow, licensed under the SIL Open Font License 1.1.")
         }
     }

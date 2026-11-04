@@ -67,21 +67,22 @@ class ShotsTest {
         ),
     )
 
-    @Composable private fun Frame(dark: Boolean, look: Look = Look.DYNO, content: @Composable () -> Unit) {
+    @Composable private fun Frame(dark: Boolean, look: Look = Look.DYNO, adv: Boolean = false, nav: Tab? = Tab.MEASURE, content: @Composable () -> Unit) {
         AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, look) {
             val slot = androidx.compose.runtime.remember { PinSlot() }
-            androidx.compose.runtime.CompositionLocalProvider(LocalPin provides slot) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalPin provides slot, LocalViewMode provides ViewMode(adv) {}) {
                 androidx.compose.material3.Surface(color = At.c.bg, contentColor = At.c.text) {
                     Column(Modifier.fillMaxSize().background(At.c.bg)) {
                         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) { content() }
                         slot.action?.let { BigActionBar(it) }
+                        if (nav != null) AtNavBar(nav, busy = false) {}
                     }
                 }
             }
         }
     }
-    private fun shot(name: String, dark: Boolean = true, look: Look = Look.DYNO, content: @Composable () -> Unit) {
-        paparazzi.snapshot(name) { Frame(dark, look, content) }
+    private fun shot(name: String, dark: Boolean = true, look: Look = Look.DYNO, adv: Boolean = false, nav: Tab? = Tab.MEASURE, content: @Composable () -> Unit) {
+        paparazzi.snapshot(name) { Frame(dark, look, adv, nav, content) }
     }
     private fun tune(st: UiState) = @Composable { TuneTab(st, vm, sharer, {}, {}, pick) }
 
@@ -120,11 +121,7 @@ class ShotsTest {
         // long page: a taller canvas so Appearance and About are in the picture
         it.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenHeight = 6400))
     }.snapshot(name) {
-        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, Look.DYNO) {
-            androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
-                SetupScreen(s, AiUi(hasKey = true, keyMasked = "sk-ant-…a1F9", keyMessage = "The key works with Claude Sonnet."), vm, pick) {}
-            }
-        }
+        Frame(dark, nav = Tab.SETTINGS) { SettingsTab(s, AiUi(hasKey = true, keyMasked = "sk-ant-…a1F9", keyMessage = "The key works with Claude Sonnet."), vm, pick) }
     }
     @Test fun x1_settings() = settingsShot("x1_settings", dark = true)
     @Test fun x2_settings_light() = settingsShot("x2_settings_light", dark = false)
@@ -196,6 +193,12 @@ class ShotsTest {
     @Test fun w2_look_hifi() = shot("w2_look_hifi", look = Look.HIFI) { EqTab(s, vm, {}, pick) }
     @Test fun w3_look_vu() = shot("w3_look_vu", dark = false, look = Look.VU) { EqTab(s, vm, {}, pick) }
     @Test fun w4_look_synth() = shot("w4_look_synth", look = Look.SYNTH) { EqTab(s, vm, {}, pick) }
+    @Test fun t6b_verify_advanced() = shot("t6b_verify_advanced", adv = true) { tune(s.copy(tuneStep = TuneStep.VERIFY, applyWay = ApplyWay.IN_APP, positions = 1))() }
+    @Test fun t6c_verify_phone_mic() = shot("t6c_verify_phone_mic", look = Look.HIFI) { tune(s.copy(tuneStep = TuneStep.VERIFY, applyWay = ApplyWay.IN_APP, positions = 1, phoneMic = true, micName = null, calibrationName = null, outputName = "Phone speaker"))() }
+    @Test fun w6_look_navy() = shot("w6_look_navy", look = Look.NAVY) { tune(s.copy(tuneStep = TuneStep.HOME))() }
+    @Test fun w8_navy_light_result() = shot("w8_navy_light_result", dark = false, look = Look.NAVY) { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns.take(2), false), runs = runs3.take(2)))() }
+    @Test fun n1_tests_tab() = shot("n1_tests_tab", nav = Tab.TESTS) { TestsTab(s, vm, {}) }
+    @Test fun n2_live_tab() = shot("n2_live_tab", nav = Tab.LIVE) { LiveTab(s, null, null, vm, pick, {}) }
     @Test fun w5_result_pinned() = shot("w5_result_pinned", look = Look.CONSOLE) { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns.take(2), false), runs = runs3.take(2)))() }
     @Test fun w6_eq_check() = shot("w6_eq_check") {
         val g = grid
@@ -207,7 +210,7 @@ class ShotsTest {
     @Test fun w7_settings_defaults() = paparazzi.snapshot("w7_settings_defaults") {
         AutoTuneTheme(ThemeMode.DARK, false, Look.DYNO) {
             androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
-                SetupScreen(s.copy(defTarget = Target.HARMAN_CAR.name, defBassDb = 2.0, exportFolder = "Documents/AutoTune"), AiUi(), vm, pick) {}
+                SettingsTab(s.copy(defTarget = Target.HARMAN_CAR.name, defBassDb = 2.0, exportFolder = "Documents/AutoTune"), AiUi(), vm, pick)
             }
         }
     }

@@ -107,7 +107,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
             PowerToggle(s.systemEqOn, { if (it) pick.notifications(); vm.setSystemEq(it) }, "AutoTune EQ")
         }
         GroupedPick("EQ currently in use", s.eqChoices, s.eqPick, vm::selectEq, if (bandCount > 0) "Your own bands" else "No EQ yet: tune, or use the sliders below")
-        Muted("“Suggested EQ” entries are AutoTune's proposals from tuning; whatever is picked here is what plays. AutoTune EQ affects only this phone's audio, and how well it works depends on the phone.")
+        Hint("“Suggested EQ” entries are AutoTune's proposals from tuning; whatever is picked here is what plays. AutoTune EQ affects only this phone's audio, and how well it works depends on the phone.")
         if (s.sliderLayer.isNotEmpty()) Muted("Plus your slider changes.")
         s.systemEqMessage?.let { Muted(it) }
         FlavourAndPreamp(s, vm)
@@ -128,7 +128,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
     s.eqChart?.let { chart ->
         Panel {
             ResponseChart(chart, height = 200.dp, showTarget = s.showTargetEq, onToggleTarget = { vm.setShowTarget(false, !s.showTargetEq) })
-            if (s.runs.isNotEmpty()) Muted("The dotted line is a prediction from the last measurement plus this EQ. Measure to confirm.")
+            if (s.runs.isNotEmpty()) Hint("The dotted line is a prediction from the last measurement plus this EQ. Measure to confirm.")
         }
     }
 
@@ -177,7 +177,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
             vm.tuneGo(dev.autotune.TuneStep.VERIFY)
             go(Tab.MEASURE)
         }, enabled = bandCount > 0, icon = Ic.MEASURE)
-        Muted(
+        Hint(
             when {
                 s.systemEqOn -> "AutoTune EQ is on, so the next run is measured with it."
                 onEquipment -> "Set these bands on your equipment first, then measure."
@@ -193,7 +193,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
     // ---- saved EQs: picked above, renamed or deleted here
     if (s.profiles.isNotEmpty()) {
         Fold("Saved EQs", summary = "${s.profiles.size} saved · rename or delete") {
-            Muted("Pick which EQ is in use at the top of this page. Each test also keeps the EQ of every run.")
+            Hint("Pick which EQ is in use at the top of this page. Each test also keeps the EQ of every run.")
             s.profiles.sortedWith(compareBy<dev.autotune.EqProfile> { it.test.ifBlank { "~" } }.thenByDescending { it.created }).forEach { p ->
                 ProfileRow(p, active = p.id == s.activeProfileId, edited = false, vm = vm)
             }
@@ -233,15 +233,15 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
                         if (expanded == i) { expanded = -1; vm.editSort() } else { if (expanded >= 0) vm.editSort(); expanded = if (expanded >= 0) -1 else i }
                     }, vm = vm, onRemoved = { expanded = -1 })
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Actions {
                     SecondaryButton("Add band", { expanded = -1; vm.editAdd() }, icon = Ic.PLUS)
                     if (list.size > 1) SecondaryButton("Sort", { expanded = -1; vm.editSort() }, icon = Ic.TESTS)
                 }
             }
             // lossy on purpose, so it is an explicit action with the difference reported
             Text("Convert for a head unit", style = MaterialTheme.typography.titleSmall)
-            Muted("Head units and graphic EQs only have fixed bands. This replaces the tuned bands and sliders with peaking bands at those centres. It is lossy, and the difference is reported.")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Hint("Head units and graphic EQs only have fixed bands. This replaces the tuned bands and sliders with peaking bands at those centres. It is lossy, and the difference is reported.")
+            Actions {
                 GRAPHIC_SETS.forEach { (cs, q) ->
                     SecondaryButton("Convert to ${cs.size} bands", { expanded = -1; vm.convertToBands(cs, q) }, enabled = bandCount > 0, icon = Ic.EQ)
                 }
@@ -251,7 +251,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
 
         Fold("Try it", summary = "Listen with and without, measure, export") {
             Text("Listen: ${s.clipName}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Actions {
                 if (s.playing && s.playingWithEq) PrimaryButton("With EQ", { vm.playClip(true) }, icon = Ic.PLAY) else SecondaryButton("With EQ", { vm.playClip(true) }, enabled = !s.busy, icon = Ic.PLAY)
                 if (s.playing && !s.playingWithEq) PrimaryButton("Without", { vm.playClip(false) }, icon = Ic.PLAY) else SecondaryButton("Without", { vm.playClip(false) }, enabled = !s.busy, icon = Ic.PLAY)
                 if (s.playing) TextAction("Stop", vm::stopClip, icon = Ic.STOP)
@@ -414,7 +414,7 @@ fun AutomationSection(s: UiState, vm: TuneViewModel, pick: Pickers) {
                 "• Tasker, MacroDroid and similar apps can send the intent dev.autotune.action.APPLY_PROFILE with the extra profile set to the profile's name (or EQ_OFF to switch it off), or open the link autotune://profile/NAME.",
         )
     }
-    Muted("Routines can start a profile through AutoTune's shortcuts. Tap the i for how.")
+    Hint("Routines can start a profile through AutoTune's shortcuts. Tap the i for how.")
 }
 
 @Composable
@@ -505,7 +505,7 @@ fun BandTable(lines: List<BandLine>, preampDb: Double, compared: Boolean) {
             listOf("All ${lines.size}", "Changed $changedCount"), if (onlyChanged) 1 else 0,
             { onlyChanged = it == 1 },
         )
-        Muted("Rows with a tint and “was” changed since your last run.")
+        Hint("Rows with a tint and “was” changed since your last run.")
     }
 
     Column {

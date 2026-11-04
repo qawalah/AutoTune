@@ -481,3 +481,31 @@ fun suggestChecks(
     }
     return out
 }
+
+// ---------------------------------------------------------------- navigation (1.21)
+
+/** The bottom bar, start to end, with Tune (the main action) raised in the centre. Names of `ui.Tab`. */
+val NAV_ORDER = listOf("TESTS", "EQ", "MEASURE", "LIVE", "SETTINGS")
+
+/**
+ * Which way a change of tab slides: +1 when the new tab sits after the old one on the bar, -1 before it, 0 for the
+ * same tab or one not on the bar. Left and right therefore always mean something.
+ */
+fun navSlide(from: String, to: String): Int {
+    val a = NAV_ORDER.indexOf(from)
+    val b = NAV_ORDER.indexOf(to)
+    if (a < 0 || b < 0) return 0
+    return b.compareTo(a)
+}
+
+/** Which way the Tune workflow slides between two steps: forward +1, back -1. */
+fun stepSlide(from: TuneStep, to: TuneStep): Int = to.ordinal.compareTo(from.ordinal)
+
+/** The tab a widget, shortcut or intent asks for ("eq", "live", "settings"; anything else opens Tune). */
+fun requestedTab(request: String): String = when (request.lowercase()) {
+    "eq" -> "EQ"
+    "live" -> "LIVE"
+    "settings" -> "SETTINGS"
+    "tests" -> "TESTS"
+    else -> "MEASURE"
+}

@@ -67,6 +67,7 @@ enum class Look(val title: String, val detail: String) {
     HIFI("Hi-fi blue meters", "Black glass with blue meter glow and LED sliders"),
     VU("Analog VU", "Warm cream meter face with a red needle"),
     SYNTH("Synthwave", "Deep purple with magenta and cyan"),
+    NAVY("Navy", "Deep navy with a teal accent, the DevStore look"),
     ;
 
     /** Wallpaper colours replace a look's own colours, so only the two plain looks offer them. */
@@ -167,6 +168,14 @@ fun lookColors(l: Look, dark: Boolean): AtColors = when (l) {
     ) else look(
         false, 0xFFF3EBD8, 0xFFFBF6EA, 0xFFEADFC6, 0xFFD6C7A6, 0xFF2A2118, 0xFF6E5E48, 0xFFC0391B, 0xFFFFF8EE,
         listOf(0xFF8A7B62, 0xFF1F7A73, 0xFF7B3FA0, 0xFF8A6D00, 0xFF3C5BA9, 0xFF3B7D2E, 0xFFAD1457, 0xFF0D6E9E), SliderStyle.FADER,
+    )
+    // the shared DevStore language: navy surfaces, one teal accent, the routes' blue and green among the runs
+    Look.NAVY -> if (dark) look(
+        true, 0xFF0B1220, 0xFF121A2B, 0xFF18233A, 0xFF25324D, 0xFFE8EEFC, 0xFF8A97B4, 0xFF2DD4BF, 0xFF04222A,
+        listOf(0xFF8A97B4, 0xFF60A5FA, 0xFFA78BFA, 0xFFFBBF24, 0xFFFB7185, 0xFF34C759, 0xFFF0ABFC, 0xFF93C5FD), SliderStyle.ROUND,
+    ) else look(
+        false, 0xFFF3F5FA, 0xFFFFFFFF, 0xFFEEF1F7, 0xFFDBE1EC, 0xFF0F172A, 0xFF5B6578, 0xFF0D9488, 0xFFFFFFFF,
+        listOf(0xFF5B6578, 0xFF2563EB, 0xFF7C3AED, 0xFFB45309, 0xFFE11D48, 0xFF15803D, 0xFFA21CAF, 0xFF1D4ED8), SliderStyle.ROUND,
     )
     Look.SYNTH -> if (dark) look(
         true, 0xFF120A1F, 0xFF1B1030, 0xFF26173F, 0xFF3A2660, 0xFFF3E8FF, 0xFFB49BD6, 0xFFFF3EA5, 0xFF22001A,

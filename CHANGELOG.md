@@ -4,6 +4,18 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [1.21.0] - 2026-11-04
+### Changed
+- Five tabs: Tests, EQ, **Tune** (a raised disc in the centre of the bar), Live and Settings. Live and Settings are tabs now instead of a page and a full-screen overlay; Export is in the menu and opens as a page. A pill slides to the chosen tab; while a measurement runs on another tab, rings pulse out of the Tune disc.
+- Simple / Advanced: a drop-down at the top of every screen (and in Settings > Show). **Simple is the default** and applies to the whole app: shorter wording and the main choices only. Advanced brings back the explanations, extra checks and every option (measurement settings, notes, adjust by hand, details).
+- Sections are cards: every group of a screen (what was measured, what is set, the other choices, settings groups, folds) sits in its own card with 16dp corners and a hairline border, no shadows. A card inside a card draws flat, never nested.
+- Actions stack: the other choices and button pairs sit one per row, full width, under each other.
+- The pinned button is labelled **Suggested**: it is the one recommended move, usually continuing the Tune workflow. Its reason shows in Advanced, or when something blocks it.
+- Tune steps are simpler: the Verify step keeps the run, the mic, Plays through and the Suggested button; the loudness note, Test sound, Check the level and Back to the EQ are in Advanced. Step titles stay on one line ("Verify", "Apply the EQ"), so a long title no longer wraps up under the status bar.
+- Motion that explains: tabs slide in from the side of the tab you chose, pages rise in and drop away on Back, Tune steps slide forward and back, cards and folds open smoothly, the pinned button slides in when the recommendation changes, buttons press in slightly, and the step bar fills in. All of it follows the system "Remove animations" setting.
+### Added
+- Navy look in Settings > Appearance: the shared DevStore design language (deep navy, one teal accent), in dark and light.
+
 ## [1.20.0] - 2026-11-05
 ### Changed
 - Closer EQ suggestions: after placing its filters one at a time, the fitter now fine-tunes all of them together (gain, Q and frequency), as REW does. Overlapping filters no longer overshoot each other. On the simulated room the error left after EQ fell from 0.48 to 0.30 dB, and on the phone's system EQ from 1.04 to 0.77 dB. All limits stay: 3 dB per boost, the boost floor, the system EQ's Q limits, and the half-step fit.

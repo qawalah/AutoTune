@@ -38,7 +38,9 @@ phone through Obtainium.
 - After every reading, show a short summary, then one recommended action pinned above the tabs (`PinAction`), then the other choices, then Details. The graph is always shown.
 - Use plain, short wording. Use Barlow (`AtSans`) for text and Barlow Condensed (`AtFigures`) for readings and headings; figures are tabular everywhere.
 - Results open with a run sheet (`RunSheet` + `ReadingCells` in `ui/Kit.kt`); charts sit on chart paper with the stock dashed. See `DESIGN.md`.
-- A test's results, Live and Export are pages over the current tab (`Page` in `ui/AutoTuneScreen.kt`): Back returns where you were. Keep new detail screens as pages, not tabs.
+- Five tabs: Tests, EQ, Tune (raised in the centre), Live, Settings. A test's results and Export are pages over the current tab (`Page` in `ui/AutoTuneScreen.kt`): Back returns where you were. Keep new detail screens as pages, not tabs.
+- Simple / Advanced is app-wide and Simple is the default. Keep Simple short; put explanations in `Hint` and extra controls in `Adv { }`.
+- Each section is a card (`Panel`, `Group`, `Fold`; never nested). Stack actions one per row with `Actions { }`. Motion uses `EaseArrive`/`EaseLeave` and `motionMs()`, so "Remove animations" is respected.
 
 ## Don't break
 - **Saved tests** (`TestStore` text format): keep loading every older version.

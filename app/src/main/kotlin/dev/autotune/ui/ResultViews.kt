@@ -143,7 +143,7 @@ fun TargetSoundFold(s: UiState, vm: dev.autotune.TuneViewModel, startOpen: Boole
             TREBLE_STEPS.map(::db), TREBLE_STEPS.indexOf(s.trebleDb).let { if (it < 0) TREBLE_STEPS.indexOf(0.0) else it },
             { vm.setTargetSound(idx, s.bassDb, TREBLE_STEPS[it]) }, label = "Treble to taste", icon = Ic.CURVE,
         )
-        Muted("Changing these refits the suggested EQ at once. Measure again to check it.")
+        Hint("Changing these refits the suggested EQ at once. Measure again to check it.")
     }
 }
 
@@ -199,9 +199,9 @@ fun FlavourAndPreamp(s: UiState, vm: dev.autotune.TuneViewModel) {
         }
     }
     s.playPreampDb?.takeIf { s.systemEqOn }?.let {
-        Muted("Playing with a preamp of %.1f dB. If it sounds quieter than before, turn the volume up: the shape is what matters.".format(it))
+        Hint("Playing with a preamp of %.1f dB. If it sounds quieter than before, turn the volume up: the shape is what matters.".format(it))
     }
-    if (s.flavour != dev.autotune.Flavour.NONE) Muted("The flavour only plays: measurements always use the tuned EQ alone.")
+    if (s.flavour != dev.autotune.Flavour.NONE) Hint("The flavour only plays: measurements always use the tuned EQ alone.")
 }
 
 /** How the speakers followed the last EQ, and the further tests worth doing. */
@@ -222,7 +222,7 @@ fun FollowAndChecks(s: UiState, vm: dev.autotune.TuneViewModel) {
                     }
                 }
             }
-            Muted("Top: dB the EQ asked for. Middle: dB the mic heard change. Bottom: the octave in Hz.")
+            Hint("Top: dB the EQ asked for. Middle: dB the mic heard change. Bottom: the octave in Hz.")
         }
     }
     if (s.checkSuggestions.isNotEmpty()) {

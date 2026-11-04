@@ -406,6 +406,8 @@ data class UiState(
     /** The app's look (colours and slider style). */
     val look: dev.autotune.ui.Look = dev.autotune.ui.Look.DYNO,
     val dynamicColor: Boolean = false,
+    /** Advanced shows every explanation and extra control; Simple (the default) keeps the essentials. App-wide. */
+    val advanced: Boolean = false,
 )
 
 class TuneViewModel(app: Application) : AndroidViewModel(app) {
@@ -461,6 +463,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 splOffsetDb = prefs.getFloat("splOffset", 0f).toDouble(),
                 themeMode = runCatching { ThemeMode.valueOf(prefs.getString("theme", "SYSTEM")!!) }.getOrDefault(ThemeMode.SYSTEM),
                 dynamicColor = prefs.getBoolean("dynamic", false),
+                advanced = prefs.getBoolean("advanced", false),
                 look = dev.autotune.ui.Look.of(prefs.getString("look", null)),
                 flavour = Flavour.of(prefs.getString("flavour", null)),
                 preampMode = PreampMode.of(prefs.getString("preampMode", null)),
@@ -529,6 +532,11 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     fun setThemeMode(m: ThemeMode) {
         prefs.edit().putString("theme", m.name).apply()
         state.update { it.copy(themeMode = m) }
+    }
+
+    fun setAdvanced(on: Boolean) {
+        prefs.edit().putBoolean("advanced", on).apply()
+        state.update { it.copy(advanced = on) }
     }
 
     fun setDynamicColor(on: Boolean) {

@@ -45,10 +45,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import dev.autotune.TuneViewModel
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 
 /**
- * Where [go] can take the user. The first three are the tabs of the navigation bar; Live and Export open as pages over
- * the tab you are on, so Back returns there.
+ * Where [go] can take the user. Five are the tabs of the navigation bar, in [dev.autotune.NAV_ORDER] (Tests, EQ, Tune
+ * raised in the centre, Live, Settings); Export opens as a page over the tab you are on, so Back returns there.
+ * New entries are appended, so ordinals saved across a configuration change stay valid.
  */
 enum class Tab(val title: String, val icon: Ic) {
     TESTS("Tests", Ic.TESTS),
@@ -56,13 +72,22 @@ enum class Tab(val title: String, val icon: Ic) {
     EQ("EQ", Ic.EQ),
     LIVE("Live", Ic.LIVE),
     EXPORT("Export", Ic.EXPORT),
+    SETTINGS("Settings", Ic.GEAR),
     ;
 
-    val isPage: Boolean get() = this == LIVE || this == EXPORT
+    val isPage: Boolean get() = this == EXPORT
+
+    companion object {
+        /** The bar, start to end. */
+        val bar: List<Tab> get() = dev.autotune.NAV_ORDER.map { valueOf(it) }
+    }
 }
 
-/** Pages opened over a tab, newest last. Back closes the newest. */
+/** Pages opened over a tab, newest last. Back closes the newest. LIVE is kept for saved state; Live is a tab now. */
 private enum class Page { RESULTS, LIVE, EXPORT }
+
+/** What fills the screen: a tab, or the newest page over it, and how deep the pages go. */
+private data class Dest(val tab: Tab, val page: Page?, val depth: Int)
 
 /** The system pickers and permission prompts, launched from any tab. */
 class Pickers(
@@ -80,7 +105,6 @@ class Pickers(
 object LaunchRequest { val tab = kotlinx.coroutines.flow.MutableStateFlow<String?>(null) }
 
 private const val OVERLAY_NONE = 0
-private const val OVERLAY_SETUP = 2
 
 @Composable
 fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
@@ -104,7 +128,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
 
     LaunchedEffect(Unit) {
         LaunchRequest.tab.collect { t ->
-            if (t != null) { tabIdx = if (t == "eq") Tab.EQ.ordinal else Tab.MEASURE.ordinal; pages = emptyList(); overlay = OVERLAY_NONE; LaunchRequest.tab.value = null }
+            if (t != null) { tabIdx = Tab.valueOf(dev.autotune.requestedTab(t)).ordinal; pages = emptyList(); overlay = OVERLAY_NONE; LaunchRequest.tab.value = null }
         }
     }
     // a finished measurement stays in the Tune workflow, which shows the result itself
@@ -128,15 +152,16 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
         bluetooth = { if (Build.VERSION.SDK_INT >= 31) btPerm.launch(Manifest.permission.BLUETOOTH_CONNECT) else vm.refreshBluetooth() },
         exportFolder = { folderPicker.launch(null) },
     )
-    // a tab replaces whatever was open over it; Live and Export open as pages over the current tab
+    // a tab replaces whatever was open over it; Export opens as a page over the current tab
     val go: (Tab) -> Unit = { t ->
         overlay = OVERLAY_NONE
         when (t) {
-            Tab.LIVE -> open(Page.LIVE)
             Tab.EXPORT -> open(Page.EXPORT)
             else -> { tabIdx = t.ordinal; pages = emptyList() }
         }
     }
+    // a new step of the Tune workflow opens at its top
+    LaunchedEffect(s.tuneStep) { scrolls[Tab.MEASURE.name]?.let { if (it.value > 0) it.animateScrollTo(0) } }
     // the results of the open test, over the tab you are on
     val openResults: () -> Unit = { overlay = OVERLAY_NONE; open(Page.RESULTS) }
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
@@ -152,8 +177,11 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     // Back on the measuring screen: stop a running measurement, otherwise close the screen
     BackHandler(s.measureView != null) { if (s.busy) vm.cancel() else vm.closeMeasureView() }
 
+    val viewMode = androidx.compose.runtime.remember(s.advanced) { ViewMode(s.advanced, vm::setAdvanced) }
     AutoTuneTheme(s.themeMode, s.dynamicColor, s.look) {
-      androidx.compose.runtime.CompositionLocalProvider(LocalMenu provides { MenuButton(go, vm::shareDiagnostics, vm::aiOpen) { overlay = OVERLAY_SETUP } }, LocalPin provides pin) {
+      androidx.compose.runtime.CompositionLocalProvider(
+          LocalMenu provides { MenuButton(go, vm::shareDiagnostics) }, LocalPin provides pin, LocalViewMode provides viewMode,
+      ) {
         Box(Modifier.fillMaxSize().background(At.c.bg)) {
             Scaffold(
                 containerColor = At.c.bg,
@@ -161,8 +189,17 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                 bottomBar = {
                     if (!keyboardOpen && overlay == OVERLAY_NONE) {
                         Column {
-                            // the screen's main action, always in reach
-                            pin.action?.let { a -> if (!s.busy) BigActionBar(a) }
+                            // the screen's main action, always in reach; it rises in and drops away
+                            val shownPin = pin.action?.takeIf { !s.busy }
+                            val lastPin = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<PinnedAction?>(null) }
+                            if (shownPin != null) lastPin.value = shownPin
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = shownPin != null,
+                                enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(motionMs(240), easing = EaseArrive)) +
+                                    androidx.compose.animation.expandVertically(androidx.compose.animation.core.tween(motionMs(300), easing = EaseArrive), expandFrom = Alignment.Bottom),
+                                exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(motionMs(100), easing = EaseLeave)) +
+                                    androidx.compose.animation.shrinkVertically(androidx.compose.animation.core.tween(motionMs(160), easing = EaseLeave), shrinkTowards = Alignment.Bottom),
+                            ) { lastPin.value?.let { BigActionBar(it) } }
                             // a measurement keeps running when you leave the Tune tab
                             if (s.busy && (tab != Tab.MEASURE || page != null)) {
                                 Row(
@@ -177,7 +214,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                                 else LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = At.c.signal, trackColor = At.c.line)
                             }
                             // a page is a step away from its tab: the tabs come back with Back
-                            if (page == null) AtNavBar(tab) { t -> go(t) }
+                            if (page == null) AtNavBar(tab, s.busy) { t -> go(t) }
                             else Box(Modifier.fillMaxWidth().background(At.c.bg).navigationBarsPadding())
                         }
                     }
@@ -193,49 +230,59 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                     }
                 },
             ) { pad ->
-                Column(
-                    Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(scrollFor(page?.name ?: tab.name), enabled = true)
-                        .padding(horizontal = 16.dp).padding(bottom = 96.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    if (page != null) {
-                        androidx.compose.runtime.CompositionLocalProvider(LocalBack provides back) {
-                            when (page) {
-                                Page.RESULTS -> ResultsPage(s, vm, back, go)
-                                Page.LIVE -> LiveTab(s, live, level, vm, pick, go)
-                                Page.EXPORT -> ExportTab(s, vm, go)
+                // tabs slide in from the side of the tab you chose; pages rise in over the tab and drop back on Back
+                val anim = animationsOn()
+                Transit(
+                    Dest(tab, page, pages.size), Modifier.padding(pad).fillMaxSize(),
+                    spec = {
+                        val from = initialState; val to = targetState
+                        if (!anim) androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
+                        else if (to.depth > from.depth) riseIn()
+                        else if (to.depth < from.depth) dropOut()
+                        else slideSideways(dev.autotune.navSlide(from.tab.name, to.tab.name))
+                    },
+                ) { d ->
+                    Column(
+                        Modifier.fillMaxSize().imePadding().verticalScroll(scrollFor(d.page?.name ?: d.tab.name), enabled = true)
+                            .padding(horizontal = 16.dp).padding(bottom = 96.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        if (d.page != null) {
+                            androidx.compose.runtime.CompositionLocalProvider(LocalBack provides back) {
+                                when (d.page) {
+                                    Page.RESULTS -> ResultsPage(s, vm, back, go)
+                                    Page.LIVE -> LiveTab(s, live, level, vm, pick, go)
+                                    Page.EXPORT -> ExportTab(s, vm, go)
+                                }
                             }
+                        } else when (d.tab) {
+                            Tab.TESTS -> TestsTab(s, vm, { id -> vm.openTest(id); openResults() })
+                            Tab.MEASURE -> TuneTab(s, vm, sharer, go, openResults, pick)
+                            Tab.EQ -> EqTab(s, vm, go, pick)
+                            Tab.LIVE -> LiveTab(s, live, level, vm, pick, go)
+                            Tab.SETTINGS -> SettingsTab(s, ai, vm, pick)
+                            // Export always opens as a page
+                            Tab.EXPORT -> Unit
                         }
-                    } else when (tab) {
-                        Tab.TESTS -> TestsTab(s, vm, { id -> vm.openTest(id); openResults() })
-                        Tab.MEASURE -> TuneTab(s, vm, sharer, go, openResults, pick)
-                        Tab.EQ -> EqTab(s, vm, go, pick)
-                        // Live and Export always open as pages
-                        Tab.LIVE, Tab.EXPORT -> Unit
                     }
                 }
             }
 
-            if (ai.open) {
+            // full screens rise in from the bottom and drop away when closed
+            androidx.compose.animation.AnimatedVisibility(ai.open, enter = sheetIn(), exit = sheetOut()) {
                 androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
                     Box(Modifier.statusBarsPadding().navigationBarsPadding().imePadding()) { AiScreen(ai, s, vm, go) }
                 }
             }
 
             // measuring takes the whole screen: the instrument, what is happening, and the checks
-            s.measureView?.let { mv ->
-                androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
-                    MeasureOverlay(mv, s, vm)
-                }
-            }
-
-            if (overlay != OVERLAY_NONE) {
-                androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
-                  Box(Modifier.statusBarsPadding().navigationBarsPadding().imePadding()) {
-                    when (overlay) {
-                        OVERLAY_SETUP -> SetupScreen(s, ai, vm, pick) { overlay = OVERLAY_NONE }
+            val lastMv = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(s.measureView) }
+            if (s.measureView != null) lastMv.value = s.measureView
+            androidx.compose.animation.AnimatedVisibility(s.measureView != null, enter = sheetIn(), exit = sheetOut()) {
+                lastMv.value?.let { mv ->
+                    androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
+                        MeasureOverlay(mv, s, vm)
                     }
-                  }
                 }
             }
         }
@@ -243,44 +290,107 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     }
 }
 
+/**
+ * The navigation band: five tabs with Tune raised in the centre as a disc. A pill slides (and slightly stretches) to
+ * the chosen tab and its icon pops once; while a measurement runs on another tab, rings pulse out from the Tune disc.
+ */
 @Composable
-fun AtNavBar(tab: Tab, onSelect: (Tab) -> Unit) {
-    // the shell band: three destinations, centred; Live, Export and Settings live in the menu
+fun AtNavBar(tab: Tab, busy: Boolean, onSelect: (Tab) -> Unit) {
     val c = At.c
-    Box(Modifier.fillMaxWidth().background(c.shell), contentAlignment = Alignment.Center) {
-        NavigationBar(Modifier.widthIn(max = 360.dp), containerColor = androidx.compose.ui.graphics.Color.Transparent, contentColor = c.onShell) {
-            Tab.entries.filter { !it.isPage }.forEach { t ->
-                val here = t == tab
-                NavigationBarItem(
-                    selected = here,
-                    onClick = { onSelect(t) },
-                    icon = { AtIcon(t.icon, if (here) c.onShell else c.onShellMuted) },
-                    label = { Text(t.title, style = MaterialTheme.typography.labelMedium) },
-                    alwaysShowLabel = true,
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedTextColor = c.onShell, unselectedTextColor = c.onShellMuted,
-                        indicatorColor = androidx.compose.ui.graphics.lerp(c.shell, c.onShell, 0.16f),
-                    ),
+    val items = Tab.bar
+    val centre = items.indexOf(Tab.MEASURE)
+    val band = 64.dp
+    val raise = 22.dp
+    Column(Modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().height(band + raise)) {
+            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(band).background(c.shell))
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.align(Alignment.BottomCenter).widthIn(max = 480.dp).fillMaxWidth().height(band)) {
+                val slot = maxWidth / items.size
+                val sel = items.indexOf(tab)
+                val pillW = 60.dp
+                val x by androidx.compose.animation.core.animateDpAsState(
+                    slot * sel.coerceAtLeast(0) + (slot - pillW) / 2,
+                    androidx.compose.animation.core.tween(motionMs(480), easing = EaseArrive), label = "pill",
                 )
+                // the stretch: wider while travelling, back to size on arrival
+                val travel = kotlin.math.abs((x - (slot * sel.coerceAtLeast(0) + (slot - pillW) / 2)).value)
+                val stretch = (travel / 6f).coerceAtMost(16f).dp
+                if (tab != Tab.MEASURE && sel >= 0) {
+                    Box(
+                        Modifier.offset(x = x - stretch / 2, y = 8.dp).size(pillW + stretch, 32.dp).clip(RoundedCornerShape(16.dp))
+                            .background(androidx.compose.ui.graphics.lerp(c.shell, c.onShell, 0.16f)),
+                    )
+                }
+                Row(Modifier.fillMaxSize()) {
+                    items.forEachIndexed { i, t ->
+                        val here = t == tab
+                        Column(
+                            Modifier.weight(1f).fillMaxHeight()
+                                .selectable(selected = here, role = androidx.compose.ui.semantics.Role.Tab, onClick = { onSelect(t) })
+                                .semantics { contentDescription = t.title },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            if (i == centre) {
+                                androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                            } else {
+                                val pop = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(1f) }
+                                val anim = animationsOn()
+                                LaunchedEffect(here) { if (here && anim) { pop.snapTo(0.82f); pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = 500f)) } }
+                                Box(Modifier.padding(top = 12.dp).size(24.dp).graphicsLayer { scaleX = pop.value; scaleY = pop.value }) {
+                                    AtIcon(t.icon, if (here) c.onShell else c.onShellMuted)
+                                }
+                                androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                            }
+                            Text(
+                                t.title, Modifier.padding(bottom = 8.dp), style = MaterialTheme.typography.labelMedium,
+                                color = if (here) c.onShell else c.onShellMuted, fontWeight = if (here) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1,
+                            )
+                        }
+                    }
+                }
             }
+            TuneDisc(Modifier.align(Alignment.TopCenter), selected = tab == Tab.MEASURE, pulse = busy && tab != Tab.MEASURE) { onSelect(Tab.MEASURE) }
         }
+        Box(Modifier.fillMaxWidth().background(c.shell).navigationBarsPadding())
     }
 }
 
-/** The three-bar menu: tools that are not part of the tuning loop. */
+/** The raised Tune button in the middle of the bar: the app's main action, floating, so it alone has a shadow. */
 @Composable
-fun MenuButton(go: (Tab) -> Unit, sendDiagnostics: () -> Unit, openAi: () -> Unit, openSettings: () -> Unit) {
+private fun TuneDisc(modifier: Modifier, selected: Boolean, pulse: Boolean, onClick: () -> Unit) {
+    val c = At.c
+    val anim = animationsOn() && pulse
+    val phase = if (anim) {
+        val inf = androidx.compose.animation.core.rememberInfiniteTransition(label = "disc")
+        inf.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(2400, easing = androidx.compose.animation.core.LinearEasing)), label = "p").value
+    } else 0f
+    val src = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    Box(modifier.size(60.dp), contentAlignment = Alignment.Center) {
+        if (anim) androidx.compose.foundation.Canvas(Modifier.size(60.dp)) {
+            for (k in 0 until 2) {
+                val p = (phase + k * 0.5f) % 1f
+                drawCircle(c.signal.copy(alpha = 0.45f * (1f - p)), size.minDimension / 2 * (0.8f + 0.5f * p), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
+            }
+        }
+        Box(
+            Modifier.size(56.dp).pressScale(src).shadow(if (selected) 4.dp else 8.dp, CircleShape).clip(CircleShape).background(c.signal)
+                .then(if (selected) Modifier.border(3.dp, c.onShell, CircleShape) else Modifier)
+                .clickable(interactionSource = src, indication = androidx.compose.material3.ripple(), role = androidx.compose.ui.semantics.Role.Tab, onClick = onClick)
+                .semantics { contentDescription = "Tune" },
+            contentAlignment = Alignment.Center,
+        ) { AtIcon(Ic.TUNE, c.onSignal, size = 28.dp) }
+    }
+}
+
+/** The three-bar menu: tools that are not part of the tuning loop. Live and Settings are tabs now. */
+@Composable
+fun MenuButton(go: (Tab) -> Unit, sendDiagnostics: () -> Unit) {
     var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     Box {
         IconAction(Ic.MENU, "Menu") { open = true }
         androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            // grouped: tools for the sound, then the app itself; the AI review lives on the results it reviews
             MenuHeader("Tools")
-            androidx.compose.material3.DropdownMenuItem(text = { Text("Live spectrum") }, leadingIcon = { AtIcon(Ic.LIVE, At.c.muted) }, onClick = { open = false; go(Tab.LIVE) })
             androidx.compose.material3.DropdownMenuItem(text = { Text("Export EQ files") }, leadingIcon = { AtIcon(Ic.EXPORT, At.c.muted) }, onClick = { open = false; go(Tab.EXPORT) })
-            androidx.compose.material3.HorizontalDivider(color = At.c.line)
-            MenuHeader("App")
-            androidx.compose.material3.DropdownMenuItem(text = { Text("Settings") }, leadingIcon = { AtIcon(Ic.GEAR, At.c.muted) }, onClick = { open = false; openSettings() })
             androidx.compose.material3.DropdownMenuItem(text = { Text("Send diagnostics") }, leadingIcon = { AtIcon(Ic.DIAG, At.c.muted) }, onClick = { open = false; sendDiagnostics() })
         }
     }

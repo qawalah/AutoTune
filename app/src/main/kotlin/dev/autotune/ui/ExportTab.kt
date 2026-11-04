@@ -44,7 +44,7 @@ fun ExportTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit) {
             details = listOf("ParametricEQ.txt: the exact bands", "GraphicEQ.txt: the curve", "Both files", "Two text files and a CSV of every run"),
         )
         runCatching { vm.eqSummary(key) }.getOrNull()?.let { Muted(it) }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Actions {
             PrimaryButton("Save to Downloads", { vm.exportEq(key, format, share = false) }, icon = Ic.SAVE)
             SecondaryButton("Share", { vm.exportEq(key, format, share = true) }, icon = Ic.SHARE)
         }

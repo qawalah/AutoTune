@@ -3,7 +3,11 @@
 package dev.autotune.ui
 
 import android.provider.Settings
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.animateFloat
@@ -279,15 +283,179 @@ fun AtIcon(kind: Ic, tint: Color, modifier: Modifier = Modifier, size: Dp = 24.d
 
 // ---------------------------------------------------------------- structure
 
-/** A sheet: a ruled surface for what was measured and what is set (graph, meter, controls). Everything else stays flat. */
+// ---------------------------------------------------------------- motion
+
+/** Arrivals: a fast start and a long soft landing. */
+val EaseArrive = androidx.compose.animation.core.CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+
+/** Exits: quick, and shorter than the entrance. */
+val EaseLeave = androidx.compose.animation.core.CubicBezierEasing(0.4f, 0f, 1f, 1f)
+
+/** [ms] when animations are on, 0 when the system's "Remove animations" is set. */
 @Composable
-fun Panel(modifier: Modifier = Modifier, pad: Dp = 16.dp, content: @Composable () -> Unit) {
-    Column(
-        modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(At.c.panel)
-            .border(1.dp, At.c.line, MaterialTheme.shapes.medium).padding(pad),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) { content() }
+fun motionMs(ms: Int): Int = if (animationsOn()) ms else 0
+
+/** Scales a control to 0.97 while it is pressed. */
+@Composable
+fun Modifier.pressScale(source: androidx.compose.foundation.interaction.InteractionSource): Modifier {
+    val pressed by source.collectIsPressedAsState()
+    val k by androidx.compose.animation.core.animateFloatAsState(if (pressed) 0.97f else 1f, tween(motionMs(120), easing = EaseArrive), label = "press")
+    return this.then(Modifier.graphicsLayer { scaleX = k; scaleY = k })
 }
+
+/** A full page rises in about 28dp over what was there. */
+fun riseIn(): androidx.compose.animation.ContentTransform =
+    (androidx.compose.animation.fadeIn(tween(300, easing = EaseArrive)) +
+        androidx.compose.animation.slideInVertically(tween(360, easing = EaseArrive)) { (it * 0.04f).toInt().coerceAtMost(84) }) togetherWith
+        androidx.compose.animation.fadeOut(tween(100, easing = EaseLeave))
+
+/** Back: the page drops away and what was under it fades back. */
+fun dropOut(): androidx.compose.animation.ContentTransform =
+    androidx.compose.animation.fadeIn(tween(240, delayMillis = 40, easing = EaseArrive)) togetherWith
+        (androidx.compose.animation.fadeOut(tween(140, easing = EaseLeave)) +
+            androidx.compose.animation.slideOutVertically(tween(160, easing = EaseLeave)) { (it * 0.04f).toInt().coerceAtMost(84) })
+
+/**
+ * Between tabs or steps: the old screen slips out about 18dp against the travel in 100 ms, the new one slides in about
+ * 36dp from the side it comes from. [dir] is +1 moving forward (to the end), -1 back, 0 a plain cross-fade.
+ */
+fun slideSideways(dir: Int): androidx.compose.animation.ContentTransform {
+    if (dir == 0) return androidx.compose.animation.fadeIn(tween(220, easing = EaseArrive)) togetherWith androidx.compose.animation.fadeOut(tween(100, easing = EaseLeave))
+    return (androidx.compose.animation.fadeIn(tween(300, easing = EaseArrive)) +
+        androidx.compose.animation.slideInHorizontally(tween(360, easing = EaseArrive)) { w -> dir * (w * 0.09f).toInt().coerceAtMost(110) }) togetherWith
+        (androidx.compose.animation.fadeOut(tween(100, easing = EaseLeave)) +
+            androidx.compose.animation.slideOutHorizontally(tween(100, easing = EaseLeave)) { w -> -dir * (w * 0.045f).toInt().coerceAtMost(55) })
+}
+
+/** A full-screen sheet rises from the bottom. */
+@Composable
+fun sheetIn(): androidx.compose.animation.EnterTransition =
+    androidx.compose.animation.fadeIn(tween(motionMs(260), easing = EaseArrive)) +
+        androidx.compose.animation.slideInVertically(tween(motionMs(380), easing = EaseArrive)) { it / 12 }
+
+@Composable
+fun sheetOut(): androidx.compose.animation.ExitTransition =
+    androidx.compose.animation.fadeOut(tween(motionMs(140), easing = EaseLeave)) +
+        androidx.compose.animation.slideOutVertically(tween(motionMs(180), easing = EaseLeave)) { it / 16 }
+
+/**
+ * Animates from one screen to the next. Only the arriving screen can pin the main action: the one leaving draws into a
+ * slot of its own, so its pin never flickers back while it fades out.
+ */
+@Composable
+fun <T> Transit(
+    target: T, modifier: Modifier = Modifier,
+    spec: androidx.compose.animation.AnimatedContentTransitionScope<T>.() -> androidx.compose.animation.ContentTransform,
+    content: @Composable (T) -> Unit,
+) {
+    val pin = LocalPin.current
+    androidx.compose.animation.AnimatedContent(targetState = target, modifier = modifier, transitionSpec = spec, label = "transit") { t ->
+        val arriving = transition.targetState == androidx.compose.animation.EnterExitState.Visible
+        val spare = remember { PinSlot() }
+        androidx.compose.runtime.CompositionLocalProvider(LocalPin provides if (arriving) pin else spare) { content(t) }
+    }
+}
+
+// ---------------------------------------------------------------- Simple / Advanced
+
+/** How much the app shows: Simple (the default) keeps the essentials; Advanced adds explanations and extra controls. */
+class ViewMode(val advanced: Boolean, val set: (Boolean) -> Unit)
+
+val LocalViewMode = androidx.compose.runtime.compositionLocalOf { ViewMode(false) {} }
+
+@Composable
+fun isAdvanced(): Boolean = LocalViewMode.current.advanced
+
+/** The short wording in Simple, the full one in Advanced. */
+@Composable
+fun say(simple: String, full: String): String = if (isAdvanced()) full else simple
+
+/** Content shown only in Advanced; it folds in and out when the mode changes. */
+@Composable
+fun Adv(content: @Composable () -> Unit) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = isAdvanced(),
+        enter = androidx.compose.animation.fadeIn(tween(motionMs(220), easing = EaseArrive)) + androidx.compose.animation.expandVertically(tween(motionMs(320), easing = EaseArrive)),
+        exit = androidx.compose.animation.fadeOut(tween(motionMs(100), easing = EaseLeave)) + androidx.compose.animation.shrinkVertically(tween(motionMs(180), easing = EaseLeave)),
+    ) { Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) { content() } }
+}
+
+/** An explanation: shown in Advanced only. */
+@Composable
+fun Hint(text: String) = Adv { Muted(text) }
+
+/** The Simple / Advanced switch at the top of every screen, as a compact drop-down. */
+@Composable
+fun ModeSwitch() {
+    val mode = LocalViewMode.current
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier.heightIn(min = 48.dp).clip(MaterialTheme.shapes.small)
+                .clickable(role = Role.DropdownList, onClickLabel = "Choose how much to show") { open = true }
+                .padding(horizontal = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                Modifier.clip(MaterialTheme.shapes.small).background(At.c.panelHigh).padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(if (mode.advanced) "Advanced" else "Simple", style = MaterialTheme.typography.labelMedium, color = At.c.text)
+                AtIcon(Ic.CHEVRON_DOWN, At.c.muted, Modifier.padding(start = 4.dp), size = 16.dp)
+            }
+        }
+        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.widthIn(min = 220.dp)) {
+            listOf(false to ("Simple" to "Less text, the main choices"), true to ("Advanced" to "Every option and explanation")).forEach { (adv, t) ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = {
+                        Column(Modifier.padding(vertical = 4.dp)) {
+                            Text(t.first, style = MaterialTheme.typography.bodyLarge, color = if (adv == mode.advanced) At.c.signal else At.c.text)
+                            Text(t.second, style = MaterialTheme.typography.bodySmall, color = At.c.muted)
+                        }
+                    },
+                    trailingIcon = { if (adv == mode.advanced) AtIcon(Ic.CHECK, At.c.signal, size = 18.dp) },
+                    onClick = { open = false; mode.set(adv) },
+                )
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- cards
+
+/** Cards: 16dp corners, a 1dp rule, no shadow. */
+val CardShape = RoundedCornerShape(16.dp)
+
+/** True inside a card, so a card placed in another card draws flat instead of nesting. */
+val LocalInCard = androidx.compose.runtime.compositionLocalOf { false }
+
+/** Actions inside [Actions] fill the width and stack under each other. */
+val LocalStacked = androidx.compose.runtime.compositionLocalOf { false }
+
+/** A group of actions, one per row, each the full width. */
+@Composable
+fun Actions(content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalStacked provides true) { content() }
+    }
+}
+
+@Composable
+private fun CardBox(modifier: Modifier, pad: Dp, content: @Composable () -> Unit) {
+    if (LocalInCard.current) {
+        Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
+        return
+    }
+    Column(
+        modifier.fillMaxWidth().clip(CardShape).background(At.c.panel).border(1.dp, At.c.line, CardShape)
+            .animateContentSize(tween(motionMs(320), easing = EaseArrive)).padding(pad),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) { androidx.compose.runtime.CompositionLocalProvider(LocalInCard provides true) { content() } }
+}
+
+/** A card: one section of a screen (what was measured, what is set, a group of choices). */
+@Composable
+fun Panel(modifier: Modifier = Modifier, pad: Dp = 14.dp, content: @Composable () -> Unit) = CardBox(modifier, pad, content)
 
 /**
  * A run sheet: the shop-green header strip that names what the sheet is about, ruled from the content below it, like
@@ -297,8 +465,8 @@ fun Panel(modifier: Modifier = Modifier, pad: Dp = 16.dp, content: @Composable (
 fun RunSheet(title: String, sub: String? = null, trailing: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
     val c = At.c
     Column(
-        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(c.panel)
-            .border(1.dp, c.line, MaterialTheme.shapes.medium),
+        Modifier.fillMaxWidth().clip(CardShape).background(c.panel)
+            .border(1.dp, c.line, CardShape).animateContentSize(tween(motionMs(320), easing = EaseArrive)),
     ) {
         Row(
             Modifier.fillMaxWidth().background(c.shell).heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 8.dp),
@@ -310,7 +478,9 @@ fun RunSheet(title: String, sub: String? = null, trailing: (@Composable () -> Un
             }
             trailing?.invoke()
         }
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalInCard provides true) { content() }
+        }
     }
 }
 
@@ -340,28 +510,44 @@ fun ReadingCells(cells: List<Reading>) {
 @Composable
 fun Fold(title: String, summary: String? = null, startOpen: Boolean = false, info: String? = null, content: @Composable () -> Unit) {
     var open by rememberSaveable(title) { mutableStateOf(startOpen) }
-    Column(Modifier.fillMaxWidth()) {
-        HorizontalDivider(color = At.c.line)
+    val inCard = LocalInCard.current
+    val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 90f else 0f, tween(motionMs(220), easing = EaseArrive), label = "chevron")
+    val body: @Composable () -> Unit = {
+        if (inCard) HorizontalDivider(color = At.c.line)
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(role = Role.Button, onClickLabel = if (open) "Close $title" else "Open $title") { open = !open },
+            Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(role = Role.Button, onClickLabel = if (open) "Close $title" else "Open $title") { open = !open }
+                .padding(horizontal = if (inCard) 0.dp else 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
                 Text(title, style = MaterialTheme.typography.titleMedium)
                 if (summary != null) Muted(summary)
             }
             if (info != null) InfoButton(title, info)
-            AtIcon(if (open) Ic.CHEVRON_DOWN else Ic.CHEVRON, At.c.muted, size = 20.dp)
+            AtIcon(Ic.CHEVRON, At.c.muted, Modifier.graphicsLayer { rotationZ = turn }, size = 20.dp)
         }
-        if (open) Column(Modifier.padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
+        androidx.compose.animation.AnimatedVisibility(
+            visible = open,
+            enter = androidx.compose.animation.fadeIn(tween(motionMs(220), easing = EaseArrive)) + androidx.compose.animation.expandVertically(tween(motionMs(320), easing = EaseArrive)),
+            exit = androidx.compose.animation.fadeOut(tween(motionMs(100), easing = EaseLeave)) + androidx.compose.animation.shrinkVertically(tween(motionMs(200), easing = EaseLeave)),
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(bottom = 14.dp).padding(horizontal = if (inCard) 0.dp else 14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) { androidx.compose.runtime.CompositionLocalProvider(LocalInCard provides true) { content() } }
+        }
     }
+    if (inCard) Column(Modifier.fillMaxWidth()) { body() }
+    else Column(Modifier.fillMaxWidth().clip(CardShape).background(At.c.panel).border(1.dp, At.c.line, CardShape)) { body() }
 }
 
 /** A titled block of content, separated from the previous one by a hairline. */
 @Composable
 fun Group(title: String, info: String? = null, divider: Boolean = true, trailing: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (divider) HorizontalDivider(color = At.c.line, modifier = Modifier.padding(bottom = 6.dp))
+    // a card of its own; inside another card it is a titled block under a hairline
+    val inCard = LocalInCard.current
+    CardBox(Modifier, 14.dp) {
+        if (inCard && divider) HorizontalDivider(color = At.c.line, modifier = Modifier.padding(bottom = 6.dp))
         Row(Modifier.heightIn(min = 32.dp), verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f, fill = false))
@@ -414,6 +600,7 @@ fun ScreenTitle(title: String, context: String? = null, onContext: (() -> Unit)?
                 }
             }
             actions()
+            ModeSwitch()
             if (back == null) LocalMenu.current()
         }
         SheetRule()
@@ -447,8 +634,10 @@ fun IconAction(kind: Ic, description: String, onClick: () -> Unit) {
 
 @Composable
 fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, icon: Ic? = null) {
+    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     androidx.compose.material3.Button(
-        onClick = onClick, enabled = enabled, modifier = modifier.heightIn(min = 52.dp),
+        onClick = onClick, enabled = enabled, interactionSource = src,
+        modifier = modifier.then(if (LocalStacked.current) Modifier.fillMaxWidth() else Modifier).heightIn(min = 52.dp).pressScale(src),
         shape = MaterialTheme.shapes.medium,
         colors = ButtonDefaults.buttonColors(
             containerColor = At.c.signal, contentColor = At.c.onSignal,
@@ -468,8 +657,10 @@ private fun ButtonContent(text: String, icon: Ic?, tint: Color) {
 
 @Composable
 fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, icon: Ic? = null) {
+    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     OutlinedButton(
-        onClick = onClick, enabled = enabled, modifier = modifier.heightIn(min = 48.dp),
+        onClick = onClick, enabled = enabled, interactionSource = src,
+        modifier = modifier.then(if (LocalStacked.current) Modifier.fillMaxWidth() else Modifier).heightIn(min = 48.dp).pressScale(src),
         shape = MaterialTheme.shapes.medium,
         border = BorderStroke(1.dp, if (enabled) At.c.muted.copy(alpha = 0.6f) else At.c.line),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = At.c.text, disabledContentColor = At.c.muted),
@@ -478,10 +669,26 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
 
 @Composable
 fun TextAction(text: String, onClick: () -> Unit, enabled: Boolean = true, danger: Boolean = false, icon: Ic? = null) {
+    val tint = if (!enabled) At.c.muted else if (danger) At.c.bad else At.c.signal
+    if (LocalStacked.current) {
+        // in a stack: one full-width row per action, the label at the start and a chevron at the end
+        val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 52.dp).pressScale(src).clip(MaterialTheme.shapes.large).background(At.c.panelHigh)
+                .clickable(interactionSource = src, indication = androidx.compose.material3.ripple(), enabled = enabled, role = Role.Button, onClick = onClick)
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (icon != null) { AtIcon(icon, tint, size = 20.dp); androidx.compose.foundation.layout.Spacer(Modifier.width(12.dp)) }
+            Text(text, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = if (!enabled) At.c.muted else if (danger) At.c.bad else At.c.text, maxLines = 2)
+            AtIcon(Ic.CHEVRON, At.c.muted, size = 18.dp)
+        }
+        return
+    }
     TextButton(
         onClick = onClick, enabled = enabled, modifier = Modifier.heightIn(min = 48.dp),
         colors = ButtonDefaults.textButtonColors(contentColor = if (danger) At.c.bad else At.c.signal, disabledContentColor = At.c.muted),
-    ) { ButtonContent(text, icon, if (!enabled) At.c.muted else if (danger) At.c.bad else At.c.signal) }
+    ) { ButtonContent(text, icon, tint) }
 }
 
 /**
@@ -573,27 +780,34 @@ fun PulsingButton(label: String, sub: String?, icon: Ic, enabled: Boolean, onCli
 fun StepHeader(index: Int, total: Int, title: String, onExit: (() -> Unit)?, onBack: (() -> Unit)? = null, names: List<String>? = null) {
     val c = At.c
     val next = names?.getOrNull(index + 1)
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (onBack != null) Box(Modifier.offset(x = (-12).dp)) { IconAction(Ic.BACK, "Back", onBack) }
-            Column(Modifier.weight(1f).then(if (onBack != null) Modifier.offset(x = (-8).dp) else Modifier)) {
-                Text(title, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                Text(
-                    "Step ${index + 1} of $total" + (next?.let { " · Next: $it" } ?: ""),
-                    style = MaterialTheme.typography.bodySmall, color = c.muted, maxLines = 1,
-                )
-            }
+            // one line, so a long title never wraps up under the status bar
+            Text(
+                title, Modifier.weight(1f).then(if (onBack != null) Modifier.offset(x = (-8).dp) else Modifier),
+                style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
             if (onExit != null) TextAction("Exit", onExit, icon = Ic.CLOSE)
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Step ${index + 1} of $total" + (next?.let { " · Next: $it" } ?: ""),
+                Modifier.weight(1f).padding(start = if (onBack != null) 28.dp else 0.dp),
+                style = MaterialTheme.typography.bodySmall, color = c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            ModeSwitch()
         }
         Row(
             Modifier.fillMaxWidth().semantics { contentDescription = "Step ${index + 1} of $total" },
             horizontalArrangement = Arrangement.spacedBy(3.dp),
         ) {
             for (i in 0 until total) {
-                Box(
-                    Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(1.dp))
-                        .background(if (i < index) (if (c.dark) c.muted else c.shell) else if (i == index) c.signal else c.line),
+                val col by androidx.compose.animation.animateColorAsState(
+                    if (i < index) (if (c.dark) c.muted else c.shell) else if (i == index) c.signal else c.line,
+                    tween(motionMs(380), easing = EaseArrive), label = "step",
                 )
+                Box(Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(col))
             }
         }
     }
@@ -846,21 +1060,41 @@ fun BigActionBar(a: PinnedAction) {
             .padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        a.hint?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 2) }
+        // the recommended move, named as such; the reason under it in Advanced, or when something blocks it
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            AtIcon(Ic.CHECK, At.c.muted, size = 14.dp)
+            Text(" Suggested", style = MaterialTheme.typography.labelMedium, color = At.c.muted)
+        }
+        a.hint?.takeIf { isAdvanced() || !a.enabled }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 2) }
+        val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
         androidx.compose.material3.Button(
-            onClick = a.onClick, enabled = a.enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp),
+            onClick = a.onClick, enabled = a.enabled, interactionSource = src, modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp).pressScale(src),
             shape = MaterialTheme.shapes.medium,
             colors = ButtonDefaults.buttonColors(
                 containerColor = At.c.signal, contentColor = At.c.onSignal,
                 disabledContainerColor = At.c.panelHigh, disabledContentColor = At.c.muted,
             ),
         ) {
-            if (a.icon != null) {
-                AtIcon(a.icon, if (a.enabled) At.c.onSignal else At.c.muted, size = 24.dp)
-                androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
+            // a new recommendation slides in, so the change is noticed
+            val inMs = motionMs(300)
+            val outMs = motionMs(90)
+            androidx.compose.animation.AnimatedContent(
+                targetState = Triple(a.text, a.icon, a.enabled),
+                transitionSpec = {
+                    (androidx.compose.animation.fadeIn(tween(inMs, easing = EaseArrive)) + androidx.compose.animation.slideInVertically(tween(inMs, easing = EaseArrive)) { it / 3 }) togetherWith
+                        androidx.compose.animation.fadeOut(tween(outMs, easing = EaseLeave))
+                },
+                label = "pin",
+            ) { (text, icon, enabled) ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (icon != null) {
+                        AtIcon(icon, if (enabled) At.c.onSignal else At.c.muted, size = 24.dp)
+                        androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
+                    }
+                    // the condensed cut, so long actions still fit on one line in big type
+                    Text(text, style = MaterialTheme.typography.headlineSmall.copy(fontSize = 21.sp, lineHeight = 26.sp), maxLines = 2)
+                }
             }
-            // the condensed cut, so long actions still fit on one line in big type
-            Text(a.text, style = MaterialTheme.typography.headlineSmall.copy(fontSize = 21.sp, lineHeight = 26.sp), maxLines = 2)
         }
     }
 }

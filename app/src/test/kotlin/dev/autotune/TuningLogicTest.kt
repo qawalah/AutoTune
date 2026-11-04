@@ -179,4 +179,36 @@ class ConvergenceTest {
         assertFalse(fitsSystemEq(listOf(EqFilter(2000.0, 2.0, 2.0))))
         assertTrue(fitsSystemEq(emptyList()))
     }
+
+    @Test
+    fun navBarHasFiveTabsWithTuneInTheCentre() {
+        assertEquals(5, NAV_ORDER.size)
+        assertEquals("MEASURE", NAV_ORDER[NAV_ORDER.size / 2])
+        assertTrue(NAV_ORDER.containsAll(listOf("TESTS", "EQ", "LIVE", "SETTINGS")))
+    }
+
+    @Test
+    fun tabChangesSlideTowardsTheChosenTab() {
+        assertEquals(1, navSlide("TESTS", "MEASURE"))
+        assertEquals(-1, navSlide("SETTINGS", "EQ"))
+        assertEquals(0, navSlide("LIVE", "LIVE"))
+        // Export is a page, not on the bar
+        assertEquals(0, navSlide("TESTS", "EXPORT"))
+    }
+
+    @Test
+    fun tuneStepsSlideForwardAndBack() {
+        assertEquals(1, stepSlide(TuneStep.STOCK, TuneStep.STOCK_RESULT))
+        assertEquals(-1, stepSlide(TuneStep.VERIFY, TuneStep.APPLY))
+        assertEquals(0, stepSlide(TuneStep.HOME, TuneStep.HOME))
+    }
+
+    @Test
+    fun widgetRequestsOpenTheRightTab() {
+        assertEquals("EQ", requestedTab("eq"))
+        assertEquals("LIVE", requestedTab("live"))
+        assertEquals("SETTINGS", requestedTab("Settings"))
+        assertEquals("MEASURE", requestedTab("tune"))
+        assertEquals("MEASURE", requestedTab(""))
+    }
 }
