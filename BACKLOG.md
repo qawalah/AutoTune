@@ -30,3 +30,14 @@ Status: planned only. Part of the UI overhaul above; do not start until told to 
 - Open points to settle with the owner: where Export goes (a page opened from Tests or a test's results, or inside Settings), the exact order of the other four tabs, and which settings move into the Settings tab.
 - Keep: Back from a non-start tab returns to the start tab; the Tune workflow's own Back steps; each tab keeps its scroll place; widgets that open a tab (`LaunchRequest`) still land correctly; the rule that detail screens stay pages, not tabs.
 - When executed: update the `Tab` enum and nav bar, tests for any changed navigation logic, `DESIGN.md`, a `CHANGELOG.md` entry, and the version bump.
+
+## UI overhaul: less text, Simple / Advanced switch (asked 2026-11-04, HOLD until the owner says "execute")
+Status: planned only. Part of the UI overhaul above; do not start until told to execute.
+- Cut the wording across the app. Seen on the Tune "Verify: Measure with the EQ" step (step 6 of 7): the card has a title, a two-line explainer, a mic note, "Plays through", "Hear it from the speakers?", a four-line loudness paragraph, two links and a footer note, all before the main button.
+- Add a **Simple / Advanced** switch at the top of the screen (a drop-down, per the UI rules, not a pill).
+  - Simple: one short line per card, only the recommended action and the essential choices.
+  - Advanced: today's fuller wording and the extra controls and explanations.
+- Suggested treatment of that step: Simple keeps "Run 1", the mic status dot with a short label, the "Plays through" drop-down and the main button. Advanced adds the loudness note, "Test sound" and "Check the level".
+- Fix on the same screen: the long step title ("Verify: Measure with the EQ") wraps and its first line is clipped under the status bar. Shorten the titles or let the header grow.
+- Open points to settle with the owner: Simple as the default or Advanced; whether the choice is global or per screen; and where the switch sits on pages (Live, results) that have no top bar action today.
+- When executed: store the choice in settings, keep strings in one place so both wordings are easy to edit, add tests for any logic, update `DESIGN.md`, add a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
