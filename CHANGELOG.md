@@ -4,6 +4,14 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [1.23.0] - 2026-11-06
+### Added
+- **Loud EQ** (EQ tab, new card): a dynamic EQ for high volume. Speakers distort as you turn them up, so the loud EQ comes in at high volume and only cuts: it takes back 60% of the bass boosts (below 150 Hz) and treble boosts (above 5 kHz), and cuts where the speakers distort. It keeps the preamp, so it can never clip. Measurements never use it, like the flavours.
+- **What it cuts**: a safe default (−3 dB at 40 Hz, −1.5 dB at 3.5 kHz), or cuts made for your speakers: measure once at your loudest listening volume and tap "Use the last reading's distortion". Each octave whose distortion is over the limit (6% in the bass, 3% in the mids, 2% in the treble) gets a cut of 2/3 of the excess, at most 6 dB.
+- **Follow the volume**: the loud EQ fades in from a chosen volume (60 to 90%, default 75%) to all of it at full volume.
+- **Volume check**: turn the car's volume knob for a few seconds and AutoTune checks whether the knob moves the phone's volume (Bluetooth with absolute volume usually does; Android Auto often doesn't). The answer is remembered per output, and the loud EQ only follows the volume where it was seen to work.
+- **Switch it by hand** when the volume can't be followed: the button on the card, a "Loud EQ on/off" button on the notification, a **Loud EQ tile** in Quick Settings, the **volume keys** (down, up, down, up within 3 seconds; the volume ends where it was), or Routines and other apps (`dev.autotune.action.TOGGLE_LOUD`, `LOUD_ON`, `LOUD_OFF`).
+
 ## [1.22.0] - 2026-11-06
 ### Changed
 - New EQ picker (EQ tab and Export). The field shows the EQ in use in one line ("Run 1 · 17.9 dB from target") with its test under it. Tapping it opens a sheet: the test of the EQ in use is open at the top, one line per choice with its reading at the end and a BEST tag on the best run; every other test and the saved EQs are one line each ("best 21.1") that opens when tapped. Replaces the long drop-down with wrapped two-line entries and "Show more" rows.

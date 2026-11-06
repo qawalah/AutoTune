@@ -43,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -112,6 +113,9 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
         s.systemEqMessage?.let { Muted(it) }
         FlavourAndPreamp(s, vm)
     }
+
+    // ---- loud EQ: less bass and harshness when it's loud
+    LoudEqFold(s, vm)
 
     // ---- does the EQ reach the speakers?
     if (bandCount > 0) {
@@ -763,3 +767,86 @@ private fun Modifier.androidx_semantics(label: String, value: Double, range: Dou
         setProgress { v -> set(Math.round(v.toDouble() * 2) / 2.0); true }
     }
 
+
+/** The loud EQ: when it plays, whether the car's volume reaches the phone, what it cuts, and the hand switch. */
+@Composable
+fun LoudEqFold(s: UiState, vm: TuneViewModel, startOpen: Boolean = false) {
+    val live by vm.loudLive.collectAsState()
+    val modes = dev.autotune.LoudMode.entries
+    val playing = s.systemEqOn && live.amount > 0.0
+    Fold(
+        "Loud EQ",
+        summary = when {
+            s.loudMode == dev.autotune.LoudMode.OFF -> "Off"
+            playing -> "Playing, %.0f%%".format(live.amount * 100)
+            else -> "Ready"
+        },
+        startOpen = startOpen,
+        info = "Speakers change as you turn them up: the bass runs out of room and the treble gets harsh. The loud EQ comes in at high volume " +
+            "and only cuts, so it can never clip. It takes back part of your bass and treble boosts, and cuts where the speakers distort.\n\n" +
+            "It can follow the volume when the car's volume knob reaches the phone (Bluetooth with absolute volume does; Android Auto often doesn't). " +
+            "Use the volume check to find out. Otherwise switch it by hand: the button here, the notification, the Loud EQ tile in Quick Settings, " +
+            "or the volume keys: down, up, down, up within 3 seconds.\n\nMeasurements never use it.",
+    ) {
+        DropSelect(
+            modes.map { it.title }, modes.indexOf(s.loudMode), { vm.setLoudMode(modes[it]) }, label = "When it plays",
+            details = modes.map { it.detail }, icon = Ic.SPEAKER,
+        )
+        if (s.loudMode == dev.autotune.LoudMode.OFF) return@Fold
+        Text(
+            when {
+                !s.systemEqOn -> if (live.manual) "Switched on. It plays once AutoTune EQ is on." else "Plays once AutoTune EQ is on."
+                live.manual -> "On: switched on by hand."
+                playing -> "On at %.0f%%: volume %d%%.".format(live.amount * 100, live.volumePct ?: 0)
+                else -> "Not playing now."
+            },
+            style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium,
+        )
+        Actions {
+            SecondaryButton(if (live.manual) "Switch the loud EQ off" else "Switch the loud EQ on now", vm::toggleLoud, icon = Ic.POWER)
+        }
+
+        if (s.loudMode == dev.autotune.LoudMode.VOLUME) {
+            val c = s.volCheck
+            if (live.route.isNotBlank()) Muted("Output: ${live.route}" + if (live.carMode && "Android Auto" !in live.route) " · Android Auto is on" else "")
+            if (c != null && !c.done) {
+                Warning("Turn the car's volume knob up and down a few steps now. Don't touch the phone. ${c.secondsLeft} s left, ${c.steps} ${if (c.steps == 1) "step" else "steps"} seen.")
+                Actions { TextAction("Stop the check", vm::stopVolumeCheck, icon = Ic.STOP) }
+            } else {
+                Muted(
+                    when (live.synced) {
+                        true -> "The car's volume reaches AutoTune here, so the loud EQ follows it."
+                        false -> "AutoTune can't see the car's volume here. Use the button, the tile or the volume keys."
+                        null -> "Not checked on this output yet. Until then, use the button, the tile or the volume keys."
+                    },
+                )
+                Actions {
+                    TextAction(if (live.synced == null) "Check the car's volume reaches AutoTune" else "Check the volume again", vm::volumeCheck, icon = Ic.CHECK)
+                }
+            }
+            val starts = listOf(60, 70, 75, 80, 90)
+            DropSelect(
+                starts.map { "From $it% volume" }, starts.indexOf(s.loudStartPct).coerceAtLeast(0), { vm.setLoudStart(starts[it]) },
+                label = "Comes in", details = starts.map { "All of it at full volume" },
+            )
+        }
+
+        // what it changes
+        val cuts = s.loudCuts ?: dev.autotune.LOUD_DEFAULT_CUTS
+        Muted(
+            (s.loudSource ?: "Safe default") + ": " +
+                (if (cuts.isEmpty()) "no distortion found, so it only" else cuts.joinToString(", ") { "${if (it.freqHz >= 1000) "%.1f kHz".format(it.freqHz / 1000).replace(".0 ", " ") else "%.0f Hz".format(it.freqHz)} ${signed(it.gainDb)} dB" } + ", and it") +
+                " takes back 60% of your boosts below 150 Hz and above 5 kHz.",
+        )
+        Actions {
+            TextAction("Use the last reading's distortion", vm::loudFromReading, enabled = s.distortion != null, icon = Ic.CURVE)
+            if (s.loudCuts != null) TextAction("Back to the safe default", vm::loudUseDefault, icon = Ic.UNDO)
+        }
+        Hint("For a loud EQ made for your speakers, measure once at the loudest volume you listen at, then use that reading's distortion here.")
+        DropSelect(
+            listOf("Down, up, down, up switches it", "Off"), if (s.loudKeys) 0 else 1, { vm.setLoudKeys(it == 0) },
+            label = "Volume keys", details = listOf("Four quick presses within 3 seconds. The volume ends where it was", "Only the button and the tile"),
+        )
+        Hint("Routines and other apps can send dev.autotune.action.TOGGLE_LOUD, LOUD_ON or LOUD_OFF.")
+    }
+}

@@ -41,6 +41,10 @@ object SystemEq {
 
     val supported: Boolean get() = Build.VERSION.SDK_INT >= 28
 
+    /** True while a measurement runs: nothing from outside (the loud EQ following the volume) may change the EQ then. */
+    @Volatile
+    var measuring = false
+
     private var global: DynamicsProcessing? = null
     private val sessions = HashMap<Int, DynamicsProcessing>()
     // 31 bands at 1/3 octave, or 61 at 1/6 octave (finer cuts, more work for the phone)
@@ -135,6 +139,27 @@ class SystemEqService : Service() {
     }
     private var registered = false
     private var watcher: BluetoothWatcher? = null
+    private var volume: VolumeWatcher? = null
+    private val gesture = dev.autotune.VolumeGesture(3000)
+
+    /** Watches the media volume while the EQ is on and the loud EQ is not Off: it follows it, and the volume keys switch it. */
+    private fun updateVolumeWatch() {
+        val want = SystemEq.chain != null && LoudEq.mode(this) != dev.autotune.LoudMode.OFF
+        if (want && volume == null) volume = VolumeWatcher(this) { _, dir -> onVolumeStep(dir) }.also { it.start() }
+        else if (!want) { volume?.stop(); volume = null }
+    }
+
+    private fun onVolumeStep(dir: Int) {
+        if (!LoudEq.checking && LoudEq.keysOn(this) && gesture.step(android.os.SystemClock.elapsedRealtime(), dir)) {
+            android.widget.Toast.makeText(this, LoudEq.toggleManual(this), android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        LoudEq.onVolume(this)
+        if (LoudEq.lastAmount != shownLoud) refreshNotification()
+    }
+
+    /** The loud amount the notification shows. */
+    private var shownLoud = -1.0
 
     private fun automationOn() = ProfileController.prefs(this).getBoolean("automationOn", false)
 
@@ -149,6 +174,10 @@ class SystemEqService : Service() {
         val prefs = ProfileController.prefs(this)
         if (SystemEq.chain != null || prefs.getBoolean("eqWanted", false)) b.addAction(action(android.R.drawable.ic_lock_power_off, "Switch EQ off", ProfileController.ACTION_OFF, 201))
         if (automationOn()) b.addAction(action(android.R.drawable.ic_menu_close_clear_cancel, "Stop auto-detect", ProfileController.ACTION_AUTO_OFF, 202))
+        if (SystemEq.chain != null && LoudEq.mode(this) != dev.autotune.LoudMode.OFF) {
+            val loudOn = LoudEq.manual(this)
+            b.addAction(action(android.R.drawable.ic_lock_silent_mode_off, if (loudOn) "Loud EQ off" else "Loud EQ on", ProfileController.ACTION_TOGGLE_LOUD, 203))
+        }
         val n = b.build()
         ServiceCompat.startForeground(
             this, 42, n,
@@ -179,12 +208,15 @@ class SystemEqService : Service() {
     }
 
     private fun refreshNotification() {
+        updateVolumeWatch()
         val on = SystemEq.chain != null
+        shownLoud = LoudEq.lastAmount
+        val loud = if (on && LoudEq.lastAmount > 0.0) " · loud EQ %.0f%%".format(LoudEq.lastAmount * 100) else ""
         // the user wants the EQ on but it could not start (yet): stay up and say so, as the widget does
         val wanted = ProfileController.prefs(this).getBoolean("eqWanted", false)
         when {
             on -> notify(
-                (if (SystemEq.chain?.filters.isNullOrEmpty()) "Flat for now: pick an EQ in AutoTune" else "Equalising this phone's audio") +
+                (if (SystemEq.chain?.filters.isNullOrEmpty()) "Flat for now: pick an EQ in AutoTune" else "Equalising this phone's audio") + loud +
                     if (automationOn()) " · watching for your Bluetooth devices" else "",
                 "AutoTune EQ is on",
             )
@@ -233,6 +265,8 @@ class SystemEqService : Service() {
     override fun onDestroy() {
         if (registered) runCatching { unregisterReceiver(receiver) }
         watcher?.let { runCatching { unregisterReceiver(it) } }
+        volume?.stop()
+        volume = null
         SystemEq.off()
         super.onDestroy()
     }

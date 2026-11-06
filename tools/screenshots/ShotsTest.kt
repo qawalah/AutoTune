@@ -96,6 +96,8 @@ class ShotsTest {
     @Test fun t8_done() = shot("t8_done") { tune(s.copy(tuneStep = TuneStep.DONE, systemEqOn = true, eqSource = "Profile · F-150 · tuned (Run 2)"))() }
     @Test fun t9_light_home() = shot("t9_light_home", dark = false) { tune(s.copy(tuneStep = TuneStep.HOME))() }
     @Test fun e1_eq() = shot("e1_eq") { EqTab(s, vm, {}, pick) }
+    @Test fun l1_loud() = shot("l1_loud") { LoudEqFold(s.copy(systemEqOn = true, loudMode = LoudMode.VOLUME, loudCuts = listOf(EqFilter(63.0, -4.5, 1.4), EqFilter(4000.0, -2.0, 1.4)), loudSource = "From the reading of 6 Nov 21:10", volCheck = VolCheck("Bluetooth: SYNC", 14, 1)), vm, startOpen = true) }
+    @Test fun l2_loud_light() = shot("l2_loud_light", dark = false) { LoudEqFold(s.copy(systemEqOn = true, loudMode = LoudMode.VOLUME), vm, startOpen = true) }
     @Test fun r1_results() = shot("r1_results") { androidx.compose.runtime.CompositionLocalProvider(LocalBack provides {}) { ResultsPage(s, vm, {}, {}) } }
     @Test fun e2_export() = shot("e2_export") { ExportTab(s, vm, {}) }
     @Test fun r2_tests() = shot("r2_tests") { TestsTab(s, vm, {}) }

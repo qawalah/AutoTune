@@ -250,6 +250,9 @@ data class AiUi(
     val message: String? = null,
 )
 
+/** The volume check: does turning the car's volume knob move the phone's media volume on [route]? */
+data class VolCheck(val route: String, val secondsLeft: Int, val steps: Int, val done: Boolean = false, val ok: Boolean = false)
+
 data class UiState(
     val hasPermission: Boolean = false,
     val micName: String? = null,
@@ -312,6 +315,14 @@ data class UiState(
     val flavour: Flavour = Flavour.NONE,
     val preampMode: PreampMode = PreampMode.SAFE,
     val manualPreampDb: Double = -6.0,
+    /** The loud EQ: when it comes in, from what volume, whether the volume keys switch it, and its cuts (null = safe default). */
+    val loudMode: LoudMode = LoudMode.OFF,
+    val loudStartPct: Int = 75,
+    val loudKeys: Boolean = true,
+    val loudCuts: List<EqFilter>? = null,
+    val loudSource: String? = null,
+    /** The volume check while it runs, or its result. */
+    val volCheck: VolCheck? = null,
     /** The preamp AutoTune EQ is playing with now, dB. */
     val playPreampDb: Double? = null,
     /** AutoTune EQ built from 61 bands (1/6 octave) instead of 31. */
@@ -477,6 +488,11 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 flavour = Flavour.of(prefs.getString("flavour", null)),
                 preampMode = PreampMode.of(prefs.getString("preampMode", null)),
                 manualPreampDb = prefs.getFloat("preampManual", -6f).toDouble(),
+                loudMode = LoudMode.of(prefs.getString("loudMode", null)),
+                loudStartPct = prefs.getInt("loudStart", 75),
+                loudKeys = prefs.getBoolean("loudKeys", true),
+                loudCuts = filtersFromText(prefs.getString("loudCuts", null)),
+                loudSource = prefs.getString("loudSource", null),
                 systemEqFine = prefs.getBoolean("eqFine", false).also { SystemEqConfig.fine = it },
                 systemEqSuspect = prefs.getBoolean("systemEqSuspect", false),
                 automationOn = prefs.getBoolean("automationOn", false),
@@ -1044,6 +1060,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         stopRta()
         job = viewModelScope.launch {
             state.update { it.copy(busy = true, warnings = emptyList(), levelResult = null, status = null) }
+            // the loud EQ must not follow the volume into a measurement
+            SystemEq.measuring = true
             try {
                 block()
             } catch (e: CancellationException) {
@@ -1062,6 +1080,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 Diag.log(ctx(), "failure", mapOf("message" to msg, "error" to e.javaClass.simpleName, "step" to state.value.tuneStep))
             } finally {
+                SystemEq.measuring = false
                 state.update { it.copy(busy = false, progress = null) }
                 // measuring plays the EQ without flavour and with the safe preamp; put back what was playing
                 if (state.value.systemEqOn) runCatching { SystemEq.apply(playChain()) }
@@ -2178,6 +2197,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             it.copy(
                 profiles = list, rules = ProfileStore.loadRules(ctx()), activeProfileId = activeId, systemEqOn = SystemEq.chain != null,
                 automationOn = prefs.getBoolean("automationOn", false),
+                loudMode = LoudMode.of(prefs.getString("loudMode", null)),
             )
         }
         if (changed && activeId != null) list.firstOrNull { p -> p.id == activeId }?.let { p -> setEdit(p.filters, "profile:${p.id}") }
@@ -2432,6 +2452,94 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         state.update { it.copy(manualPreampDb = v) }
         replay()
     }
+
+    // ---------------------------------------------------------------- loud EQ
+
+    /** What the loud EQ is doing now (follows the volume and the outside switches). */
+    val loudLive get() = dev.autotune.audio.LoudEq.live
+
+    private fun loudChanged() {
+        dev.autotune.audio.LoudEq.changed(ctx())
+        if (state.value.systemEqOn) replay()
+    }
+
+    fun setLoudMode(m: LoudMode) {
+        val e = prefs.edit().putString("loudMode", m.name)
+        if (m == LoudMode.OFF) e.putBoolean("loudOn", false)
+        e.apply()
+        state.update { it.copy(loudMode = m) }
+        loudChanged()
+    }
+
+    fun setLoudStart(pct: Int) {
+        prefs.edit().putInt("loudStart", pct.coerceIn(50, 95)).apply()
+        state.update { it.copy(loudStartPct = pct.coerceIn(50, 95)) }
+        loudChanged()
+    }
+
+    fun setLoudKeys(on: Boolean) {
+        prefs.edit().putBoolean("loudKeys", on).apply()
+        state.update { it.copy(loudKeys = on) }
+    }
+
+    /** The loud EQ on or off by hand. */
+    fun toggleLoud() {
+        val msg = dev.autotune.audio.LoudEq.toggleManual(ctx())
+        state.update { it.copy(loudMode = LoudMode.of(prefs.getString("loudMode", null)), systemEqMessage = msg) }
+        if (state.value.systemEqOn) replay()
+    }
+
+    /** Builds the loud EQ's cuts from the distortion of the latest reading (made at a loud volume). */
+    fun loudFromReading() {
+        val d = state.value.distortion ?: return
+        val cuts = loudCutsFromDistortion(d.freqs, d.thdPct)
+        val src = "From the reading of ${fmtDate(System.currentTimeMillis())}"
+        prefs.edit().putString("loudCuts", filtersToText(cuts)).putString("loudSource", src).apply()
+        state.update { it.copy(loudCuts = cuts, loudSource = src) }
+        Diag.log(ctx(), "loud_cuts", mapOf("cuts" to Diag.bands(cuts), "thd" to d.averagePct(100.0, 5000.0)))
+        loudChanged()
+    }
+
+    fun loudUseDefault() {
+        prefs.edit().remove("loudCuts").remove("loudSource").apply()
+        state.update { it.copy(loudCuts = null, loudSource = null) }
+        loudChanged()
+    }
+
+    private var volJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * The volume check: for 20 seconds, watches the phone's media volume while the user turns the car's volume knob.
+     * Two or more steps seen means AutoTune can follow the car's volume on this output (remembered per output).
+     */
+    fun volumeCheck() {
+        if (volJob?.isActive == true) return
+        val c = ctx()
+        val route = dev.autotune.audio.LoudEq.route(c)
+        val levels = mutableListOf(dev.autotune.audio.LoudEq.level(c))
+        val w = dev.autotune.audio.VolumeWatcher(c) { lv, _ -> levels += lv }
+        dev.autotune.audio.LoudEq.checking = true
+        w.start()
+        volJob = viewModelScope.launch {
+            try {
+                for (left in 20 downTo 1) {
+                    state.update { it.copy(volCheck = VolCheck(route, left, levels.size - 1)) }
+                    if (volumeFollows(levels)) break
+                    kotlinx.coroutines.delay(1000)
+                }
+                val ok = volumeFollows(levels)
+                dev.autotune.audio.LoudEq.setSynced(c, route, ok)
+                state.update { it.copy(volCheck = VolCheck(route, 0, levels.size - 1, done = true, ok = ok)) }
+                Diag.log(c, "volume_check", mapOf("route" to route, "ok" to ok, "steps" to levels.size - 1, "carMode" to dev.autotune.audio.LoudEq.carMode(c)))
+            } finally {
+                w.stop()
+                dev.autotune.audio.LoudEq.checking = false
+                loudChanged()
+            }
+        }
+    }
+
+    fun stopVolumeCheck() { volJob?.cancel(); state.update { it.copy(volCheck = null) } }
 
     /** 31 or 61 bands for AutoTune EQ; the EQ that is on is rebuilt at once, and later fits use the matching band widths. */
     fun setSystemEqFine(on: Boolean) {

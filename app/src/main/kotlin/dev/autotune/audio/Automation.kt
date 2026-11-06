@@ -33,6 +33,9 @@ object ProfileController {
     const val ACTION_NEXT_PROFILE = "dev.autotune.action.NEXT_PROFILE"
     const val ACTION_PREV_PROFILE = "dev.autotune.action.PREV_PROFILE"
     const val ACTION_AUTO_OFF = "dev.autotune.action.AUTO_OFF"
+    const val ACTION_TOGGLE_LOUD = "dev.autotune.action.TOGGLE_LOUD"
+    const val ACTION_LOUD_ON = "dev.autotune.action.LOUD_ON"
+    const val ACTION_LOUD_OFF = "dev.autotune.action.LOUD_OFF"
     const val EXTRA_PROFILE = "profile"
     private const val PREFS = "autotune_prefs"
 
@@ -40,15 +43,29 @@ object ProfileController {
 
     /**
      * What actually plays for [filters] (the EQ in use): the user's flavour on top and the preamp mode they chose, and
-     * the system EQ's band count from Settings. Widgets, the Bluetooth watcher and restarts all play through this.
+     * the system EQ's band count from Settings, and as much of the loud EQ as the volume (or the user) asks for.
+     * Widgets, the Bluetooth watcher, volume changes and restarts all play through this.
      */
     fun shaped(ctx: Context, filters: List<EqFilter>): EqChain {
         val p = prefs(ctx)
         dev.autotune.SystemEqConfig.fine = p.getBoolean("eqFine", false)
-        return dev.autotune.playChain(
+        val base = dev.autotune.playChain(
             filters, dev.autotune.Flavour.of(p.getString("flavour", null)), dev.autotune.PreampMode.of(p.getString("preampMode", null)),
             p.getFloat("preampManual", -6f).toDouble(),
         )
+        val loud = LoudEq.amount(ctx)
+        LoudEq.built(ctx, loud)
+        return dev.autotune.withLoud(base, dev.autotune.loudDelta(base.filters, LoudEq.cuts(ctx)), loud)
+    }
+
+    /**
+     * Rebuilds what plays from the remembered EQ (after the volume or a loud setting changed). Does nothing while the
+     * EQ is off or a measurement is running: measuring plays the tuned EQ alone.
+     */
+    fun reshape(ctx: Context) {
+        if (SystemEq.chain == null || SystemEq.measuring) return
+        val filters = if (prefs(ctx).getBoolean("eqFlat", false)) emptyList() else lastChain(ctx) ?: return
+        SystemEq.apply(shaped(ctx, filters))
     }
 
     /** Finds a profile by id or by name (ignoring case). */
@@ -162,6 +179,9 @@ object ProfileController {
         ACTION_AUTO_OFF -> autoOff(ctx)
         ACTION_NEXT_PROFILE -> cycle(ctx, 1)
         ACTION_PREV_PROFILE -> cycle(ctx, -1)
+        ACTION_TOGGLE_LOUD -> LoudEq.toggleManual(ctx)
+        ACTION_LOUD_ON -> LoudEq.setManual(ctx, true)
+        ACTION_LOUD_OFF -> LoudEq.setManual(ctx, false)
         else -> {
             val key = intent.getStringExtra(EXTRA_PROFILE) ?: intent.data?.lastPathSegment
             val p = find(ctx, key)

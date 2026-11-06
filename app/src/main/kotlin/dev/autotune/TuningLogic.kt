@@ -4,6 +4,7 @@ import dev.autotune.dsp.EqChain
 import dev.autotune.dsp.EqFilter
 import dev.autotune.dsp.Export
 import dev.autotune.dsp.FitConfig
+import kotlin.math.log10
 
 /*
  * The bookkeeping of the tuning loop, kept free of Android so it can be unit tested.
@@ -530,3 +531,100 @@ fun shortTestName(name: String, target: String): Pair<String, String?> {
     val sub = shortTarget(target).takeIf { it.isNotBlank() && !name.contains(it) }
     return name to sub
 }
+
+// ---------------------------------------------------------------- loud EQ (dynamic EQ for high volume)
+
+/** When the loud EQ comes in. It only plays: measurements never use it. */
+enum class LoudMode(val title: String, val detail: String) {
+    OFF("Off", "One EQ at every volume"),
+    VOLUME("Follow the volume", "Comes in as you turn up. The button and volume keys still work"),
+    BUTTON("Button only", "Only when you switch it on: notification, quick tile or volume keys"),
+    ;
+
+    companion object { fun of(name: String?) = entries.firstOrNull { it.name == name } ?: OFF }
+}
+
+/** THD above this, at a loud reading, means the speakers are being pushed too hard at [f]. */
+fun loudLimitPct(f: Double): Double = when {
+    f < 200.0 -> 6.0
+    f < 2500.0 -> 3.0
+    else -> 2.0
+}
+
+private val LOUD_OCTAVES = listOf(31.5, 63.0, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0)
+
+/**
+ * Cuts for loud listening from the distortion of a reading made at a loud volume: one octave-wide cut per octave whose
+ * THD is over [loudLimitPct]. Harmonics fall faster than the level (2 dB per dB for the 3rd), so the cut is 2/3 of the
+ * excess, at most 6 dB. Empty when nothing distorts.
+ */
+fun loudCutsFromDistortion(freqs: DoubleArray, thdPct: DoubleArray): List<EqFilter> {
+    if (freqs.size != thdPct.size) return emptyList()
+    return LOUD_OCTAVES.mapNotNull { c ->
+        val v = freqs.indices.filter { freqs[it] in c / 1.414..c * 1.414 && thdPct[it].isFinite() && thdPct[it] > 0.0 }.map { thdPct[it] }.sorted()
+        if (v.size < 2) return@mapNotNull null
+        val median = v[v.size / 2]
+        val excessDb = 20.0 * log10(median / loudLimitPct(c))
+        val cut = (Math.round(excessDb / 1.5 * 2.0) / 2.0).coerceIn(0.0, 6.0)
+        if (cut < 1.0) null else EqFilter(c, -cut, 1.4)
+    }
+}
+
+/** The safe loud EQ when there is no loud reading: less of the deep bass small speakers can't play loud, a softer 3.5 kHz. */
+val LOUD_DEFAULT_CUTS = listOf(EqFilter(40.0, -3.0, 0.7), EqFilter(3500.0, -1.5, 1.0))
+
+/**
+ * Everything the loud EQ changes at full strength, on top of [play] (the EQ that plays, flavour included): the
+ * distortion cuts (or [LOUD_DEFAULT_CUTS] when there is no reading), and 60% of every boost below 150 Hz or above 5 kHz
+ * taken back, since boosts are what run out of room first. Only cuts, each at most 6 dB.
+ */
+fun loudDelta(play: List<EqFilter>, cuts: List<EqFilter>?): List<EqFilter> {
+    val pullBack = play.filter { it.gainDb > 0.5 && (it.freqHz < 150.0 || it.freqHz > 5000.0) }
+        .map { EqFilter(it.freqHz, -(it.gainDb * 0.6).coerceAtMost(6.0), it.q) }
+    return ((cuts ?: LOUD_DEFAULT_CUTS).map { EqFilter(it.freqHz, it.gainDb.coerceIn(-6.0, 0.0), it.q) } + pullBack)
+        .filter { it.gainDb < 0.0 }.sortedBy { it.freqHz }
+}
+
+/** How much of the loud EQ plays at [volume] (0..1): none up to [start], all of it at full volume, smooth between. */
+fun loudAmount(volume: Double, start: Double): Double {
+    val s = start.coerceIn(0.3, 0.95)
+    if (volume <= s) return 0.0
+    val t = ((volume - s) / (1.0 - s)).coerceIn(0.0, 1.0)
+    return t * t * (3.0 - 2.0 * t)
+}
+
+/** [chain] with [amount] of the loud [delta]. The preamp is kept: the loud EQ only cuts, so it can never clip. */
+fun withLoud(chain: EqChain, delta: List<EqFilter>, amount: Double): EqChain {
+    val a = amount.coerceIn(0.0, 1.0)
+    if (a <= 0.0 || delta.isEmpty()) return chain
+    return EqChain((chain.filters + delta.map { EqFilter(it.freqHz, it.gainDb * a, it.q) }).sortedBy { it.freqHz }, chain.preampDb)
+}
+
+/** Bands as text for the settings ("f,gain,q;..."), and back. Bad text reads as no bands. */
+fun filtersToText(f: List<EqFilter>): String = f.joinToString(";") { "${it.freqHz},${it.gainDb},${it.q}" }
+fun filtersFromText(s: String?): List<EqFilter>? = s?.let {
+    runCatching { it.split(";").filter { p -> p.isNotBlank() }.map { p -> p.split(",").map { n -> n.toDouble() }.let { n -> EqFilter(n[0], n[1], n[2]) } } }.getOrNull()
+}
+
+/**
+ * The volume-key switch for the loud EQ: four quick presses that alternate (down, up, down, up, or up, down, up, down)
+ * within [windowMs]. It leaves the volume where it was. Holding a key gives steps in one direction, which never count.
+ * An app only sees the volume change, so presses at the top or bottom of the range can't be seen.
+ */
+class VolumeGesture(private val windowMs: Long = 2500, private val presses: Int = 4) {
+    private val steps = ArrayDeque<Pair<Long, Int>>()
+
+    /** Feeds one volume step ([dir] +1 up, -1 down) at [timeMs]; true when the pattern is complete. */
+    fun step(timeMs: Long, dir: Int): Boolean {
+        if (dir == 0) return false
+        val last = steps.lastOrNull()
+        if (last != null && (last.second == dir || timeMs - last.first > windowMs)) steps.clear()
+        steps.addLast(timeMs to dir)
+        while (steps.isNotEmpty() && timeMs - steps.first().first > windowMs) steps.removeFirst()
+        if (steps.size >= presses) { steps.clear(); return true }
+        return false
+    }
+}
+
+/** The volume check: the car's knob moved the phone's volume (at least two steps were seen) or it didn't. */
+fun volumeFollows(levels: List<Int>): Boolean = levels.zipWithNext().count { (a, b) -> a != b } >= 2
