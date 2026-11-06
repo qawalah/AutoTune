@@ -956,67 +956,129 @@ fun <T> PickField(
 
 
 /**
- * One drop-down for picking which EQ is in use: grouped by test (with the car / home theatre icon), each group listing
- * the next suggestion, the EQ of every run and the saved EQs of that test.
+ * Picking which EQ is in use: one field that opens a sheet. In the sheet the selected EQ's test is open at the top,
+ * one line per choice with its reading at the end; every other test (and the saved EQs) is one line that opens when
+ * tapped. Test names made by the app read as their date over the short target.
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun GroupedPick(label: String, choices: List<dev.autotune.EqChoice>, selectedKey: String, onPick: (String) -> Unit, emptyText: String) {
     var open by remember { mutableStateOf(false) }
     val sel = choices.firstOrNull { it.key == selectedKey }
     Column(Modifier.fillMaxWidth()) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = At.c.muted, modifier = Modifier.padding(bottom = 4.dp))
-        Box {
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(MaterialTheme.shapes.small).background(At.c.panelHigh)
-                    .clickable(enabled = choices.isNotEmpty(), role = Role.DropdownList, onClickLabel = "Choose $label") { open = true }
-                    .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                AtIcon(sel?.let { kindIcon(it.kind) } ?: Ic.EQ, At.c.signal, size = 22.dp)
-                Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                    Text(sel?.let { "${it.group} · ${it.title}" } ?: emptyText, style = MaterialTheme.typography.bodyLarge, maxLines = 2)
-                    sel?.detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 1) }
-                }
-                AtIcon(Ic.CHEVRON_DOWN, At.c.muted, size = 20.dp)
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(MaterialTheme.shapes.small).background(At.c.panelHigh)
+                .clickable(enabled = choices.isNotEmpty(), role = Role.DropdownList, onClickLabel = "Choose $label") { open = true }
+                .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AtIcon(sel?.let { kindIcon(it.kind) } ?: Ic.EQ, At.c.signal, size = 22.dp)
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                Text(
+                    sel?.let { c -> c.title + (c.db?.let { " · %.1f dB from target".format(it) } ?: "") } ?: emptyText,
+                    style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+                sel?.let { c -> Text(listOfNotNull(c.groupSub, c.groupTitle).joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             }
-            androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.widthIn(min = 280.dp, max = 380.dp)) {
-                // each group shows its best few; "Show more" opens the rest of that group only
-                var more by remember { mutableStateOf(setOf<String>()) }
-                val groups = choices.groupBy { it.group }
-                groups.forEach { (g, list) ->
-                    val first = list.first()
-                    Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        AtIcon(kindIcon(first.kind), At.c.muted, size = 18.dp)
-                        Text("  $g", style = MaterialTheme.typography.labelLarge, color = At.c.muted)
-                    }
-                    val hiddenCount = list.count { !it.primary && it.key != selectedKey }
-                    val shown = if (g in more) list else list.filter { it.primary || it.key == selectedKey }
-                    shown.forEach { c -> PickItem(c, selectedKey) { open = false; onPick(c.key) } }
-                    if (hiddenCount > 0 && g !in more) {
-                        androidx.compose.material3.DropdownMenuItem(
-                            text = { Text("Show $hiddenCount more", Modifier.padding(start = 26.dp), style = MaterialTheme.typography.labelLarge, color = At.c.signal) },
-                            trailingIcon = { AtIcon(Ic.CHEVRON_DOWN, At.c.signal, size = 18.dp) },
-                            onClick = { more = more + g },
-                        )
-                    }
-                }
+            AtIcon(Ic.CHEVRON_DOWN, At.c.muted, size = 20.dp)
+        }
+    }
+    if (open) {
+        val sheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val scope = rememberCoroutineScope()
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { open = false }, sheetState = sheet,
+            containerColor = At.c.panel, contentColor = At.c.text,
+            shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
+        ) {
+            EqSheet(choices, selectedKey) { key ->
+                onPick(key)
+                scope.launch { sheet.hide() }.invokeOnCompletion { open = false }
             }
         }
     }
 }
 
 @Composable
-private fun PickItem(c: dev.autotune.EqChoice, selectedKey: String, onClick: () -> Unit) {
-                    androidx.compose.material3.DropdownMenuItem(
-                        text = {
-                            Column(Modifier.padding(start = 26.dp, top = 2.dp, bottom = 2.dp)) {
-                                Text(c.title, style = MaterialTheme.typography.bodyLarge, color = if (c.key == selectedKey) At.c.signal else At.c.text)
-                                c.detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = At.c.muted) }
-                            }
-                        },
-                        trailingIcon = { if (c.key == selectedKey) AtIcon(Ic.CHECK, At.c.signal, size = 18.dp) },
-                        onClick = onClick,
-                    )
+private fun EqSheet(choices: List<dev.autotune.EqChoice>, selectedKey: String, onPick: (String) -> Unit) {
+    val groups = choices.groupBy { it.group }
+    val selGroup = choices.firstOrNull { it.key == selectedKey }?.group ?: groups.keys.firstOrNull()
+    var openGroups by remember { mutableStateOf(setOfNotNull(selGroup)) }
+    Column(
+        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp).padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text("Choose the EQ", Modifier.padding(start = 4.dp, bottom = 8.dp), style = MaterialTheme.typography.headlineSmall)
+        groups.entries.forEachIndexed { gi, (g, list) ->
+            if (gi > 0) HorizontalDivider(color = At.c.line, modifier = Modifier.padding(vertical = 4.dp))
+            val isOpen = g in openGroups
+            val first = list.first()
+            val bestDb = list.mapNotNull { it.db }.minOrNull()
+            val turn by androidx.compose.animation.core.animateFloatAsState(if (isOpen) 90f else 0f, tween(motionMs(220), easing = EaseArrive), label = "group")
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(MaterialTheme.shapes.large)
+                    .clickable(role = Role.Button, onClickLabel = if (isOpen) "Close ${first.groupTitle}" else "Open ${first.groupTitle}") {
+                        openGroups = if (isOpen) openGroups - g else openGroups + g
+                    }
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AtIcon(if (g == "Saved EQs") Ic.SAVE else kindIcon(first.kind), At.c.muted, size = 20.dp)
+                Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                    Text(first.groupTitle, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    val sub = listOfNotNull(first.groupSub, if (g == selGroup && gi == 0 && choices.any { it.key == selectedKey }) "in use" else null).joinToString(" · ")
+                    if (sub.isNotBlank()) Text(sub, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+                if (!isOpen) Text(bestDb?.let { "best %.1f".format(it) } ?: "${list.size}", style = MaterialTheme.typography.labelMedium, color = At.c.muted)
+                AtIcon(Ic.CHEVRON, At.c.muted, Modifier.padding(start = 6.dp).graphicsLayer { rotationZ = turn }, size = 18.dp)
+            }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = isOpen,
+                enter = androidx.compose.animation.fadeIn(tween(motionMs(200), easing = EaseArrive)) + androidx.compose.animation.expandVertically(tween(motionMs(300), easing = EaseArrive)),
+                exit = androidx.compose.animation.fadeOut(tween(motionMs(90), easing = EaseLeave)) + androidx.compose.animation.shrinkVertically(tween(motionMs(180), easing = EaseLeave)),
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    // the useful few first (suggested, best, kept), then the rest
+                    (list.filter { it.primary } + list.filter { !it.primary }).forEach { c -> ChoiceRow(c, c.key == selectedKey) { onPick(c.key) } }
+                }
+            }
+        }
+    }
+}
+
+/** One choice on one line: a check when it is in use, its name, BEST on the best run, the reading at the end. */
+@Composable
+private fun ChoiceRow(c: dev.autotune.EqChoice, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(MaterialTheme.shapes.large)
+            .background(if (selected) androidx.compose.ui.graphics.lerp(At.c.panel, At.c.signal, 0.12f) else Color.Transparent)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .semantics { contentDescription = listOfNotNull(c.title, c.db?.let { "%.1f dB from the target".format(it) }, c.note, if (c.best) "best" else null).joinToString(", ") }
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) { if (selected) AtIcon(Ic.CHECK, At.c.signal, size = 18.dp) }
+        Row(Modifier.weight(1f).padding(start = 10.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                c.title, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodyLarge,
+                color = if (selected) At.c.signal else At.c.text, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            if (c.best) {
+                Text(
+                    "BEST", Modifier.padding(start = 8.dp).clip(RoundedCornerShape(4.dp)).background(At.c.good.copy(alpha = 0.15f)).padding(horizontal = 6.dp, vertical = 2.dp),
+                    style = MaterialTheme.typography.labelSmall, color = At.c.good,
+                )
+            }
+        }
+        if (c.db != null) {
+            Text("%.1f".format(c.db), style = MaterialTheme.typography.headlineSmall, color = if (c.best) At.c.good else At.c.text)
+            Text(" dB", style = MaterialTheme.typography.labelMedium, color = At.c.muted)
+        } else if (c.note != null) {
+            Text(c.note, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 1)
+        }
+    }
 }
 
 // ---------------------------------------------------------------- the pinned action

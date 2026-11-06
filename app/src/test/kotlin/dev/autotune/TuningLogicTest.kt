@@ -211,4 +211,14 @@ class ConvergenceTest {
         assertEquals("MEASURE", requestedTab("tune"))
         assertEquals("MEASURE", requestedTab(""))
     }
+
+    @Test
+    fun automaticTestNamesShortenToTheDate() {
+        assertEquals("5 Nov 01:52" to "Car, Harman-style", shortTestName("Car, Harman-style (+8 dB bass) test, 5 Nov 01:52", "Car, Harman-style (+8 dB bass)"))
+        assertEquals("30 Oct 05:32 (2)" to "Car", shortTestName("Car (+5 dB bass) test, 30 Oct 05:32 (2)", "Car (+5 dB bass)"))
+        // a name the user typed stays as it is, with the short target under it
+        assertEquals("F-150 driver seat" to "Car", shortTestName("F-150 driver seat", "Car (+5 dB bass)"))
+        assertEquals("LG (3)" to "Home theatre", shortTestName("LG (3)", "Home theatre"))
+        assertEquals("Flat", shortTarget("Flat"))
+    }
 }

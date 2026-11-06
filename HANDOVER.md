@@ -282,3 +282,8 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - `BigActionBar` shows "Suggested" over the button, the hint only in Advanced or when disabled, and slides the label when the recommendation changes.
 - Theme.kt: `Look.NAVY` appended (DevStore / CrossPaths palette).
 
+### EQ picker sheet (1.22.0)
+- `EqChoice` gained `db`, `best`, `note`, `groupTitle`, `groupSub` (all defaulted). `rebuildChoices` fills them; the best run's title is now its plain label with `best = true` (no "Best: " prefix).
+- `shortTestName(name, target)` and `shortTarget` in TuningLogic turn the automatic "<target> test, <date>[ (n)]" name into the date over the short target; typed names stay.
+- `GroupedPick` (Kit.kt) is a field that opens a `ModalBottomSheet` (`EqSheet`): the selected EQ's group open first, other groups collapsed to one line with their best reading; `ChoiceRow` is one line (check, title, BEST, reading in `AtFigures`).
+

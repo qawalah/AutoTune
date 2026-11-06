@@ -509,3 +509,24 @@ fun requestedTab(request: String): String = when (request.lowercase()) {
     "tests" -> "TESTS"
     else -> "MEASURE"
 }
+
+// ---------------------------------------------------------------- EQ picker (1.22)
+
+private val AUTO_TEST_NAME = Regex("""^(.+?) test, (\d{1,2} \S+ \d{1,2}:\d{2})(?: \((\d+)\))?$""")
+
+/** A target's name without its bracketed note: "Car, Harman-style (+8 dB bass)" -> "Car, Harman-style". */
+fun shortTarget(target: String): String = target.replace(Regex("""\s*\([^)]*\)"""), "").trim()
+
+/**
+ * The heading and the line under it for a test in the EQ picker. An automatic name ("<target> test, 5 Nov 01:52",
+ * maybe with " (2)") becomes the date over the short target; a name the user typed stays, over the short target.
+ */
+fun shortTestName(name: String, target: String): Pair<String, String?> {
+    val m = AUTO_TEST_NAME.matchEntire(name.trim())
+    if (m != null) {
+        val (t, date, n) = m.destructured
+        return (if (n.isNotEmpty()) "$date ($n)" else date) to shortTarget(t)
+    }
+    val sub = shortTarget(target).takeIf { it.isNotBlank() && !name.contains(it) }
+    return name to sub
+}

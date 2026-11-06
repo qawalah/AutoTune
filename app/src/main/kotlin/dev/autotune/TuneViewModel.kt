@@ -201,8 +201,17 @@ data class EqCheckView(val check: EqCheck, val chart: ChartData, val eqName: Str
 /** One EQ the user can put in use: a test's next suggestion, the EQ of one of its runs, or a saved EQ. */
 data class EqChoice(
     val key: String, val group: String, val kind: TargetKind, val title: String, val detail: String?,
-    /** Shown straight away; secondary choices wait behind "Show more" in their group. */
+    /** The useful few of a group (suggested, best, kept); listed first. */
     val primary: Boolean = true,
+    /** Measured distance from the target, for a run's EQ; null when not measured. */
+    val db: Double? = null,
+    /** The best measured run of its test. */
+    val best: Boolean = false,
+    /** Short words in place of a figure when there is none ("next · not measured"). */
+    val note: String? = null,
+    /** The group's heading and the line under it in the picker (see [shortTestName]). */
+    val groupTitle: String = group,
+    val groupSub: String? = null,
 )
 
 data class TestSummary(
@@ -572,37 +581,39 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         val ordered = savedTests.filter { it.runs.isNotEmpty() }.sortedByDescending { it.id == current?.id }
         ordered.forEach { t ->
             val kind = targetKind(Target.ALL.getOrNull(t.targetIdx))
+            val (gt, gs) = shortTestName(t.name, Target.ALL.getOrNull(t.targetIdx)?.name ?: "")
+            fun EqChoice.g() = copy(groupTitle = gt, groupSub = gs)
             val withEq = t.runs.indices.drop(1).filter { t.runs[it].eq.isNotEmpty() }
             val best = withEq.minByOrNull { t.runs[it].rmsDb }
             val last = t.runs.last()
             val next = runCatching { suggestedFor(last) }.getOrNull()
             if (next != null && next.filters.isNotEmpty() && !last.converged) {
-                out += EqChoice("suggest:${t.id}", t.name, kind, "Suggested EQ", "After ${last.label}, not measured yet · ${next.filters.size} bands")
+                out += EqChoice("suggest:${t.id}", t.name, kind, "Suggested EQ", "After ${last.label}, not measured yet · ${next.filters.size} bands", note = "next · not measured").g()
             }
             best?.let { i ->
                 val r = t.runs[i]
-                out += EqChoice("run:${t.id}:$i", t.name, kind, "Best: ${r.label}", "Measured %.2f dB from the target · ${r.eq.size} bands".format(r.rmsDb))
+                out += EqChoice("run:${t.id}:$i", t.name, kind, r.label, "Measured %.2f dB from the target · best · ${r.eq.size} bands".format(r.rmsDb), db = r.rmsDb, best = true).g()
             }
             val kept = s.profiles.filter { it.test == t.name }
             kept.filter { it.name.startsWith("${t.name} · tuned") }.forEach { p ->
-                out += EqChoice("profile:${p.id}", t.name, kind, "Kept: " + p.name.removePrefix("${t.name} · "), "Saved when tuning finished · ${p.filters.size} bands")
+                out += EqChoice("profile:${p.id}", t.name, kind, "Kept: " + p.name.removePrefix("${t.name} · "), "Saved when tuning finished · ${p.filters.size} bands", note = "kept").g()
             }
             // the rest, folded until asked for
             withEq.reversed().filter { it != best }.forEach { i ->
                 val r = t.runs[i]
-                out += EqChoice("run:${t.id}:$i", t.name, kind, r.label, "Measured %.2f dB from the target · ${r.eq.size} bands".format(r.rmsDb), primary = false)
+                out += EqChoice("run:${t.id}:$i", t.name, kind, r.label, "Measured %.2f dB from the target · ${r.eq.size} bands".format(r.rmsDb), primary = false, db = r.rmsDb).g()
             }
             aiStored(t.id)?.takeIf { it.bands.isNotEmpty() }?.let { r ->
-                out += EqChoice("ai:${t.id}", t.name, kind, "AI-adjusted EQ", "Suggestion after ${t.runs.getOrNull(r.focusRun ?: t.runs.lastIndex)?.label ?: "the last run"} + ${r.bands.size} changes from the AI review · not measured yet", primary = false)
+                out += EqChoice("ai:${t.id}", t.name, kind, "AI-adjusted EQ", "Suggestion after ${t.runs.getOrNull(r.focusRun ?: t.runs.lastIndex)?.label ?: "the last run"} + ${r.bands.size} changes from the AI review · not measured yet", primary = false, note = "AI · not measured").g()
             }
             kept.filter { !it.name.startsWith("${t.name} · tuned") }.forEach { p ->
-                out += EqChoice("profile:${p.id}", t.name, kind, p.name.removePrefix("${t.name} · "), "Saved · ${p.filters.size} bands", primary = false)
+                out += EqChoice("profile:${p.id}", t.name, kind, p.name.removePrefix("${t.name} · "), "Saved · ${p.filters.size} bands", primary = false, note = "saved").g()
             }
         }
         s.profiles.filter { it.test !in names }.forEach { p ->
-            out += EqChoice("profile:${p.id}", "Saved EQs", TargetKind.HAND, p.name, p.origin.ifBlank { "${p.filters.size} bands" })
+            out += EqChoice("profile:${p.id}", "Saved EQs", TargetKind.HAND, p.name, p.origin.ifBlank { "${p.filters.size} bands" }, note = "${p.filters.size} bands")
         }
-        if (s.editFilters != null && s.eqPick == "own") out += EqChoice("own", "Made here", TargetKind.HAND, "Your own bands", "Edited on the EQ tab · ${s.editFilters.size} bands")
+        if (s.editFilters != null && s.eqPick == "own") out += EqChoice("own", "Made here", TargetKind.HAND, "Your own bands", "Edited on the EQ tab · ${s.editFilters.size} bands", note = "${s.editFilters.size} bands")
         state.update { it.copy(eqChoices = out) }
     }
 

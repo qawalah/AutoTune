@@ -4,6 +4,11 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [1.22.0] - 2026-11-06
+### Changed
+- New EQ picker (EQ tab and Export). The field shows the EQ in use in one line ("Run 1 · 17.9 dB from target") with its test under it. Tapping it opens a sheet: the test of the EQ in use is open at the top, one line per choice with its reading at the end and a BEST tag on the best run; every other test and the saved EQs are one line each ("best 21.1") that opens when tapped. Replaces the long drop-down with wrapped two-line entries and "Show more" rows.
+- Test names the app made ("Car, Harman-style (+8 dB bass) test, 5 Nov 01:52") show in the picker as the date over the short target ("5 Nov 01:52" / "Car, Harman-style"). Names you typed stay as they are.
+
 ## [1.21.0] - 2026-11-04
 ### Changed
 - Five tabs: Tests, EQ, **Tune** (a raised disc in the centre of the bar), Live and Settings. Live and Settings are tabs now instead of a page and a full-screen overlay; Export is in the menu and opens as a page. A pill slides to the chosen tab; while a measurement runs on another tab, rings pulse out of the Tune disc.
