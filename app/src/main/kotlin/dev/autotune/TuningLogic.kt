@@ -692,3 +692,11 @@ fun resultHeadline(stockDb: Double, latestDb: Double, bestDb: Double? = null, be
     val tail = if (bestDb != null && bestLabel != null && bestDb < latestDb - 0.3) " $bestLabel is still the best." else ""
     return head + tail
 }
+
+// ---------------------------------------------------------------- tuning scale (1.27)
+
+/** The end of the tuning scale for these readings: the next of 4, 8, 12, 16, 24, 32 dB above the largest. */
+fun scaleMax(values: List<Double>): Double {
+    val top = values.maxOrNull()?.takeIf { it.isFinite() } ?: 0.0
+    return listOf(4.0, 8.0, 12.0, 16.0, 24.0, 32.0).firstOrNull { it >= top + 0.5 } ?: (Math.ceil((top + 0.5) / 8.0) * 8.0)
+}

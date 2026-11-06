@@ -305,3 +305,8 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - `Hint` is gone. Explanations are info bubbles: `InfoButton(title, text, small)`, `InfoLabel(label, info)`, and `info =` on `DropSelect`, `GroupedPick`, `Group`, `Fold` and Tune's `CardTitle`. `Alerts(items, title)` folds warnings into one tappable line; `StatusBlock` uses it.
 - `ResultSummary`: readings, `Headline` (from `resultHeadline` in TuningLogic, or the first sentence of the stock verdict via `firstSentence`), the stock findings needing work in one line, `Alerts(resultWarnings)`, and `NextLine` (shown on the results page). `FindingRow` and "Worth checking" are titles with bubbles.
 
+### Braun look (1.27.0)
+- Theme.kt: `Look.BRAUN` appended and made the default (`Look.of(null)`, `UiState.look`). `AtColors` gained `teak` (edge cheeks; null for other looks) and `alu` (the Tune wheel). Fonts are Inter (light to bold, `res/font/inter_*.ttf`, licence `licenses/Inter-OFL.txt`); Barlow is gone, `AtFigures` = `AtSans`. Shapes are 2/4/4/6/12dp.
+- Kit.kt: `CardShape` 6dp, decks have no border. `RunSheet` is a display deck with a lettering line instead of a coloured strip; `ReadingCells` sets the first reading large and light; `TuningScale(needleDb, stockDb, bestDb, predicted)` draws the radio scale, its range from `scaleMax` in TuningLogic (tested). `BigActionBar` is the graphite main key with a red pilot light; `PrimaryButton` graphite, `SecondaryButton` key-grey; `PulsingButton` is the record; `PowerToggle` lights green; `ScreenTitle` is the wordmark row.
+- AutoTuneScreen: `AtNavBar` is the push-key row with `TuneWheel`; teak cheeks are drawn over the tabs and pages when `At.c.teak` is set.
+

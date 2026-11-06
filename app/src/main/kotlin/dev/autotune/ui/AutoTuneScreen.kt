@@ -51,6 +51,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
@@ -268,6 +269,12 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                 }
             }
 
+            // the teak cheeks of a Braun SK 4, down both edges of the tabs and pages
+            At.c.teak?.let { teak ->
+                Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().width(6.dp).background(teak))
+                Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(6.dp).background(teak))
+            }
+
             // full screens rise in from the bottom and drop away when closed
             androidx.compose.animation.AnimatedVisibility(ai.open, enter = sheetIn(), exit = sheetOut()) {
                 androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
@@ -291,94 +298,67 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
 }
 
 /**
- * The navigation band: five tabs with Tune raised in the centre as a disc. A pill slides (and slightly stretches) to
- * the chosen tab and its icon pops once; while a measurement runs on another tab, rings pulse out from the Tune disc.
+ * The tabs as a row of push keys, like the SK 4 and audio 1: small rectangular keys with their line icon, the pressed
+ * one dark, a lowercase label under each. Tune in the centre is the aluminium tuning wheel with a red index; it turns
+ * to the tab's side when chosen and its index pulses while a measurement runs on another tab.
  */
 @Composable
 fun AtNavBar(tab: Tab, busy: Boolean, onSelect: (Tab) -> Unit) {
     val c = At.c
     val items = Tab.bar
-    val centre = items.indexOf(Tab.MEASURE)
-    val band = 64.dp
-    val raise = 22.dp
-    Column(Modifier.fillMaxWidth()) {
-        Box(Modifier.fillMaxWidth().height(band + raise)) {
-            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(band).background(c.shell))
-            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.align(Alignment.BottomCenter).widthIn(max = 480.dp).fillMaxWidth().height(band)) {
-                val slot = maxWidth / items.size
-                val sel = items.indexOf(tab)
-                val pillW = 60.dp
-                val x by androidx.compose.animation.core.animateDpAsState(
-                    slot * sel.coerceAtLeast(0) + (slot - pillW) / 2,
-                    androidx.compose.animation.core.tween(motionMs(480), easing = EaseArrive), label = "pill",
-                )
-                // the stretch: wider while travelling, back to size on arrival
-                val travel = kotlin.math.abs((x - (slot * sel.coerceAtLeast(0) + (slot - pillW) / 2)).value)
-                val stretch = (travel / 6f).coerceAtMost(16f).dp
-                if (tab != Tab.MEASURE && sel >= 0) {
-                    Box(
-                        Modifier.offset(x = x - stretch / 2, y = 8.dp).size(pillW + stretch, 32.dp).clip(RoundedCornerShape(16.dp))
-                            .background(androidx.compose.ui.graphics.lerp(c.shell, c.onShell, 0.16f)),
+    Column(Modifier.fillMaxWidth().background(c.shell)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
+        Row(
+            Modifier.align(Alignment.CenterHorizontally).widthIn(max = 480.dp).fillMaxWidth().padding(horizontal = 12.dp).padding(top = 10.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom,
+        ) {
+            items.forEach { t ->
+                val here = t == tab
+                val src = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                Column(
+                    Modifier.widthIn(min = 56.dp)
+                        .selectable(selected = here, interactionSource = src, indication = null, role = androidx.compose.ui.semantics.Role.Tab, onClick = { onSelect(t) })
+                        .semantics { contentDescription = t.title },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    if (t == Tab.MEASURE) TuneWheel(here, busy && !here, src)
+                    else {
+                        // the key travels down a little when pressed, like a real push key
+                        val down by androidx.compose.animation.core.animateDpAsState(if (here) 1.dp else 0.dp, androidx.compose.animation.core.tween(motionMs(120)), label = "key")
+                        Box(
+                            Modifier.offset(y = down).size(50.dp, 28.dp).pressScale(src).clip(RoundedCornerShape(3.dp))
+                                .background(if (here) c.text else c.panelHigh).border(1.dp, if (here) c.text else c.line, RoundedCornerShape(3.dp)),
+                            contentAlignment = Alignment.Center,
+                        ) { AtIcon(t.icon, if (here) c.bg else c.text, size = 18.dp) }
+                    }
+                    Text(
+                        t.title.lowercase(), Modifier.padding(top = 5.dp), style = MaterialTheme.typography.labelSmall,
+                        color = if (here) c.text else c.muted, fontWeight = if (here) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1,
                     )
                 }
-                Row(Modifier.fillMaxSize()) {
-                    items.forEachIndexed { i, t ->
-                        val here = t == tab
-                        Column(
-                            Modifier.weight(1f).fillMaxHeight()
-                                .selectable(selected = here, role = androidx.compose.ui.semantics.Role.Tab, onClick = { onSelect(t) })
-                                .semantics { contentDescription = t.title },
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            if (i == centre) {
-                                androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
-                            } else {
-                                val pop = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(1f) }
-                                val anim = animationsOn()
-                                LaunchedEffect(here) { if (here && anim) { pop.snapTo(0.82f); pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = 500f)) } }
-                                Box(Modifier.padding(top = 12.dp).size(24.dp).graphicsLayer { scaleX = pop.value; scaleY = pop.value }) {
-                                    AtIcon(t.icon, if (here) c.onShell else c.onShellMuted)
-                                }
-                                androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
-                            }
-                            Text(
-                                t.title, Modifier.padding(bottom = 8.dp), style = MaterialTheme.typography.labelMedium,
-                                color = if (here) c.onShell else c.onShellMuted, fontWeight = if (here) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1,
-                            )
-                        }
-                    }
-                }
             }
-            TuneDisc(Modifier.align(Alignment.TopCenter), selected = tab == Tab.MEASURE, pulse = busy && tab != Tab.MEASURE) { onSelect(Tab.MEASURE) }
         }
-        Box(Modifier.fillMaxWidth().background(c.shell).navigationBarsPadding())
+        Box(Modifier.fillMaxWidth().navigationBarsPadding())
     }
 }
 
-/** The raised Tune button in the middle of the bar: the app's main action, floating, so it alone has a shadow. */
+/** The aluminium wheel: brushed disc, a red index line. Chosen, it turns a quarter; busy, the index pulses. */
 @Composable
-private fun TuneDisc(modifier: Modifier, selected: Boolean, pulse: Boolean, onClick: () -> Unit) {
+private fun TuneWheel(selected: Boolean, pulse: Boolean, src: androidx.compose.foundation.interaction.MutableInteractionSource) {
     val c = At.c
-    val anim = animationsOn() && pulse
-    val phase = if (anim) {
-        val inf = androidx.compose.animation.core.rememberInfiniteTransition(label = "disc")
-        inf.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(2400, easing = androidx.compose.animation.core.LinearEasing)), label = "p").value
-    } else 0f
-    val src = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    Box(modifier.size(60.dp), contentAlignment = Alignment.Center) {
-        if (anim) androidx.compose.foundation.Canvas(Modifier.size(60.dp)) {
-            for (k in 0 until 2) {
-                val p = (phase + k * 0.5f) % 1f
-                drawCircle(c.signal.copy(alpha = 0.45f * (1f - p)), size.minDimension / 2 * (0.8f + 0.5f * p), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
-            }
-        }
-        Box(
-            Modifier.size(56.dp).pressScale(src).shadow(if (selected) 4.dp else 8.dp, CircleShape).clip(CircleShape).background(c.signal)
-                .then(if (selected) Modifier.border(3.dp, c.onShell, CircleShape) else Modifier)
-                .clickable(interactionSource = src, indication = androidx.compose.material3.ripple(), role = androidx.compose.ui.semantics.Role.Tab, onClick = onClick)
-                .semantics { contentDescription = "Tune" },
-            contentAlignment = Alignment.Center,
-        ) { AtIcon(Ic.TUNE, c.onSignal, size = 28.dp) }
+    val turn by androidx.compose.animation.core.animateFloatAsState(if (selected) 90f else 0f, androidx.compose.animation.core.tween(motionMs(420), easing = EaseArrive), label = "wheel")
+    val glow = if (pulse && animationsOn()) {
+        val inf = androidx.compose.animation.core.rememberInfiniteTransition(label = "busy")
+        inf.animateFloat(0.35f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(900), androidx.compose.animation.core.RepeatMode.Reverse), label = "g").value
+    } else 1f
+    Box(
+        Modifier.size(56.dp).pressScale(src).clip(CircleShape)
+            .background(androidx.compose.ui.graphics.Brush.radialGradient(listOf(androidx.compose.ui.graphics.lerp(c.alu, androidx.compose.ui.graphics.Color.White, 0.25f), c.alu)))
+            .border(if (selected) 2.dp else 1.dp, if (selected) c.text else c.line, CircleShape)
+            .graphicsLayer { rotationZ = turn },
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        Box(Modifier.padding(top = 6.dp).size(4.dp, 15.dp).clip(RoundedCornerShape(2.dp)).background(c.signal.copy(alpha = glow)))
     }
 }
 

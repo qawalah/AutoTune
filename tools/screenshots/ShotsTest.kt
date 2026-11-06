@@ -67,7 +67,7 @@ class ShotsTest {
         ),
     )
 
-    @Composable private fun Frame(dark: Boolean, look: Look = Look.DYNO, adv: Boolean = false, nav: Tab? = Tab.MEASURE, content: @Composable () -> Unit) {
+    @Composable private fun Frame(dark: Boolean, look: Look = Look.BRAUN, adv: Boolean = false, nav: Tab? = Tab.MEASURE, content: @Composable () -> Unit) {
         AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, look) {
             val slot = androidx.compose.runtime.remember { PinSlot() }
             androidx.compose.runtime.CompositionLocalProvider(LocalPin provides slot, LocalViewMode provides ViewMode(adv) {}) {
@@ -81,7 +81,7 @@ class ShotsTest {
             }
         }
     }
-    private fun shot(name: String, dark: Boolean = true, look: Look = Look.DYNO, adv: Boolean = false, nav: Tab? = Tab.MEASURE, content: @Composable () -> Unit) {
+    private fun shot(name: String, dark: Boolean = true, look: Look = Look.BRAUN, adv: Boolean = false, nav: Tab? = Tab.MEASURE, content: @Composable () -> Unit) {
         paparazzi.snapshot(name) { Frame(dark, look, adv, nav, content) }
     }
     private fun tune(st: UiState) = @Composable { TuneTab(st, vm, sharer, {}, {}, pick) }
@@ -211,7 +211,7 @@ class ShotsTest {
         EqCheckCard(EqCheckView(judgeEqCheck(g.freqs, DoubleArray(g.size), DoubleArray(g.size) { big[it] * 0.1 }, big), ch, "F-150 · Suggested EQ", "17 Oct 04:40"), vm)
     }
     @Test fun w7_settings_defaults() = paparazzi.snapshot("w7_settings_defaults") {
-        AutoTuneTheme(ThemeMode.DARK, false, Look.DYNO) {
+        AutoTuneTheme(ThemeMode.DARK, false, Look.BRAUN) {
             androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
                 SettingsTab(s.copy(defTarget = Target.HARMAN_CAR.name, defBassDb = 2.0, exportFolder = "Documents/AutoTune"), AiUi(), vm, pick)
             }

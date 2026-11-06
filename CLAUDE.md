@@ -36,13 +36,14 @@ phone through Obtainium.
 - Use line icons from `Ic` in `ui/Kit.kt`.
 - Keep to clean Material 3, with minimal scrolling and taps.
 - After every reading, show a short summary, then one recommended action pinned above the tabs (`PinAction`), then the other choices, then Details. The graph is always shown.
-- Use plain, short wording. Use Barlow (`AtSans`) for text and Barlow Condensed (`AtFigures`) for readings and headings; figures are tabular everywhere.
-- Results open with a run sheet (`RunSheet` + `ReadingCells` in `ui/Kit.kt`); charts sit on chart paper with the stock dashed. See `DESIGN.md`.
+- The look is a Braun device by Dieter Rams (`Look.BRAUN`, the default); see `DESIGN.md`. Red is only for what is live or acted on.
+- Use plain, short wording. Inter is the only typeface (`AtSans`; `AtFigures` is the same family): readings large and light, labels small and lowercase; figures are tabular everywhere.
+- Results open with the display and the tuning scale (`RunSheet` + `ReadingCells` + `TuningScale` in `ui/Kit.kt`); the stock is drawn dashed in charts.
 - Five tabs: Tests, EQ, Tune (raised in the centre), Live, Settings. A test's results and Export are pages over the current tab (`Page` in `ui/AutoTuneScreen.kt`): Back returns where you were. Keep new detail screens as pages, not tabs.
 - Simple / Advanced is app-wide and Simple is the default. Advanced adds controls and sections (`Adv { }`), never paragraphs. Simple shows only each tab's core job (see the 1.26.0 entry in `CHANGELOG.md`); gate the rest with `isAdvanced()`.
 - No explanatory text on the page, in either mode: explanations go in info bubbles (`InfoButton`, `info =` on `DropSelect`, `GroupedPick`, `Group`, `Fold`, `InfoLabel`). Warnings go through `Alerts(list)`, one line that opens the full list. A line of text under a control is a fact or a status, at most one line.
 - Every result opens with the readings, a one-line headline (`resultHeadline`), the findings or alerts in one line each, and the next step.
-- Each section is a card (`Panel`, `Group`, `Fold`; never nested). Stack actions one per row with `Actions { }`. Motion uses `EaseArrive`/`EaseLeave` and `motionMs()`, so "Remove animations" is respected.
+- Each section is a deck (`Panel`, `Group`, `Fold`: grey plate, no border, no shadow; never nested). Stack actions one per row with `Actions { }`. Motion uses `EaseArrive`/`EaseLeave` and `motionMs()`, so "Remove animations" is respected.
 
 ## Don't break
 - **Saved tests** (`TestStore` text format): keep loading every older version.

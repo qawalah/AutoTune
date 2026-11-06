@@ -426,7 +426,7 @@ data class UiState(
     // --- appearance
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     /** The app's look (colours and slider style). */
-    val look: dev.autotune.ui.Look = dev.autotune.ui.Look.DYNO,
+    val look: dev.autotune.ui.Look = dev.autotune.ui.Look.BRAUN,
     val dynamicColor: Boolean = false,
     /** Advanced shows every explanation and extra control; Simple (the default) keeps the essentials. App-wide. */
     val advanced: Boolean = false,

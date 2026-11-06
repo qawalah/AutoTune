@@ -54,6 +54,10 @@ class AtColors(
     val shell: Color = panel,
     val onShell: Color = text,
     val onShellMuted: Color = muted,
+    /** The wood cheeks down both edges of the screen (Braun SK 4); null draws none. */
+    val teak: Color? = null,
+    /** The aluminium of the Tune wheel in the key row. */
+    val alu: Color = androidx.compose.ui.graphics.lerp(panelHigh, muted, 0.35f),
 )
 
 /** Slider looks: a round knob on a line, a mixing-desk fader cap, or a column of LEDs. */
@@ -68,13 +72,48 @@ enum class Look(val title: String, val detail: String) {
     VU("Analog VU", "Warm cream meter face with a red needle"),
     SYNTH("Synthwave", "Deep purple with magenta and cyan"),
     NAVY("Navy", "Deep navy with a teal accent, the DevStore look"),
+    BRAUN("Braun", "White body, grey deck, teak cheeks and one red, after Dieter Rams. The default"),
     ;
 
     /** Wallpaper colours replace a look's own colours, so only the two plain looks offer them. */
     val allowsWallpaper: Boolean get() = this == DYNO || this == STUDIO
 
-    companion object { fun of(name: String?) = entries.firstOrNull { it.name == name } ?: DYNO }
+    companion object { fun of(name: String?) = entries.firstOrNull { it.name == name } ?: BRAUN }
 }
+
+// Braun, after Dieter Rams: a white body, a grey deck for what matters, push keys, teak cheeks, and one red for the
+// record label, the needle and the pilot light. Runs are inks and greys; the EQ is the red.
+private val BraunLight = AtColors(
+    dark = false,
+    bg = Color(0xFFF3F2EE), panel = Color(0xFFE2E0DA), panelHigh = Color(0xFFEDECE7), line = Color(0xFFC8C6BF),
+    text = Color(0xFF232321), muted = Color(0xFF66645E),
+    signal = Color(0xFFC8401A), onSignal = Color(0xFFFFFFFF),
+    good = Color(0xFF3D7F3A), warn = Color(0xFF8A6200), bad = Color(0xFFB3261E),
+    target = Color(0xFF232321),
+    runs = listOf(
+        Color(0xFF8A8882), Color(0xFF2F4F7F), Color(0xFF3D7F3A), Color(0xFF7A4A9C),
+        Color(0xFF0E7C86), Color(0xFF8C5A2B), Color(0xFF4B5563), Color(0xFF9C2F6B),
+    ),
+    slider = SliderStyle.FADER,
+    shell = Color(0xFFE2E0DA), onShell = Color(0xFF232321), onShellMuted = Color(0xFF66645E),
+    teak = Color(0xFFB07446), alu = Color(0xFFB9BAB8),
+)
+
+private val BraunDark = AtColors(
+    dark = true,
+    bg = Color(0xFF1A1A19), panel = Color(0xFF262624), panelHigh = Color(0xFF30302D), line = Color(0xFF3C3C38),
+    text = Color(0xFFECEAE4), muted = Color(0xFFA3A19A),
+    signal = Color(0xFFF0663A), onSignal = Color(0xFF1A0A03),
+    good = Color(0xFF6CB866), warn = Color(0xFFE9C14A), bad = Color(0xFFFF6B5E),
+    target = Color(0xFFECEAE4),
+    runs = listOf(
+        Color(0xFF9B9992), Color(0xFF8EB4F0), Color(0xFF7CCB76), Color(0xFFC59BEB),
+        Color(0xFF4FD1DB), Color(0xFFE0A86E), Color(0xFFB8C0CC), Color(0xFFF08CC0),
+    ),
+    slider = SliderStyle.FADER,
+    shell = Color(0xFF262624), onShell = Color(0xFFECEAE4), onShellMuted = Color(0xFFA3A19A),
+    teak = Color(0xFF8E5A33), alu = Color(0xFF8F908E),
+)
 
 // A dyno run sheet. By day, chart paper with a fine green grid; by night, graphite with the grid dimmed. Marker orange
 // is the tune, plotter pens are the runs, the stock is grey ink (drawn dashed), shop green carries the navigation.
@@ -146,6 +185,7 @@ private fun look(
 
 /** The colours of [l] in its dark or light version. Run colours stay far from each look's accent. */
 fun lookColors(l: Look, dark: Boolean): AtColors = when (l) {
+    Look.BRAUN -> if (dark) BraunDark else BraunLight
     Look.DYNO -> if (dark) DynoDark else DynoLight
     Look.STUDIO -> if (dark) DarkAt else LightAt
     Look.CONSOLE -> if (dark) look(
@@ -196,55 +236,51 @@ object At {
 @Composable
 fun runColor(idx: Int): Color = LocalAt.current.runs[idx.coerceAtLeast(0) % LocalAt.current.runs.size]
 
-/** Interface text. Barlow's letterforms come from California licence plates and highway signs. */
+/** Interface text: Inter, a neutral grotesk in the spirit of the Akzidenz type on Braun devices. */
 val AtSans = FontFamily(
-    Font(R.font.barlow_regular, FontWeight.Normal),
-    Font(R.font.barlow_medium, FontWeight.Medium),
-    Font(R.font.barlow_semibold, FontWeight.SemiBold),
-    Font(R.font.barlow_semibold, FontWeight.Bold),
+    Font(R.font.inter_light, FontWeight.Light),
+    Font(R.font.inter_regular, FontWeight.Normal),
+    Font(R.font.inter_medium, FontWeight.Medium),
+    Font(R.font.inter_semibold, FontWeight.SemiBold),
+    Font(R.font.inter_bold, FontWeight.Bold),
 )
 
-/** Readings and headings: the condensed cut, like the figures printed on a dyno sheet. */
-val AtFigures = FontFamily(
-    Font(R.font.barlow_condensed_medium, FontWeight.Normal),
-    Font(R.font.barlow_condensed_medium, FontWeight.Medium),
-    Font(R.font.barlow_condensed_semibold, FontWeight.SemiBold),
-    Font(R.font.barlow_condensed_semibold, FontWeight.Bold),
-)
+/** Readings and headings: the same family; readings are set large and light, like a Braun display. */
+val AtFigures = AtSans
 
 // tabular figures everywhere, so readings line up in columns and never jitter while they update
 private fun t(size: Int, line: Int, weight: FontWeight, family: FontFamily = AtSans, tracking: Double = 0.0) =
     TextStyle(fontFamily = family, fontSize = size.sp, lineHeight = line.sp, fontWeight = weight, letterSpacing = tracking.sp, fontFeatureSettings = "tnum")
 
 private val AtTypography = Typography(
-    displayLarge = t(54, 58, FontWeight.Medium, AtFigures, -0.5),
-    displayMedium = t(42, 46, FontWeight.Medium, AtFigures, -0.3),
-    displaySmall = t(32, 38, FontWeight.Medium, AtFigures),
-    headlineLarge = t(32, 38, FontWeight.SemiBold, AtFigures, -0.2),
-    headlineMedium = t(29, 34, FontWeight.SemiBold, AtFigures, -0.2),
-    headlineSmall = t(24, 30, FontWeight.SemiBold, AtFigures),
-    titleLarge = t(20, 26, FontWeight.SemiBold),
-    titleMedium = t(17, 23, FontWeight.SemiBold),
-    titleSmall = t(15, 21, FontWeight.Medium),
-    bodyLarge = t(17, 25, FontWeight.Normal),
-    bodyMedium = t(15, 22, FontWeight.Normal),
-    bodySmall = t(14, 20, FontWeight.Normal),
-    labelLarge = t(15, 20, FontWeight.Medium),
-    labelMedium = t(14, 18, FontWeight.Medium),
-    labelSmall = t(13, 16, FontWeight.Medium),
+    displayLarge = t(54, 60, FontWeight.Light, AtFigures, -1.2),
+    displayMedium = t(42, 48, FontWeight.Light, AtFigures, -0.9),
+    displaySmall = t(32, 38, FontWeight.Light, AtFigures, -0.6),
+    headlineLarge = t(30, 36, FontWeight.Medium, AtFigures, -0.5),
+    headlineMedium = t(26, 32, FontWeight.Medium, AtFigures, -0.4),
+    headlineSmall = t(21, 28, FontWeight.Medium, AtFigures, -0.2),
+    titleLarge = t(18, 24, FontWeight.Medium, tracking = -0.1),
+    titleMedium = t(16, 22, FontWeight.Medium),
+    titleSmall = t(14, 20, FontWeight.Medium),
+    bodyLarge = t(16, 24, FontWeight.Normal),
+    bodyMedium = t(14, 21, FontWeight.Normal),
+    bodySmall = t(13, 19, FontWeight.Normal),
+    labelLarge = t(14, 20, FontWeight.Medium),
+    labelMedium = t(13, 18, FontWeight.Medium),
+    labelSmall = t(11, 15, FontWeight.Medium, tracking = 0.6),
 )
 
-// sheets, not cards: nearly square corners
+// device corners: small and even, like the edges of a Braun panel and its keys
 private val AtShapes = Shapes(
-    extraSmall = RoundedCornerShape(3.dp),
-    small = RoundedCornerShape(5.dp),
-    medium = RoundedCornerShape(6.dp),
-    large = RoundedCornerShape(8.dp),
-    extraLarge = RoundedCornerShape(16.dp),
+    extraSmall = RoundedCornerShape(2.dp),
+    small = RoundedCornerShape(4.dp),
+    medium = RoundedCornerShape(4.dp),
+    large = RoundedCornerShape(6.dp),
+    extraLarge = RoundedCornerShape(12.dp),
 )
 
 @Composable
-fun AutoTuneTheme(mode: ThemeMode, dynamic: Boolean, lookChoice: Look = Look.DYNO, content: @Composable () -> Unit) {
+fun AutoTuneTheme(mode: ThemeMode, dynamic: Boolean, lookChoice: Look = Look.BRAUN, content: @Composable () -> Unit) {
     val dark = when (mode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false

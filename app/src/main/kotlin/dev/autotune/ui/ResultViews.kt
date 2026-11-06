@@ -46,14 +46,17 @@ fun ResultSummary(s: UiState, showNext: Boolean, namesTest: Boolean = true) {
         RunSheet(
             if (namesTest) name else "Stock reading",
             if (namesTest) "Stock reading · ${stock.whenText}" else stock.whenText,
-            trailing = { AtIcon(if (suspicious) Ic.ALERT else Ic.MEASURE, c.onShell, size = 22.dp) },
+            trailing = { AtIcon(if (suspicious) Ic.ALERT else Ic.MEASURE, c.muted, size = 20.dp) },
         ) {
             ReadingCells(
                 listOfNotNull(
-                    Reading(db(stock.rmsDb), "dB", "Stock", if (suspicious) c.warn else null),
-                    a?.predictedDb?.takeIf { !suspicious }?.let { Reading("≈" + db(it), "dB", "With the EQ", c.signal) },
+                    Reading(db(stock.rmsDb), "dB", "stock · from target", if (suspicious) c.warn else null),
+                    a?.predictedDb?.takeIf { !suspicious }?.let { Reading("≈" + db(it), "dB", "with the eq", c.signal) },
                 ),
             )
+            // the radio scale: grey at the stock, the red needle (dashed) where the suggested EQ should land
+            val pred = a?.predictedDb?.takeIf { !suspicious }
+            TuningScale(pred ?: stock.rmsDb, stock.rmsDb, predicted = pred != null)
             // the summary in one line, the why in its bubble
             Headline(a?.verdict?.let(::firstSentence) ?: "Stock reading saved.", about + (a?.verdict?.let { "\n\n$it" } ?: ""))
             Alerts(s.resultWarnings)
@@ -73,16 +76,17 @@ fun ResultSummary(s: UiState, showNext: Boolean, namesTest: Boolean = true) {
         RunSheet(
             if (namesTest) name else "${latest.label} vs stock",
             if (namesTest) "${latest.label} vs stock · ${latest.whenText}" else latest.whenText,
-            trailing = { AtIcon(if (better) Ic.DONE else Ic.ALERT, c.onShell, size = 22.dp) },
+            trailing = { AtIcon(if (better) Ic.DONE else Ic.ALERT, c.muted, size = 20.dp) },
         ) {
             ReadingCells(
                 listOfNotNull(
-                    Reading(db(stock.rmsDb), "dB", "Stock"),
-                    Reading(db(latest.rmsDb), "dB", latest.label, if (better) c.good else c.warn),
-                    if (best != null && best != latest) Reading(db(best.rmsDb), "dB", "Best: ${best.label}")
-                    else Reading("%+.1f".format(latest.rmsDb - stock.rmsDb).replace('-', '−'), "dB", "vs stock"),
+                    Reading(db(latest.rmsDb), "dB", "${latest.label} · from target"),
+                    Reading("%+.1f".format(latest.rmsDb - stock.rmsDb).replace('-', '−'), "dB", "vs stock ${db(stock.rmsDb)}", if (better) c.good else c.warn),
+                    if (best != null && best != latest) Reading(db(best.rmsDb), "dB", "best · ${best.label}") else null,
                 ),
             )
+            // the radio scale: grey at the stock, green at the best, the red needle at this run
+            TuningScale(latest.rmsDb, stock.rmsDb, best?.takeIf { it != latest }?.rmsDb)
             Headline(dev.autotune.resultHeadline(stock.rmsDb, latest.rmsDb, best?.rmsDb, best?.label), about)
             Alerts(s.resultWarnings)
             val rec = s.recommendation

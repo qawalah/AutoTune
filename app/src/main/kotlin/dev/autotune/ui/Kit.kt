@@ -440,10 +440,11 @@ fun ModeSwitch() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
-                Modifier.clip(MaterialTheme.shapes.small).background(At.c.panelHigh).padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                Modifier.clip(MaterialTheme.shapes.extraSmall).background(At.c.panelHigh).border(1.dp, At.c.line, MaterialTheme.shapes.extraSmall)
+                    .padding(start = 10.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(if (mode.advanced) "Advanced" else "Simple", style = MaterialTheme.typography.labelMedium, color = At.c.text)
+                Text(if (mode.advanced) "advanced" else "simple", style = MaterialTheme.typography.labelMedium, color = At.c.text)
                 AtIcon(Ic.CHEVRON_DOWN, At.c.muted, Modifier.padding(start = 4.dp), size = 16.dp)
             }
         }
@@ -466,8 +467,8 @@ fun ModeSwitch() {
 
 // ---------------------------------------------------------------- cards
 
-/** Cards: 16dp corners, a 1dp rule, no shadow. */
-val CardShape = RoundedCornerShape(16.dp)
+/** A deck: the grey plate of a Braun device (the SK 4's turntable deck). 6dp corners, no border, no shadow. */
+val CardShape = RoundedCornerShape(6.dp)
 
 /** True inside a card, so a card placed in another card draws flat instead of nesting. */
 val LocalInCard = androidx.compose.runtime.compositionLocalOf { false }
@@ -490,7 +491,7 @@ private fun CardBox(modifier: Modifier, pad: Dp, content: @Composable () -> Unit
         return
     }
     Column(
-        modifier.fillMaxWidth().clip(CardShape).background(At.c.panel).border(1.dp, At.c.line, CardShape)
+        modifier.fillMaxWidth().clip(CardShape).background(At.c.panel)
             .animateContentSize(tween(motionMs(320), easing = EaseArrive)).padding(pad),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) { androidx.compose.runtime.CompositionLocalProvider(LocalInCard provides true) { content() } }
@@ -508,20 +509,20 @@ fun Panel(modifier: Modifier = Modifier, pad: Dp = 14.dp, content: @Composable (
 fun RunSheet(title: String, sub: String? = null, trailing: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
     val c = At.c
     Column(
-        Modifier.fillMaxWidth().clip(CardShape).background(c.panel)
-            .border(1.dp, c.line, CardShape).animateContentSize(tween(motionMs(320), easing = EaseArrive)),
+        Modifier.fillMaxWidth().clip(CardShape).background(c.panel).animateContentSize(tween(motionMs(320), easing = EaseArrive)),
     ) {
+        // the deck's own label line, like the lettering above a device's controls
         Row(
-            Modifier.fillMaxWidth().background(c.shell).heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().heightIn(min = 40.dp).padding(start = 16.dp, end = 12.dp, top = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleSmall, color = c.onShell, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                if (sub != null) Text(sub, style = MaterialTheme.typography.bodySmall, color = c.onShellMuted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(title, style = MaterialTheme.typography.titleSmall, color = c.text, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                if (sub != null) Text(sub.lowercase(), style = MaterialTheme.typography.labelSmall, color = c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
             trailing?.invoke()
         }
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             androidx.compose.runtime.CompositionLocalProvider(LocalInCard provides true) { content() }
         }
     }
@@ -535,16 +536,54 @@ class Reading(val value: String, val unit: String?, val name: String, val tint: 
 
 @Composable
 fun ReadingCells(cells: List<Reading>) {
-    Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min)) {
+    // the first figure is the display's main reading; the rest sit beside it, smaller
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
         cells.forEachIndexed { i, r ->
-            if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(At.c.line))
-            Column(Modifier.weight(1f).padding(start = if (i == 0) 0.dp else 12.dp, end = 8.dp)) {
+            Column(Modifier.weight(if (i == 0) 1.3f else 1f), horizontalAlignment = if (i == 0) Alignment.Start else Alignment.End) {
                 Row(verticalAlignment = Alignment.Bottom) {
-                    Text(r.value, style = MaterialTheme.typography.headlineSmall, color = r.tint ?: At.c.text, maxLines = 1)
-                    if (r.unit != null) Text(" ${r.unit}", Modifier.padding(bottom = 3.dp), style = MaterialTheme.typography.labelMedium, color = At.c.muted, maxLines = 1)
+                    Text(
+                        r.value, style = if (i == 0) MaterialTheme.typography.displayMedium else MaterialTheme.typography.displaySmall.copy(fontSize = 24.sp, lineHeight = 30.sp),
+                        color = r.tint ?: At.c.text, maxLines = 1,
+                    )
+                    if (r.unit != null) Text(" ${r.unit}", Modifier.padding(bottom = if (i == 0) 8.dp else 4.dp), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
                 }
-                Text(r.name, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 2)
+                Text(r.name.lowercase(), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
             }
+        }
+    }
+}
+
+/**
+ * The tuning scale of a Braun radio, for the distance from the target: ticks every half dB, a grey mark at the stock,
+ * a faint mark at the best run, and the red needle at the reading shown. Lower is better, so the needle moving left
+ * is progress.
+ */
+@Composable
+fun TuningScale(needleDb: Double, stockDb: Double?, bestDb: Double? = null, predicted: Boolean = false) {
+    val c = At.c
+    val max = dev.autotune.scaleMax(listOfNotNull(needleDb, stockDb, bestDb))
+    val anim by androidx.compose.animation.core.animateFloatAsState(needleDb.toFloat(), tween(motionMs(600), easing = EaseArrive), label = "needle")
+    Column(Modifier.fillMaxWidth().semantics { contentDescription = "%.1f dB from the target".format(needleDb) }) {
+        Canvas(Modifier.fillMaxWidth().height(40.dp).clip(MaterialTheme.shapes.small).background(c.bg)) {
+            val pad = 10.dp.toPx(); val w = size.width - 2 * pad; val h = size.height
+            fun x(db: Double) = pad + w * (db / max).toFloat().coerceIn(0f, 1f)
+            val steps = (max * 2).toInt()
+            for (k in 0..steps) {
+                val major = k % 2 == 0
+                drawLine(c.muted.copy(alpha = if (major) 0.9f else 0.5f), Offset(x(k / 2.0), h * 0.2f), Offset(x(k / 2.0), h * if (major) 0.55f else 0.4f), 1.dp.toPx())
+            }
+            stockDb?.let { drawLine(c.muted, Offset(x(it), h * 0.12f), Offset(x(it), h * 0.88f), 2.dp.toPx()) }
+            bestDb?.let { drawLine(c.good, Offset(x(it), h * 0.6f), Offset(x(it), h * 0.88f), 2.dp.toPx()) }
+            val nx = x(anim.toDouble())
+            if (predicted) {
+                var y = 0f
+                while (y < h) { drawLine(c.signal, Offset(nx, y), Offset(nx, (y + 4.dp.toPx()).coerceAtMost(h)), 2.5.dp.toPx()); y += 7.dp.toPx() }
+            } else drawLine(c.signal, Offset(nx, 0f), Offset(nx, h), 2.5.dp.toPx())
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            val step = if (max <= 8) 2 else if (max <= 16) 4 else 10
+            var v = 0
+            while (v <= max.toInt()) { Text("$v", style = MaterialTheme.typography.labelSmall, color = c.muted); v += step }
         }
     }
 }
@@ -581,7 +620,7 @@ fun Fold(title: String, summary: String? = null, startOpen: Boolean = false, inf
         }
     }
     if (inCard) Column(Modifier.fillMaxWidth()) { body() }
-    else Column(Modifier.fillMaxWidth().clip(CardShape).background(At.c.panel).border(1.dp, At.c.line, CardShape)) { body() }
+    else Column(Modifier.fillMaxWidth().clip(CardShape).background(At.c.panel)) { body() }
 }
 
 /** A titled block of content, separated from the previous one by a hairline. */
@@ -627,36 +666,43 @@ fun InfoButton(title: String, text: String, small: Boolean = false) {
 @Composable
 fun ScreenTitle(title: String, context: String? = null, onContext: (() -> Unit)? = null, contextIcon: Ic? = null, actions: @Composable () -> Unit = {}) {
     val back = LocalBack.current
-    Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            if (back != null) Box(Modifier.offset(x = (-12).dp)) { IconAction(Ic.BACK, "Back", back) }
-            Column(Modifier.weight(1f).then(if (back != null) Modifier.offset(x = (-8).dp) else Modifier)) {
-                Text(title, style = MaterialTheme.typography.headlineMedium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                if (context != null) {
-                    Row(
-                        if (onContext != null) Modifier.clickable(onClick = onContext).heightIn(min = 24.dp) else Modifier,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (contextIcon != null) { AtIcon(contextIcon, At.c.signal, size = 18.dp); androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp)) }
-                        Text(context, style = MaterialTheme.typography.bodyMedium, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                    }
-                }
+            if (back != null) {
+                Box(Modifier.offset(x = (-12).dp)) { IconAction(Ic.BACK, "Back", back) }
+                Text(
+                    title, Modifier.weight(1f).offset(x = (-8).dp), style = MaterialTheme.typography.titleLarge,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+            } else {
+                // the small wordmark, as the braun badge sits on every device, then the tab's name
+                Text("autotune", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp), color = At.c.text)
+                Text(
+                    "  " + title.lowercase(), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Normal),
+                    color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
             }
             actions()
             ModeSwitch()
             if (back == null) LocalMenu.current()
         }
+        if (context != null) {
+            Row(
+                (if (onContext != null) Modifier.clickable(onClick = onContext) else Modifier).heightIn(min = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (contextIcon != null) { AtIcon(contextIcon, At.c.muted, size = 16.dp); androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp)) }
+                Text(context, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+        }
         SheetRule()
     }
 }
 
-/** The rule under a sheet's header: a band in the shell colour over a hairline. */
+/** The hairline under a screen's header. */
 @Composable
 fun SheetRule() {
-    Column(Modifier.fillMaxWidth()) {
-        Box(Modifier.fillMaxWidth().height(3.dp).background(At.c.shell))
-        Box(Modifier.fillMaxWidth().padding(top = 2.dp).height(1.dp).background(At.c.line))
-    }
+    Box(Modifier.fillMaxWidth().padding(top = 4.dp).height(1.dp).background(At.c.line))
 }
 
 /** The hamburger menu, supplied once by the screen and shown in every tab's title row. */
@@ -682,11 +728,12 @@ fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
         onClick = onClick, enabled = enabled, interactionSource = src,
         modifier = modifier.then(if (LocalStacked.current) Modifier.fillMaxWidth() else Modifier).heightIn(min = 52.dp).pressScale(src),
         shape = MaterialTheme.shapes.medium,
+        // a graphite key; red is kept for the pilot light, the needle and the EQ
         colors = ButtonDefaults.buttonColors(
-            containerColor = At.c.signal, contentColor = At.c.onSignal,
+            containerColor = At.c.text, contentColor = At.c.bg,
             disabledContainerColor = At.c.panelHigh, disabledContentColor = At.c.muted,
         ),
-    ) { ButtonContent(text, icon, if (enabled) At.c.onSignal else At.c.muted) }
+    ) { ButtonContent(text, icon, if (enabled) At.c.bg else At.c.muted) }
 }
 
 @Composable
@@ -705,8 +752,8 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
         onClick = onClick, enabled = enabled, interactionSource = src,
         modifier = modifier.then(if (LocalStacked.current) Modifier.fillMaxWidth() else Modifier).heightIn(min = 48.dp).pressScale(src),
         shape = MaterialTheme.shapes.medium,
-        border = BorderStroke(1.dp, if (enabled) At.c.muted.copy(alpha = 0.6f) else At.c.line),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = At.c.text, disabledContentColor = At.c.muted),
+        border = BorderStroke(1.dp, At.c.line),
+        colors = ButtonDefaults.outlinedButtonColors(containerColor = At.c.panelHigh, contentColor = At.c.text, disabledContentColor = At.c.muted),
     ) { ButtonContent(text, icon, if (enabled) At.c.text else At.c.muted) }
 }
 
@@ -717,7 +764,7 @@ fun TextAction(text: String, onClick: () -> Unit, enabled: Boolean = true, dange
         // in a stack: one full-width row per action, the label at the start and a chevron at the end
         val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 52.dp).pressScale(src).clip(MaterialTheme.shapes.large).background(At.c.panelHigh)
+            Modifier.fillMaxWidth().heightIn(min = 52.dp).pressScale(src).clip(MaterialTheme.shapes.medium).background(At.c.panelHigh)
                 .clickable(interactionSource = src, indication = androidx.compose.material3.ripple(), enabled = enabled, role = Role.Button, onClick = onClick)
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -785,31 +832,39 @@ fun DropSelect(
  */
 @Composable
 fun PulsingButton(label: String, sub: String?, icon: Ic, enabled: Boolean, onClick: () -> Unit) {
+    // the record of a Braun PS 2: a black disc with fine grooves, Tune is its red label. While it waits, a faint
+    // ring runs out over the grooves, like a stylus about to drop.
     val c = At.c
     val anim = animationsOn() && enabled
     val phase = if (anim) {
-        val inf = rememberInfiniteTransition(label = "pulse")
-        inf.animateFloat(0f, 1f, infiniteRepeatable(tween(1800, easing = LinearEasing), RepeatMode.Restart), label = "p").value
+        val inf = rememberInfiniteTransition(label = "record")
+        inf.animateFloat(0f, 1f, infiniteRepeatable(tween(2400, easing = LinearEasing), RepeatMode.Restart), label = "p").value
     } else 0f
-    Box(Modifier.size(260.dp).semantics { contentDescription = label }, contentAlignment = Alignment.Center) {
+    val vinyl = if (c.dark) Color(0xFF0B0B0A) else Color(0xFF1C1C1B)
+    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    Box(
+        Modifier.size(260.dp).pressScale(src).clip(CircleShape)
+            .clickable(interactionSource = src, indication = androidx.compose.material3.ripple(), enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) {
         Canvas(Modifier.size(260.dp)) {
-            if (anim) for (k in 0 until 2) {
-                val p = (phase + k * 0.5f) % 1f
-                val r = size.minDimension / 2 * (0.66f + 0.34f * p)
-                drawCircle(c.signal.copy(alpha = 0.35f * (1f - p)), r, style = Stroke(3.dp.toPx() * (1f - p) + 1f))
+            val r = size.minDimension / 2
+            drawCircle(c.alu.copy(alpha = 0.55f), r)
+            drawCircle(vinyl, r * 0.95f)
+            for (g in 1..14) drawCircle(Color.White.copy(alpha = 0.035f), r * (0.44f + g * 0.036f), style = Stroke(1f))
+            if (anim) {
+                val rr = r * (0.42f + 0.52f * phase)
+                drawCircle(Color.White.copy(alpha = 0.10f * (1f - phase)), rr, style = Stroke(1.5.dp.toPx()))
             }
         }
-        val breathe = if (anim) 1f + 0.03f * kotlin.math.sin(phase * 2f * Math.PI.toFloat()) else 1f
         Box(
-            Modifier.size(170.dp * breathe).clip(CircleShape)
-                .background(if (enabled) c.signal else c.panelHigh)
-                .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+            Modifier.size(110.dp).clip(CircleShape).background(if (enabled) c.signal else c.panelHigh),
             contentAlignment = Alignment.Center,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                AtIcon(icon, if (enabled) c.onSignal else c.muted, size = 34.dp)
-                Text(label, style = MaterialTheme.typography.headlineMedium, color = if (enabled) c.onSignal else c.muted, fontWeight = FontWeight.SemiBold)
-                if (sub != null) Text(sub, style = MaterialTheme.typography.bodySmall, color = if (enabled) c.onSignal.copy(alpha = 0.8f) else c.muted)
+                Text(label.lowercase(), style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold), color = if (enabled) c.onSignal else c.muted)
+                if (sub != null) Text(sub.lowercase(), style = MaterialTheme.typography.labelSmall, color = if (enabled) c.onSignal.copy(alpha = 0.8f) else c.muted)
             }
         }
     }
@@ -847,7 +902,7 @@ fun StepHeader(index: Int, total: Int, title: String, onExit: (() -> Unit)?, onB
         ) {
             for (i in 0 until total) {
                 val col by androidx.compose.animation.animateColorAsState(
-                    if (i < index) (if (c.dark) c.muted else c.shell) else if (i == index) c.signal else c.line,
+                    if (i < index) c.muted else if (i == index) c.signal else c.line,
                     tween(motionMs(380), easing = EaseArrive), label = "step",
                 )
                 Box(Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(col))
@@ -863,13 +918,13 @@ fun PowerToggle(on: Boolean, onChange: (Boolean) -> Unit, label: String, enabled
     val x by t.animateDp(transitionSpec = { tween(if (animationsOn()) 160 else 0) }, label = "x") { if (it) 28.dp else 0.dp }
     Box(
         Modifier.size(72.dp, 44.dp).clip(RoundedCornerShape(22.dp))
-            .background(if (on) At.c.signal else At.c.panelHigh)
+            .background(if (on) At.c.text else At.c.panelHigh).border(1.dp, At.c.line, RoundedCornerShape(22.dp))
             .toggleable(value = on, enabled = enabled, role = Role.Switch, onValueChange = onChange)
             .semantics { contentDescription = label },
     ) {
         Box(
             Modifier.padding(5.dp).offset(x = x).size(34.dp).clip(CircleShape)
-                .background(if (on) At.c.onSignal else At.c.muted),
+                .background(if (on) At.c.good else At.c.muted),
         )
     }
 }
@@ -1162,44 +1217,36 @@ fun BigActionBar(a: PinnedAction) {
     Column(
         // ruled off from the page, so content scrolling under it reads as passing under, not cut off
         Modifier.fillMaxWidth().background(At.c.bg).drawBehind { drawLine(rule, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1.dp.toPx()) }
-            .padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 10.dp),
+            .padding(horizontal = 16.dp).padding(top = 10.dp, bottom = 10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        // the recommended move, named as such; the reason under it in Advanced, or when something blocks it
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AtIcon(Ic.CHECK, At.c.muted, size = 14.dp)
-            Text(" Suggested", style = MaterialTheme.typography.labelMedium, color = At.c.muted)
-        }
         a.hint?.takeIf { isAdvanced() || !a.enabled }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 2) }
+        // the main key: graphite, with a red pilot light that is lit while the move is ready, and "suggested" on it
         val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-        androidx.compose.material3.Button(
-            onClick = a.onClick, enabled = a.enabled, interactionSource = src, modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp).pressScale(src),
-            shape = MaterialTheme.shapes.medium,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = At.c.signal, contentColor = At.c.onSignal,
-                disabledContainerColor = At.c.panelHigh, disabledContentColor = At.c.muted,
-            ),
+        val keyColor = if (a.enabled) At.c.text else At.c.panelHigh
+        val onKey = if (a.enabled) At.c.bg else At.c.muted
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 58.dp).pressScale(src).clip(MaterialTheme.shapes.medium).background(keyColor)
+                .clickable(interactionSource = src, indication = androidx.compose.material3.ripple(), enabled = a.enabled, role = Role.Button, onClick = a.onClick)
+                .padding(horizontal = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            Box(Modifier.size(10.dp).clip(CircleShape).background(if (a.enabled) At.c.signal else At.c.line))
             // a new recommendation slides in, so the change is noticed
             val inMs = motionMs(300)
             val outMs = motionMs(90)
             androidx.compose.animation.AnimatedContent(
-                targetState = Triple(a.text, a.icon, a.enabled),
+                targetState = Pair(a.text, a.icon), modifier = Modifier.weight(1f).padding(start = 14.dp),
                 transitionSpec = {
                     (androidx.compose.animation.fadeIn(tween(inMs, easing = EaseArrive)) + androidx.compose.animation.slideInVertically(tween(inMs, easing = EaseArrive)) { it / 3 }) togetherWith
                         androidx.compose.animation.fadeOut(tween(outMs, easing = EaseLeave))
                 },
                 label = "pin",
-            ) { (text, icon, enabled) ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (icon != null) {
-                        AtIcon(icon, if (enabled) At.c.onSignal else At.c.muted, size = 24.dp)
-                        androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
-                    }
-                    // the condensed cut, so long actions still fit on one line in big type
-                    Text(text, style = MaterialTheme.typography.headlineSmall.copy(fontSize = 21.sp, lineHeight = 26.sp), maxLines = 2)
-                }
+            ) { (text, _) ->
+                // the pilot light is the key's only mark; the words get the whole width
+                Text(text, style = MaterialTheme.typography.titleMedium, color = onKey, maxLines = 2)
             }
+            Text("suggested", style = MaterialTheme.typography.labelSmall, color = onKey.copy(alpha = 0.6f))
         }
     }
 }

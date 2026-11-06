@@ -229,4 +229,13 @@ class ConvergenceTest {
         assertEquals("1.0 dB further from the target than stock.", resultHeadline(10.0, 11.0))
         assertEquals("About the same as stock.", resultHeadline(10.0, 10.2, 10.1, "Run 2"))
     }
+
+    @Test
+    fun tuningScaleEndsAboveTheLargestReading() {
+        assertEquals(8.0, scaleMax(listOf(6.2, 2.1)), 0.0)
+        assertEquals(24.0, scaleMax(listOf(23.1, 20.1, 17.9)), 0.0)
+        assertEquals(4.0, scaleMax(listOf(1.0)), 0.0)
+        assertEquals(4.0, scaleMax(emptyList()), 0.0)
+        assertEquals(40.0, scaleMax(listOf(35.0)), 0.0)
+    }
 }

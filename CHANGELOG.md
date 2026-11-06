@@ -4,6 +4,16 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [1.27.0] - 2026-11-06
+### Changed
+- New look, **Braun**, now the default: the app is designed like a Braun device by Dieter Rams. A white body between teak cheeks, a grey deck for each section (no borders, no shadows), and one red for what is live: the record label, the needle, the pilot light and the EQ. Dark mode is Braun black. The other looks stay in Settings > Appearance as colour variants.
+- Type is **Inter** throughout, replacing Barlow: readings large and light, labels small and lowercase, tabular figures.
+- The tabs are a row of **push keys** with their icons; Tune in the centre is an **aluminium tuning wheel** with a red index (it turns when chosen and pulses while a measurement runs elsewhere).
+- Tune home is a **record** with a red "tune" label.
+- Results open with a **display**: the reading large and light, the change from stock, the best run, and a **radio tuning scale** with the stock marked grey, the best green and a red needle at this run (dashed for the suggested EQ's prediction).
+- The main button is a **graphite key with a red pilot light** and "suggested" on it. Other buttons are grey keys; the AutoTune EQ switch lights green when on; EQ sliders are faders.
+- The header is the small "autotune" wordmark with the tab's name beside it.
+
 ## [1.26.0] - 2026-11-06
 ### Changed
 - Simple is simpler on every tab; everything taken out is still in Advanced.
