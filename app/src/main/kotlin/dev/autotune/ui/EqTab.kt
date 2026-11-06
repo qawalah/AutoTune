@@ -786,7 +786,8 @@ fun LoudEqFold(s: UiState, vm: TuneViewModel, startOpen: Boolean = false) {
             "and only cuts, so it can never clip. It takes back part of your bass and treble boosts, and cuts where the speakers distort.\n\n" +
             "It can follow the volume when the car's volume knob reaches the phone (Bluetooth with absolute volume does; Android Auto often doesn't). " +
             "Use the volume check to find out. Otherwise switch it by hand: the button here, the notification, the Loud EQ tile in Quick Settings, " +
-            "or the volume keys: down, up, down, up within 3 seconds.\n\nMeasurements never use it.",
+            "or the volume keys: down, up, down, up within 3 seconds.\n\n" +
+            "Or let it listen: in “Follow the sound level” the phone's mic hears how loud the cabin is while music plays, and the loud EQ comes in above the level you set. It works with any output, Android Auto included.\n\nMeasurements never use it.",
     ) {
         DropSelect(
             modes.map { it.title }, modes.indexOf(s.loudMode), { vm.setLoudMode(modes[it]) }, label = "When it plays",
@@ -797,6 +798,7 @@ fun LoudEqFold(s: UiState, vm: TuneViewModel, startOpen: Boolean = false) {
             when {
                 !s.systemEqOn -> if (live.manual) "Switched on. It plays once AutoTune EQ is on." else "Plays once AutoTune EQ is on."
                 live.manual -> "On: switched on by hand."
+                playing && s.loudMode == dev.autotune.LoudMode.LEVEL -> "On at %.0f%%: the cabin is at %.0f dB.".format(live.amount * 100, live.levelDb ?: 0.0)
                 playing -> "On at %.0f%%: volume %d%%.".format(live.amount * 100, live.volumePct ?: 0)
                 else -> "Not playing now."
             },
@@ -822,6 +824,7 @@ fun LoudEqFold(s: UiState, vm: TuneViewModel, startOpen: Boolean = false) {
                 )
                 Actions {
                     TextAction(if (live.synced == null) "Check the car's volume reaches AutoTune" else "Check the volume again", vm::volumeCheck, icon = Ic.CHECK)
+                    if (live.synced == false) TextAction("Follow the sound level instead", { vm.setLoudMode(dev.autotune.LoudMode.LEVEL) }, icon = Ic.MIC)
                 }
             }
             val starts = listOf(60, 70, 75, 80, 90)
@@ -829,6 +832,27 @@ fun LoudEqFold(s: UiState, vm: TuneViewModel, startOpen: Boolean = false) {
                 starts.map { "From $it% volume" }, starts.indexOf(s.loudStartPct).coerceAtLeast(0), { vm.setLoudStart(starts[it]) },
                 label = "Comes in", details = starts.map { "All of it at full volume" },
             )
+        }
+
+        if (s.loudMode == dev.autotune.LoudMode.LEVEL) {
+            if (!s.hasPermission) Warning("AutoTune needs the microphone permission to hear the level.")
+            Muted(
+                when {
+                    !s.systemEqOn -> "Listens once AutoTune EQ is on."
+                    live.listening && live.levelDb != null -> "Hearing %.0f dB · full from %.0f dB.".format(live.levelDb, s.loudLevelDb) + (live.micNote?.let { " $it." } ?: "")
+                    else -> (live.micNote ?: "Starting the mic") + "."
+                },
+            )
+            Actions {
+                SecondaryButton("This is loud", vm::loudLevelNow, enabled = s.systemEqOn && live.listening && live.levelDb != null, icon = Ic.MIC)
+            }
+            Hint("Play music at the volume where it starts to sound strained, then tap “This is loud”. The loud EQ comes in over the 6 dB below it.")
+            val levels = (listOf(75.0, 80.0, 85.0, 90.0, 95.0) + s.loudLevelDb).distinct().sorted()
+            DropSelect(
+                levels.map { "Full from %.0f dB".format(it) }, levels.indexOf(s.loudLevelDb), { vm.setLoudLevel(levels[it]) },
+                label = "Loud level", details = levels.map { "Starts at %.0f dB".format(it - 6) },
+            )
+            Hint("The mic dot shows while it listens. It closes the mic when no music plays, while AutoTune measures, and during calls. Only the level is kept, never the sound. Road noise counts too: keep the loud level above it.")
         }
 
         // what it changes

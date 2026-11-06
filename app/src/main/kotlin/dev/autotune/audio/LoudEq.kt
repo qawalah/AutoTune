@@ -32,6 +32,8 @@ object LoudEq {
     data class Live(
         val amount: Double = 0.0, val manual: Boolean = false, val volumePct: Int? = null,
         val route: String = "", val synced: Boolean? = null, val carMode: Boolean = false,
+        /** Sound level mode: the smoothed cabin level the mic hears (null when not listening), and why it isn't. */
+        val levelDb: Double? = null, val listening: Boolean = false, val micNote: String? = null,
     )
 
     val live = MutableStateFlow(Live())
@@ -46,6 +48,52 @@ object LoudEq {
     var checking = false
 
     private fun prefs(ctx: Context) = ProfileController.prefs(ctx)
+
+    // sound level mode, written by the LevelMeter
+    @Volatile private var levelAmt = 0.0
+    @Volatile private var levelDb: Double? = null
+    @Volatile private var listening = false
+    @Volatile private var micNote: String? = null
+
+    /** The cabin level from which the loud EQ plays in full (the "This is loud" level), dB. */
+    fun loudLevel(ctx: Context): Double = prefs(ctx).getFloat("loudLevel", dev.autotune.LOUD_LEVEL_DEFAULT.toFloat()).toDouble()
+    fun splOffset(ctx: Context): Double = prefs(ctx).getFloat("splOffset", 0f).toDouble()
+
+    /** The meter heard [db] (smoothed; null = not listening). Re-applies the EQ when the amount moves a step. */
+    fun levelHeard(ctx: Context, db: Double?, on: Boolean, note: String? = null) {
+        levelDb = db
+        listening = on
+        micNote = note
+        val wanted = if (db == null || !on) levelAmt else dev.autotune.levelAmount(db, loudLevel(ctx))
+        val next = dev.autotune.steadyAmount(levelAmt, wanted)
+        if (next != levelAmt) {
+            levelAmt = next
+            if (mode(ctx) == LoudMode.LEVEL) {
+                ProfileController.reshape(ctx)
+                runCatching { ctx.startService(Intent(ctx, SystemEqService::class.java).setAction(SystemEqService.ACTION_REFRESH)) }
+                return
+            }
+        }
+        publish(ctx)
+    }
+
+    /** "This is loud": the level heard now becomes the full-strength level. Returns false when nothing is heard. */
+    fun setLoudLevelNow(ctx: Context): Boolean {
+        val db = levelDb ?: return false
+        setLoudLevel(ctx, db)
+        return true
+    }
+
+    fun setLoudLevel(ctx: Context, db: Double) {
+        prefs(ctx).edit().putFloat("loudLevel", (Math.round(db * 2) / 2.0).toFloat()).apply()
+        levelDb?.let { levelHeard(ctx, it, listening, micNote) }
+    }
+
+    /** The meter stopped (EQ off, mode changed, service gone): nothing is heard, and the level part of the EQ goes. */
+    fun meterOff(ctx: Context, note: String? = null) {
+        levelDb = null; listening = false; micNote = note; levelAmt = 0.0
+        publish(ctx)
+    }
 
     fun mode(ctx: Context): LoudMode = LoudMode.of(prefs(ctx).getString("loudMode", null))
     fun manual(ctx: Context): Boolean = prefs(ctx).getBoolean("loudOn", false)
@@ -101,6 +149,7 @@ object LoudEq {
         val mode = mode(ctx)
         if (mode == LoudMode.OFF) return 0.0
         if (manual(ctx)) return 1.0
+        if (mode == LoudMode.LEVEL) return levelAmt
         if (mode != LoudMode.VOLUME || synced(ctx) != true) return 0.0
         val v = volume(ctx) ?: return 0.0
         return Math.round(dev.autotune.loudAmount(v, startFrac(ctx)) * 10.0) / 10.0
@@ -114,7 +163,10 @@ object LoudEq {
 
     fun publish(ctx: Context, amount: Double = lastAmount) {
         val r = route(ctx)
-        live.value = Live(amount, manual(ctx) && mode(ctx) != LoudMode.OFF, volume(ctx)?.let { Math.round(it * 100).toInt() }, r, synced(ctx, r), carMode(ctx))
+        live.value = Live(
+            amount, manual(ctx) && mode(ctx) != LoudMode.OFF, volume(ctx)?.let { Math.round(it * 100).toInt() }, r, synced(ctx, r), carMode(ctx),
+            levelDb, listening, micNote,
+        )
     }
 
     /** The volume moved: re-apply the EQ when the loud amount changed. */
@@ -136,6 +188,15 @@ object LoudEq {
             on -> if (SystemEq.chain == null) "Loud EQ on. It plays once AutoTune EQ is on." else "Loud EQ on"
             else -> "Loud EQ off"
         }
+    }
+
+    /**
+     * The app came to the front: if the sound level mode is waiting for the mic, ask the service again. Android only
+     * lets an app open the mic for the background while it is on screen.
+     */
+    fun appVisible(ctx: Context) {
+        if (mode(ctx) == LoudMode.LEVEL && SystemEq.chain != null && !listening)
+            runCatching { ctx.startService(Intent(ctx, SystemEqService::class.java).setAction(SystemEqService.ACTION_REFRESH)) }
     }
 
     /** After any loud setting changed: rebuild what plays, the notification and the tile. */
@@ -188,6 +249,92 @@ class VolumeWatcher(private val ctx: Context, private val onStep: (level: Int, d
         runCatching { ctx.contentResolver.unregisterContentObserver(observer) }
         runCatching { ctx.unregisterReceiver(receiver) }
         on = false
+    }
+}
+
+/**
+ * Sound level mode: listens with the phone's mic while music plays and tells [LoudEq] the smoothed cabin level. Only
+ * the level is kept, never the sound. The mic is closed while nothing plays (so the mic dot goes), while AutoTune
+ * measures or runs the Live analyser, and its silence while another app holds the mic is skipped.
+ */
+class LevelMeter(private val ctx: Context) {
+    companion object {
+        /** Set while the Live analyser has the mic. */
+        @Volatile var paused = false
+        private const val FS = 16000
+    }
+
+    @Volatile private var running = false
+    private var thread: Thread? = null
+
+    fun start() {
+        if (running) return
+        running = true
+        thread = Thread({ loop() }, "AutoTune level").apply { isDaemon = true; start() }
+    }
+
+    fun stop() {
+        running = false
+        thread?.interrupt()
+        thread = null
+    }
+
+    private fun open(): android.media.AudioRecord? {
+        val am = ctx.getSystemService(AudioManager::class.java)
+        // the raw mic where the phone has one: voice processing would turn the level down as it rises
+        val raw = runCatching { am.getProperty(AudioManager.PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED) == "true" }.getOrDefault(false)
+        val fmt = android.media.AudioFormat.Builder().setEncoding(android.media.AudioFormat.ENCODING_PCM_FLOAT)
+            .setSampleRate(FS).setChannelMask(android.media.AudioFormat.CHANNEL_IN_MONO).build()
+        val sources = (if (raw) listOf(android.media.MediaRecorder.AudioSource.UNPROCESSED) else emptyList()) +
+            listOf(android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION, android.media.MediaRecorder.AudioSource.MIC)
+        for (src in sources) {
+            val rec = runCatching {
+                android.media.AudioRecord.Builder().setAudioSource(src).setAudioFormat(fmt).setBufferSizeInBytes(FS * 4).build()
+            }.getOrNull() ?: continue
+            if (rec.state != android.media.AudioRecord.STATE_INITIALIZED) { rec.release(); continue }
+            return rec
+        }
+        return null
+    }
+
+    private fun loop() {
+        val am = ctx.getSystemService(AudioManager::class.java)
+        val follower = dev.autotune.LevelFollower()
+        val buf = FloatArray(FS / 10)
+        var rec: android.media.AudioRecord? = null
+        var blocks = 0
+        var silenced = 0
+        fun close() { rec?.let { runCatching { it.stop() }; it.release() }; rec = null }
+        try {
+            while (running) {
+                val busy = paused || SystemEq.measuring
+                if (busy || !am.isMusicActive) {
+                    close()
+                    LoudEq.levelHeard(ctx, null, false, if (busy) "Paused while AutoTune uses the mic" else "Waiting for music")
+                    Thread.sleep(2000)
+                    continue
+                }
+                if (rec == null) {
+                    rec = try { open()?.also { it.startRecording() } } catch (e: Exception) { null }
+                    if (rec == null) {
+                        LoudEq.levelHeard(ctx, null, false, "The mic could not be opened")
+                        Thread.sleep(5000)
+                        continue
+                    }
+                }
+                val r = rec!!.read(buf, 0, buf.size, android.media.AudioRecord.READ_BLOCKING)
+                if (r <= 0) { close(); Thread.sleep(1000); continue }
+                var sq = 0.0
+                for (k in 0 until r) sq += buf[k].toDouble() * buf[k]
+                val dbfs = 10.0 * kotlin.math.log10(sq / r + 1e-20)
+                if (dbfs < dev.autotune.MIC_SILENCED_DBFS) silenced++ else { silenced = 0; follower.feed(dev.autotune.micSpl(dbfs, LoudEq.splOffset(ctx)), r.toDouble() / FS) }
+                // report about once a second; a mic another app holds gives silence: keep the last level
+                if (++blocks % 10 == 0) LoudEq.levelHeard(ctx, follower.level, true, if (silenced >= 10) "Another app has the mic" else null)
+            }
+        } catch (_: InterruptedException) {
+        } finally {
+            close()
+        }
     }
 }
 

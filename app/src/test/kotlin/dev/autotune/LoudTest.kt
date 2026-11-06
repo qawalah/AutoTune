@@ -122,4 +122,40 @@ class LoudTest {
         assertEquals(LoudMode.VOLUME, LoudMode.of("VOLUME"))
         assertTrue(EqChain(emptyList()).filters.isEmpty())
     }
+
+    @Test
+    fun levelFollowerIsSlowToFall() {
+        val f = LevelFollower(2.0, 6.0)
+        assertEquals(70.0, f.feed(70.0, 0.1)!!, 0.0)
+        // one loud block barely moves it
+        f.feed(100.0, 0.1)
+        assertTrue(f.level!! < 72.0)
+        // a steady loud passage gets there within a few seconds
+        repeat(80) { f.feed(90.0, 0.1) }
+        assertTrue(f.level!! > 88.0)
+        // falling takes longer than rising
+        val up = f.level!!
+        repeat(20) { f.feed(70.0, 0.1) }
+        assertTrue(up - f.level!! < 7.0)
+        // silence from a blocked mic is skipped
+        val before = f.level
+        f.feed(Double.NEGATIVE_INFINITY, 0.1)
+        assertEquals(before, f.level)
+    }
+
+    @Test
+    fun levelAmountAndSteps() {
+        assertEquals(0.0, levelAmount(78.0, 85.0), 0.0)
+        assertEquals(0.0, levelAmount(79.0, 85.0), 0.0)
+        assertEquals(0.5, levelAmount(82.0, 85.0), 1e-9)
+        assertEquals(1.0, levelAmount(85.0, 85.0), 0.0)
+        assertEquals(1.0, levelAmount(95.0, 85.0), 0.0)
+        // steps: small moves are ignored, big ones and the ends are taken
+        assertEquals(0.5, steadyAmount(0.5, 0.6), 0.0)
+        assertEquals(0.7, steadyAmount(0.5, 0.7), 1e-9)
+        assertEquals(0.0, steadyAmount(0.1, 0.02), 0.0)
+        assertEquals(1.0, steadyAmount(0.9, 0.97), 0.0)
+        assertEquals(97.0, micSpl(-20.0, 5.0), 0.0)
+        assertEquals(LoudMode.LEVEL, LoudMode.of("LEVEL"))
+    }
 }

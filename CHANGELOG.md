@@ -4,6 +4,14 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [1.24.0] - 2026-11-06
+### Added
+- **Loud EQ: Follow the sound level.** A third way for the loud EQ to come in, for outputs whose volume AutoTune can't read (Android Auto, and Bluetooth without absolute volume). While AutoTune EQ is on and music plays, the phone's mic hears how loud the cabin is. The loud EQ fades in over the 6 dB below your loud level and plays in full above it.
+- **"This is loud"**: play music where it starts to sound strained and tap it to set the loud level from what the mic hears (or pick 75 to 95 dB). Same dB scale as the Live tab's SPL.
+- The level is smoothed (rises over about 2 s, falls over about 6 s) and the EQ only moves in 20% steps, so it doesn't pump with the music. Only the level is kept, never the sound.
+- The mic closes when no music plays, while AutoTune measures or runs the Live analyser, and its silence during calls is skipped. Android only lets an app open the mic for the background while it is on screen, so after a reboot or a Bluetooth reconnect, open AutoTune once.
+- A failed volume check now offers "Follow the sound level instead".
+
 ## [1.23.0] - 2026-11-06
 ### Added
 - **Loud EQ** (EQ tab, new card): a dynamic EQ for high volume. Speakers distort as you turn them up, so the loud EQ comes in at high volume and only cuts: it takes back 60% of the bass boosts (below 150 Hz) and treble boosts (above 5 kHz), and cuts where the speakers distort. It keeps the preamp, so it can never clip. Measurements never use it, like the flavours.

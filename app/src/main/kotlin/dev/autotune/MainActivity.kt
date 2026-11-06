@@ -65,6 +65,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         vm.syncExternal()
+        // the sound level mode can only open the mic while the app is on screen
+        dev.autotune.audio.LoudEq.appVisible(this)
     }
 
     override fun onDestroy() {

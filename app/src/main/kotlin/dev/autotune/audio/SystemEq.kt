@@ -163,7 +163,7 @@ class SystemEqService : Service() {
 
     private fun automationOn() = ProfileController.prefs(this).getBoolean("automationOn", false)
 
-    private fun notify(text: String, title: String) {
+    private fun notify(text: String, title: String, force: Boolean = false) {
         val nm = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) nm.createNotificationChannel(NotificationChannel(CHANNEL, "AutoTune EQ", NotificationManager.IMPORTANCE_LOW))
         val b = (if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL) else Notification.Builder(this))
@@ -179,10 +179,39 @@ class SystemEqService : Service() {
             b.addAction(action(android.R.drawable.ic_lock_silent_mode_off, if (loudOn) "Loud EQ off" else "Loud EQ on", ProfileController.ACTION_TOGGLE_LOUD, 203))
         }
         val n = b.build()
-        ServiceCompat.startForeground(
-            this, 42, n,
-            if (Build.VERSION.SDK_INT >= 29) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0,
-        )
+        // the sound level mode needs the microphone type; Android allows it only while the app is on screen
+        val base = if (Build.VERSION.SDK_INT >= 29) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
+        val mic = if (Build.VERSION.SDK_INT >= 30) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0
+        val want = if (wantsMeter()) base or mic else base
+        if (want == fgType && !force) { getSystemService(NotificationManager::class.java).notify(42, n); return }
+        try {
+            ServiceCompat.startForeground(this, 42, n, want)
+            fgType = want
+            micAllowed = want != base || mic == 0
+        } catch (e: Exception) {
+            // not allowed from the background: keep the EQ running without the mic until the app is opened
+            ServiceCompat.startForeground(this, 42, n, base)
+            fgType = base
+            micAllowed = false
+        }
+    }
+
+    /** The foreground type in force (-1 before the first start), and whether the mic may be used. */
+    private var fgType = -1
+    private var micAllowed = false
+    private var meter: LevelMeter? = null
+
+    private fun wantsMeter(): Boolean =
+        SystemEq.chain != null && LoudEq.mode(this) == dev.autotune.LoudMode.LEVEL &&
+            ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    private fun updateMeter() {
+        val want = wantsMeter()
+        if (want && micAllowed) { if (meter == null) meter = LevelMeter(this).also { it.start() } }
+        else {
+            meter?.stop(); meter = null
+            LoudEq.meterOff(this, if (want) "Open AutoTune once to start listening" else null)
+        }
     }
 
     private fun action(icon: Int, title: String, act: String, code: Int): Notification.Action =
@@ -209,6 +238,10 @@ class SystemEqService : Service() {
 
     private fun refreshNotification() {
         updateVolumeWatch()
+        try { refreshInner() } finally { updateMeter() }
+    }
+
+    private fun refreshInner() {
         val on = SystemEq.chain != null
         shownLoud = LoudEq.lastAmount
         val loud = if (on && LoudEq.lastAmount > 0.0) " · loud EQ %.0f%%".format(LoudEq.lastAmount * 100) else ""
@@ -245,7 +278,7 @@ class SystemEqService : Service() {
         if (SystemEq.chain == null) ProfileController.restore(this)
         // the foreground notice must go up first, whatever happens next
         notify(if (SystemEq.chain != null) "Equalising this phone's audio" else "Waiting for a Bluetooth device to connect",
-            if (SystemEq.chain != null) "AutoTune EQ is on" else "AutoTune is watching")
+            if (SystemEq.chain != null) "AutoTune EQ is on" else "AutoTune is watching", force = true)
         if (!registered) {
             ContextCompat.registerReceiver(
                 this, receiver,
@@ -267,6 +300,9 @@ class SystemEqService : Service() {
         watcher?.let { runCatching { unregisterReceiver(it) } }
         volume?.stop()
         volume = null
+        meter?.stop()
+        meter = null
+        LoudEq.meterOff(this)
         SystemEq.off()
         super.onDestroy()
     }

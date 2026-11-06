@@ -539,6 +539,7 @@ enum class LoudMode(val title: String, val detail: String) {
     OFF("Off", "One EQ at every volume"),
     VOLUME("Follow the volume", "Comes in as you turn up. The button and volume keys still work"),
     BUTTON("Button only", "Only when you switch it on: notification, quick tile or volume keys"),
+    LEVEL("Follow the sound level", "Listens with the phone's mic while music plays and comes in when it gets loud"),
     ;
 
     companion object { fun of(name: String?) = entries.firstOrNull { it.name == name } ?: OFF }
@@ -628,3 +629,49 @@ class VolumeGesture(private val windowMs: Long = 2500, private val presses: Int 
 
 /** The volume check: the car's knob moved the phone's volume (at least two steps were seen) or it didn't. */
 fun volumeFollows(levels: List<Int>): Boolean = levels.zipWithNext().count { (a, b) -> a != b } >= 2
+
+// ---------------------------------------------------------------- loud EQ by sound level (the phone's mic)
+
+/** The mic level a loud EQ by sound level starts from before the user sets one, dB (the Live tab's SPL scale). */
+const val LOUD_LEVEL_DEFAULT = 85.0
+
+/** Mic blocks quieter than this (dBFS) are silence handed out while another app holds the mic: they don't count. */
+const val MIC_SILENCED_DBFS = -100.0
+
+/** The Live tab's SPL scale for the phone's own mic: dBFS + 112 dB + the user's SPL offset. */
+fun micSpl(dbfs: Double, offsetDb: Double): Double = dbfs + 112.0 + offsetDb
+
+/**
+ * The cabin level, smoothed so a drum hit doesn't count: it rises with a [attackS] time constant and falls with a
+ * slower [releaseS] one, so the loud EQ doesn't pump between songs or quiet bars.
+ */
+class LevelFollower(private val attackS: Double = 2.0, private val releaseS: Double = 6.0) {
+    var level: Double? = null
+        private set
+
+    /** Feeds one block's level [db] lasting [dtS] seconds; returns the smoothed level. Non-finite levels are skipped. */
+    fun feed(db: Double, dtS: Double): Double? {
+        if (!db.isFinite()) return level
+        val l = level
+        level = if (l == null) db else {
+            val tau = if (db > l) attackS else releaseS
+            l + (db - l) * (1.0 - kotlin.math.exp(-dtS / tau))
+        }
+        return level
+    }
+}
+
+/** How much of the loud EQ plays at the cabin [levelDb]: none [rangeDb] below [loudDb], all of it at [loudDb], smooth between. */
+fun levelAmount(levelDb: Double, loudDb: Double, rangeDb: Double = 6.0): Double {
+    val t = ((levelDb - (loudDb - rangeDb)) / rangeDb).coerceIn(0.0, 1.0)
+    return t * t * (3.0 - 2.0 * t)
+}
+
+/**
+ * The amount to play next, in 10% steps, changed only by 20% or more (or to none or all), so small level wobbles
+ * don't rebuild the EQ every second.
+ */
+fun steadyAmount(current: Double, wanted: Double): Double {
+    val n = Math.round(wanted.coerceIn(0.0, 1.0) * 10.0) / 10.0
+    return if (n == 0.0 || n == 1.0 || kotlin.math.abs(n - current) >= 0.2 - 1e-9) n else current
+}

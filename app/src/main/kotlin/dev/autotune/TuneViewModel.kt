@@ -319,6 +319,8 @@ data class UiState(
     val loudMode: LoudMode = LoudMode.OFF,
     val loudStartPct: Int = 75,
     val loudKeys: Boolean = true,
+    /** Sound level mode: the cabin level where the loud EQ plays in full, dB (the Live tab's SPL scale). */
+    val loudLevelDb: Double = LOUD_LEVEL_DEFAULT,
     val loudCuts: List<EqFilter>? = null,
     val loudSource: String? = null,
     /** The volume check while it runs, or its result. */
@@ -491,6 +493,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 loudMode = LoudMode.of(prefs.getString("loudMode", null)),
                 loudStartPct = prefs.getInt("loudStart", 75),
                 loudKeys = prefs.getBoolean("loudKeys", true),
+                loudLevelDb = prefs.getFloat("loudLevel", LOUD_LEVEL_DEFAULT.toFloat()).toDouble(),
                 loudCuts = filtersFromText(prefs.getString("loudCuts", null)),
                 loudSource = prefs.getString("loudSource", null),
                 systemEqFine = prefs.getBoolean("eqFine", false).also { SystemEqConfig.fine = it },
@@ -2071,6 +2074,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         level.value = null
         leqEnergy = 0.0
         leqBlocks = 0
+        // the loud EQ's level meter gives the mic to the analyser until it stops
+        dev.autotune.audio.LevelMeter.paused = true
         rta.start(
             viewModelScope, UsbMic.find(getApplication()), fs, calibration,
             onBars = { rtaBars.value = Rta.relativeToTarget(it, tgt) },
@@ -2086,6 +2091,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 level.value = LevelInfo(smooth, hold, 10.0 * log10(leqEnergy / leqBlocks), spl)
             },
             onStopped = { err ->
+                dev.autotune.audio.LevelMeter.paused = false
                 player.stop()
                 state.update { s -> s.copy(rtaRunning = false, status = err?.let { e -> "RTA stopped: $e" } ?: s.status) }
             },
@@ -2132,6 +2138,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
 
     fun stopRta() {
         rta.stop()
+        dev.autotune.audio.LevelMeter.paused = false
         if (state.value.rtaRunning) player.stop()
         state.update { it.copy(rtaRunning = false) }
     }
@@ -2537,6 +2544,17 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 loudChanged()
             }
         }
+    }
+
+    /** Sound level mode: the level heard now is where the loud EQ plays in full. */
+    fun loudLevelNow() {
+        val ok = dev.autotune.audio.LoudEq.setLoudLevelNow(ctx())
+        state.update { it.copy(loudLevelDb = dev.autotune.audio.LoudEq.loudLevel(ctx()), systemEqMessage = if (ok) null else "Nothing heard yet: play music with AutoTune EQ on.") }
+    }
+
+    fun setLoudLevel(db: Double) {
+        dev.autotune.audio.LoudEq.setLoudLevel(ctx(), db)
+        state.update { it.copy(loudLevelDb = dev.autotune.audio.LoudEq.loudLevel(ctx())) }
     }
 
     fun stopVolumeCheck() { volJob?.cancel(); state.update { it.copy(volCheck = null) } }
@@ -3127,6 +3145,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         rta.stop()
+        dev.autotune.audio.LevelMeter.paused = false
         // the EQ keeps running in its service while the user has it switched on
         player.stop()
         super.onCleared()
