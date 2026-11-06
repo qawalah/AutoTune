@@ -1,6 +1,7 @@
 package dev.autotune.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -118,44 +119,37 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
             .verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        // the device header: the wordmark and what is being measured
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(v.title, style = MaterialTheme.typography.titleLarge)
-                if (v.spots > 1) Muted("Spot ${v.spot} of ${v.spots}")
-            }
+            Text("autotune", style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = At.c.text)
+            Text(
+                "  " + v.title.lowercase() + if (v.spots > 1) " · spot ${v.spot} of ${v.spots}" else "", Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium, color = At.c.muted, maxLines = 1,
+            )
             if (!busy) IconAction(Ic.CLOSE, "Close") { vm.closeMeasureView() }
         }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(At.c.line))
 
         Panel {
-            // progress ring with the live level in the middle
-            Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
-                Box(Modifier.size(180.dp), contentAlignment = Alignment.Center) {
-                    if (progress == null && (busy || v.stage == MeasureStage.ANALYSING)) {
-                        CircularProgressIndicator(Modifier.size(180.dp), color = accent, trackColor = At.c.line, strokeWidth = 6.dp, strokeCap = StrokeCap.Round)
-                    } else {
-                        CircularProgressIndicator(
-                            progress = { (progress ?: 0f).coerceIn(0f, 1f) }, modifier = Modifier.size(180.dp),
-                            color = accent, trackColor = At.c.line, strokeWidth = 6.dp, strokeCap = StrokeCap.Round,
-                        )
+            // the display: the live level large and light, a pilot light for the stage
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                Column(Modifier.weight(1f)) {
+                    when {
+                        hasLevel -> Text("%.0f".format(level).replace('-', '−'), style = MaterialTheme.typography.displayLarge, color = At.c.text)
+                        v.stage == MeasureStage.SAVED -> AtIcon(if (allGood) Ic.DONE else Ic.ALERT, accent, size = 56.dp)
+                        v.stage == MeasureStage.FAILED -> AtIcon(Ic.ALERT, accent, size = 56.dp)
+                        else -> Text("−", style = MaterialTheme.typography.displayLarge, color = At.c.muted)
                     }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        when {
-                            hasLevel -> {
-                                Text("%.0f".format(level), style = MaterialTheme.typography.displaySmall, fontFamily = AtFigures)
-                                Muted("dBFS")
-                            }
-                            v.stage == MeasureStage.SAVED -> AtIcon(if (allGood) Ic.DONE else Ic.ALERT, accent, size = 56.dp)
-                            v.stage == MeasureStage.FAILED -> AtIcon(Ic.ALERT, accent, size = 56.dp)
-                            v.stage == MeasureStage.SPOT_DONE -> AtIcon(Ic.MIC, accent, size = 48.dp)
-                            else -> AtIcon(Ic.MEASURE, accent, size = 48.dp)
-                        }
-                    }
+                    Text(if (hasLevel) "dbfs · mic level" else v.stage.name.lowercase().replace('_', ' '), style = MaterialTheme.typography.labelSmall, color = At.c.muted)
                 }
+                Pilot(accent, blink = busy, modifier = Modifier.padding(bottom = 10.dp))
             }
-            Text(headline, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            // the sweep on a radio dial: 20 Hz to 20 kHz, the needle follows the tone
+            SweepDial(progress, accent, waiting = progress == null && (busy || v.stage == MeasureStage.ANALYSING))
+            Text(headline, style = MaterialTheme.typography.titleLarge, modifier = Modifier.fillMaxWidth())
             sub?.let {
                 Text(
-                    it, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+                    it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.fillMaxWidth(), maxLines = if (v.stage == MeasureStage.FAILED) 4 else 2,
                     color = if (v.stage == MeasureStage.FAILED) At.c.bad else At.c.muted,
                 )
             }
@@ -195,9 +189,9 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
 /** The last fraction of a second the mic heard, as a plain line. */
 @Composable
 private fun Waveform(wave: FloatArray, active: Boolean) {
-    val line = At.c.signal
+    val line = At.c.text
     val axis = At.c.line
-    Canvas(Modifier.fillMaxWidth().height(72.dp).clip(MaterialTheme.shapes.small).background(At.c.panelHigh)) {
+    Canvas(Modifier.fillMaxWidth().height(64.dp).clip(MaterialTheme.shapes.small).background(At.c.bg)) {
         val mid = size.height / 2
         drawLine(axis, Offset(0f, mid), Offset(size.width, mid), strokeWidth = 1.dp.toPx())
         if (!active || wave.isEmpty()) return@Canvas
@@ -214,49 +208,92 @@ private fun Waveform(wave: FloatArray, active: Boolean) {
     }
 }
 
-/** Live level of the mic, -80 to 0 dBFS, with the range where a measurement is happy marked. */
+/**
+ * Live level of the mic on a meter scale, −80 to 0 dBFS: ticks every 10 dB, the range a measurement is happy with
+ * shaded green, and the needle in the accent (warn when too quiet, bad when clipping).
+ */
 @Composable
 private fun SignalMeter(level: Float, active: Boolean) {
-    val good = At.c.good
-    val track = At.c.panelHigh
-    val col = when { level > -6f -> At.c.bad; level < -60f -> At.c.warn; else -> At.c.signal }
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row {
-            Text("Signal", style = MaterialTheme.typography.labelLarge, color = At.c.muted, modifier = Modifier.weight(1f))
-            Text(if (active) "%.0f dBFS".format(level) else "–", style = MaterialTheme.typography.labelLarge, fontFamily = AtFigures)
-        }
-        Canvas(Modifier.fillMaxWidth().height(8.dp)) {
-            val w = size.width
-            fun x(db: Float) = ((db + 80f) / 80f).coerceIn(0f, 1f) * w
-            val r = CornerRadius(size.height / 2)
-            drawRoundRect(track, cornerRadius = r)
-            drawRect(good.copy(alpha = 0.18f), Offset(x(-55f), 0f), Size(x(-8f) - x(-55f), size.height))
-            if (active) drawRoundRect(col, size = Size(x(level), size.height), cornerRadius = r)
+    val c = At.c
+    val col = when { level > -6f -> c.bad; level < -60f -> c.warn; else -> c.signal }
+    val shown by androidx.compose.animation.core.animateFloatAsState(if (active) level else -80f, androidx.compose.animation.core.tween(120), label = "vu")
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Canvas(Modifier.fillMaxWidth().height(36.dp).clip(MaterialTheme.shapes.small).background(c.bg)) {
+            val pad = 10.dp.toPx(); val w = size.width - 2 * pad; val h = size.height
+            fun x(db: Float) = pad + ((db + 80f) / 80f).coerceIn(0f, 1f) * w
+            drawRect(c.good.copy(alpha = 0.16f), Offset(x(-55f), h * 0.15f), Size(x(-8f) - x(-55f), h * 0.7f))
+            for (d in -80..0 step 5) {
+                val major = d % 10 == 0
+                drawLine(c.muted.copy(alpha = if (major) 0.9f else 0.45f), Offset(x(d.toFloat()), h * 0.2f), Offset(x(d.toFloat()), h * if (major) 0.55f else 0.4f), 1.dp.toPx())
+            }
+            if (active) drawLine(col, Offset(x(shown), 0f), Offset(x(shown), h), 2.5.dp.toPx())
         }
         Row {
-            Muted("Too quiet", Modifier.weight(1f))
-            Text("Good", style = MaterialTheme.typography.bodySmall, color = good, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-            Text("Clipping", style = MaterialTheme.typography.bodySmall, color = At.c.muted, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+            Text("too quiet", style = MaterialTheme.typography.labelSmall, color = c.muted, modifier = Modifier.weight(1f))
+            Text("good", style = MaterialTheme.typography.labelSmall, color = c.good, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+            Text("clipping", style = MaterialTheme.typography.labelSmall, color = c.muted, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
         }
     }
 }
 
+/** The sweep as a radio tuning dial: 20 Hz to 20 kHz in decades, the needle at the tone playing now. */
 @Composable
-private fun CheckRow(c: CheckItem, current: Boolean) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
-            when (c.state) {
-                0 -> if (current) CircularProgressIndicator(Modifier.size(18.dp), color = At.c.signal, strokeWidth = 2.dp)
-                else Box(Modifier.size(8.dp).clip(CircleShape).background(At.c.line))
-                1 -> AtIcon(Ic.CHECK, At.c.good, size = 20.dp)
-                2 -> AtIcon(Ic.ALERT, At.c.warn, size = 20.dp)
-                else -> AtIcon(Ic.CLOSE, At.c.bad, size = 20.dp)
+private fun SweepDial(progress: Float?, accent: androidx.compose.ui.graphics.Color, waiting: Boolean) {
+    val c = At.c
+    val moving = if (waiting && animationsOn()) {
+        val inf = androidx.compose.animation.core.rememberInfiniteTransition(label = "seek")
+        inf.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1600, easing = androidx.compose.animation.core.FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse), label = "s").value
+    } else null
+    val p by androidx.compose.animation.core.animateFloatAsState((progress ?: 0f).coerceIn(0f, 1f), androidx.compose.animation.core.tween(150), label = "dial")
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Canvas(Modifier.fillMaxWidth().height(40.dp).clip(MaterialTheme.shapes.small).background(c.bg)) {
+            val pad = 10.dp.toPx(); val w = size.width - 2 * pad; val h = size.height
+            // log ticks: 20, 30 … 90, 100 … per decade
+            for (dec in 0..2) for (k in 2..10) {
+                val f = k * Math.pow(10.0, dec + 1.0)
+                if (f < 20 || f > 20000) continue
+                val x = pad + w * (Math.log10(f / 20.0) / 3.0).toFloat()
+                val major = k == 10 || (dec == 0 && k == 2)
+                drawLine(c.muted.copy(alpha = if (major) 0.9f else 0.45f), Offset(x, h * 0.2f), Offset(x, h * if (major) 0.6f else 0.4f), 1.dp.toPx())
+            }
+            val pos = moving ?: p
+            if (progress != null || moving != null) {
+                val x = pad + w * pos
+                drawLine(accent.copy(alpha = if (moving != null) 0.55f else 1f), Offset(x, 0f), Offset(x, h), 2.5.dp.toPx())
             }
         }
-        Spacer(Modifier.width(12.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            listOf("20", "200", "2k", "20k").forEach { Text(it, style = MaterialTheme.typography.labelSmall, color = c.muted) }
+        }
+    }
+}
+
+/** A pilot light: lit in [color]; blinking while work is under way. */
+@Composable
+private fun Pilot(color: androidx.compose.ui.graphics.Color, blink: Boolean, size: androidx.compose.ui.unit.Dp = 14.dp, modifier: Modifier = Modifier) {
+    val a = if (blink && animationsOn()) {
+        val inf = androidx.compose.animation.core.rememberInfiniteTransition(label = "pilot")
+        inf.animateFloat(0.3f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(700), androidx.compose.animation.core.RepeatMode.Reverse), label = "a").value
+    } else 1f
+    Box(modifier.size(size).clip(CircleShape).background(color.copy(alpha = a)))
+}
+
+@Composable
+private fun CheckRow(c: CheckItem, current: Boolean) {
+    // each check is a pilot light: grey waiting, blinking in the accent while it runs, then green, yellow or red
+    Row(Modifier.fillMaxWidth().heightIn(min = 36.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) {
+            when (c.state) {
+                0 -> if (current) Pilot(At.c.signal, blink = true, size = 10.dp) else Box(Modifier.size(10.dp).clip(CircleShape).background(At.c.line))
+                1 -> Box(Modifier.size(10.dp).clip(CircleShape).background(At.c.good))
+                2 -> Box(Modifier.size(10.dp).clip(CircleShape).background(At.c.warn))
+                else -> Box(Modifier.size(10.dp).clip(CircleShape).background(At.c.bad))
+            }
+        }
+        Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(c.label, style = MaterialTheme.typography.bodyLarge, color = if (c.state == 0 && !current) At.c.muted else At.c.text)
-            c.detail?.takeIf { it.isNotBlank() }?.let { Muted(it) }
+            Text(c.label, style = MaterialTheme.typography.bodyMedium, color = if (c.state == 0 && !current) At.c.muted else At.c.text)
+            c.detail?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
         }
     }
 }

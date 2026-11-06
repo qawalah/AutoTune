@@ -179,7 +179,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     BackHandler(s.measureView != null) { if (s.busy) vm.cancel() else vm.closeMeasureView() }
 
     val viewMode = androidx.compose.runtime.remember(s.advanced) { ViewMode(s.advanced, vm::setAdvanced) }
-    AutoTuneTheme(s.themeMode, s.dynamicColor, s.look) {
+    AutoTuneTheme(s.themeMode, s.dynamicColor, s.look, s.accent) {
       androidx.compose.runtime.CompositionLocalProvider(
           LocalMenu provides { MenuButton(go, vm::shareDiagnostics) }, LocalPin provides pin, LocalViewMode provides viewMode,
       ) {
@@ -269,12 +269,6 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                 }
             }
 
-            // the teak cheeks of a Braun SK 4, down both edges of the tabs and pages
-            At.c.teak?.let { teak ->
-                Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().width(6.dp).background(teak))
-                Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(6.dp).background(teak))
-            }
-
             // full screens rise in from the bottom and drop away when closed
             androidx.compose.animation.AnimatedVisibility(ai.open, enter = sheetIn(), exit = sheetOut()) {
                 androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
@@ -292,6 +286,13 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                     }
                 }
             }
+
+            // the teak cheeks of a Braun SK 4, down both edges, over every screen
+            At.c.teak?.let { teak ->
+                Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().width(6.dp).background(teak))
+                Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(6.dp).background(teak))
+            }
+
         }
       }
     }
@@ -309,30 +310,30 @@ fun AtNavBar(tab: Tab, busy: Boolean, onSelect: (Tab) -> Unit) {
     Column(Modifier.fillMaxWidth().background(c.shell)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
         Row(
-            Modifier.align(Alignment.CenterHorizontally).widthIn(max = 480.dp).fillMaxWidth().padding(horizontal = 12.dp).padding(top = 10.dp, bottom = 8.dp),
+            Modifier.align(Alignment.CenterHorizontally).widthIn(max = 520.dp).fillMaxWidth().padding(horizontal = 10.dp).padding(top = 12.dp, bottom = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom,
         ) {
             items.forEach { t ->
                 val here = t == tab
                 val src = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
                 Column(
-                    Modifier.widthIn(min = 56.dp)
+                    Modifier.widthIn(min = 64.dp)
                         .selectable(selected = here, interactionSource = src, indication = null, role = androidx.compose.ui.semantics.Role.Tab, onClick = { onSelect(t) })
                         .semantics { contentDescription = t.title },
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    if (t == Tab.MEASURE) TuneWheel(here, busy && !here, src)
+                    if (t == Tab.MEASURE) TuneSwitch(here, busy && !here, src)
                     else {
                         // the key travels down a little when pressed, like a real push key
                         val down by androidx.compose.animation.core.animateDpAsState(if (here) 1.dp else 0.dp, androidx.compose.animation.core.tween(motionMs(120)), label = "key")
                         Box(
-                            Modifier.offset(y = down).size(50.dp, 28.dp).pressScale(src).clip(RoundedCornerShape(3.dp))
-                                .background(if (here) c.text else c.panelHigh).border(1.dp, if (here) c.text else c.line, RoundedCornerShape(3.dp)),
+                            Modifier.offset(y = down).size(62.dp, 42.dp).pressScale(src).clip(RoundedCornerShape(4.dp))
+                                .background(if (here) c.text else c.panelHigh).border(1.dp, if (here) c.text else c.line, RoundedCornerShape(4.dp)),
                             contentAlignment = Alignment.Center,
-                        ) { AtIcon(t.icon, if (here) c.bg else c.text, size = 18.dp) }
+                        ) { AtIcon(t.icon, if (here) c.bg else c.text, size = 24.dp) }
                     }
                     Text(
-                        t.title.lowercase(), Modifier.padding(top = 5.dp), style = MaterialTheme.typography.labelSmall,
+                        t.title.lowercase(), Modifier.padding(top = 6.dp), style = MaterialTheme.typography.labelMedium,
                         color = if (here) c.text else c.muted, fontWeight = if (here) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1,
                     )
                 }
@@ -342,23 +343,30 @@ fun AtNavBar(tab: Tab, busy: Boolean, onSelect: (Tab) -> Unit) {
     }
 }
 
-/** The aluminium wheel: brushed disc, a red index line. Chosen, it turns a quarter; busy, the index pulses. */
+/**
+ * Tune is an on/off slide switch, like the power switch of a Braun T 3: an aluminium track with a knob. Chosen, the
+ * knob slides to "on" and lights in the accent; while a measurement runs on another tab, the knob pulses.
+ */
 @Composable
-private fun TuneWheel(selected: Boolean, pulse: Boolean, src: androidx.compose.foundation.interaction.MutableInteractionSource) {
+private fun TuneSwitch(selected: Boolean, pulse: Boolean, src: androidx.compose.foundation.interaction.MutableInteractionSource) {
     val c = At.c
-    val turn by androidx.compose.animation.core.animateFloatAsState(if (selected) 90f else 0f, androidx.compose.animation.core.tween(motionMs(420), easing = EaseArrive), label = "wheel")
+    val x by androidx.compose.animation.core.animateDpAsState(if (selected) 34.dp else 0.dp, androidx.compose.animation.core.tween(motionMs(220), easing = EaseArrive), label = "switch")
+    val knob by androidx.compose.animation.animateColorAsState(if (selected || pulse) c.signal else c.bg, androidx.compose.animation.core.tween(motionMs(220)), label = "knob")
     val glow = if (pulse && animationsOn()) {
         val inf = androidx.compose.animation.core.rememberInfiniteTransition(label = "busy")
         inf.animateFloat(0.35f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(900), androidx.compose.animation.core.RepeatMode.Reverse), label = "g").value
     } else 1f
     Box(
-        Modifier.size(56.dp).pressScale(src).clip(CircleShape)
-            .background(androidx.compose.ui.graphics.Brush.radialGradient(listOf(androidx.compose.ui.graphics.lerp(c.alu, androidx.compose.ui.graphics.Color.White, 0.25f), c.alu)))
-            .border(if (selected) 2.dp else 1.dp, if (selected) c.text else c.line, CircleShape)
-            .graphicsLayer { rotationZ = turn },
-        contentAlignment = Alignment.TopCenter,
+        Modifier.size(78.dp, 42.dp).pressScale(src).clip(RoundedCornerShape(21.dp))
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.lerp(c.alu, androidx.compose.ui.graphics.Color.White, 0.2f), c.alu)))
+            .border(1.dp, if (selected) c.text else c.line, RoundedCornerShape(21.dp)),
+        contentAlignment = Alignment.CenterStart,
     ) {
-        Box(Modifier.padding(top = 6.dp).size(4.dp, 15.dp).clip(RoundedCornerShape(2.dp)).background(c.signal.copy(alpha = glow)))
+        Box(
+            Modifier.padding(4.dp).offset(x = x).size(34.dp).clip(CircleShape).background(knob.copy(alpha = if (pulse) glow else 1f))
+                .border(1.dp, c.line, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) { AtIcon(Ic.TUNE, if (selected || pulse) c.onSignal else c.text, size = 18.dp) }
     }
 }
 

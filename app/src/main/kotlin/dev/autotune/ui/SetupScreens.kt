@@ -140,6 +140,12 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
                     androidx.compose.foundation.layout.Box(Modifier.size(28.dp).clip(MaterialTheme.shapes.small).background(col))
                 }
             }
+            val accents = dev.autotune.Accent.entries
+            DropSelect(
+                accents.map { it.title }, accents.indexOf(s.accent), { vm.setAccent(accents[it]) }, label = "Accent", icon = Ic.POWER,
+                details = accents.map { if (it == dev.autotune.Accent.LOOK) "The look's own colour" else null },
+                info = "The accent marks what is live or what you act on: the Tune record, the needle, the pilot light and the EQ.",
+            )
             DropSelect(ThemeMode.entries.map { it.title }, ThemeMode.entries.indexOf(s.themeMode), { vm.setThemeMode(ThemeMode.entries[it]) }, label = "Light or dark")
             if (Build.VERSION.SDK_INT >= 31) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

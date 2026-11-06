@@ -4,6 +4,15 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [1.28.0] - 2026-11-06
+### Added
+- **Accent colour** in Settings > Appearance: as the look (Braun red), red, orange, yellow, green or blue. It colours what is live or acted on: the Tune record, the needles, the pilot lights and the EQ. Every choice is checked for contrast in light and dark.
+### Changed
+- The **measuring screen** now matches the Braun look: the live level large and light with a pilot light, the sweep on a radio dial (20 Hz to 20 kHz, the needle follows the tone), the waveform in ink, the level on a meter scale with a needle, and each check as a pilot light (grey, blinking, then green, yellow or red). Teak cheeks frame every screen, the measuring and AI screens included.
+- **Bigger tab keys** (62 × 42 dp, larger icons and labels).
+- **Tune is an on/off slide switch** in the tab row: chosen, its knob slides to "on" and lights in the accent; it pulses while a measurement runs on another tab.
+- **The main key reads clearer**: the action centred in larger type with "suggested" under it, the pilot light at the start.
+
 ## [1.27.0] - 2026-11-06
 ### Changed
 - New look, **Braun**, now the default: the app is designed like a Braun device by Dieter Rams. A white body between teak cheeks, a grey deck for each section (no borders, no shadows), and one red for what is live: the record label, the needle, the pilot light and the EQ. Dark mode is Braun black. The other looks stay in Settings > Appearance as colour variants.

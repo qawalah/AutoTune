@@ -430,6 +430,8 @@ data class UiState(
     val dynamicColor: Boolean = false,
     /** Advanced shows every explanation and extra control; Simple (the default) keeps the essentials. App-wide. */
     val advanced: Boolean = false,
+    /** The accent colour; LOOK keeps the look's own. */
+    val accent: Accent = Accent.LOOK,
 )
 
 class TuneViewModel(app: Application) : AndroidViewModel(app) {
@@ -486,6 +488,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 themeMode = runCatching { ThemeMode.valueOf(prefs.getString("theme", "SYSTEM")!!) }.getOrDefault(ThemeMode.SYSTEM),
                 dynamicColor = prefs.getBoolean("dynamic", false),
                 advanced = prefs.getBoolean("advanced", false),
+                accent = Accent.of(prefs.getString("accent", null)),
                 look = dev.autotune.ui.Look.of(prefs.getString("look", null)),
                 flavour = Flavour.of(prefs.getString("flavour", null)),
                 preampMode = PreampMode.of(prefs.getString("preampMode", null)),
@@ -560,6 +563,11 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     fun setThemeMode(m: ThemeMode) {
         prefs.edit().putString("theme", m.name).apply()
         state.update { it.copy(themeMode = m) }
+    }
+
+    fun setAccent(a: Accent) {
+        prefs.edit().putString("accent", a.name).apply()
+        state.update { it.copy(accent = a) }
     }
 
     fun setAdvanced(on: Boolean) {

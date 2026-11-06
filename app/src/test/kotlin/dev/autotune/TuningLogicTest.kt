@@ -238,4 +238,19 @@ class ConvergenceTest {
         assertEquals(4.0, scaleMax(emptyList()), 0.0)
         assertEquals(40.0, scaleMax(listOf(35.0)), 0.0)
     }
+
+    @Test
+    fun accentsReadOnTheirOwnColourAndAgainstTheBody() {
+        assertEquals(Accent.LOOK, Accent.of(null))
+        assertEquals(Accent.LOOK, Accent.of("PURPLE"))
+        assertEquals(Accent.YELLOW, Accent.of("YELLOW"))
+        val bodyLight = 0xFFF3F2EEL; val bodyDark = 0xFF1A1A19L
+        Accent.entries.filter { it != Accent.LOOK }.forEach { a ->
+            assertTrue("${a.name} text on light", contrast(a.light, a.onLight) >= 4.5)
+            assertTrue("${a.name} text on dark", contrast(a.dark, a.onDark) >= 4.5)
+            // the needle and pilot light must stand out from the body
+            assertTrue("${a.name} on the light body", contrast(a.light, bodyLight) >= 3.0)
+            assertTrue("${a.name} on the dark body", contrast(a.dark, bodyDark) >= 3.0)
+        }
+    }
 }

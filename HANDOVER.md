@@ -310,3 +310,8 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - Kit.kt: `CardShape` 6dp, decks have no border. `RunSheet` is a display deck with a lettering line instead of a coloured strip; `ReadingCells` sets the first reading large and light; `TuningScale(needleDb, stockDb, bestDb, predicted)` draws the radio scale, its range from `scaleMax` in TuningLogic (tested). `BigActionBar` is the graphite main key with a red pilot light; `PrimaryButton` graphite, `SecondaryButton` key-grey; `PulsingButton` is the record; `PowerToggle` lights green; `ScreenTitle` is the wordmark row.
 - AutoTuneScreen: `AtNavBar` is the push-key row with `TuneWheel`; teak cheeks are drawn over the tabs and pages when `At.c.teak` is set.
 
+### Accent, measuring screen, Tune switch (1.28.0)
+- `Accent` (TuningLogic) with light/dark colours and their text colours; `contrast()` and a test that every accent reads on its colour (4.5:1) and against both bodies (3:1). `UiState.accent` (pref `accent`), `vm.setAccent`, `AtColors.withAccent`, `AutoTuneTheme(…, accent)`.
+- MeasureOverlay: wordmark header, display with `Pilot`, `SweepDial` (log 20 Hz–20 kHz needle), `SignalMeter` as a needle scale, pilot-light `CheckRow`.
+- AutoTuneScreen: tab keys 62×42; `TuneSwitch` replaces the wheel; teak cheeks drawn last, over every screen.
+

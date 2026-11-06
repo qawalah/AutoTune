@@ -279,14 +279,22 @@ private val AtShapes = Shapes(
     extraLarge = RoundedCornerShape(12.dp),
 )
 
+/** The same colours with the accent ([signal] and the text on it) swapped for [a]. */
+fun AtColors.withAccent(a: dev.autotune.Accent): AtColors {
+    if (a == dev.autotune.Accent.LOOK) return this
+    val sig = Color(if (dark) a.dark else a.light)
+    val on = Color(if (dark) a.onDark else a.onLight)
+    return AtColors(dark, bg, panel, panelHigh, line, text, muted, sig, on, good, warn, bad, target, runs, slider, shell, onShell, onShellMuted, teak, alu)
+}
+
 @Composable
-fun AutoTuneTheme(mode: ThemeMode, dynamic: Boolean, lookChoice: Look = Look.BRAUN, content: @Composable () -> Unit) {
+fun AutoTuneTheme(mode: ThemeMode, dynamic: Boolean, lookChoice: Look = Look.BRAUN, accent: dev.autotune.Accent = dev.autotune.Accent.LOOK, content: @Composable () -> Unit) {
     val dark = when (mode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
-    val at = lookColors(lookChoice, dark)
+    val at = lookColors(lookChoice, dark).withAccent(accent)
     val container = androidx.compose.ui.graphics.lerp(at.panel, at.signal, if (dark) 0.22f else 0.18f)
     val ctx = LocalContext.current
     val scheme = when {

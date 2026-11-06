@@ -700,3 +700,32 @@ fun scaleMax(values: List<Double>): Double {
     val top = values.maxOrNull()?.takeIf { it.isFinite() } ?: 0.0
     return listOf(4.0, 8.0, 12.0, 16.0, 24.0, 32.0).firstOrNull { it >= top + 0.5 } ?: (Math.ceil((top + 0.5) / 8.0) * 8.0)
 }
+
+// ---------------------------------------------------------------- accent colour (1.28)
+
+/**
+ * The accent: what is live or acted on (the record label, the needle, the pilot light, the EQ). LOOK keeps the look's
+ * own; the others follow Braun's own colour keys (the ET 66's yellow and green, the SK 4's red). Colours are ARGB,
+ * for light and dark, each with the colour of text set on it.
+ */
+enum class Accent(val title: String, val light: Long, val onLight: Long, val dark: Long, val onDark: Long) {
+    LOOK("As the look", 0, 0, 0, 0),
+    RED("Red", 0xFFC8401AL, 0xFFFFFFFFL, 0xFFF0663AL, 0xFF1A0A03L),
+    ORANGE("Orange", 0xFFC2410CL, 0xFFFFFFFFL, 0xFFFF8A3DL, 0xFF1F0B00L),
+    YELLOW("Yellow", 0xFF8A6200L, 0xFFFFFFFFL, 0xFFF2C12EL, 0xFF1F1600L),
+    GREEN("Green", 0xFF2F7A3AL, 0xFFFFFFFFL, 0xFF6CB866L, 0xFF0A1A08L),
+    BLUE("Blue", 0xFF2456A6L, 0xFFFFFFFFL, 0xFF7FA8F0L, 0xFF061226L),
+    ;
+
+    companion object { fun of(name: String?): Accent = entries.firstOrNull { it.name == name } ?: LOOK }
+}
+
+/** WCAG contrast ratio of two opaque ARGB colours (1 to 21). */
+fun contrast(a: Long, b: Long): Double {
+    fun lum(c: Long): Double {
+        fun ch(v: Long): Double { val s = v / 255.0; return if (s <= 0.03928) s / 12.92 else Math.pow((s + 0.055) / 1.055, 2.4) }
+        return 0.2126 * ch((c shr 16) and 0xFF) + 0.7152 * ch((c shr 8) and 0xFF) + 0.0722 * ch(c and 0xFF)
+    }
+    val (x, y) = lum(a) to lum(b)
+    return (maxOf(x, y) + 0.05) / (minOf(x, y) + 0.05)
+}

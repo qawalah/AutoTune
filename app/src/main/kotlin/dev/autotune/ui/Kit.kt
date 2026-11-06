@@ -1221,32 +1221,39 @@ fun BigActionBar(a: PinnedAction) {
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         a.hint?.takeIf { isAdvanced() || !a.enabled }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 2) }
-        // the main key: graphite, with a red pilot light that is lit while the move is ready, and "suggested" on it
+        // the main key: graphite, the action centred in clear type; a pilot light in the accent at the start says this
+        // is the suggested move, lit while it is ready
         val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
         val keyColor = if (a.enabled) At.c.text else At.c.panelHigh
         val onKey = if (a.enabled) At.c.bg else At.c.muted
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 58.dp).pressScale(src).clip(MaterialTheme.shapes.medium).background(keyColor)
+        Box(
+            Modifier.fillMaxWidth().heightIn(min = 64.dp).pressScale(src).clip(MaterialTheme.shapes.medium).background(keyColor)
                 .clickable(interactionSource = src, indication = androidx.compose.material3.ripple(), enabled = a.enabled, role = Role.Button, onClick = a.onClick)
-                .padding(horizontal = 18.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .semantics { contentDescription = "Suggested: ${a.text}" }
+                .padding(horizontal = 18.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(Modifier.size(10.dp).clip(CircleShape).background(if (a.enabled) At.c.signal else At.c.line))
+            Box(Modifier.align(Alignment.CenterStart).size(12.dp).clip(CircleShape).background(if (a.enabled) At.c.signal else At.c.line))
             // a new recommendation slides in, so the change is noticed
             val inMs = motionMs(300)
             val outMs = motionMs(90)
             androidx.compose.animation.AnimatedContent(
-                targetState = Pair(a.text, a.icon), modifier = Modifier.weight(1f).padding(start = 14.dp),
+                targetState = a.text, modifier = Modifier.padding(horizontal = 28.dp),
                 transitionSpec = {
                     (androidx.compose.animation.fadeIn(tween(inMs, easing = EaseArrive)) + androidx.compose.animation.slideInVertically(tween(inMs, easing = EaseArrive)) { it / 3 }) togetherWith
                         androidx.compose.animation.fadeOut(tween(outMs, easing = EaseLeave))
                 },
+                contentAlignment = Alignment.Center,
                 label = "pin",
-            ) { (text, _) ->
-                // the pilot light is the key's only mark; the words get the whole width
-                Text(text, style = MaterialTheme.typography.titleMedium, color = onKey, maxLines = 2)
+            ) { text ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold), color = onKey, maxLines = 2,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                    Text("suggested", style = MaterialTheme.typography.labelSmall, color = onKey.copy(alpha = 0.6f))
+                }
             }
-            Text("suggested", style = MaterialTheme.typography.labelSmall, color = onKey.copy(alpha = 0.6f))
         }
     }
 }

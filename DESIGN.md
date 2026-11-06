@@ -90,7 +90,7 @@ Braun is the default look (`Look.BRAUN` in `ui/Theme.kt`). Dyno sheet, Studio, M
 ## Colours
 
 - **Body** (`bg`): warm white by day, Braun black by night. **Deck** (`panel`): the grey plate that holds a section. **Key** (`panelHigh`): fields, push keys and action rows. **Rule** (`line`): hairlines and key edges.
-- **Red** (`signal`): only what is live or acted on: the record label (Tune), the needle on the tuning scale, the pilot light of the main key, the EQ curve and EQ fader caps. If everything is red, nothing is.
+- **Accent** (`signal`, red by default, chosen in Settings: red, orange, yellow, green, blue): only what is live or acted on: the record label (Tune), the needle on the tuning scale, the pilot light of the main key, the EQ curve and EQ fader caps. If everything is red, nothing is.
 - **Pilot green** (`good`): on states and improvements. **Warn** and **bad**: cautions, always beside an icon.
 - **Teak** (`teak`): the cheeks down both screen edges. Never elsewhere.
 - **Runs**: the stock is grey ink, drawn dashed; later runs are inks (blue, green, violet…), the same colour everywhere.
@@ -118,9 +118,10 @@ Flat. A section is a **deck** (`Panel`, `Group`, `Fold`): the grey plate, 6dp co
 
 ## Components
 
-- **Main key** (`BigActionBar` via `PinAction`): one per screen, full width, graphite, a red pilot light at the start, the action in the middle, "suggested" small at the end. Disabled: grey key, unlit pilot. The reason shows only in Advanced or when it is disabled.
-- **Push keys** (`AtNavBar`): the tabs. Small rectangular keys with the tab's line icon, the pressed one graphite; a lowercase label under each. The key moves down 1dp when chosen.
-- **Tune wheel**: the centre of the key row. Brushed aluminium with a red index; it turns a quarter when Tune is chosen and its index pulses while a measurement runs on another tab.
+- **Main key** (`BigActionBar` via `PinAction`): one per screen, full width, graphite, the action centred in large type with "suggested" under it, a pilot light in the accent at the start. Disabled: grey key, unlit pilot. The reason shows only in Advanced or when it is disabled.
+- **Push keys** (`AtNavBar`): the tabs. Rectangular keys (62×42dp) with the tab's line icon, the pressed one graphite; a lowercase label under each. The key moves down 1dp when chosen.
+- **Tune switch**: the centre of the key row, an aluminium slide switch like the T 3's power switch. Chosen, the knob slides to "on" and lights in the accent; it pulses while a measurement runs on another tab.
+- **Measuring screen**: the live level large and light with a pilot light, the sweep on a radio dial (20 Hz–20 kHz, needle follows the tone), the waveform in ink, the level on a needle meter, checks as pilot lights.
 - **The record** (`PulsingButton`, Tune home): a black disc with fine grooves and a red label reading "tune". While waiting, one faint ring runs over the grooves.
 - **Display + tuning scale** (`RunSheet`, `ReadingCells`, `TuningScale`): the result's deck has a lettering line (test, run, date), then the readings, then a radio scale: ticks every half dB, a grey mark at the stock, a green mark at the best run, and the red needle at this run (dashed when it is a prediction). The needle glides to its place.
 - **Buttons**: `PrimaryButton` a graphite key; `SecondaryButton` a key-grey key with a hairline edge; `TextAction` in `Actions { }` a full-width key-grey row with icon and chevron.

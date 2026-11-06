@@ -67,8 +67,8 @@ class ShotsTest {
         ),
     )
 
-    @Composable private fun Frame(dark: Boolean, look: Look = Look.BRAUN, adv: Boolean = false, nav: Tab? = Tab.MEASURE, content: @Composable () -> Unit) {
-        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, look) {
+    @Composable private fun Frame(dark: Boolean, look: Look = Look.BRAUN, adv: Boolean = false, nav: Tab? = Tab.MEASURE, accent: Accent = Accent.LOOK, content: @Composable () -> Unit) {
+        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, look, accent) {
             val slot = androidx.compose.runtime.remember { PinSlot() }
             androidx.compose.runtime.CompositionLocalProvider(LocalPin provides slot, LocalViewMode provides ViewMode(adv) {}) {
                 androidx.compose.material3.Surface(color = At.c.bg, contentColor = At.c.text) {
@@ -81,8 +81,8 @@ class ShotsTest {
             }
         }
     }
-    private fun shot(name: String, dark: Boolean = true, look: Look = Look.BRAUN, adv: Boolean = false, nav: Tab? = Tab.MEASURE, content: @Composable () -> Unit) {
-        paparazzi.snapshot(name) { Frame(dark, look, adv, nav, content) }
+    private fun shot(name: String, dark: Boolean = true, look: Look = Look.BRAUN, adv: Boolean = false, nav: Tab? = Tab.MEASURE, accent: Accent = Accent.LOOK, content: @Composable () -> Unit) {
+        paparazzi.snapshot(name) { Frame(dark, look, adv, nav, accent, content) }
     }
     private fun tune(st: UiState) = @Composable { TuneTab(st, vm, sharer, {}, {}, pick) }
 
@@ -202,6 +202,8 @@ class ShotsTest {
     @Test fun w8_navy_light_result() = shot("w8_navy_light_result", dark = false, look = Look.NAVY) { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns.take(2), false), runs = runs3.take(2)))() }
     @Test fun n1_tests_tab() = shot("n1_tests_tab", nav = Tab.TESTS) { TestsTab(s, vm, {}) }
     @Test fun n2_live_tab() = shot("n2_live_tab", nav = Tab.LIVE) { LiveTab(s, null, null, vm, pick, {}) }
+    @Test fun w9_accent_green_light() = shot("w9_accent_green_light", dark = false, accent = Accent.GREEN) { tune(s.copy(tuneStep = TuneStep.HOME))() }
+    @Test fun w10_accent_yellow_result() = shot("w10_accent_yellow_result", dark = false, accent = Accent.YELLOW) { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns.take(2), false), runs = runs3.take(2)))() }
     @Test fun w5_result_pinned() = shot("w5_result_pinned", look = Look.CONSOLE) { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns.take(2), false), runs = runs3.take(2)))() }
     @Test fun w6_eq_check() = shot("w6_eq_check") {
         val g = grid
