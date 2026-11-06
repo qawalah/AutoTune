@@ -4,6 +4,15 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [1.26.0] - 2026-11-06
+### Changed
+- Simple is simpler on every tab; everything taken out is still in Advanced.
+  - **EQ:** AutoTune EQ on/off, the EQ in use, the graph and the sliders. Flavour, preamp, Loud EQ, the EQ check, the band count, saved EQs and the rest move to Advanced.
+  - **Live:** Start, the level, the bars and the sound to play. The SPL offset, "through my EQ" and Open EQ move to Advanced.
+  - **A test's results:** the summary, the graph, the checks worth doing, Open the EQ, AI review and Manage test. Target and taste, Details, notes and "keep as a target" move to Advanced.
+  - **Tune:** the result keeps "Keep this EQ", "Keep the best" and "Discard"; the stock review keeps "Measure the stock again". The findings list moves to Advanced (their names and a bubble stay in the summary).
+  - **Settings:** Show, Microphone, Appearance and About. Defaults, AutoTune EQ bands, saved files, AI assistant, diagnostics and target curves move to Advanced.
+
 ## [1.25.0] - 2026-11-06
 ### Changed
 - Much less text everywhere, in Simple and Advanced: explanations moved from paragraphs on the page into info bubbles (ⓘ) beside the field, group or finding they explain. The four-line note under the EQ picker is now the ⓘ next to "EQ in use"; flavour and preamp notes sit in their own ⓘ; slider and graph notes are gone.

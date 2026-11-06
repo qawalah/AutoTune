@@ -140,6 +140,8 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
         }
     } else {
         FollowAndChecks(s, vm)
+        // Simple stops here: the summary, the graph and the checks; the rest is in Advanced
+        if (isAdvanced()) {
         TargetSoundFold(s, vm)
         DetailsHeading()
         s.stock?.takeIf { it.findings.isNotEmpty() }?.let { a ->
@@ -267,6 +269,7 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
                 modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
             )
         }
+            }
     }
 
     Fold("Manage test", summary = "Rename, discard the latest run, delete") {

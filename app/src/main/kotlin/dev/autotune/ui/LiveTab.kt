@@ -74,7 +74,7 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
         } else {
             Text(if (s.rtaRunning) "Listening…" else "Press Start to read the level.", style = MaterialTheme.typography.bodyMedium, color = At.c.muted)
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        if (isAdvanced()) Row(verticalAlignment = Alignment.CenterVertically) {
             Text("SPL offset %+.1f dB".format(s.splOffsetDb), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = At.c.muted)
             SecondaryButton("−1", { vm.adjustSplOffset(-1.0) })
             Box(Modifier.padding(start = 6.dp)) { SecondaryButton("+1", { vm.adjustSplOffset(1.0) }) }
@@ -97,16 +97,14 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
 
     // ---- sound source
     Group("Sound") {
-        if (s.systemEqOn) {
-            Text("AutoTune EQ is on, so the bars show the sound with it.", style = MaterialTheme.typography.bodyMedium)
-        }
+        if (s.systemEqOn) Muted("With AutoTune EQ on")
         if (s.source == Source.PHONE || s.testName.isBlank()) {
             Text("Play from the phone", style = MaterialTheme.typography.labelLarge)
             DropSelect(
                 listOf("Pink noise", "Sweep", "Off"), s.liveSignal.ordinal,
                 { vm.setLiveSignal(dev.autotune.LiveSignal.entries[it]) },
             )
-            if (s.exportChain?.filters?.isNotEmpty() == true && !s.systemEqOn) {
+            if (s.exportChain?.filters?.isNotEmpty() == true && !s.systemEqOn && isAdvanced()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Play the noise through my EQ", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                     Switch(
@@ -117,6 +115,6 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
             }
         } else {
         }
-        SecondaryButton("Open EQ", { go(Tab.EQ) }, icon = Ic.EQ)
+        if (isAdvanced()) SecondaryButton("Open EQ", { go(Tab.EQ) }, icon = Ic.EQ)
     }
 }

@@ -66,7 +66,7 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             }
         }
 
-        Group("Defaults for new tests", info = "What the Set up step starts with. You can still change each one there, and the target and taste later on any result.") {
+        if (isAdvanced()) Group("Defaults for new tests", info = "What the Set up step starts with. You can still change each one there, and the target and taste later on any result.") {
             val targets = dev.autotune.dsp.Target.ALL
             val tIdx = targets.indexOfFirst { it.name == s.defTarget }.let { if (it < 0) 0 else it }
             val spots = listOf(0, 1, 3, 5)
@@ -88,7 +88,7 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             )
         }
 
-        Group(
+        if (isAdvanced()) Group(
             "AutoTune EQ", info = "What Android allows, and what AutoTune does about it:\n\n" +
                 "• Range: about -30 to +15 dB per band. Not a real limit.\n" +
                 "• Bands: Android's effect works on fixed bands. 31 bands (1/3 octave) is the default; 61 bands (1/6 octave) follows narrow cuts more closely but asks more of the phone. The suggestion is fitted to what the bands can do.\n" +
@@ -103,7 +103,7 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             )
         }
 
-        Group("Saved files", info = "Where Save puts the EQ files, the report and the measurements. Share always goes through the share sheet instead.") {
+        if (isAdvanced()) Group("Saved files", info = "Where Save puts the EQ files, the report and the measurements. Share always goes through the share sheet instead.") {
             StatusLine(true, "Saved to " + (s.exportFolder ?: "Downloads/AutoTune"))
             Actions {
                 SecondaryButton(if (s.exportFolder == null) "Choose a folder" else "Choose another folder", pick.exportFolder, icon = Ic.FILE)
@@ -111,11 +111,11 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             }
         }
 
-        Group("AI assistant", info = "Claude (Anthropic) or Gemini (Google) reviews a test on request: what limits the result, what to check, what to do next, and optional EQ changes that the app holds to its own limits. It needs your own API key for the one you pick; each review costs a few cents on that key's account. ${aiPrivacy(ai.provider)}") {
+        if (isAdvanced()) Group("AI assistant", info = "Claude (Anthropic) or Gemini (Google) reviews a test on request: what limits the result, what to check, what to do next, and optional EQ changes that the app holds to its own limits. It needs your own API key for the one you pick; each review costs a few cents on that key's account. ${aiPrivacy(ai.provider)}") {
             AiKeySetup(ai, vm)
         }
 
-        Group("Diagnostics", info = "A record of every measurement (levels, the EQ in effect, how it was applied, warnings), every EQ change and every failure, plus the last recordings. Send it when something sounds wrong, so the cause can be found. It stays on this phone until you share it.") {
+        if (isAdvanced()) Group("Diagnostics", info = "A record of every measurement (levels, the EQ in effect, how it was applied, warnings), every EQ change and every failure, plus the last recordings. Send it when something sounds wrong, so the cause can be found. It stays on this phone until you share it.") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Keep the last 12 recordings", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                 Switch(
@@ -152,7 +152,7 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             }
         }
 
-        Group("Target curves", info = "A curve file is a text or CSV file with one “frequency, dB” pair per line, covering about 20 Hz to 20 kHz, for example a house curve you like. You can also tune a system until it sounds right and use “Keep this sound as a target” on the test's results.") {
+        if (isAdvanced()) Group("Target curves", info = "A curve file is a text or CSV file with one “frequency, dB” pair per line, covering about 20 Hz to 20 kHz, for example a house curve you like. You can also tune a system until it sounds right and use “Keep this sound as a target” on the test's results.") {
             SecondaryButton("Import a curve file", pick.curve, icon = Ic.FILE)
             if (s.customTargets.isEmpty()) Muted("No saved curves yet.")
             s.customTargets.forEach { n ->

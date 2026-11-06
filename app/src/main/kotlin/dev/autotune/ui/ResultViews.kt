@@ -61,7 +61,8 @@ fun ResultSummary(s: UiState, showNext: Boolean, namesTest: Boolean = true) {
             a?.findings?.filter { it.severity > 0 }?.takeIf { it.isNotEmpty() }?.let { fs ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     AtIcon(if (fs.any { it.severity >= 2 }) Ic.ALERT else Ic.INFO, if (fs.any { it.severity >= 2 }) c.bad else c.warn, Modifier.padding(end = 8.dp), 18.dp)
-                    Text(fs.joinToString(" · ") { it.title }, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Text(fs.joinToString(" · ") { it.title }, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    InfoButton("What the reading shows", fs.joinToString("\n\n") { "${it.title}: ${it.detail}" }, small = true)
                 }
             }
             if (showNext) NextLine(if (suspicious) "Measure the stock again" else "Review the suggested EQ", null)

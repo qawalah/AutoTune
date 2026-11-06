@@ -113,15 +113,17 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
         )
         if (s.sliderLayer.isNotEmpty()) Muted("+ your slider changes")
         s.systemEqMessage?.let { Muted(it) }
-        FlavourAndPreamp(s, vm)
+        // Simple: on/off and which EQ; the rest of the sound options wait in Advanced
+        if (isAdvanced()) FlavourAndPreamp(s, vm)
     }
 
     // ---- loud EQ: less bass and harshness when it's loud
-    LoudEqFold(s, vm)
+    if (isAdvanced()) LoudEqFold(s, vm)
 
     // ---- does the EQ reach the speakers?
     if (bandCount > 0) {
-        s.eqCheck?.let { EqCheckCard(it, vm) } ?: Row(verticalAlignment = Alignment.CenterVertically) {
+        val check = s.eqCheck
+        if (check != null) EqCheckCard(check, vm) else if (isAdvanced()) Row(verticalAlignment = Alignment.CenterVertically) {
             TextAction("Check the EQ reaches the speakers", vm::eqCheck, enabled = !s.busy && s.hasPermission, icon = Ic.CHECK)
             InfoButton(
                 "EQ check",
@@ -148,9 +150,9 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
             }
         },
     ) {
-        DropSelect(listOf("5 bands", "10 bands", "15 bands"), bandSet, { bandSet = it })
+        if (isAdvanced()) DropSelect(listOf("5 bands", "10 bands", "15 bands"), bandSet, { bandSet = it })
         GraphicSliders(s, vm, centres, qOf, locked)
-        chain?.let { c -> if (c.filters.isNotEmpty()) Muted("Preamp %.1f dB".format(c.preampDb)) }
+        if (isAdvanced()) chain?.let { c -> if (c.filters.isNotEmpty()) Muted("Preamp %.1f dB".format(c.preampDb)) }
         // big boosts from the sliders are easy to make by accident and AutoTune's own EQ never makes them
         Alerts(
             s.exportWarnings + listOfNotNull(
@@ -183,14 +185,14 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
                 else -> "Plays the sweep through this EQ inside the app."
             },
         )
-        if (!s.systemEqOn && s.source == Source.PHONE) {
+        if (!s.systemEqOn && s.source == Source.PHONE && isAdvanced()) {
             if (onEquipment) TextAction("Try it inside the app instead", { vm.tryInApp(); vm.tuneGo(dev.autotune.TuneStep.VERIFY); go(Tab.MEASURE) }, enabled = bandCount > 0, icon = Ic.PLAY)
             else TextAction("I set it on my equipment, measure", { vm.appliedOnEquipment(); vm.tuneGo(dev.autotune.TuneStep.VERIFY); go(Tab.MEASURE) }, enabled = bandCount > 0, icon = Ic.EDIT)
         }
     }
 
     // ---- saved EQs: picked above, renamed or deleted here
-    if (s.profiles.isNotEmpty()) {
+    if (s.profiles.isNotEmpty() && isAdvanced()) {
         Fold("Saved EQs", summary = "${s.profiles.size} saved · rename or delete") {
             s.profiles.sortedWith(compareBy<dev.autotune.EqProfile> { it.test.ifBlank { "~" } }.thenByDescending { it.created }).forEach { p ->
                 ProfileRow(p, active = p.id == s.activeProfileId, edited = false, vm = vm)
@@ -199,7 +201,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
     }
 
     // ---- everything else
-    Fold("Advanced", summary = "Exact bands, listen, measure, automatic switching") {
+    if (isAdvanced()) Fold("More", summary = "Exact bands, listen, measure, automatic switching") {
         Fold("Exact bands", summary = if (bandCount == 0) "None yet" else "$bandCount bands" + if (mine) " · your own" else " · from tuning") {
             if (!mine) {
                 val sug = s.suggestedChain

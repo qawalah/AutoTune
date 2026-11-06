@@ -321,7 +321,8 @@ private fun StockResultStep(s: UiState, vm: TuneViewModel, openResults: () -> Un
     // the graph is always there after a reading
     s.chart?.let { Panel { ResponseChart(it, height = 200.dp) } }
 
-    if (a.findings.isNotEmpty()) {
+    // Simple names the findings in the summary; the list with its bubbles is in Advanced
+    if (a.findings.isNotEmpty() && isAdvanced()) {
         Group("What the reading shows", divider = false) { a.findings.forEach { FindingRow(it) } }
     }
     FollowAndChecks(s, vm)
@@ -329,8 +330,8 @@ private fun StockResultStep(s: UiState, vm: TuneViewModel, openResults: () -> Un
         Actions {
             if (a.suspicious) TextAction("Use this reading anyway", { vm.tuneGo(TuneStep.APPLY) }, icon = Ic.NEXT)
             else TextAction("Measure the stock again", { if (s.runs.size > 1) confirmStock = true else vm.tuneGo(TuneStep.STOCK) }, icon = Ic.AGAIN)
-            TextAction("Ask AI to review", vm::aiOpen, icon = Ic.AI)
-            TextAction("All results of this test", openResults, icon = Ic.TESTS)
+            if (isAdvanced()) TextAction("Ask AI to review", vm::aiOpen, icon = Ic.AI)
+            if (isAdvanced()) TextAction("All results of this test", openResults, icon = Ic.TESTS)
         }
     }
     Adv {
@@ -491,11 +492,14 @@ private fun ResultStep(s: UiState, vm: TuneViewModel, openResults: () -> Unit, e
         if (move != dev.autotune.NextMove.REFINE && !latest.converged) TextAction("Another round with the new suggested EQ", vm::tuneRefine, icon = Ic.TUNE)
         if (move != dev.autotune.NextMove.KEEP_LATEST) TextAction("Keep this EQ and finish", { vm.tuneKeep(false) }, icon = Ic.DONE)
         if (move != dev.autotune.NextMove.KEEP_BEST && bestRun != null && bestRun != latest) TextAction("Keep the EQ of ${bestRun.label} and finish", { vm.tuneKeep(true) }, icon = Ic.UNDO)
-        TextAction("Measure again, nothing changed", vm::tuneRepeat, icon = Ic.AGAIN)
-        if (move == dev.autotune.NextMove.CHECK_EQ && phoneEq) TextAction("Apply the EQ again", { vm.tuneGo(TuneStep.APPLY) }, icon = Ic.POWER)
-        if (move != dev.autotune.NextMove.CHECK_EQ && phoneEq) TextAction("Check the EQ reaches the speakers", vm::eqCheck, icon = Ic.CHECK)
-        TextAction("Ask AI to review", vm::aiOpen, icon = Ic.AI)
-        TextAction("All results of this test", openResults, icon = Ic.TESTS)
+        // Simple keeps the moves that finish or continue; the checks and tools are in Advanced
+        if (isAdvanced()) {
+            TextAction("Measure again, nothing changed", vm::tuneRepeat, icon = Ic.AGAIN)
+            if (move == dev.autotune.NextMove.CHECK_EQ && phoneEq) TextAction("Apply the EQ again", { vm.tuneGo(TuneStep.APPLY) }, icon = Ic.POWER)
+            if (move != dev.autotune.NextMove.CHECK_EQ && phoneEq) TextAction("Check the EQ reaches the speakers", vm::eqCheck, icon = Ic.CHECK)
+            TextAction("Ask AI to review", vm::aiOpen, icon = Ic.AI)
+            TextAction("All results of this test", openResults, icon = Ic.TESTS)
+        }
         TextAction("Discard this run", { discard = true }, danger = true, icon = Ic.TRASH)
       }
     }
