@@ -158,6 +158,10 @@ One column, 16dp side margins, 16dp between blocks, content scrolling under a pi
 
 **Simple / Advanced.** A compact drop-down at the top of every screen (in the title row, or beside "Step n of 7") switches the whole app. Simple is the default: short wording, the main choices. Advanced adds explanations (`Hint`), extra checks and every option (`Adv { }`). Write the Simple text first; the full text is the Advanced variant (`say(simple, full)`).
 
+**Words on the page.** A screen shows labels, readings and one-line facts. Every explanation lives in an info bubble beside the thing it explains (`InfoButton`, or `info =` on a drop-down, group or fold), in Simple and Advanced alike. Cautions collapse into one `Alerts` line (warn tint, the count and the first words) that opens the full list. Findings show their title on the page and their meaning in a bubble.
+
+**Results open with the answer.** Run sheet readings, then one headline ("4.1 dB closer to the target than stock."), the findings or alerts in one line each, and "Next: …" with its reason in a bubble.
+
 Every screen title sits over a sheet rule: a 3dp shop-green band and a 1dp hairline.
 
 ## Elevation & Depth

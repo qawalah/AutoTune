@@ -55,7 +55,6 @@ fun TestsTab(s: UiState, vm: TuneViewModel, openResults: (String) -> Unit) {
             )
             Text("Tap New test to start one.", style = MaterialTheme.typography.bodyMedium)
         }
-        Hint("The EQ tab works without a test: you can build and switch on an EQ any time.")
         return
     }
     Column {
@@ -123,7 +122,7 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
     if (s.runs.isNotEmpty()) {
         // the same summary as the Tune result screens, then the one action; diagnostics follow, closed
         // the page title names the test; the pinned button is the one next move
-        ResultSummary(s, showNext = false, namesTest = false)
+        ResultSummary(s, showNext = true, namesTest = false)
         PinAction("Continue tuning", { vm.tuneContinue(); go(Tab.MEASURE) }, icon = Ic.TUNE)
         // the graph is always there
         s.chart?.let { c -> Panel { ResponseChart(c, height = 200.dp, showTarget = s.showTargetResults, onToggleTarget = { vm.setShowTarget(true, !s.showTargetResults) }) } }
@@ -202,7 +201,6 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
                         if (i >= 0) TableRow(listOf(if (f >= 1000) "%.0f kHz".format(f / 1000) else "%.0f Hz".format(f), "%.0f dB".format(d.hd2Db[i]), "%.0f dB".format(d.hd3Db[i]), "%.2f%%".format(d.thdPct[i])))
                     }
                 }
-                Hint("Latest sweep only. Level of the harmonic against the test tone.")
             }
         }
 
@@ -215,7 +213,6 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
                     TableRow(listOf("System score") + c.scores.map { "$it" }, bold = true)
                     c.regionNames.forEachIndexed { ri, n -> TableRow(listOf(n) + c.regionErr[ri].map { "%+.1f".format(it) }) }
                 }
-                Hint("Regions show the average distance from the target in dB. Zero is on target.")
             }
         }
 

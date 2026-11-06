@@ -4,6 +4,13 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [1.25.0] - 2026-11-06
+### Changed
+- Much less text everywhere, in Simple and Advanced: explanations moved from paragraphs on the page into info bubbles (ⓘ) beside the field, group or finding they explain. The four-line note under the EQ picker is now the ⓘ next to "EQ in use"; flavour and preamp notes sit in their own ⓘ; slider and graph notes are gone.
+- Results open with the answer: the readings, then one headline ("4.1 dB closer to the target than stock. Run 1 is still the best."), the findings that need work in one line, the warnings folded into one line ("2 notes: …", tap to read them all), and "Next: …" with its reason in a bubble. The test's results page now shows the next step too.
+- Warnings are folded the same way on every screen (measuring, EQ, mic). Findings and "Worth checking" show their titles only; a check that can be run is the button itself.
+- Shorter labels: "Off"/"On" for AutoTune EQ, "Best: Run 1", "Run 2 vs stock", "Start fresh?".
+
 ## [1.24.0] - 2026-11-06
 ### Added
 - **Loud EQ: Follow the sound level.** A third way for the loud EQ to come in, for outputs whose volume AutoTune can't read (Android Auto, and Bluetooth without absolute volume). While AutoTune EQ is on and music plays, the phone's mic hears how loud the cabin is. The loud EQ fades in over the 6 dB below your loud level and plays in full above it.

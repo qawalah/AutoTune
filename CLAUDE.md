@@ -39,7 +39,9 @@ phone through Obtainium.
 - Use plain, short wording. Use Barlow (`AtSans`) for text and Barlow Condensed (`AtFigures`) for readings and headings; figures are tabular everywhere.
 - Results open with a run sheet (`RunSheet` + `ReadingCells` in `ui/Kit.kt`); charts sit on chart paper with the stock dashed. See `DESIGN.md`.
 - Five tabs: Tests, EQ, Tune (raised in the centre), Live, Settings. A test's results and Export are pages over the current tab (`Page` in `ui/AutoTuneScreen.kt`): Back returns where you were. Keep new detail screens as pages, not tabs.
-- Simple / Advanced is app-wide and Simple is the default. Keep Simple short; put explanations in `Hint` and extra controls in `Adv { }`.
+- Simple / Advanced is app-wide and Simple is the default. Advanced adds controls and sections (`Adv { }`), never paragraphs.
+- No explanatory text on the page, in either mode: explanations go in info bubbles (`InfoButton`, `info =` on `DropSelect`, `GroupedPick`, `Group`, `Fold`, `InfoLabel`). Warnings go through `Alerts(list)`, one line that opens the full list. A line of text under a control is a fact or a status, at most one line.
+- Every result opens with the readings, a one-line headline (`resultHeadline`), the findings or alerts in one line each, and the next step.
 - Each section is a card (`Panel`, `Group`, `Fold`; never nested). Stack actions one per row with `Actions { }`. Motion uses `EaseArrive`/`EaseLeave` and `motionMs()`, so "Remove animations" is respected.
 
 ## Don't break

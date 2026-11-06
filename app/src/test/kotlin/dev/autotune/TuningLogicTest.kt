@@ -221,4 +221,12 @@ class ConvergenceTest {
         assertEquals("LG (3)" to "Home theatre", shortTestName("LG (3)", "Home theatre"))
         assertEquals("Flat", shortTarget("Flat"))
     }
+
+    @Test
+    fun resultHeadlineSaysHowFarItCameInOneLine() {
+        assertEquals("3.0 dB closer to the target than stock.", resultHeadline(23.1, 20.1))
+        assertEquals("3.0 dB closer to the target than stock. Run 1 is still the best.", resultHeadline(23.1, 20.1, 17.9, "Run 1"))
+        assertEquals("1.0 dB further from the target than stock.", resultHeadline(10.0, 11.0))
+        assertEquals("About the same as stock.", resultHeadline(10.0, 10.2, 10.1, "Run 2"))
+    }
 }

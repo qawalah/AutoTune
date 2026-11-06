@@ -1,6 +1,8 @@
 package dev.autotune.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,68 +37,84 @@ fun ResultSummary(s: UiState, showNext: Boolean, namesTest: Boolean = true) {
     val targets = dev.autotune.dsp.Target.ALL
     val target = targets[s.targetIdx.coerceIn(0, targets.size - 1)].name + dev.autotune.dsp.Target.tasteSuffix(s.bassDb, s.trebleDb)
     val name = s.testName.ifBlank { "This test" }
+    val about = "The figures are the distance from the target, in dB (RMS over the audible range). Lower is better; 0 would match the target exactly.\n\nTarget: $target."
     fun db(v: Double) = "%.1f".format(v)
     if (runs.size == 1) {
         val a = s.stock
         val suspicious = a?.suspicious == true
         // on a page already titled with the test, the sheet names the reading instead
         RunSheet(
-            if (namesTest) name else "Stock reading, no EQ",
-            if (namesTest) "Stock reading, no EQ · ${stock.whenText}" else stock.whenText,
+            if (namesTest) name else "Stock reading",
+            if (namesTest) "Stock reading · ${stock.whenText}" else stock.whenText,
             trailing = { AtIcon(if (suspicious) Ic.ALERT else Ic.MEASURE, c.onShell, size = 22.dp) },
         ) {
             ReadingCells(
                 listOfNotNull(
-                    Reading(db(stock.rmsDb), "dB", "from the target", if (suspicious) c.warn else null),
-                    a?.predictedDb?.takeIf { !suspicious }?.let { Reading("≈" + db(it), "dB", "with the suggested EQ (${a.bands} bands)", c.signal) },
+                    Reading(db(stock.rmsDb), "dB", "Stock", if (suspicious) c.warn else null),
+                    a?.predictedDb?.takeIf { !suspicious }?.let { Reading("≈" + db(it), "dB", "With the EQ", c.signal) },
                 ),
             )
-            Muted("Target: $target")
-            a?.let { Text(it.verdict, style = MaterialTheme.typography.bodyMedium) }
+            // the summary in one line, the why in its bubble
+            Headline(a?.verdict?.let(::firstSentence) ?: "Stock reading saved.", about + (a?.verdict?.let { "\n\n$it" } ?: ""))
+            Alerts(s.resultWarnings)
+            // the findings that need work, named in one line; each is explained further down
+            a?.findings?.filter { it.severity > 0 }?.takeIf { it.isNotEmpty() }?.let { fs ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AtIcon(if (fs.any { it.severity >= 2 }) Ic.ALERT else Ic.INFO, if (fs.any { it.severity >= 2 }) c.bad else c.warn, Modifier.padding(end = 8.dp), 18.dp)
+                    Text(fs.joinToString(" · ") { it.title }, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+            }
             if (showNext) NextLine(if (suspicious) "Measure the stock again" else "Review the suggested EQ", null)
         }
     } else {
         val better = latest.rmsDb < stock.rmsDb - 0.3
         val best = runs.drop(1).minByOrNull { it.rmsDb }
         RunSheet(
-            if (namesTest) name else "${latest.label} against the stock",
-            if (namesTest) "${latest.label} against the stock · ${latest.whenText}" else latest.whenText,
+            if (namesTest) name else "${latest.label} vs stock",
+            if (namesTest) "${latest.label} vs stock · ${latest.whenText}" else latest.whenText,
             trailing = { AtIcon(if (better) Ic.DONE else Ic.ALERT, c.onShell, size = 22.dp) },
         ) {
             ReadingCells(
                 listOfNotNull(
                     Reading(db(stock.rmsDb), "dB", "Stock"),
                     Reading(db(latest.rmsDb), "dB", latest.label, if (better) c.good else c.warn),
-                    if (best != null && best != latest) Reading(db(best.rmsDb), "dB", "${best.label}, best so far")
-                    else Reading("%+.1f".format(latest.rmsDb - stock.rmsDb).replace('-', '−'), "dB", "change from stock"),
+                    if (best != null && best != latest) Reading(db(best.rmsDb), "dB", "Best: ${best.label}")
+                    else Reading("%+.1f".format(latest.rmsDb - stock.rmsDb).replace('-', '−'), "dB", "vs stock"),
                 ),
             )
-            Muted("Distance from the target · $target")
-            s.resultWarnings.forEach { Warning(it) }
+            Headline(dev.autotune.resultHeadline(stock.rmsDb, latest.rmsDb, best?.rmsDb, best?.label), about)
+            Alerts(s.resultWarnings)
             val rec = s.recommendation
             if (showNext && rec != null) NextLine(moveLabel(rec.move, runs.getOrNull(rec.bestIdx)?.label), rec.why)
         }
     }
 }
 
+/** The first sentence of [t], so a verdict reads as one line; the rest goes in its bubble. */
+internal fun firstSentence(t: String): String = t.substringBefore(". ").let { if (it.length < t.length && !it.endsWith(".")) "$it." else it }
+
+/** The result in one line, with its explanation in a bubble. */
+@Composable
+private fun Headline(text: String, info: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 2)
+        InfoButton("About this result", info, small = true)
+    }
+}
+
 @Composable
 private fun NextLine(move: String, why: String?) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AtIcon(Ic.NEXT, At.c.signal, size = 18.dp)
-            Text("  Next: $move", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-        }
-        why?.let { Muted(it) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        AtIcon(Ic.NEXT, At.c.signal, size = 18.dp)
+        Text("  Next: $move", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 2)
+        if (why != null) InfoButton("Why this next", why, small = true)
     }
 }
 
 /** The heading that separates the summary from the diagnostic layer. */
 @Composable
-fun DetailsHeading(sub: String = "Charts and diagnostics, closed until you open them.") {
-    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text("Details", style = MaterialTheme.typography.titleLarge)
-        Muted(sub)
-    }
+fun DetailsHeading() {
+    Text("Details", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.titleLarge)
 }
 
 /** What each built-in curve is, in a line, for the target drop-downs. */
@@ -127,7 +145,7 @@ fun TargetSoundFold(s: UiState, vm: dev.autotune.TuneViewModel, startOpen: Boole
         "Target and taste",
         summary = targets[idx].name + dev.autotune.dsp.Target.tasteSuffix(s.bassDb, s.trebleDb),
         startOpen = startOpen,
-        info = "The target is the sound AutoTune tunes towards. Professionals tune to a curve with the bass lifted, not to flat, then season to taste.\n\n" +
+        info = "The target is the sound AutoTune tunes towards. Professionals tune to a curve with the bass lifted, not to flat, then season to taste. Changing it refits the suggested EQ at once; measure again to check it.\n\n" +
             "Bass adds a shelf below about 100 Hz; Treble adds one above about 4 kHz. More bass in the target means AutoTune cuts less of the car's or room's own bass. " +
             "Boosts stay limited to +3 dB, so a lift only shows where the speakers already play the bass.",
     ) {
@@ -143,7 +161,6 @@ fun TargetSoundFold(s: UiState, vm: dev.autotune.TuneViewModel, startOpen: Boole
             TREBLE_STEPS.map(::db), TREBLE_STEPS.indexOf(s.trebleDb).let { if (it < 0) TREBLE_STEPS.indexOf(0.0) else it },
             { vm.setTargetSound(idx, s.bassDb, TREBLE_STEPS[it]) }, label = "Treble to taste", icon = Ic.CURVE,
         )
-        Hint("Changing these refits the suggested EQ at once. Measure again to check it.")
     }
 }
 
@@ -158,14 +175,14 @@ fun EqCheckCard(v: dev.autotune.EqCheckView, vm: dev.autotune.TuneViewModel) {
     Panel {
         Row(verticalAlignment = Alignment.Top) {
             AtIcon(icon, tint, Modifier.padding(top = 2.dp, end = 10.dp), 22.dp)
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("EQ check", style = MaterialTheme.typography.titleMedium)
-                Text(v.check.verdict, style = MaterialTheme.typography.bodyMedium)
-                Muted("${v.eqName} · ${v.whenText}")
+                Text(firstSentence(v.check.verdict), style = MaterialTheme.typography.bodyMedium, maxLines = 2)
             }
+            InfoButton("EQ check", v.check.verdict + "\n\n${v.eqName} · ${v.whenText}", small = true)
         }
         if (v.check.severity != 3) ResponseChart(v.chart, height = 170.dp, targetLabel = "No change")
-        Row {
+        Actions {
             TextAction("Check again", vm::eqCheck, icon = Ic.AGAIN)
             TextAction("Hide", vm::clearEqCheck, icon = Ic.CLOSE)
         }
@@ -177,13 +194,17 @@ fun EqCheckCard(v: dev.autotune.EqCheckView, vm: dev.autotune.TuneViewModel) {
 fun FlavourAndPreamp(s: UiState, vm: dev.autotune.TuneViewModel) {
     val flavours = dev.autotune.Flavour.entries
     DropSelect(
-        flavours.map { it.title }, flavours.indexOf(s.flavour), { vm.setFlavour(flavours[it]) }, label = "Flavour on top of the tune",
+        flavours.map { it.title }, flavours.indexOf(s.flavour), { vm.setFlavour(flavours[it]) }, label = "Flavour",
         details = flavours.map { it.detail }, icon = Ic.CURVE,
+        info = "A flavour plays on top of the tuned EQ. It only plays: measurements always use the tuned EQ alone.",
     )
     val modes = dev.autotune.PreampMode.entries
     DropSelect(
         modes.map { it.title }, modes.indexOf(s.preampMode), { vm.setPreampMode(modes[it]) }, label = "Preamp",
         details = modes.map { it.detail }, icon = Ic.SPEAKER,
+        info = "The preamp lowers the whole EQ so boosts cannot clip." +
+            (s.playPreampDb?.takeIf { s.systemEqOn }?.let { " Playing now with %.1f dB.".format(it) } ?: "") +
+            " If it sounds quieter than before, turn the volume up: the shape is what matters.",
     )
     if (s.preampMode == dev.autotune.PreampMode.MANUAL) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -198,19 +219,17 @@ fun FlavourAndPreamp(s: UiState, vm: dev.autotune.TuneViewModel) {
             Text("  %.1f dB".format(s.manualPreampDb), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures)
         }
     }
-    s.playPreampDb?.takeIf { s.systemEqOn }?.let {
-        Hint("Playing with a preamp of %.1f dB. If it sounds quieter than before, turn the volume up: the shape is what matters.".format(it))
-    }
-    if (s.flavour != dev.autotune.Flavour.NONE) Hint("The flavour only plays: measurements always use the tuned EQ alone.")
 }
 
 /** How the speakers followed the last EQ, and the further tests worth doing. */
 @Composable
 fun FollowAndChecks(s: UiState, vm: dev.autotune.TuneViewModel) {
     val f = s.eqFollow
-    if (f != null && f.summary.isNotBlank()) {
-        Group("How the speakers followed the EQ", divider = false) {
-            Text(f.summary, style = MaterialTheme.typography.bodyMedium)
+    if (f != null && f.summary.isNotBlank() && isAdvanced()) {
+        Group(
+            "How the speakers followed the EQ", divider = false,
+            info = f.summary + "\n\nTop row: dB the EQ asked for. Middle: dB the mic heard change. Bottom: the octave in Hz.",
+        ) {
             // octave by octave: asked against heard
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 f.bands.forEach { b ->
@@ -222,27 +241,22 @@ fun FollowAndChecks(s: UiState, vm: dev.autotune.TuneViewModel) {
                     }
                 }
             }
-            Hint("Top: dB the EQ asked for. Middle: dB the mic heard change. Bottom: the octave in Hz.")
         }
     }
     if (s.checkSuggestions.isNotEmpty()) {
         Group("Worth checking", divider = false) {
             s.checkSuggestions.forEach { c ->
-                Row(verticalAlignment = Alignment.Top) {
-                    AtIcon(if (c.action == dev.autotune.CheckAction.NONE) Ic.INFO else Ic.ALERT, At.c.warn, Modifier.padding(top = 2.dp, end = 10.dp), 20.dp)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(c.title, style = MaterialTheme.typography.titleSmall)
-                        Muted(c.why)
-                        if (c.action != dev.autotune.CheckAction.NONE) TextAction(
-                            when (c.action) {
-                                dev.autotune.CheckAction.MORE_SPOTS -> "Use 3 spots"
-                                dev.autotune.CheckAction.EQ_CHECK -> "Run the EQ check"
-                                dev.autotune.CheckAction.REPEAT -> "Measure again"
-                                else -> "Measure the stock again"
-                            },
-                            { vm.doCheck(c.action) }, icon = Ic.NEXT,
-                        )
+                // the check is the action itself; why it is worth doing is in its bubble
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) {
+                        if (c.action == dev.autotune.CheckAction.NONE) {
+                            Row(Modifier.heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
+                                AtIcon(Ic.INFO, At.c.warn, Modifier.padding(start = 2.dp, end = 10.dp), 20.dp)
+                                Text(c.title, style = MaterialTheme.typography.titleSmall)
+                            }
+                        } else Actions { TextAction(c.title, { vm.doCheck(c.action) }, icon = Ic.ALERT) }
                     }
+                    InfoButton(c.title, c.why, small = true)
                 }
             }
         }

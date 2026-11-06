@@ -301,3 +301,7 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - `LoudEq`: `levelAmt` is the amount in LEVEL mode; prefs `loudLevel`; `setLoudLevelNow`, `meterOff`, `appVisible` (MainActivity.onResume asks the service to retry the mic).
 - `SystemEqService.notify(..., force)`: the foreground type is specialUse, plus microphone while `wantsMeter()`. `startForeground` is only called when the type changes or on `onStartCommand`'s first notice (otherwise `NotificationManager.notify`); a SecurityException (background start) falls back to specialUse with `micAllowed = false` and the note "Open AutoTune once to start listening". Manifest: `FOREGROUND_SERVICE_MICROPHONE`, service type `specialUse|microphone`.
 - Not verified on a phone: background mic on the S23 Ultra (One UI), the level scale in the cabin, and behaviour during Android Auto voice commands.
+### Words on the page (1.25.0)
+- `Hint` is gone. Explanations are info bubbles: `InfoButton(title, text, small)`, `InfoLabel(label, info)`, and `info =` on `DropSelect`, `GroupedPick`, `Group`, `Fold` and Tune's `CardTitle`. `Alerts(items, title)` folds warnings into one tappable line; `StatusBlock` uses it.
+- `ResultSummary`: readings, `Headline` (from `resultHeadline` in TuningLogic, or the first sentence of the stock verdict via `firstSentence`), the stock findings needing work in one line, `Alerts(resultWarnings)`, and `NextLine` (shown on the results page). `FindingRow` and "Worth checking" are titles with bubbles.
+

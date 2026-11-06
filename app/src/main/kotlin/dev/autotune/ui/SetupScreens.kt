@@ -164,9 +164,8 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             s.status?.let { Muted(it) }
         }
 
-        Group("About") {
+        Group("About", info = "Measure, correct and re-measure car and home audio with a USB microphone. Nothing here is verified on every phone: the AutoTune EQ in particular depends on the phone and Android version, and Samsung's own sound settings can't be controlled by apps.") {
             Text("AutoTune ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures)
-            Hint("Measure, correct and re-measure car and home audio with a USB microphone. Nothing here is verified on every phone: the AutoTune EQ in particular depends on the phone and Android version, and Samsung's own sound settings can't be controlled by apps.")
             Muted("Type set in Barlow, licensed under the SIL Open Font License 1.1.")
         }
     }

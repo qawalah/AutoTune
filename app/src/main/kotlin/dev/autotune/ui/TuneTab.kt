@@ -114,7 +114,6 @@ private fun TuneHome(s: UiState, vm: TuneViewModel, pick: Pickers) {
     }
     if (s.runs.isNotEmpty()) {
         SecondaryButton("Continue “${s.testName}”", vm::tuneContinue, Modifier.fillMaxWidth(), icon = Ic.NEXT)
-        Hint("Picks up at " + dev.autotune.resumePlace(dev.autotune.resumeAt(s.resumeStep, s.runs.size)) + ".")
     }
     Adv {
         Fold("Advanced tools", summary = "Mic spots, channel, window, left/right, subwoofer") {
@@ -130,7 +129,7 @@ private fun TuneHome(s: UiState, vm: TuneViewModel, pick: Pickers) {
 private fun FreshStep(s: UiState, vm: TuneViewModel, exit: () -> Unit) {
     StepHeader(0, STEPS, "Fresh start", exit, onBack = vm::tuneBack, names = dev.autotune.STEP_NAMES)
     Panel {
-        CardTitle("Start from a fresh system?", if (isAdvanced()) "The first reading is the reference, so it must be the system with no EQ at all." else null)
+        CardTitle("Start fresh?", info = "The first reading is the reference every run is compared with, so it must be the system with no EQ at all.")
         Check(Ic.POWER, if (s.systemEqOn) say("AutoTune EQ switches off.", "AutoTune EQ is on now. It is switched off when you start fresh.") else "AutoTune EQ is off.")
         Check(Ic.EQ, say("Head unit / DSP EQ flat, loudness off.", "Set the head unit or DSP EQ flat: every band at 0, bass boost and loudness off."))
         Check(Ic.SPEAKER, say("Phone sound effects off.", "Phone sound effects off: Samsung Adapt Sound, Dolby Atmos, the phone's own equaliser."))
@@ -138,7 +137,6 @@ private fun FreshStep(s: UiState, vm: TuneViewModel, exit: () -> Unit) {
         PinAction("Yes, start fresh", vm::tuneFresh, icon = Ic.POWER)
         if (s.runs.isNotEmpty()) {
             SecondaryButton("No, continue “${s.testName}”", vm::tuneContinue, Modifier.fillMaxWidth(), icon = Ic.NEXT)
-            Hint("Continuing keeps the stock reading and the runs of that test.")
         }
     }
 }
@@ -244,7 +242,12 @@ private fun MeasureStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pic
     )
     StepHeader(if (stock) 2 else 5, STEPS, if (stock) "Stock reading" else "Verify", exit, onBack = vm::tuneBack, names = dev.autotune.STEP_NAMES)
     Panel {
-        CardTitle(title, if (isAdvanced() || (stock && s.runs.isNotEmpty())) how else null)
+        CardTitle(
+            title, if (stock && s.runs.isNotEmpty()) "Replaces the stock reading" else null,
+            info = how + ((s.eqLevelDb ?: 0.0).takeIf { !stock && !s.repeatNext && it < -2.0 }?.let {
+                "\n\nThis EQ makes the sound about %.0f dB quieter overall. Turning the volume up a step for this reading is fine: AutoTune compares the shape of the response, not its loudness.".format(-it)
+            } ?: ""),
+        )
         MicLine(s, pick)
         if (s.source != Source.PHONE) OtherDeviceSignal(s.source, vm, sharer)
         if (s.source == Source.PHONE) OutputPicker(s, vm)
@@ -255,12 +258,6 @@ private fun MeasureStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pic
         }
         if (failed) Failure(s) else if (!s.busy) s.status?.let { Muted(it) }
         LevelResult(s)
-        if (!stock && !s.repeatNext && (s.eqLevelDb ?: 0.0) < -2.0) {
-            Hint(
-                "This EQ makes the sound about %.0f dB quieter overall. Turning the volume up a step for this reading is fine: AutoTune compares the shape of the response, not its loudness."
-                    .format(-(s.eqLevelDb ?: 0.0)),
-            )
-        }
     }
     // the other moves, one per row under each other; Back is the arrow in the header
     if (!s.busy) Adv {
@@ -360,12 +357,11 @@ fun FindingRow(f: dev.autotune.Finding) {
         1 -> Ic.INFO to At.c.warn
         else -> Ic.DONE to At.c.good
     }
-    Row(verticalAlignment = Alignment.Top) {
-        AtIcon(icon, tint, Modifier.padding(top = 2.dp, end = 10.dp), 20.dp)
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(f.title, style = MaterialTheme.typography.titleSmall)
-            Text(f.detail, style = MaterialTheme.typography.bodyMedium)
-        }
+    // the title on the page, what it means in its bubble
+    Row(Modifier.heightIn(min = 36.dp), verticalAlignment = Alignment.CenterVertically) {
+        AtIcon(icon, tint, Modifier.padding(end = 10.dp), 20.dp)
+        Text(f.title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+        if (f.detail.isNotBlank()) InfoButton(f.title, f.detail, small = true)
     }
 }
 
@@ -388,10 +384,10 @@ private fun ApplyStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> 
                 first -> "Suggested EQ"
                 else -> "New suggested EQ after ${latest?.label}"
             },
-            latest?.let { "${it.label} is %.1f dB from the target.".format(it.rmsDb) },
+            latest?.let { "${it.label}: %.1f dB from target".format(it.rmsDb) },
         )
         if (!isSuggestion) {
-            Text("This is not AutoTune's suggestion: ${s.eqSource}.", style = MaterialTheme.typography.bodyMedium)
+            Muted(s.eqSource)
             TextAction("Use the suggested EQ instead", vm::useSuggested, icon = Ic.UNDO)
         }
         s.chart?.let { ResponseChart(it, height = 180.dp) }
@@ -413,7 +409,6 @@ private fun ApplyStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> 
             if (s.source == Source.PHONE && !equipment) {
                 if (!s.systemEqSuspect) {
                     PinAction("Use the phone's EQ and measure", { pick.notifications(); vm.tuneApply(ApplyWay.AUTOTUNE_EQ) }, icon = Ic.POWER)
-                    Hint("The button below: AutoTune EQ equalises everything this phone plays. It affects only this phone's audio, and how well it works depends on the phone.")
                     SecondaryButton("Preview in the app and measure", { vm.tuneApply(ApplyWay.IN_APP) }, Modifier.fillMaxWidth(), icon = Ic.PLAY)
                 } else {
                     Warning("The phone's EQ damaged the treble on this phone before. Preview inside the app, or set it on your equipment.")
@@ -541,9 +536,9 @@ private fun DoneStep(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, openResul
         if (stock != null && last != null) Text("%.1f dB → %.1f dB from the target".format(stock.rmsDb, last.rmsDb), style = MaterialTheme.typography.headlineSmall)
         Text(
             when {
-                s.systemEqOn -> "Saved as a profile and AutoTune EQ is on with it: ${s.eqSource}."
-                s.source == Source.PHONE && s.applyWay != ApplyWay.EQUIPMENT -> "Saved as a profile: ${s.eqSource}. Turn on AutoTune EQ on the EQ tab to use it."
-                else -> "Saved as a profile. Keep these bands set on your equipment."
+                s.systemEqOn -> "Saved. AutoTune EQ is on with it."
+                s.source == Source.PHONE && s.applyWay != ApplyWay.EQUIPMENT -> "Saved. Switch on AutoTune EQ to use it."
+                else -> "Saved. Keep these bands on your equipment."
             },
             style = MaterialTheme.typography.bodyMedium, color = At.c.muted, textAlign = TextAlign.Center,
         )
@@ -559,9 +554,7 @@ private fun DoneStep(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, openResul
 @Composable
 private fun MicLine(s: UiState, pick: Pickers) {
     val ready = s.hasPermission
-    if (s.micAlsoOutput) {
-        Warning("Your phone also sees the mic as headphones, so sound can end up in the mic instead of the car. Use Test sound to check, and pick the car under Plays through if needed.")
-    }
+    Alerts(listOfNotNull(if (s.micAlsoOutput) "Your phone also sees the mic as headphones, so sound can end up in the mic instead of the car. Use Test sound to check, and pick the car under Plays through if needed." else null), "Microphone")
     if (ready && s.phoneMic) {
         StatusLine(true, say("Phone microphone", "Phone microphone. Good for checking, a USB mic is more accurate."))
         return
@@ -581,10 +574,13 @@ private fun MicLine(s: UiState, pick: Pickers) {
 }
 
 @Composable
-private fun CardTitle(title: String, sub: String? = null) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(title, style = MaterialTheme.typography.titleLarge)
-        if (sub != null) Text(sub, style = MaterialTheme.typography.bodyMedium, color = At.c.muted)
+private fun CardTitle(title: String, sub: String? = null, info: String? = null) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.titleLarge)
+            if (sub != null) Text(sub, style = MaterialTheme.typography.bodyMedium, color = At.c.muted, maxLines = 1)
+        }
+        if (info != null) InfoButton(title, info)
     }
 }
 
@@ -640,8 +636,13 @@ private fun OutputPicker(s: UiState, vm: TuneViewModel) {
         label = "Plays through", icon = Ic.SPEAKER,
         details = listOf("Wherever the phone plays music now") + s.outputs.map { null },
     )
-    if (s.outputToMic) Warning("That is the USB mic, not your speakers. Pick your car in the list above.")
-    if (s.audioCaptured) Warning("Another app is capturing the phone's sound (screen recorder or casting). Stop it before measuring: it can change what reaches the speakers.")
+    Alerts(
+        listOfNotNull(
+            if (s.outputToMic) "That is the USB mic, not your speakers. Pick your car in the list above." else null,
+            if (s.audioCaptured) "Another app is capturing the phone's sound (screen recorder or casting). Stop it before measuring: it can change what reaches the speakers." else null,
+        ),
+        "Before measuring",
+    )
 }
 
 @Composable
@@ -657,8 +658,8 @@ private fun Settings(s: UiState, vm: TuneViewModel, ready: Boolean) {
     DropSelect(
         listOf("1 spot", "3 spots", "5 spots"), listOf(1, 3, 5).indexOf(s.positions).coerceAtLeast(0), { vm.setPositions(listOf(1, 3, 5)[it]) },
         enabled = !s.busy && s.positionsDone == 0, label = "Mic spots per reading", icon = Ic.MIC,
+        info = "Several spots around the seat are averaged, so one unlucky dip doesn't steer the EQ.",
     )
-    Hint("Several spots around the seat are averaged, so one unlucky dip doesn't steer the EQ.")
     if (s.positionsDone > 0) TextAction("Start the spots over", vm::resetPositions, icon = Ic.UNDO)
     if (s.source == Source.PHONE) {
         DropSelect(
@@ -672,9 +673,7 @@ private fun Settings(s: UiState, vm: TuneViewModel, ready: Boolean) {
     DropSelect(
         fdwOpts.map { if (it == 0) "Fixed window" else "Frequency-dependent, $it cycles" }, fdwOpts.indexOf(s.fdwCycles).coerceAtLeast(0),
         { vm.setFdw(fdwOpts[it]) }, enabled = !s.busy, label = "Analysis window",
-    )
-    Hint(
-        if (s.fdwCycles == 0) "Fixed: the first ${s.gateMs} ms after the direct sound, for this test."
+        info = if (s.fdwCycles == 0) "Fixed: the first ${s.gateMs} ms after the direct sound, for this test."
         else "Frequency-dependent window as in REW: each frequency is read over ${s.fdwCycles} cycles of its own period, up to one second after the direct sound (the fixed gate does not limit it). The bass gets long windows and the treble short ones, so late reflections count less where they cannot be separated anyway. Applies to the next measurement.",
     )
     if (s.runs.isNotEmpty()) TextAction("Measure the stock system again", { confirm = true }, enabled = ready && !s.busy, danger = true, icon = Ic.AGAIN)
@@ -729,7 +728,6 @@ private fun ExtraChecks(s: UiState, vm: TuneViewModel, ready: Boolean) {
     ) {
         val sweepRoute = s.source == Source.PHONE
         Text("Left and right balance", style = MaterialTheme.typography.titleSmall)
-        Hint("Measures the left speaker alone, then the right. Reports the level difference and, when the phone plays, the timing difference.")
         if (!sweepRoute) {
             Actions {
                 SecondaryButton("Send left sweep", { vm.shareTestFile(TestFileKind.SWEEP_LEFT) }, icon = Ic.SHARE)
@@ -747,7 +745,6 @@ private fun ExtraChecks(s: UiState, vm: TuneViewModel, ready: Boolean) {
         }
 
         Text("Subwoofer and crossover", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
-        Hint("Four measurements at the same volume: mains only, sub only, both with sub normal, both with sub inverted.")
         val steps = listOf("MAINS" to "Mains only", "SUB" to "Sub only", "SUM" to "Both, sub normal", "SUM_INV" to "Both, sub inverted")
         Actions {
             steps.forEach { (k, label) ->

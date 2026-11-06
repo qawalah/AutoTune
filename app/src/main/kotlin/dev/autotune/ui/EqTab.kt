@@ -93,7 +93,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
             Column(Modifier.weight(1f)) {
                 Text("AutoTune EQ", style = MaterialTheme.typography.titleLarge)
                 Text(
-                    if (s.systemEqOn) "On · playing ${s.eqSource.ifBlank { "flat" }}" else "Off · nothing is applied",
+                    if (s.systemEqOn) "On" else "Off",
                     style = MaterialTheme.typography.bodyMedium, color = if (s.systemEqOn) At.c.signal else At.c.muted, maxLines = 2,
                 )
             }
@@ -107,9 +107,11 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
             )
             PowerToggle(s.systemEqOn, { if (it) pick.notifications(); vm.setSystemEq(it) }, "AutoTune EQ")
         }
-        GroupedPick("EQ currently in use", s.eqChoices, s.eqPick, vm::selectEq, if (bandCount > 0) "Your own bands" else "No EQ yet: tune, or use the sliders below")
-        Hint("“Suggested EQ” entries are AutoTune's proposals from tuning; whatever is picked here is what plays. AutoTune EQ affects only this phone's audio, and how well it works depends on the phone.")
-        if (s.sliderLayer.isNotEmpty()) Muted("Plus your slider changes.")
+        GroupedPick(
+            "EQ in use", s.eqChoices, s.eqPick, vm::selectEq, if (bandCount > 0) "Your own bands" else "No EQ yet",
+            info = "Whatever is picked here is what plays when AutoTune EQ is on. “Suggested EQ” entries are AutoTune's proposals from tuning, not measured yet; runs show how far each was from the target.\n\nAutoTune EQ affects only this phone's audio, and how well it works depends on the phone.",
+        )
+        if (s.sliderLayer.isNotEmpty()) Muted("+ your slider changes")
         s.systemEqMessage?.let { Muted(it) }
         FlavourAndPreamp(s, vm)
     }
@@ -132,7 +134,6 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
     s.eqChart?.let { chart ->
         Panel {
             ResponseChart(chart, height = 200.dp, showTarget = s.showTargetEq, onToggleTarget = { vm.setShowTarget(false, !s.showTargetEq) })
-            if (s.runs.isNotEmpty()) Hint("The dotted line is a prediction from the last measurement plus this EQ. Measure to confirm.")
         }
     }
 
@@ -149,22 +150,17 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
     ) {
         DropSelect(listOf("5 bands", "10 bands", "15 bands"), bandSet, { bandSet = it })
         GraphicSliders(s, vm, centres, qOf, locked)
-        val note = when {
-            locked -> "Locked against accidental changes. Tap the lock to adjust."
-            s.sliderLayer.isNotEmpty() -> "Your slider changes sit on top of the EQ in use. Each slider shows what the EQ really does at that frequency."
-            bandCount > 0 -> "A slider adds to the EQ in use; its own bands stay as they are."
-            else -> "Flat. Drag a slider, or tune to get a suggestion."
-        }
-        note?.let { Muted(it) }
-        chain?.let { c -> if (c.filters.isNotEmpty()) Muted("Preamp %.1f dB keeps the EQ from clipping.".format(c.preampDb)) }
-        s.exportWarnings.forEach { Warning(it) }
+        chain?.let { c -> if (c.filters.isNotEmpty()) Muted("Preamp %.1f dB".format(c.preampDb)) }
         // big boosts from the sliders are easy to make by accident and AutoTune's own EQ never makes them
-        s.sliderLayer.maxByOrNull { it.gainDb }?.takeIf { it.gainDb > 6.0 }?.let { b ->
-            Warning(
-                "Your slider changes boost %+.0f dB at %s. AutoTune's own EQ never boosts more than 3 dB; boosts this big often distort. Remove them below if they were not meant."
-                    .format(b.gainDb, if (b.freqHz >= 1000) "%.1f kHz".format(b.freqHz / 1000) else "%.0f Hz".format(b.freqHz)),
-            )
-        }
+        Alerts(
+            s.exportWarnings + listOfNotNull(
+                s.sliderLayer.maxByOrNull { it.gainDb }?.takeIf { it.gainDb > 6.0 }?.let { b ->
+                    "Your sliders boost %+.0f dB at %s. AutoTune's own EQ never boosts more than 3 dB; boosts this big often distort."
+                        .format(b.gainDb, if (b.freqHz >= 1000) "%.1f kHz".format(b.freqHz / 1000) else "%.0f Hz".format(b.freqHz))
+                },
+            ),
+            "About this EQ",
+        )
         if (s.sliderLayer.isNotEmpty()) TextAction("Remove my slider changes", vm::resetSliders, icon = Ic.UNDO)
     }
 
@@ -180,12 +176,11 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
             }
             vm.tuneGo(dev.autotune.TuneStep.VERIFY)
             go(Tab.MEASURE)
-        }, enabled = bandCount > 0, icon = Ic.MEASURE)
-        Hint(
-            when {
-                s.systemEqOn -> "AutoTune EQ is on, so the next run is measured with it."
-                onEquipment -> "Set these bands on your equipment first, then measure."
-                else -> "The next run plays the sweep through this EQ inside the app, without changing your equipment."
+        }, enabled = bandCount > 0, icon = Ic.MEASURE,
+            hint = when {
+                s.systemEqOn -> "Measured with AutoTune EQ on."
+                onEquipment -> "Set these bands on your equipment first."
+                else -> "Plays the sweep through this EQ inside the app."
             },
         )
         if (!s.systemEqOn && s.source == Source.PHONE) {
@@ -197,7 +192,6 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
     // ---- saved EQs: picked above, renamed or deleted here
     if (s.profiles.isNotEmpty()) {
         Fold("Saved EQs", summary = "${s.profiles.size} saved · rename or delete") {
-            Hint("Pick which EQ is in use at the top of this page. Each test also keeps the EQ of every run.")
             s.profiles.sortedWith(compareBy<dev.autotune.EqProfile> { it.test.ifBlank { "~" } }.thenByDescending { it.created }).forEach { p ->
                 ProfileRow(p, active = p.id == s.activeProfileId, edited = false, vm = vm)
             }
@@ -243,8 +237,10 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
                 }
             }
             // lossy on purpose, so it is an explicit action with the difference reported
-            Text("Convert for a head unit", style = MaterialTheme.typography.titleSmall)
-            Hint("Head units and graphic EQs only have fixed bands. This replaces the tuned bands and sliders with peaking bands at those centres. It is lossy, and the difference is reported.")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Convert for a head unit", style = MaterialTheme.typography.titleSmall)
+                InfoButton("Convert for a head unit", "Head units and graphic EQs only have fixed bands. This replaces the tuned bands and sliders with peaking bands at those centres. It is lossy, and the difference is reported.", small = true)
+            }
             Actions {
                 GRAPHIC_SETS.forEach { (cs, q) ->
                     SecondaryButton("Convert to ${cs.size} bands", { expanded = -1; vm.convertToBands(cs, q) }, enabled = bandCount > 0, icon = Ic.EQ)
@@ -418,7 +414,6 @@ fun AutomationSection(s: UiState, vm: TuneViewModel, pick: Pickers) {
                 "• Tasker, MacroDroid and similar apps can send the intent dev.autotune.action.APPLY_PROFILE with the extra profile set to the profile's name (or EQ_OFF to switch it off), or open the link autotune://profile/NAME.",
         )
     }
-    Hint("Routines can start a profile through AutoTune's shortcuts. Tap the i for how.")
 }
 
 @Composable
@@ -499,7 +494,6 @@ fun BandTable(lines: List<BandLine>, preampDb: Double, compared: Boolean) {
     ) {
         Column(Modifier.weight(1f)) {
             Text("Preamp", style = MaterialTheme.typography.titleSmall)
-            Muted("Set this first")
         }
         Text(signed(preampDb) + " dB", style = MaterialTheme.typography.titleMedium, fontFamily = AtFigures, color = if (preampDb < -0.05) At.c.bad else At.c.text)
     }
@@ -509,7 +503,6 @@ fun BandTable(lines: List<BandLine>, preampDb: Double, compared: Boolean) {
             listOf("All ${lines.size}", "Changed $changedCount"), if (onlyChanged) 1 else 0,
             { onlyChanged = it == 1 },
         )
-        Hint("Rows with a tint and “was” changed since your last run.")
     }
 
     Column {
@@ -812,14 +805,14 @@ fun LoudEqFold(s: UiState, vm: TuneViewModel, startOpen: Boolean = false) {
             val c = s.volCheck
             if (live.route.isNotBlank()) Muted("Output: ${live.route}" + if (live.carMode && "Android Auto" !in live.route) " · Android Auto is on" else "")
             if (c != null && !c.done) {
-                Warning("Turn the car's volume knob up and down a few steps now. Don't touch the phone. ${c.secondsLeft} s left, ${c.steps} ${if (c.steps == 1) "step" else "steps"} seen.")
+                Warning("Turn the car's volume knob up and down now · ${c.secondsLeft} s · ${c.steps} ${if (c.steps == 1) "step" else "steps"} seen")
                 Actions { TextAction("Stop the check", vm::stopVolumeCheck, icon = Ic.STOP) }
             } else {
                 Muted(
                     when (live.synced) {
-                        true -> "The car's volume reaches AutoTune here, so the loud EQ follows it."
-                        false -> "AutoTune can't see the car's volume here. Use the button, the tile or the volume keys."
-                        null -> "Not checked on this output yet. Until then, use the button, the tile or the volume keys."
+                        true -> "Follows the car's volume here."
+                        false -> "Can't see the car's volume here: use the button, tile or volume keys."
+                        null -> "Volume not checked on this output yet."
                     },
                 )
                 Actions {
@@ -846,31 +839,37 @@ fun LoudEqFold(s: UiState, vm: TuneViewModel, startOpen: Boolean = false) {
             Actions {
                 SecondaryButton("This is loud", vm::loudLevelNow, enabled = s.systemEqOn && live.listening && live.levelDb != null, icon = Ic.MIC)
             }
-            Hint("Play music at the volume where it starts to sound strained, then tap “This is loud”. The loud EQ comes in over the 6 dB below it.")
             val levels = (listOf(75.0, 80.0, 85.0, 90.0, 95.0) + s.loudLevelDb).distinct().sorted()
             DropSelect(
                 levels.map { "Full from %.0f dB".format(it) }, levels.indexOf(s.loudLevelDb), { vm.setLoudLevel(levels[it]) },
                 label = "Loud level", details = levels.map { "Starts at %.0f dB".format(it - 6) },
+                info = "Play music at the volume where it starts to sound strained, then tap “This is loud”. The loud EQ comes in over the 6 dB below it.\n\nThe mic dot shows while it listens. It closes the mic when no music plays, while AutoTune measures, and during calls. Only the level is kept, never the sound. Road noise counts too: keep the loud level above it.",
             )
-            Hint("The mic dot shows while it listens. It closes the mic when no music plays, while AutoTune measures, and during calls. Only the level is kept, never the sound. Road noise counts too: keep the loud level above it.")
         }
 
         // what it changes
         val cuts = s.loudCuts ?: dev.autotune.LOUD_DEFAULT_CUTS
-        Muted(
-            (s.loudSource ?: "Safe default") + ": " +
-                (if (cuts.isEmpty()) "no distortion found, so it only" else cuts.joinToString(", ") { "${if (it.freqHz >= 1000) "%.1f kHz".format(it.freqHz / 1000).replace(".0 ", " ") else "%.0f Hz".format(it.freqHz)} ${signed(it.gainDb)} dB" } + ", and it") +
-                " takes back 60% of your boosts below 150 Hz and above 5 kHz.",
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Muted(
+                (s.loudSource ?: "Safe default") + ": " +
+                    (if (cuts.isEmpty()) "no cuts" else cuts.joinToString(", ") { "${if (it.freqHz >= 1000) "%.1f kHz".format(it.freqHz / 1000).replace(".0 ", " ") else "%.0f Hz".format(it.freqHz)} ${signed(it.gainDb)} dB" }),
+                Modifier.weight(1f),
+            )
+            InfoButton(
+                "What the loud EQ changes",
+                "It cuts where your speakers strain" + (if (cuts.isEmpty()) " (no distortion was found, so no cuts)" else "") + ", and takes back 60% of your boosts below 150 Hz and above 5 kHz.\n\n" +
+                    "For a loud EQ made for your speakers, measure once at the loudest volume you listen at, then use that reading's distortion here.",
+                small = true,
+            )
+        }
         Actions {
             TextAction("Use the last reading's distortion", vm::loudFromReading, enabled = s.distortion != null, icon = Ic.CURVE)
             if (s.loudCuts != null) TextAction("Back to the safe default", vm::loudUseDefault, icon = Ic.UNDO)
         }
-        Hint("For a loud EQ made for your speakers, measure once at the loudest volume you listen at, then use that reading's distortion here.")
         DropSelect(
             listOf("Down, up, down, up switches it", "Off"), if (s.loudKeys) 0 else 1, { vm.setLoudKeys(it == 0) },
             label = "Volume keys", details = listOf("Four quick presses within 3 seconds. The volume ends where it was", "Only the button and the tile"),
+            info = "Routines and other apps can send dev.autotune.action.TOGGLE_LOUD, LOUD_ON or LOUD_OFF.",
         )
-        Hint("Routines and other apps can send dev.autotune.action.TOGGLE_LOUD, LOUD_ON or LOUD_OFF.")
     }
 }

@@ -675,3 +675,20 @@ fun steadyAmount(current: Double, wanted: Double): Double {
     val n = Math.round(wanted.coerceIn(0.0, 1.0) * 10.0) / 10.0
     return if (n == 0.0 || n == 1.0 || kotlin.math.abs(n - current) >= 0.2 - 1e-9) n else current
 }
+
+// ---------------------------------------------------------------- result headline (1.25)
+
+/**
+ * The one-line summary that opens a result: how the latest run compares with the stock, and whether an earlier run
+ * is still better. Differences under 0.3 dB count as the same.
+ */
+fun resultHeadline(stockDb: Double, latestDb: Double, bestDb: Double? = null, bestLabel: String? = null): String {
+    val gain = stockDb - latestDb
+    val head = when {
+        gain > 0.3 -> "%.1f dB closer to the target than stock.".format(gain)
+        gain < -0.3 -> "%.1f dB further from the target than stock.".format(-gain)
+        else -> "About the same as stock."
+    }
+    val tail = if (bestDb != null && bestLabel != null && bestDb < latestDb - 0.3) " $bestLabel is still the best." else ""
+    return head + tail
+}

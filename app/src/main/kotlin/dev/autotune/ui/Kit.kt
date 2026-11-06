@@ -380,9 +380,52 @@ fun Adv(content: @Composable () -> Unit) {
     ) { Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) { content() } }
 }
 
-/** An explanation: shown in Advanced only. */
+/**
+ * A field's label with an optional info bubble beside it. Explanations live in bubbles, never as paragraphs on the
+ * page, in Simple and Advanced alike.
+ */
 @Composable
-fun Hint(text: String) = Adv { Muted(text) }
+fun InfoLabel(label: String, info: String? = null) {
+    Row(Modifier.heightIn(min = 24.dp).padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = At.c.muted)
+        if (info != null) InfoButton(label, info, small = true)
+    }
+}
+
+/**
+ * Warnings folded into one line: the icon, how many, and the first one's start. Tapping it lists them all in a
+ * bubble. Use this wherever a reading carries cautions, so they never take over the page.
+ */
+@Composable
+fun Alerts(items: List<String>, title: String = "Notes on this reading") {
+    if (items.isEmpty()) return
+    var open by remember { mutableStateOf(false) }
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(MaterialTheme.shapes.large).background(At.c.warn.copy(alpha = 0.10f))
+            .clickable(role = Role.Button, onClickLabel = "Read the notes") { open = true }.padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AtIcon(Ic.ALERT, At.c.warn, size = 18.dp)
+        Text(
+            if (items.size == 1) " " + items[0] else " ${items.size} notes: " + items[0],
+            Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = At.c.text, maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
+        AtIcon(Ic.CHEVRON, At.c.muted, size = 16.dp)
+    }
+    if (open) {
+        AlertDialog(
+            onDismissRequest = { open = false },
+            title = { Text(title) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items.forEach { Warning(it) }
+                }
+            },
+            confirmButton = { TextButton(onClick = { open = false }) { Text("Got it") } },
+        )
+    }
+}
 
 /** The Simple / Advanced switch at the top of every screen, as a compact drop-down. */
 @Composable
@@ -560,13 +603,13 @@ fun Group(title: String, info: String? = null, divider: Boolean = true, trailing
 }
 
 @Composable
-fun InfoButton(title: String, text: String) {
+fun InfoButton(title: String, text: String, small: Boolean = false) {
     var open by remember { mutableStateOf(false) }
     Box(
-        Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = "About $title") { open = true }
+        Modifier.size(if (small) 32.dp else 48.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = "About $title") { open = true }
             .semantics { contentDescription = "About $title" },
         contentAlignment = Alignment.Center,
-    ) { AtIcon(Ic.INFO, At.c.muted, size = 20.dp) }
+    ) { AtIcon(Ic.INFO, At.c.muted, size = if (small) 16.dp else 20.dp) }
     if (open) {
         AlertDialog(
             onDismissRequest = { open = false },
@@ -698,11 +741,11 @@ fun TextAction(text: String, onClick: () -> Unit, enabled: Boolean = true, dange
 @Composable
 fun DropSelect(
     options: List<String>, selected: Int, onSelect: (Int) -> Unit, enabled: Boolean = true,
-    label: String? = null, details: List<String?>? = null, icon: Ic? = null, icons: List<Ic>? = null,
+    label: String? = null, details: List<String?>? = null, icon: Ic? = null, icons: List<Ic>? = null, info: String? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
-        if (label != null) Text(label, style = MaterialTheme.typography.labelMedium, color = At.c.muted, modifier = Modifier.padding(bottom = 4.dp))
+        if (label != null) InfoLabel(label, info)
         Box {
             Row(
                 Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(MaterialTheme.shapes.small).background(At.c.panelHigh)
@@ -891,8 +934,8 @@ fun Muted(text: String, modifier: Modifier = Modifier) =
 @Composable
 fun StatusBlock(status: String?, warnings: List<String>, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (status != null) Text(status, style = MaterialTheme.typography.bodyMedium)
-        warnings.forEach { Warning(it) }
+        if (status != null) Text(status, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+        Alerts(warnings)
     }
 }
 
@@ -962,11 +1005,11 @@ fun <T> PickField(
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun GroupedPick(label: String, choices: List<dev.autotune.EqChoice>, selectedKey: String, onPick: (String) -> Unit, emptyText: String) {
+fun GroupedPick(label: String, choices: List<dev.autotune.EqChoice>, selectedKey: String, onPick: (String) -> Unit, emptyText: String, info: String? = null) {
     var open by remember { mutableStateOf(false) }
     val sel = choices.firstOrNull { it.key == selectedKey }
     Column(Modifier.fillMaxWidth()) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = At.c.muted, modifier = Modifier.padding(bottom = 4.dp))
+        InfoLabel(label, info)
         Row(
             Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(MaterialTheme.shapes.small).background(At.c.panelHigh)
                 .clickable(enabled = choices.isNotEmpty(), role = Role.DropdownList, onClickLabel = "Choose $label") { open = true }
