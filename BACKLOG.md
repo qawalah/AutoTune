@@ -18,5 +18,8 @@ Status: planned only. Do not start until told to execute.
 - The app name is written in capitals: **AUTOTUNE** (the wordmark on the top line, and anywhere else the name appears as a mark).
 - **The only One UI feature to keep:** the tall space at the top that shows the screen's name and pushes the content down, so the buttons are within reach of the thumb, with a slim bar taking over once scrolled.
 - **When it shows (owner's clarification):** each tab opens with the tall header only when the app is first used, such as coming back from sleep or a cold start. When jumping between tabs the screen opens in its compact form (slim bar, content high), not tall.
-- Open points to settle before building: does "coming from sleep" also cover returning to the app after it was in the background for a while (and after how long)? Does going Back to a tab count as jumping (compact)? Does each tab remember its own state, or do they all reset together when the app wakes?
+- **Decided by the owner (2026-11-07):**
+  - "From sleep" means a cold start, or returning to the app after it has been in the background for **15 minutes or more**.
+  - Going **Back** to a tab counts as jumping: it opens compact.
+  - When the app wakes, **every tab** shows the tall header again, not only the tab you land on.
 - When executed: `ScreenTitle`, `HeaderArt` and `CollapsedHeader` in `ui/Kit.kt`; the wordmark in `ui/MeasureOverlay.kt` and `ui/AiScreen.kt`; app-level state for "fresh open" in `ui/AutoTuneScreen.kt` (reset when the app returns after a pause); tests for the pure part (when a fresh open counts); `DESIGN.md`, a `CHANGELOG.md` entry, and the version bump in `gradle.properties`.
