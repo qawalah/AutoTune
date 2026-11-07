@@ -23,3 +23,11 @@ Status: planned only. Do not start until told to execute.
   - Going **Back** to a tab counts as jumping: it opens compact.
   - When the app wakes, **every tab** shows the tall header again, not only the tab you land on.
 - When executed: `ScreenTitle`, `HeaderArt` and `CollapsedHeader` in `ui/Kit.kt`; the wordmark in `ui/MeasureOverlay.kt` and `ui/AiScreen.kt`; app-level state for "fresh open" in `ui/AutoTuneScreen.kt` (reset when the app returns after a pause); tests for the pure part (when a fresh open counts); `DESIGN.md`, a `CHANGELOG.md` entry, and the version bump in `gradle.properties`.
+
+## EQ on/off switch in Braun audio style (asked 2026-11-07, HOLD until the owner says "execute")
+Status: planned only. Do not start until told to execute.
+- The AutoTune EQ on/off control on the EQ tab (`PowerToggle` in `ui/Kit.kt`, a rounded slide switch) does not follow Braun audio style. Redraw it as a Braun control.
+- Ideas, from the reference board and the Braun hi-fi of the 1960s: a rectangular push key that latches down when on (like the SK 4's and audio 1's rows of keys, and the latched EQ key in the tab row), with a small pilot light; or a flat slide switch with a square cap on a recessed slot (like the T 3 and TG 60 controls). Pick one with the owner.
+- Open point: which of the two styles, and whether the same control is used for the other switches in the app (Loud EQ, diagnostics, wallpaper colours).
+- Keep: the 48dp touch target, the "AutoTune EQ" accessibility label and switch role, the accent only on the lit part, and motion that respects "Remove animations".
+- When executed: update `PowerToggle` (and the Material `Switch` uses in `ui/SetupScreens.kt` and `ui/LiveTab.kt` if they should match), `DESIGN.md`, a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
