@@ -806,3 +806,6 @@ fun scrollCue(scrollPx: Int, maxScrollPx: Int, viewportPx: Int, slackPx: Int = 2
     val start = (1f - width) * pos / maxScrollPx
     return ScrollCue(pos > slackPx, pos < maxScrollPx - slackPx, start, width)
 }
+
+/** True when more players are active than before: audio just started (or came back after a route change). */
+fun playbackStarted(before: Int, now: Int): Boolean = now > before

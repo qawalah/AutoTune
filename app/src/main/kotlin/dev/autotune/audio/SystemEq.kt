@@ -103,6 +103,23 @@ object SystemEq {
         }
     }
 
+    /**
+     * Opens the effects again on the same EQ. The audio system drops or ignores an effect on the output mix when the
+     * output route changes (Android Auto, a car, a dock) or a player starts after the route moved; pausing and playing
+     * used to be the only way to get it back.
+     */
+    @Synchronized
+    fun rebuild() {
+        val c = chain ?: return
+        runCatching { global?.release() }
+        global = null
+        val ids = sessions.keys.toList()
+        sessions.values.forEach { runCatching { it.release() } }
+        sessions.clear()
+        apply(c)
+        ids.forEach { attachSession(it) }
+    }
+
     @Synchronized
     fun attachSession(id: Int) {
         val c = chain ?: return
@@ -138,6 +155,39 @@ class SystemEqService : Service() {
         }
     }
     private var registered = false
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val rebuildNow = Runnable { if (!SystemEq.measuring) SystemEq.rebuild() }
+    private var activePlayers = 0
+
+    /** Waits a moment, so a burst of route and player changes rebuilds the effect once, after the new output is open. */
+    private fun scheduleRebuild() {
+        if (SystemEq.chain == null) return
+        handler.removeCallbacks(rebuildNow)
+        handler.postDelayed(rebuildNow, 600)
+    }
+
+    private val deviceCallback = object : android.media.AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>) { if (addedDevices.any { it.isSink }) scheduleRebuild() }
+        override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>) { if (removedDevices.any { it.isSink }) scheduleRebuild() }
+    }
+
+    private val playbackCallback = object : android.media.AudioManager.AudioPlaybackCallback() {
+        override fun onPlaybackConfigChanged(configs: MutableList<android.media.AudioPlaybackConfiguration>) {
+            val started = dev.autotune.playbackStarted(activePlayers, configs.size)
+            activePlayers = configs.size
+            if (started) scheduleRebuild()
+        }
+    }
+    private var routeWatched = false
+
+    private fun watchRoute() {
+        if (routeWatched) return
+        val am = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        am.registerAudioDeviceCallback(deviceCallback, handler)
+        am.registerAudioPlaybackCallback(playbackCallback, handler)
+        routeWatched = true
+    }
+
     private var watcher: BluetoothWatcher? = null
     private var volume: VolumeWatcher? = null
     private val gesture = dev.autotune.VolumeGesture(3000)
@@ -292,12 +342,20 @@ class SystemEqService : Service() {
             )
             registered = true
         }
+        watchRoute()
         if (automationOn()) startWatching()
         refreshNotification()
         return START_STICKY
     }
 
     override fun onDestroy() {
+        handler.removeCallbacks(rebuildNow)
+        if (routeWatched) {
+            val am = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+            runCatching { am.unregisterAudioDeviceCallback(deviceCallback) }
+            runCatching { am.unregisterAudioPlaybackCallback(playbackCallback) }
+            routeWatched = false
+        }
         if (registered) runCatching { unregisterReceiver(receiver) }
         watcher?.let { runCatching { unregisterReceiver(it) } }
         volume?.stop()

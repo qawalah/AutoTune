@@ -275,4 +275,11 @@ class ConvergenceTest {
         assertFalse(refineGoesStraightToMeasure(true, ApplyWay.EQUIPMENT, false))
         assertFalse(refineGoesStraightToMeasure(false, ApplyWay.AUTOTUNE_EQ, false))
     }
+
+    @Test
+    fun playbackStartedOnlyWhenMorePlayersAreActive() {
+        assertTrue(playbackStarted(0, 1))
+        assertFalse(playbackStarted(1, 1))
+        assertFalse(playbackStarted(1, 0))
+    }
 }

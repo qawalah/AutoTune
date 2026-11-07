@@ -4,6 +4,10 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.2.1] - 2026-11-07
+### Fixed
+- **EQ not applied in Android Auto until you pause and play**: the system effect is now opened again when the output changes (Android Auto, a car, a dock) and when playback starts, so the EQ takes hold without pausing the song. Direct Bluetooth was already fine.
+
 ## [2.2.0] - 2026-11-07
 ### Changed
 - **Header**: the name is a mark in capitals, **AUTOTUNE**, on every screen, the measuring screen and the AI review. Each tab keeps its name and its own graphic in the header, now drawn as the face of a Braun hi-fi component: a record player for Tests, a fader strip for EQ, the round speaker grille for Tune, a radio tuning scale with its needle over a slot grille of level bars for Live, a row of push keys and knobs for Settings (a tape deck elsewhere). Flat, in the deck greys, the accent only on one pilot light, needle or key.
