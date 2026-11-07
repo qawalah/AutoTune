@@ -176,7 +176,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
                 onEquipment -> vm.appliedOnEquipment()
                 else -> vm.tryInApp()
             }
-            vm.tuneGo(dev.autotune.TuneStep.VERIFY)
+            vm.tuneMeasure()
             go(Tab.MEASURE)
         }, enabled = bandCount > 0, icon = Ic.MEASURE,
             hint = when {
@@ -186,8 +186,8 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
             },
         )
         if (!s.systemEqOn && s.source == Source.PHONE && isAdvanced()) {
-            if (onEquipment) TextAction("Try it inside the app instead", { vm.tryInApp(); vm.tuneGo(dev.autotune.TuneStep.VERIFY); go(Tab.MEASURE) }, enabled = bandCount > 0, icon = Ic.PLAY)
-            else TextAction("I set it on my equipment, measure", { vm.appliedOnEquipment(); vm.tuneGo(dev.autotune.TuneStep.VERIFY); go(Tab.MEASURE) }, enabled = bandCount > 0, icon = Ic.EDIT)
+            if (onEquipment) TextAction("Try it inside the app instead", { vm.tryInApp(); vm.tuneMeasure(); go(Tab.MEASURE) }, enabled = bandCount > 0, icon = Ic.PLAY)
+            else TextAction("I set it on my equipment, measure", { vm.appliedOnEquipment(); vm.tuneMeasure(); go(Tab.MEASURE) }, enabled = bandCount > 0, icon = Ic.EDIT)
         }
     }
 

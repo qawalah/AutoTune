@@ -263,4 +263,16 @@ class ConvergenceTest {
         assertEquals(setOf(0, 2), selectionAfterDelete(setOf(0, 1, 3), removed = 1, newCount = 3))
         assertEquals(setOf(0, 1), selectionAfterDelete(setOf(0), removed = 2, newCount = 2))
     }
+
+    @Test
+    fun anotherRoundSkipsTheApplyStepOnlyWhereTheWayIsKnown() {
+        assertTrue(refineGoesStraightToMeasure(true, ApplyWay.AUTOTUNE_EQ, false))
+        assertTrue(refineGoesStraightToMeasure(true, ApplyWay.IN_APP, false))
+        // the phone's EQ is known to damage the sound: the choice is shown again
+        assertFalse(refineGoesStraightToMeasure(true, ApplyWay.AUTOTUNE_EQ, true))
+        assertTrue(refineGoesStraightToMeasure(true, ApplyWay.IN_APP, true))
+        // bands to set by hand, or another device plays the sweep: the Apply step stays
+        assertFalse(refineGoesStraightToMeasure(true, ApplyWay.EQUIPMENT, false))
+        assertFalse(refineGoesStraightToMeasure(false, ApplyWay.AUTOTUNE_EQ, false))
+    }
 }

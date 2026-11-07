@@ -4,6 +4,13 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.1.1] - 2026-11-07
+### Changed
+- **No stop before a measurement.** The Stock reading screen (microphone, "Plays through", "Before you start", then a Measure button) is gone from the way through: Set up now ends in "Measure the stock system", which creates the test and starts the reading at once. The same goes for every other measurement: choosing how to apply the EQ ("Use the phone's EQ and measure", "It's set, measure"), "Verify this EQ" on the EQ tab, "Measure again" and "Measure the stock again" all start measuring immediately.
+- **Another round skips the Apply step** when the way is already known: on the phone routes, "Apply the new suggested EQ" applies it the way you chose in the first round and measures. Setting bands on your own equipment, or a phone EQ known to damage the sound, still shows the Apply step.
+- Set up now carries what the Stock screen carried: the "send the sweep file" buttons for another device, the test sound and the microphone check. Without microphone access the main key is off and says so.
+- The Stock and Verify screens remain only as the place a failed or stopped measurement lands, with "Try again".
+
 ## [2.1.0] - 2026-11-07
 ### Added
 - **Delete any run** (not only the last): each run on a test's results has its own delete; the stock reading stays. The suggestion is rebuilt from what is left.

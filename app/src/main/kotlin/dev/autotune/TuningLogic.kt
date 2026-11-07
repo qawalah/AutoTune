@@ -748,3 +748,13 @@ fun selectionAfterDelete(selected: Set<Int>, removed: Int, newCount: Int): Set<I
     val moved = selected.filter { it != removed }.map { if (it > removed) it - 1 else it }.filter { it in 0 until newCount }.toSet()
     return if (newCount == 0) emptySet() else moved + (newCount - 1)
 }
+
+// ---------------------------------------------------------------- fewer stops (2.1.1)
+
+/**
+ * Whether "Apply the new suggested EQ" can skip the Apply step: on the phone routes, when the user already chose to
+ * use AutoTune EQ (and it is not known to damage the sound on this phone) or to preview in the app. Setting bands on
+ * the user's own equipment always shows the Apply step, because they have to see the bands to set them.
+ */
+fun refineGoesStraightToMeasure(phoneRoute: Boolean, way: ApplyWay, systemEqSuspect: Boolean): Boolean =
+    phoneRoute && ((way == ApplyWay.AUTOTUNE_EQ && !systemEqSuspect) || way == ApplyWay.IN_APP)

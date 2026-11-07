@@ -331,3 +331,7 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - AutoTuneScreen: tab labels title case on `onShell`; the EQ key latches (offset + inner shade) when AutoTune EQ is on. TestsTab: per-row ⋮ menu (open, continue, rename, delete) and `RunsDeck` under the graph with per-run delete.
 - Resources: new `ic_launcher_foreground`, `ic_launcher_monochrome`, `ic_stat_autotune`; launcher background #E3E3E0. SystemEq notification: the new small icon, Braun red, short wording.
 
+### 2.1.1: no stop before a measurement
+- VM: `tuneSetup` starts `stockRun()` (when the mic is allowed); `tuneMeasureStock()` and `tuneMeasure()` (go to STOCK/VERIFY, then measure) are used by Set up, the EQ tab, the Apply step choices, "Measure again", the stock-again actions and the REMEASURE_STOCK check. `tuneRefine()` applies the known way and measures when `refineGoesStraightToMeasure` (TuningLogic, tested) says so, else shows APPLY.
+- The `MeasureStep` page (STOCK / VERIFY) is now only the landing after a failed, stopped or closed measurement, and the way in when the mic permission is missing.
+

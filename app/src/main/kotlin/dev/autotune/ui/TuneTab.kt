@@ -71,7 +71,7 @@ fun TuneTab(s: UiState, vm: TuneViewModel, sharer: Sharer, go: (Tab) -> Unit, op
             when (step) {
                 TuneStep.HOME -> TuneHome(s, vm, pick)
                 // five steps: the fresh start is part of Tune itself, and the stock review heads the EQ step
-                TuneStep.FRESH, TuneStep.SETUP -> SetupStep(s, vm, pick, exit)
+                TuneStep.FRESH, TuneStep.SETUP -> SetupStep(s, vm, sharer, pick, exit)
                 TuneStep.STOCK -> MeasureStep(s, vm, sharer, pick, stock = true, exit = exit)
                 TuneStep.STOCK_RESULT, TuneStep.APPLY -> ApplyStep(s, vm, pick, exit)
                 TuneStep.VERIFY -> MeasureStep(s, vm, sharer, pick, stock = false, exit = exit)
@@ -140,7 +140,7 @@ private val ROUTES = listOf(
 )
 
 @Composable
-private fun SetupStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> Unit) {
+private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pickers, exit: () -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
     // starts from the defaults in Settings
     val defIdx = Target.ALL.indexOfFirst { it.name == s.defTarget }.takeIf { it >= 0 } ?: s.targetIdx
@@ -176,7 +176,7 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> 
         if (ROUTES[routeIdx].first == Source.PHONE) {
             OutputPicker(s, vm)
             Actions { if (s.playing) TextAction("Stop the test sound", vm::stopClip, icon = Ic.STOP) else TextAction("Test sound", vm::testSound, enabled = !s.busy, icon = Ic.PLAY) }
-        }
+        } else OtherDeviceSignal(ROUTES[routeIdx].first, vm, sharer)
         MicLine(s, pick)
     }
     // the essentials above; spots and window keep sensible defaults and wait in Advanced
@@ -189,10 +189,12 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> 
             listOf("Auto (80 ms for a car, 400 ms for a room)", "80 ms", "200 ms", "400 ms", "600 ms"), gateIdx, { gateIdx = it }, label = "Analysis window",
         )
     }
+    // no stop in between: this key creates the test and starts the stock reading
     PinAction(
-        "Next: stock reading",
+        "Measure the stock system",
         { vm.tuneSetup(name, targetIdx, ROUTES[routeIdx].first, spots[spotsIdx], listOf(null, 80, 200, 400, 600)[gateIdx]) },
-        icon = Ic.NEXT,
+        icon = Ic.MEASURE, enabled = s.hasPermission,
+        hint = if (!s.hasPermission) "Allow microphone access first." else null,
     )
 }
 
@@ -322,7 +324,7 @@ private fun ApplyStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> 
         ResultSummary(s, showNext = false)
         if (a.suspicious && !useAnyway) {
             // a reading that looks wrong is measured again before any EQ is fitted to it
-            PinAction("Measure the stock again", { vm.tuneGo(TuneStep.STOCK) }, icon = Ic.AGAIN)
+            PinAction("Measure the stock again", vm::tuneMeasureStock, icon = Ic.AGAIN)
             Actions {
                 TextAction("Use this reading anyway", { useAnyway = true }, icon = Ic.NEXT)
                 if (isAdvanced()) TextAction("Ask AI to review", vm::aiOpen, icon = Ic.AI)
@@ -379,7 +381,7 @@ private fun ApplyStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> 
         }
 
         if (first && isAdvanced()) Actions {
-            TextAction("Measure the stock again", { vm.tuneGo(TuneStep.STOCK) }, icon = Ic.AGAIN)
+            TextAction("Measure the stock again", vm::tuneMeasureStock, icon = Ic.AGAIN)
             TextAction("Ask AI to review", vm::aiOpen, icon = Ic.AI)
         }
         // everything else, in Advanced and closed until needed
@@ -642,7 +644,7 @@ private fun Settings(s: UiState, vm: TuneViewModel, ready: Boolean) {
             onDismissRequest = { confirm = false },
             title = { Text("Measure the stock system again?") },
             text = { Text("It replaces the stock reading and deletes every run after it. AutoTune EQ is switched off first.") },
-            confirmButton = { TextButton(onClick = { confirm = false; vm.tuneGo(TuneStep.STOCK); vm.stockRun() }) { Text("Measure now", color = At.c.bad) } },
+            confirmButton = { TextButton(onClick = { confirm = false; vm.tuneMeasureStock() }) { Text("Measure now", color = At.c.bad) } },
             dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } },
         )
     }

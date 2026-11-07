@@ -1773,7 +1773,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     /** Runs the test a check suggestion asks for. */
     fun doCheck(a: CheckAction) {
         when (a) {
-            CheckAction.REMEASURE_STOCK -> tuneGo(TuneStep.STOCK)
+            CheckAction.REMEASURE_STOCK -> tuneMeasureStock()
             CheckAction.MORE_SPOTS -> { setPositions(3); refreshView() }
             CheckAction.REPEAT -> tuneRepeat()
             CheckAction.EQ_CHECK -> eqCheck()
@@ -1882,11 +1882,28 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         tuneGo(TuneStep.HOME)
     }
 
+    /**
+     * Set up is the last stop before the stock reading: the test is created and the reading starts at once. Without
+     * microphone access the Stock screen is shown instead, where the permission can be given.
+     */
     fun tuneSetup(name: String, targetIdx: Int, source: Source, positions: Int, gateMs: Int?) {
         startNewTest(name, targetIdx, source)
         setPositions(positions)
         gateMs?.let { setGate(it) }
         tuneGo(TuneStep.STOCK)
+        if (state.value.hasPermission) stockRun()
+    }
+
+    /** Measure the stock system again (replacing the stock reading), straight away. */
+    fun tuneMeasureStock() {
+        tuneGo(TuneStep.STOCK)
+        if (state.value.hasPermission) stockRun()
+    }
+
+    /** Measure with the EQ as it is now, straight away. The Verify screen is only where a failed or closed run lands. */
+    fun tuneMeasure() {
+        tuneGo(TuneStep.VERIFY)
+        if (state.value.hasPermission) measure()
     }
 
     /** Apply the suggested EQ the chosen way, then measure it. */
@@ -1896,14 +1913,20 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             ApplyWay.IN_APP -> tryInApp()
             else -> appliedOnEquipment()
         }
-        if (way != ApplyWay.AUTOTUNE_EQ || state.value.systemEqOn) tuneGo(TuneStep.VERIFY)
+        if (way != ApplyWay.AUTOTUNE_EQ || state.value.systemEqOn) tuneMeasure()
     }
 
     /** From the result: take the new suggestion and apply it (another round). */
-    fun tuneRefine() { resetToSuggestion(); tuneGo(TuneStep.APPLY) }
+    fun tuneRefine() {
+        resetToSuggestion()
+        val st = state.value
+        // the way was chosen in the first round: on the phone routes the new EQ is applied that way and measured at once
+        if (refineGoesStraightToMeasure(st.source == Source.PHONE, st.applyWay, st.systemEqSuspect)) tuneApply(st.applyWay)
+        else tuneGo(TuneStep.APPLY)
+    }
 
     /** From the result: measure again with nothing changed. */
-    fun tuneRepeat() { measureUnchanged(); tuneGo(TuneStep.VERIFY) }
+    fun tuneRepeat() { measureUnchanged(); tuneMeasure() }
 
     fun tuneDiscard() {
         discardLastRun()
