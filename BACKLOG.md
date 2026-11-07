@@ -14,7 +14,7 @@ Cards, Simple / Advanced (Simple default, app-wide), five tabs with Tune in the 
 
 ## Header redesign: Braun-like with minimal graphics, name in capitals (asked 2026-11-07, HOLD until the owner says "execute")
 Status: planned only. Do not start until told to execute.
-- The header is plain and Braun-like with minimal graphics: no Samsung look beyond the one feature below. The 2.1.0 header (tall, with a shape group per screen) is replaced.
+- **Each tab keeps its name and its own graphic in the header space** (owner: what is there now is good). The graphics are redrawn to be more Braun: plain Bauhaus, flat shapes in the deck greys with one accent shape, nothing decorative. No Samsung look beyond the one feature below.
 - The app name is written in capitals: **AUTOTUNE** (the wordmark on the top line, and anywhere else the name appears as a mark).
 - **The only One UI feature to keep:** the tall space at the top that shows the screen's name and pushes the content down, so the buttons are within reach of the thumb, with a slim bar taking over once scrolled.
 - **When it shows (owner's clarification):** each tab opens with the tall header only when the app is first used, such as coming back from sleep or a cold start. When jumping between tabs the screen opens in its compact form (slim bar, content high), not tall.
