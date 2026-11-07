@@ -32,21 +32,31 @@ Status: planned only. Do not start until told to execute.
 - Keep: the 48dp touch target, the "AutoTune EQ" accessibility label and switch role, the accent only on the lit part, and motion that respects "Remove animations".
 - When executed: update `PowerToggle` (and the Material `Switch` uses in `ui/SetupScreens.kt` and `ui/LiveTab.kt` if they should match), `DESIGN.md`, a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
 
-## Loud EQ renamed "Loud (dynamic EQ)" (asked 2026-11-07, HOLD until the owner says "execute")
+## Loud EQ renamed "Dynamic EQ" (asked 2026-11-07, HOLD until the owner says "execute")
 Status: planned only. Do not start until told to execute.
-- Call the feature **Loud (dynamic EQ)** wherever the user sees it: the card on the EQ tab, the notification and its actions, the Quick Settings tile, the changelog and docs. Interpretation of "call loud (dynamic eq)": confirm with the owner whether this is the full label or "Loud" with "dynamic EQ" as its subtitle or ⓘ.
-- Keep the internal names (`LoudEq`, `LoudMode`, `dev.autotune.action.TOGGLE_LOUD`, `LOUD_ON`, `LOUD_OFF`), so shortcuts, routines and saved settings keep working.
+- **Decided by the owner (2026-11-07):** the Loud EQ is called **Dynamic EQ** wherever the user sees it: the card on the EQ tab, the notification and its actions ("Dynamic on" / "Dynamic off"), the Quick Settings tile, the Settings and info text, the changelog and docs. The word "loud" goes from the labels.
+- Keep the internal names (`LoudEq`, `LoudMode`, `dev.autotune.action.TOGGLE_LOUD`, `LOUD_ON`, `LOUD_OFF`, the tile's id), so shortcuts, routines and saved settings keep working.
+- The mode names ("Follow the volume", "Follow the sound level") and the "This is loud" button are about the loudness of the music: reword them where they would read oddly under the new name (for example "This is loud" to "Set this level"), and settle the wording with the owner when building.
 
 ## EQ sliders right after the selected profile (asked 2026-11-07, HOLD until the owner says "execute")
 Status: planned only. Do not start until told to execute.
 - On the EQ tab the band sliders ("Adjust bands") move up to sit directly under the AutoTune EQ switch and the selected profile ("EQ in use"), above the frequency response graph.
 - Order then: AutoTune EQ switch and EQ in use, the sliders, the response graph, then the rest (Advanced items, Verify key).
-- Open point: the graph is the main reading and the sliders are the main control; confirm the owner wants the graph below the sliders (it may scroll out of view while adjusting). One option is a compact graph pinned above the sliders.
-- When executed: reorder in `EqTab` (`ui/EqTab.kt`), `DESIGN.md` if the layout rule changes, a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
+- **Decided by the owner (2026-11-07):** the response graph goes after the sliders.
+- **Scroll cue for many bands:** with 15 bands (and any set of more than 10) the sliders do not all fit the width and the row scrolls sideways (`horizontalScroll` in `GraphicSliders`). Show that more sliders are out of view: for example a fade at the edge where more bands wait, with a small chevron, a thin position bar under the sliders, and the first scroll hinting itself once. The cue disappears when the whole set is in view or the row is scrolled to its end.
+- When executed: reorder in `EqTab` and add the scroll cue to `GraphicSliders` (`ui/EqTab.kt`), `DESIGN.md` if the layout rule changes, a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
 
 ## New bass and treble icons (asked 2026-11-07, HOLD until the owner says "execute")
 Status: planned only. Do not start until told to execute.
 - The icons for "Bass to taste" and "Treble to taste" (today a speaker and a curve, `Ic.SPEAKER` and `Ic.CURVE`, in `ui/ResultViews.kt` and `ui/SetupScreens.kt`) read as wrong; replace them with icons that say bass and treble.
 - Ideas, drawn in the app's line style (24-unit grid, 1.8 stroke, round caps): bass as a large round woofer cone or low wave with a few wide ripples, treble as a small tweeter dome or a tight high-frequency wave. Add them to `Ic` in `ui/Kit.kt` (append, so saved state is not affected).
-- Open point: also use them where bass and treble appear elsewhere (Flavour drop-down entries, the graph key), or only on these two fields.
+- **Decided by the owner (2026-11-07):** the Flavour list icons are updated too (More bass, Rock, Pop, Electronic / hip-hop, Acoustic / classical, Speech / podcasts, Low volume, Late night, As tuned): each flavour gets an icon that says what it is, not a generic curve or speaker.
 - When executed: new `Ic.BASS` and `Ic.TREBLE` with their drawings, the two fields, `DESIGN.md` if the icon rules change, a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
+
+## Revise all app icons into one Braun design language (asked 2026-11-07, HOLD until the owner says "execute")
+Status: planned only. Do not start until told to execute.
+- Redraw the whole `Ic` set in `ui/Kit.kt` (tabs, actions, status, target kinds, flavours, the new bass and treble) so they read as one family in the Braun audio language: plain geometry, the shapes of Braun controls and speakers (circles, squares, slots, perforations), one stroke weight, no ornament. Today they are generic line icons drawn one by one.
+- Rules for the set: 24-unit grid, one stroke weight, round caps only where the object is round, filled shapes only for knobs and pilot lights, recognisable at 20 dp, and the same drawing language as the launcher icon and the notification icon (speaker ring, round key, fader).
+- Audit first: list every icon and where it is used, mark the ones that say the wrong thing, then redraw in one pass so the set is consistent. Render the whole set on one sheet in light and dark for review before release.
+- Keep: append new entries to `Ic` rather than reordering; icons keep their accessibility labels at the call sites.
+- When executed: the `Ic` drawings, a one-sheet render for the owner, `DESIGN.md` (the icon rules), a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
