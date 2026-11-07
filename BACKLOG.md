@@ -28,6 +28,25 @@ Status: planned only. Do not start until told to execute.
 Status: planned only. Do not start until told to execute.
 - The AutoTune EQ on/off control on the EQ tab (`PowerToggle` in `ui/Kit.kt`, a rounded slide switch) does not follow Braun audio style. Redraw it as a Braun control.
 - Ideas, from the reference board and the Braun hi-fi of the 1960s: a rectangular push key that latches down when on (like the SK 4's and audio 1's rows of keys, and the latched EQ key in the tab row), with a small pilot light; or a flat slide switch with a square cap on a recessed slot (like the T 3 and TG 60 controls). Pick one with the owner.
-- Open point: which of the two styles, and whether the same control is used for the other switches in the app (Loud EQ, diagnostics, wallpaper colours).
+- **Decided by the owner (2026-11-07):** the same control is used for the other switches in the app (Loud EQ, diagnostics, wallpaper colours). Still to pick: the latching push key or the flat slide switch.
 - Keep: the 48dp touch target, the "AutoTune EQ" accessibility label and switch role, the accent only on the lit part, and motion that respects "Remove animations".
 - When executed: update `PowerToggle` (and the Material `Switch` uses in `ui/SetupScreens.kt` and `ui/LiveTab.kt` if they should match), `DESIGN.md`, a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
+
+## Loud EQ renamed "Loud (dynamic EQ)" (asked 2026-11-07, HOLD until the owner says "execute")
+Status: planned only. Do not start until told to execute.
+- Call the feature **Loud (dynamic EQ)** wherever the user sees it: the card on the EQ tab, the notification and its actions, the Quick Settings tile, the changelog and docs. Interpretation of "call loud (dynamic eq)": confirm with the owner whether this is the full label or "Loud" with "dynamic EQ" as its subtitle or ⓘ.
+- Keep the internal names (`LoudEq`, `LoudMode`, `dev.autotune.action.TOGGLE_LOUD`, `LOUD_ON`, `LOUD_OFF`), so shortcuts, routines and saved settings keep working.
+
+## EQ sliders right after the selected profile (asked 2026-11-07, HOLD until the owner says "execute")
+Status: planned only. Do not start until told to execute.
+- On the EQ tab the band sliders ("Adjust bands") move up to sit directly under the AutoTune EQ switch and the selected profile ("EQ in use"), above the frequency response graph.
+- Order then: AutoTune EQ switch and EQ in use, the sliders, the response graph, then the rest (Advanced items, Verify key).
+- Open point: the graph is the main reading and the sliders are the main control; confirm the owner wants the graph below the sliders (it may scroll out of view while adjusting). One option is a compact graph pinned above the sliders.
+- When executed: reorder in `EqTab` (`ui/EqTab.kt`), `DESIGN.md` if the layout rule changes, a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
+
+## New bass and treble icons (asked 2026-11-07, HOLD until the owner says "execute")
+Status: planned only. Do not start until told to execute.
+- The icons for "Bass to taste" and "Treble to taste" (today a speaker and a curve, `Ic.SPEAKER` and `Ic.CURVE`, in `ui/ResultViews.kt` and `ui/SetupScreens.kt`) read as wrong; replace them with icons that say bass and treble.
+- Ideas, drawn in the app's line style (24-unit grid, 1.8 stroke, round caps): bass as a large round woofer cone or low wave with a few wide ripples, treble as a small tweeter dome or a tight high-frequency wave. Add them to `Ic` in `ui/Kit.kt` (append, so saved state is not affected).
+- Open point: also use them where bass and treble appear elsewhere (Flavour drop-down entries, the graph key), or only on these two fields.
+- When executed: new `Ic.BASS` and `Ic.TREBLE` with their drawings, the two fields, `DESIGN.md` if the icon rules change, a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
