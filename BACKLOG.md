@@ -14,7 +14,9 @@ Cards, Simple / Advanced (Simple default, app-wide), five tabs with Tune in the 
 
 ## Header redesign: Braun-like with minimal graphics, name in capitals (asked 2026-11-07, HOLD until the owner says "execute")
 Status: planned only. Do not start until told to execute.
-- The screen header gets a Braun-like design with minimal graphics (in the spirit of the One UI header already in 2.1.0, but quieter and more Braun: fewer shapes, plainer lettering).
-- The app name is written in capitals: **AUTOTUNE** (the wordmark on the header's top line, and anywhere else the name appears as a mark).
-- Open point to settle with the owner: the request said "Sam Braun like design". Read as "Samsung One UI-style layout with Braun-style minimal graphics". Confirm, or say what "Sam" meant.
-- When executed: update `ScreenTitle` and `HeaderArt` in `ui/Kit.kt`, the wordmark in `ui/MeasureOverlay.kt` and `ui/AiScreen.kt`, `DESIGN.md`, a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
+- The header is plain and Braun-like with minimal graphics: no Samsung look beyond the one feature below. The 2.1.0 header (tall, with a shape group per screen) is replaced.
+- The app name is written in capitals: **AUTOTUNE** (the wordmark on the top line, and anywhere else the name appears as a mark).
+- **The only One UI feature to keep:** the tall space at the top that shows the screen's name and pushes the content down, so the buttons are within reach of the thumb, with a slim bar taking over once scrolled.
+- **When it shows (owner's clarification):** each tab opens with the tall header only when the app is first used, such as coming back from sleep or a cold start. When jumping between tabs the screen opens in its compact form (slim bar, content high), not tall.
+- Open points to settle before building: does "coming from sleep" also cover returning to the app after it was in the background for a while (and after how long)? Does going Back to a tab count as jumping (compact)? Does each tab remember its own state, or do they all reset together when the app wakes?
+- When executed: `ScreenTitle`, `HeaderArt` and `CollapsedHeader` in `ui/Kit.kt`; the wordmark in `ui/MeasureOverlay.kt` and `ui/AiScreen.kt`; app-level state for "fresh open" in `ui/AutoTuneScreen.kt` (reset when the app returns after a pause); tests for the pure part (when a fresh open counts); `DESIGN.md`, a `CHANGELOG.md` entry, and the version bump in `gradle.properties`.
