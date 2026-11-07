@@ -70,6 +70,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -663,38 +665,144 @@ fun InfoButton(title: String, text: String, small: Boolean = false) {
  * Page title with an optional line of context under it, ruled off from the page like a sheet's header. On a page
  * opened over a tab ([LocalBack] set) it starts with a back arrow and leaves the menu out.
  */
+/** What the collapsed header bar needs to know: the screen's title, and how far to scroll before it shows. */
+class TitleSlot {
+    var title by mutableStateOf<String?>(null)
+    var collapseAtPx by mutableStateOf(Int.MAX_VALUE)
+}
+
+val LocalTitleSlot = androidx.compose.runtime.staticCompositionLocalOf<TitleSlot?> { null }
+
+/**
+ * The screen header, after Samsung One UI: a tall space at the top holds the screen's name in large type and a
+ * Bauhaus composition of its own, so the content starts lower, nearer the thumb. The wordmark (or Back on a page),
+ * the Simple / Advanced key and the menu sit on its top line. Scrolled past, a slim bar with the name takes over
+ * (drawn by the app shell from [LocalTitleSlot]).
+ */
 @Composable
 fun ScreenTitle(title: String, context: String? = null, onContext: (() -> Unit)? = null, contextIcon: Ic? = null, actions: @Composable () -> Unit = {}) {
     val back = LocalBack.current
-    Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val slot = LocalTitleSlot.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    androidx.compose.runtime.SideEffect { slot?.title = title }
+    val tall = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.27f).dp.coerceIn(170.dp, 260.dp)
+    Column(
+        Modifier.fillMaxWidth().onGloballyPositioned { slot?.collapseAtPx = (it.size.height - with(density) { 56.dp.toPx() }).toInt() },
+    ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            if (back != null) {
-                Box(Modifier.offset(x = (-12).dp)) { IconAction(Ic.BACK, "Back", back) }
-                Text(
-                    title, Modifier.weight(1f).offset(x = (-8).dp), style = MaterialTheme.typography.titleLarge,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                )
-            } else {
-                // the wordmark alone, as the braun badge sits on every device; the pressed key already names the tab
-                Text(
-                    "autotune", Modifier.weight(1f).semantics { contentDescription = "AutoTune, $title" },
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp), color = At.c.text,
-                )
-            }
+            if (back != null) Box(Modifier.offset(x = (-12).dp)) { IconAction(Ic.BACK, "Back", back) }
+            else Text("autotune", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp), color = At.c.text)
+            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
             actions()
             ModeSwitch()
             if (back == null) LocalMenu.current()
         }
-        if (context != null) {
-            Row(
-                (if (onContext != null) Modifier.clickable(onClick = onContext) else Modifier).heightIn(min = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (contextIcon != null) { AtIcon(contextIcon, At.c.muted, size = 16.dp); androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp)) }
-                Text(context, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Box(Modifier.fillMaxWidth().height(tall)) {
+            HeaderArt(title.lowercase(), Modifier.align(Alignment.CenterEnd).size(tall * 0.72f))
+            Column(Modifier.align(Alignment.BottomStart).padding(bottom = 18.dp).fillMaxWidth(0.68f)) {
+                Text(
+                    title, style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Normal, fontSize = 36.sp, lineHeight = 40.sp),
+                    color = At.c.text, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.semantics { heading() },
+                )
+                if (context != null) {
+                    Row(
+                        (if (onContext != null) Modifier.clickable(onClick = onContext) else Modifier).padding(top = 6.dp).heightIn(min = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (contextIcon != null) { AtIcon(contextIcon, At.c.muted, size = 16.dp); androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp)) }
+                        Text(context, style = MaterialTheme.typography.bodyMedium, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
+                }
             }
         }
         SheetRule()
+    }
+}
+
+/**
+ * The header's Bauhaus composition: circle, square and bar, in the deck greys with one element in the accent, a
+ * different arrangement for each screen that says what it is (a list, faders, a speaker, a spectrum, the three
+ * primary shapes).
+ */
+@Composable
+fun HeaderArt(key: String, modifier: Modifier) {
+    val c = At.c
+    val soft = c.panel
+    val mid = c.line
+    val ink = c.text.copy(alpha = 0.85f)
+    val accent = c.signal
+    Canvas(modifier) {
+        val w = size.width; val h = size.height; val u = minOf(w, h)
+        when (key) {
+            "tests" -> {
+                // a list: four bars of different lengths, the open one in the accent
+                for (k in 0 until 4) {
+                    val y = h * (0.2f + k * 0.19f)
+                    drawRoundRect(if (k == 1) accent else if (k == 3) mid else soft, Offset(w - u * (0.95f - k * 0.08f), y), Size(u * (0.95f - k * 0.13f), u * 0.11f), androidx.compose.ui.geometry.CornerRadius(u * 0.055f))
+                }
+                drawCircle(ink, u * 0.07f, Offset(w - u * 1.02f + u * 0.07f, h * 0.2f + u * 0.055f + h * 0.19f))
+            }
+            "eq" -> {
+                // three faders: slots and caps, one cap in the accent
+                val xs = listOf(0.25f, 0.55f, 0.85f); val caps = listOf(0.62f, 0.32f, 0.5f)
+                xs.forEachIndexed { k, fx ->
+                    val x = w - u + u * fx
+                    drawLine(mid, Offset(x, h * 0.1f), Offset(x, h * 0.9f), u * 0.035f, StrokeCap.Round)
+                    drawRoundRect(if (k == 1) accent else ink, Offset(x - u * 0.09f, h * caps[k] - u * 0.045f), Size(u * 0.18f, u * 0.09f), androidx.compose.ui.geometry.CornerRadius(u * 0.02f))
+                }
+                drawCircle(soft, u * 0.16f, Offset(w - u * 0.2f, h * 0.2f))
+            }
+            "tune" -> {
+                // a speaker: the big circle, its cone ring and the accent centre, a square set against it
+                drawRect(soft, Offset(w - u * 1.0f, h * 0.48f), Size(u * 0.42f, u * 0.42f))
+                drawCircle(mid, u * 0.36f, Offset(w - u * 0.42f, h * 0.45f))
+                drawCircle(soft, u * 0.25f, Offset(w - u * 0.42f, h * 0.45f))
+                drawCircle(accent, u * 0.1f, Offset(w - u * 0.42f, h * 0.45f))
+            }
+            "live" -> {
+                // a spectrum rising and falling, the level line in the accent
+                val n = 7
+                for (k in 0 until n) {
+                    val v = listOf(0.35f, 0.6f, 0.8f, 0.7f, 0.5f, 0.62f, 0.4f)[k]
+                    val x = w - u + u * (k + 0.5f) / n
+                    drawLine(if (k == 2) ink else mid, Offset(x, h * 0.88f), Offset(x, h * (0.88f - 0.75f * v)), u / n * 0.55f, StrokeCap.Butt)
+                }
+                drawLine(accent, Offset(w - u, h * 0.42f), Offset(w, h * 0.42f), u * 0.025f)
+            }
+            else -> {
+                // the Bauhaus primaries: a circle, a square and a triangle, the circle in the accent
+                drawCircle(accent, u * 0.2f, Offset(w - u * 0.72f, h * 0.36f))
+                drawRect(ink, Offset(w - u * 0.48f, h * 0.18f), Size(u * 0.3f, u * 0.3f))
+                val path = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(w - u * 0.62f, h * 0.88f); lineTo(w - u * 0.18f, h * 0.88f); lineTo(w - u * 0.4f, h * 0.52f); close()
+                }
+                drawPath(path, mid)
+            }
+        }
+    }
+}
+
+/** The slim bar that replaces the tall header once it has scrolled away: the name, the mode key, the menu or Back. */
+@Composable
+fun CollapsedHeader(slot: TitleSlot, scroll: androidx.compose.foundation.ScrollState, modifier: Modifier = Modifier) {
+    val title = slot.title ?: return
+    val shown = scroll.value > slot.collapseAtPx
+    val back = LocalBack.current
+    androidx.compose.animation.AnimatedVisibility(
+        shown, modifier,
+        enter = androidx.compose.animation.fadeIn(tween(motionMs(160), easing = EaseArrive)) + androidx.compose.animation.slideInVertically(tween(motionMs(200), easing = EaseArrive)) { -it / 3 },
+        exit = androidx.compose.animation.fadeOut(tween(motionMs(100), easing = EaseLeave)),
+    ) {
+        Column(Modifier.fillMaxWidth().background(At.c.bg)) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (back != null) Box(Modifier.offset(x = (-12).dp)) { IconAction(Ic.BACK, "Back", back) }
+                Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                ModeSwitch()
+                if (back == null) LocalMenu.current()
+            }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(At.c.line))
+        }
     }
 }
 
@@ -831,39 +939,48 @@ fun DropSelect(
  */
 @Composable
 fun PulsingButton(label: String, sub: String?, icon: Ic, enabled: Boolean, onClick: () -> Unit) {
-    // the record of a Braun PS 2: a black disc with fine grooves, Tune is its red label. While it waits, a faint
-    // ring runs out over the grooves, like a stylus about to drop.
+    // a Braun speaker front (the T 3's perforated circle): a grille of holes in a round field, an aluminium rim, and
+    // Tune as the round push button at its centre. While it waits, a soft wave runs out through the holes.
     val c = At.c
     val anim = animationsOn() && enabled
     val phase = if (anim) {
-        val inf = rememberInfiniteTransition(label = "record")
-        inf.animateFloat(0f, 1f, infiniteRepeatable(tween(2400, easing = LinearEasing), RepeatMode.Restart), label = "p").value
+        val inf = rememberInfiniteTransition(label = "speaker")
+        inf.animateFloat(0f, 1f, infiniteRepeatable(tween(2600, easing = LinearEasing), RepeatMode.Restart), label = "p").value
     } else 0f
-    val vinyl = if (c.dark) Color(0xFF0B0B0A) else Color(0xFF1C1C1B)
     val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    Box(
-        Modifier.size(260.dp).pressScale(src).clip(CircleShape)
-            .clickable(interactionSource = src, indication = androidx.compose.material3.ripple(), enabled = enabled, role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = label },
-        contentAlignment = Alignment.Center,
-    ) {
-        Canvas(Modifier.size(260.dp)) {
+    Box(Modifier.size(270.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(270.dp)) {
             val r = size.minDimension / 2
-            drawCircle(c.alu.copy(alpha = 0.55f), r)
-            drawCircle(vinyl, r * 0.95f)
-            for (g in 1..14) drawCircle(Color.White.copy(alpha = 0.035f), r * (0.44f + g * 0.036f), style = Stroke(1f))
-            if (anim) {
-                val rr = r * (0.42f + 0.52f * phase)
-                drawCircle(Color.White.copy(alpha = 0.10f * (1f - phase)), rr, style = Stroke(1.5.dp.toPx()))
+            val ctr = center
+            drawCircle(c.alu.copy(alpha = 0.5f), r)
+            drawCircle(c.panel, r * 0.95f)
+            // the holes: a square grid clipped to the circle, clear of the button
+            val step = 11.dp.toPx(); val hole = 1.9.dp.toPx()
+            val inner = r * 0.42f; val outer = r * 0.88f
+            var y = ctr.y - outer
+            while (y <= ctr.y + outer) {
+                var x = ctr.x - outer
+                while (x <= ctr.x + outer) {
+                    val d = kotlin.math.hypot(x - ctr.x, y - ctr.y)
+                    if (d in inner..outer) {
+                        // the wave: holes near its radius darken a little
+                        val wave = if (anim) (1f - kotlin.math.abs((d - inner) / (outer - inner) - phase) * 5f).coerceIn(0f, 1f) else 0f
+                        drawCircle(c.text.copy(alpha = 0.32f + 0.4f * wave), hole, Offset(x, y))
+                    }
+                    x += step
+                }
+                y += step
             }
         }
         Box(
-            Modifier.size(110.dp).clip(CircleShape).background(if (enabled) c.signal else c.panelHigh),
+            Modifier.size(112.dp).pressScale(src).clip(CircleShape).background(if (enabled) c.signal else c.panelHigh)
+                .clickable(interactionSource = src, indication = androidx.compose.material3.ripple(), enabled = enabled, role = Role.Button, onClick = onClick)
+                .semantics { contentDescription = label },
             contentAlignment = Alignment.Center,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(label.lowercase(), style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold), color = if (enabled) c.onSignal else c.muted)
-                if (sub != null) Text(sub.lowercase(), style = MaterialTheme.typography.labelSmall, color = if (enabled) c.onSignal.copy(alpha = 0.8f) else c.muted)
+                Text(label, style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold), color = if (enabled) c.onSignal else c.muted)
+                if (sub != null) Text(sub, style = MaterialTheme.typography.labelSmall, color = if (enabled) c.onSignal.copy(alpha = 0.8f) else c.muted)
             }
         }
     }

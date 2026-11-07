@@ -168,15 +168,17 @@ class SystemEqService : Service() {
         if (Build.VERSION.SDK_INT >= 26) nm.createNotificationChannel(NotificationChannel(CHANNEL, "AutoTune EQ", NotificationManager.IMPORTANCE_LOW))
         val b = (if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL) else Notification.Builder(this))
             .setContentTitle(title).setContentText(text)
-            .setSmallIcon(android.R.drawable.stat_sys_headset).setOngoing(true)
+            // the Bauhaus mark in the status bar, tinted with the Braun red in the shade
+            .setSmallIcon(dev.autotune.R.drawable.ic_stat_autotune).setColor(0xFFC8401A.toInt()).setOngoing(true)
+            .setShowWhen(false).setCategory(Notification.CATEGORY_SERVICE)
             .setContentIntent(openApp())
         // switch things off right from the notification, without opening the app
         val prefs = ProfileController.prefs(this)
-        if (SystemEq.chain != null || prefs.getBoolean("eqWanted", false)) b.addAction(action(android.R.drawable.ic_lock_power_off, "Switch EQ off", ProfileController.ACTION_OFF, 201))
-        if (automationOn()) b.addAction(action(android.R.drawable.ic_menu_close_clear_cancel, "Stop auto-detect", ProfileController.ACTION_AUTO_OFF, 202))
+        if (SystemEq.chain != null || prefs.getBoolean("eqWanted", false)) b.addAction(action(android.R.drawable.ic_lock_power_off, "EQ off", ProfileController.ACTION_OFF, 201))
+        if (automationOn()) b.addAction(action(android.R.drawable.ic_menu_close_clear_cancel, "Auto off", ProfileController.ACTION_AUTO_OFF, 202))
         if (SystemEq.chain != null && LoudEq.mode(this) != dev.autotune.LoudMode.OFF) {
             val loudOn = LoudEq.manual(this)
-            b.addAction(action(android.R.drawable.ic_lock_silent_mode_off, if (loudOn) "Loud EQ off" else "Loud EQ on", ProfileController.ACTION_TOGGLE_LOUD, 203))
+            b.addAction(action(android.R.drawable.ic_lock_silent_mode_off, if (loudOn) "Loud off" else "Loud on", ProfileController.ACTION_TOGGLE_LOUD, 203))
         }
         val n = b.build()
         // the sound level mode needs the microphone type; Android allows it only while the app is on screen
@@ -244,17 +246,17 @@ class SystemEqService : Service() {
     private fun refreshInner() {
         val on = SystemEq.chain != null
         shownLoud = LoudEq.lastAmount
-        val loud = if (on && LoudEq.lastAmount > 0.0) " · loud EQ %.0f%%".format(LoudEq.lastAmount * 100) else ""
+        val loud = if (on && LoudEq.lastAmount > 0.0) " · loud %.0f%%".format(LoudEq.lastAmount * 100) else ""
         // the user wants the EQ on but it could not start (yet): stay up and say so, as the widget does
         val wanted = ProfileController.prefs(this).getBoolean("eqWanted", false)
         when {
+            // short, like the lettering on a device: what is on, then the detail
             on -> notify(
-                (if (SystemEq.chain?.filters.isNullOrEmpty()) "Flat for now: pick an EQ in AutoTune" else "Equalising this phone's audio") + loud +
-                    if (automationOn()) " · watching for your Bluetooth devices" else "",
-                "AutoTune EQ is on",
+                (if (SystemEq.chain?.filters.isNullOrEmpty()) "Flat" else "Equalising") + loud + if (automationOn()) " · auto" else "",
+                "EQ on",
             )
-            wanted -> notify("The EQ could not be switched on. Open AutoTune to try again.", "AutoTune EQ is waiting")
-            automationOn() -> notify("Waiting for a Bluetooth device to connect", "AutoTune is watching")
+            wanted -> notify("Open AutoTune to switch it on", "EQ waiting")
+            automationOn() -> notify("For your Bluetooth devices", "Watching")
             else -> stopSelf()
         }
     }
@@ -277,8 +279,8 @@ class SystemEqService : Service() {
         // the EQ was wanted on: bring it back (restore does nothing when the user switched it off)
         if (SystemEq.chain == null) ProfileController.restore(this)
         // the foreground notice must go up first, whatever happens next
-        notify(if (SystemEq.chain != null) "Equalising this phone's audio" else "Waiting for a Bluetooth device to connect",
-            if (SystemEq.chain != null) "AutoTune EQ is on" else "AutoTune is watching", force = true)
+        notify(if (SystemEq.chain != null) "Equalising" else "For your Bluetooth devices",
+            if (SystemEq.chain != null) "EQ on" else "Watching", force = true)
         if (!registered) {
             ContextCompat.registerReceiver(
                 this, receiver,

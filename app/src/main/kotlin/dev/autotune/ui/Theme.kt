@@ -72,7 +72,9 @@ enum class Look(val title: String, val detail: String) {
     VU("Analog VU", "Warm cream meter face with a red needle"),
     SYNTH("Synthwave", "Deep purple with magenta and cyan"),
     NAVY("Navy", "Deep navy with a teal accent, the DevStore look"),
-    BRAUN("Braun", "White body, grey deck, teak cheeks and one red, after Dieter Rams. The default"),
+    BRAUN("Braun", "Light grey body, grey decks, teak cheeks and one red, after Dieter Rams. The default"),
+    BRAUN_GRAPHITE("Braun graphite", "Greys throughout, with a dark grey accent"),
+    BRAUN_BLACK("Braun black", "Black and aluminium with an orange accent, like the TP 1 and T 1000"),
     ;
 
     /** Wallpaper colours replace a look's own colours, so only the two plain looks offer them. */
@@ -85,34 +87,100 @@ enum class Look(val title: String, val detail: String) {
 // record label, the needle and the pilot light. Runs are inks and greys; the EQ is the red.
 private val BraunLight = AtColors(
     dark = false,
-    bg = Color(0xFFF3F2EE), panel = Color(0xFFE2E0DA), panelHigh = Color(0xFFEDECE7), line = Color(0xFFC8C6BF),
-    text = Color(0xFF232321), muted = Color(0xFF66645E),
+    bg = Color(0xFFE6E6E3), panel = Color(0xFFD7D7D3), panelHigh = Color(0xFFF0F0ED), line = Color(0xFFBDBDB8),
+    text = Color(0xFF1F1F1E), muted = Color(0xFF5C5C58),
     signal = Color(0xFFC8401A), onSignal = Color(0xFFFFFFFF),
-    good = Color(0xFF3D7F3A), warn = Color(0xFF8A6200), bad = Color(0xFFB3261E),
-    target = Color(0xFF232321),
+    good = Color(0xFF3D7F3A), warn = Color(0xFF805C00), bad = Color(0xFFB3261E),
+    target = Color(0xFF1F1F1E),
     runs = listOf(
-        Color(0xFF8A8882), Color(0xFF2F4F7F), Color(0xFF3D7F3A), Color(0xFF7A4A9C),
+        Color(0xFF85857F), Color(0xFF2F4F7F), Color(0xFF3D7F3A), Color(0xFF7A4A9C),
         Color(0xFF0E7C86), Color(0xFF8C5A2B), Color(0xFF4B5563), Color(0xFF9C2F6B),
     ),
     slider = SliderStyle.FADER,
-    shell = Color(0xFFE2E0DA), onShell = Color(0xFF232321), onShellMuted = Color(0xFF66645E),
+    shell = Color(0xFFD7D7D3), onShell = Color(0xFF1F1F1E), onShellMuted = Color(0xFF5C5C58),
     teak = Color(0xFFB07446), alu = Color(0xFFB9BAB8),
 )
 
 private val BraunDark = AtColors(
     dark = true,
-    bg = Color(0xFF1A1A19), panel = Color(0xFF262624), panelHigh = Color(0xFF30302D), line = Color(0xFF3C3C38),
-    text = Color(0xFFECEAE4), muted = Color(0xFFA3A19A),
+    bg = Color(0xFF262625), panel = Color(0xFF323231), panelHigh = Color(0xFF3D3D3B), line = Color(0xFF4B4B48),
+    text = Color(0xFFEDEDEA), muted = Color(0xFFABABA6),
     signal = Color(0xFFF0663A), onSignal = Color(0xFF1A0A03),
     good = Color(0xFF6CB866), warn = Color(0xFFE9C14A), bad = Color(0xFFFF6B5E),
-    target = Color(0xFFECEAE4),
+    target = Color(0xFFEDEDEA),
     runs = listOf(
-        Color(0xFF9B9992), Color(0xFF8EB4F0), Color(0xFF7CCB76), Color(0xFFC59BEB),
+        Color(0xFFA2A29C), Color(0xFF8EB4F0), Color(0xFF7CCB76), Color(0xFFC59BEB),
         Color(0xFF4FD1DB), Color(0xFFE0A86E), Color(0xFFB8C0CC), Color(0xFFF08CC0),
     ),
     slider = SliderStyle.FADER,
-    shell = Color(0xFF262624), onShell = Color(0xFFECEAE4), onShellMuted = Color(0xFFA3A19A),
+    shell = Color(0xFF323231), onShell = Color(0xFFEDEDEA), onShellMuted = Color(0xFFABABA6),
     teak = Color(0xFF8E5A33), alu = Color(0xFF8F908E),
+)
+
+// Braun graphite: everything grey, the accent a dark grey (light) or a pale grey (dark); no wood.
+private val GraphiteLight = AtColors(
+    dark = false,
+    bg = Color(0xFFD5D5D2), panel = Color(0xFFC6C6C2), panelHigh = Color(0xFFE3E3E0), line = Color(0xFFA9A9A4),
+    text = Color(0xFF1B1B1B), muted = Color(0xFF4D4D4A),
+    signal = Color(0xFF353534), onSignal = Color(0xFFF2F2EF),
+    good = Color(0xFF2F6F2C), warn = Color(0xFF6E4F00), bad = Color(0xFFA3221B),
+    target = Color(0xFF1B1B1B),
+    runs = listOf(
+        Color(0xFF6E6E6A), Color(0xFF2A4A78), Color(0xFF2F6F2C), Color(0xFF6A3C8C),
+        Color(0xFF0B6A73), Color(0xFF7A4C22), Color(0xFF3F4652), Color(0xFF8A2A5E),
+    ),
+    slider = SliderStyle.FADER,
+    shell = Color(0xFFC6C6C2), onShell = Color(0xFF1B1B1B), onShellMuted = Color(0xFF4D4D4A),
+    alu = Color(0xFFA9AAA8),
+)
+
+private val GraphiteDark = AtColors(
+    dark = true,
+    bg = Color(0xFF1F1F1F), panel = Color(0xFF2B2B2B), panelHigh = Color(0xFF363636), line = Color(0xFF454545),
+    text = Color(0xFFE8E8E6), muted = Color(0xFFA2A29E),
+    signal = Color(0xFFD2D2CF), onSignal = Color(0xFF1B1B1B),
+    good = Color(0xFF7CC376), warn = Color(0xFFE9C14A), bad = Color(0xFFFF7A6E),
+    target = Color(0xFFE8E8E6),
+    runs = listOf(
+        Color(0xFF8E8E8A), Color(0xFF8EB4F0), Color(0xFF7CCB76), Color(0xFFC59BEB),
+        Color(0xFF4FD1DB), Color(0xFFE0A86E), Color(0xFFB8C0CC), Color(0xFFF08CC0),
+    ),
+    slider = SliderStyle.FADER,
+    shell = Color(0xFF2B2B2B), onShell = Color(0xFFE8E8E6), onShellMuted = Color(0xFFA2A29E),
+    alu = Color(0xFF7E7F7D),
+)
+
+// Braun black: black decks and aluminium, an orange accent; by day the aluminium body with black decks' greys.
+private val BlackLight = AtColors(
+    dark = false,
+    bg = Color(0xFFDADAD7), panel = Color(0xFFCACAC6), panelHigh = Color(0xFFE8E8E5), line = Color(0xFFAEAEA9),
+    text = Color(0xFF151515), muted = Color(0xFF4F4F4C),
+    signal = Color(0xFFC2410C), onSignal = Color(0xFFFFFFFF),
+    good = Color(0xFF2F6F2C), warn = Color(0xFF6E4F00), bad = Color(0xFFA3221B),
+    target = Color(0xFF151515),
+    runs = listOf(
+        Color(0xFF6E6E6A), Color(0xFF2A4A78), Color(0xFF2F6F2C), Color(0xFF6A3C8C),
+        Color(0xFF0B6A73), Color(0xFF7A4C22), Color(0xFF3F4652), Color(0xFF8A2A5E),
+    ),
+    slider = SliderStyle.FADER,
+    shell = Color(0xFF2A2A29), onShell = Color(0xFFEDEDEA), onShellMuted = Color(0xFFA8A8A3),
+    alu = Color(0xFFC4C5C3),
+)
+
+private val BlackDark = AtColors(
+    dark = true,
+    bg = Color(0xFF121212), panel = Color(0xFF1E1E1E), panelHigh = Color(0xFF2A2A2A), line = Color(0xFF383838),
+    text = Color(0xFFEDEDEA), muted = Color(0xFFA0A09C),
+    signal = Color(0xFFFF8A3D), onSignal = Color(0xFF1F0B00),
+    good = Color(0xFF7CC376), warn = Color(0xFFE9C14A), bad = Color(0xFFFF7A6E),
+    target = Color(0xFFEDEDEA),
+    runs = listOf(
+        Color(0xFF8E8E8A), Color(0xFF8EB4F0), Color(0xFF7CCB76), Color(0xFFC59BEB),
+        Color(0xFF4FD1DB), Color(0xFFE0A86E), Color(0xFFB8C0CC), Color(0xFFF08CC0),
+    ),
+    slider = SliderStyle.FADER,
+    shell = Color(0xFF1E1E1E), onShell = Color(0xFFEDEDEA), onShellMuted = Color(0xFFA0A09C),
+    alu = Color(0xFFA9AAA8),
 )
 
 // A dyno run sheet. By day, chart paper with a fine green grid; by night, graphite with the grid dimmed. Marker orange
@@ -186,6 +254,8 @@ private fun look(
 /** The colours of [l] in its dark or light version. Run colours stay far from each look's accent. */
 fun lookColors(l: Look, dark: Boolean): AtColors = when (l) {
     Look.BRAUN -> if (dark) BraunDark else BraunLight
+    Look.BRAUN_GRAPHITE -> if (dark) GraphiteDark else GraphiteLight
+    Look.BRAUN_BLACK -> if (dark) BlackDark else BlackLight
     Look.DYNO -> if (dark) DynoDark else DynoLight
     Look.STUDIO -> if (dark) DarkAt else LightAt
     Look.CONSOLE -> if (dark) look(

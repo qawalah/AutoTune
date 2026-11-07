@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed icon: the speaker ring, the Tune key and the fader, in one colour. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="5" android:pathData="M54,49m-18.5,0a18.5,18.5 0,1 1,37 0a18.5,18.5 0,1 1,-37 0"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M54,49m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M38,76h32a2.5,2.5 0,0 1,0 5h-32a2.5,2.5 0,0 1,0 -5z"/>
+</vector>

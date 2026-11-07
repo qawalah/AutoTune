@@ -258,7 +258,8 @@ data class UiState(
     val micName: String? = null,
     /** No USB mic: the phone's own microphone is used. Fine for checks, less accurate for tuning. */
     val phoneMic: Boolean = false,
-    val liveSignal: LiveSignal = LiveSignal.PINK,
+    /** Live starts silent: noise only when asked for. */
+    val liveSignal: LiveSignal = LiveSignal.NONE,
     val calibrationName: String? = null,
     val calibrationInfo: String? = null,
     /** Warnings of the focus run (and about mixed calibrations) shown at the top of Results. */
@@ -2016,6 +2017,24 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         state.update { it.copy(status = "Run discarded.") }
     }
 
+    /**
+     * Deletes one run of the open test (any but the stock reading). Later runs keep their order; the suggestion and
+     * the result are rebuilt from what is left.
+     */
+    fun deleteRun(index: Int) {
+        val t = current ?: return
+        if (!canDeleteRun(index, t.runs.size)) return
+        val label = t.runs[index].label
+        val updated = t.copy(runs = t.runs.filterIndexed { i, _ -> i != index })
+        TestStore.save(getApplication(), updated)
+        current = updated
+        refreshTests()
+        Diag.log(ctx(), "run_deleted", mapOf("test" to t.name, "run" to label))
+        state.update { it.copy(selectedRuns = selectionAfterDelete(it.selectedRuns, index, updated.runs.size), lastWarnings = emptyList()) }
+        refreshView()
+        state.update { it.copy(status = "$label deleted.") }
+    }
+
     /** The EQ to show and apply is AutoTune's suggestion for the open test, not a profile or older hand edits. */
     private fun resetToSuggestion() {
         state.update { it.copy(sliderLayer = emptyList(), convertMessage = null) }
@@ -2462,7 +2481,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setManualPreamp(db: Double) {
-        val v = (Math.round(db * 2) / 2.0).coerceIn(-15.0, 0.0)
+        val v = (Math.round(db * 2) / 2.0).coerceIn(PREAMP_MIN, PREAMP_MAX)
         prefs.edit().putFloat("preampManual", v.toFloat()).apply()
         state.update { it.copy(manualPreampDb = v) }
         replay()

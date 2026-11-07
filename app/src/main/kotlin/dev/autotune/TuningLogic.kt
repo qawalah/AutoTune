@@ -384,6 +384,10 @@ enum class Flavour(val title: String, val detail: String, val filters: List<EqFi
     companion object { fun of(name: String?) = entries.firstOrNull { it.name == name } ?: NONE }
 }
 
+/** The manual preamp's range: down to −15 dB, and up to +6 dB for a quiet system (the limiter catches the peaks). */
+const val PREAMP_MIN = -15.0
+const val PREAMP_MAX = 6.0
+
 /** The chain that plays: [filters] (the EQ in use) plus the flavour, with the preamp the mode asks for. */
 fun playChain(filters: List<EqFilter>, flavour: Flavour, mode: PreampMode, manualDb: Double, grid: dev.autotune.dsp.FreqGrid = dev.autotune.dsp.FreqGrid()): EqChain {
     val f = (filters + flavour.filters).sortedBy { it.freqHz }
@@ -392,7 +396,7 @@ fun playChain(filters: List<EqFilter>, flavour: Flavour, mode: PreampMode, manua
         PreampMode.SAFE -> if (peak > 0.0) -(peak + 0.3) else 0.0
         PreampMode.BALANCED -> -(peak * 0.5)
         PreampMode.OFF -> 0.0
-        PreampMode.MANUAL -> manualDb.coerceIn(-15.0, 0.0)
+        PreampMode.MANUAL -> manualDb.coerceIn(PREAMP_MIN, PREAMP_MAX)
     }
     return EqChain(f, pre)
 }
@@ -715,6 +719,7 @@ enum class Accent(val title: String, val light: Long, val onLight: Long, val dar
     YELLOW("Yellow", 0xFF8A6200L, 0xFFFFFFFFL, 0xFFF2C12EL, 0xFF1F1600L),
     GREEN("Green", 0xFF2F7A3AL, 0xFFFFFFFFL, 0xFF6CB866L, 0xFF0A1A08L),
     BLUE("Blue", 0xFF2456A6L, 0xFFFFFFFFL, 0xFF7FA8F0L, 0xFF061226L),
+    GRAPHITE("Graphite", 0xFF353534L, 0xFFF2F2EFL, 0xFFD2D2CFL, 0xFF1B1B1BL),
     ;
 
     companion object { fun of(name: String?): Accent = entries.firstOrNull { it.name == name } ?: LOOK }
@@ -728,4 +733,18 @@ fun contrast(a: Long, b: Long): Double {
     }
     val (x, y) = lum(a) to lum(b)
     return (maxOf(x, y) + 0.05) / (minOf(x, y) + 0.05)
+}
+
+// ---------------------------------------------------------------- deleting a run (2.1)
+
+/** Whether run [index] of [count] can be deleted on its own: any run but the stock reading (index 0). */
+fun canDeleteRun(index: Int, count: Int): Boolean = index in 1 until count
+
+/**
+ * The runs ticked for the graph after run [removed] is deleted from a test that now has [newCount] runs: later runs
+ * move down one, and the latest run stays shown so the graph is never empty.
+ */
+fun selectionAfterDelete(selected: Set<Int>, removed: Int, newCount: Int): Set<Int> {
+    val moved = selected.filter { it != removed }.map { if (it > removed) it - 1 else it }.filter { it in 0 until newCount }.toSet()
+    return if (newCount == 0) emptySet() else moved + (newCount - 1)
 }

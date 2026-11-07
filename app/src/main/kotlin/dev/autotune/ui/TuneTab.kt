@@ -269,14 +269,9 @@ private fun MeasureStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pic
             Bullet("Your normal listening volume.")
         }
     } else {
-        Panel(pad = 12.dp) {
-            Row(verticalAlignment = Alignment.Top) {
-                AtIcon(Ic.MIC, At.c.signal, Modifier.padding(top = 1.dp, end = 10.dp), 20.dp)
-                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("Keep the reference conditions", style = MaterialTheme.typography.titleSmall)
-                    Text("Same mic position and playback volume as the stock reading. Only the EQ should change.", style = MaterialTheme.typography.bodyMedium, color = At.c.muted)
-                }
-            }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            AtIcon(Ic.MIC, At.c.muted, Modifier.padding(end = 10.dp), 20.dp)
+            Text("Same mic spot and volume as the stock.", style = MaterialTheme.typography.bodyMedium)
         }
     }
     if (!stock && !s.busy && isAdvanced()) {

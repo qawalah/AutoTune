@@ -55,9 +55,6 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
                 details = listOf("Less text, the main choices (default)", "Every option and explanation"),
             )
         }
-        Group("Equipment", divider = false) {
-            Muted("Microphone, calibration and measurement input")
-        }
         Group("Microphone", divider = false, info = "The calibration file removes the microphone's own frequency response from the measurement. For a UMIK-1 use the file for your serial number from miniDSP (a .txt file). Without it, results include the mic's own response (small for a UMIK-1, but not zero).") {
             StatusLine(true, if (s.phoneMic) "Phone microphone (plug in a USB mic for better accuracy)" else "USB microphone: ${s.micName}")
             StatusLine(s.hasPermission, if (s.hasPermission) "Microphone access allowed" else "Microphone access needed")
@@ -69,9 +66,6 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             }
         }
 
-        if (isAdvanced()) Group("Tuning defaults", divider = false) {
-            Muted("Target response, listening preference and measurement precision")
-        }
         if (isAdvanced()) Group("Defaults for new tests", info = "What the Set up step starts with. You can still change each one there, and the target and taste later on any result.") {
             val targets = dev.autotune.dsp.Target.ALL
             val tIdx = targets.indexOfFirst { it.name == s.defTarget }.let { if (it < 0) 0 else it }
@@ -94,9 +88,6 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             )
         }
 
-        if (isAdvanced()) Group("Playback & processing", divider = false) {
-            Muted("How AutoTune applies correction to audio on this phone")
-        }
         if (isAdvanced()) Group(
             "AutoTune EQ", info = "What Android allows, and what AutoTune does about it:\n\n" +
                 "• Range: about -30 to +15 dB per band. Not a real limit.\n" +
@@ -112,9 +103,6 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             )
         }
 
-        if (isAdvanced()) Group("Data & support", divider = false) {
-            Muted("Storage, assistant and diagnostic tools")
-        }
         if (isAdvanced()) Group("Saved files", info = "Where Save puts the EQ files, the report and the measurements. Share always goes through the share sheet instead.") {
             StatusLine(true, "Saved to " + (s.exportFolder ?: "Downloads/AutoTune"))
             Actions {

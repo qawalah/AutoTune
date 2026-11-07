@@ -253,4 +253,14 @@ class ConvergenceTest {
             assertTrue("${a.name} on the dark body", contrast(a.dark, bodyDark) >= 3.0)
         }
     }
+
+    @Test
+    fun anyRunButTheStockCanBeDeleted() {
+        assertFalse(canDeleteRun(0, 4))
+        assertTrue(canDeleteRun(2, 4))
+        assertFalse(canDeleteRun(4, 4))
+        // deleting run 1 of 4: run 3 moves to 2, and the latest (now 2) stays shown
+        assertEquals(setOf(0, 2), selectionAfterDelete(setOf(0, 1, 3), removed = 1, newCount = 3))
+        assertEquals(setOf(0, 1), selectionAfterDelete(setOf(0), removed = 2, newCount = 2))
+    }
 }

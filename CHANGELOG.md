@@ -4,6 +4,22 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.1.0] - 2026-11-07
+### Added
+- **Delete any run** (not only the last): each run on a test's results has its own delete; the stock reading stays. The suggestion is rebuilt from what is left.
+- **Quick actions on the Tests list**: ⋮ on each test opens Open results, Continue tuning, Rename and Delete.
+- **More Braun looks**: Braun graphite (greys with a dark grey accent, no wood) and Braun black (black and aluminium, orange accent), plus a Graphite accent colour.
+- The **preamp** goes up to +6 dB as well as down to −15 dB (Manual), for a quiet system; the limiter catches the peaks.
+### Changed
+- **Header after One UI**: the screen's name sits large in a tall header with a Bauhaus composition of its own (a list for Tests, faders for EQ, a speaker for Tune, a spectrum for Live, circle-square-triangle for Settings), so the content starts lower, nearer the thumb. Scrolled away, a slim bar with the name takes over.
+- **Tune** is a Braun speaker front (the T 3's perforated circle) with the round Tune key at its centre, in place of the record.
+- **Tabs**: labels in title case ("EQ" in capitals). With AutoTune EQ on, the EQ key stays latched down like a pressed push key; no on/off text or green dot.
+- **Braun colours** are greyer, in light and dark.
+- **Live** starts silent (no noise until you choose one), and Start / Stop is the main key at the bottom.
+- **Results**: the runs (tick to draw, delete) sit right under the response graph.
+- **App icon** redrawn: a graphite speaker with the red Tune key and a fader, on light grey; a matching themed icon. The **EQ notification** uses the same mark and Braun red, with short wording ("EQ on", "Equalising · loud 40%", "EQ off").
+- Trimmed the 2.0 additions that brought text back: the Tests overview panel, Settings section headings, the results chart heading and hint, the uppercase labels, the two-line Verify reminder.
+
 ## [2.0.0] - 2026-11-07
 AutoTune 2.0: the Braun redesign (1.27 to 1.29) plus five UI review passes on top of it (see `UI-REDESIGN-NOTES.md` and `PASS5-REVIEW.md`).
 ### Changed

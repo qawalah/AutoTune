@@ -25,6 +25,9 @@ class PlayTest {
         assertEquals(0.0, playChain(boost, Flavour.NONE, PreampMode.OFF, 0.0, g).preampDb, 0.0)
         assertEquals(-4.5, playChain(boost, Flavour.NONE, PreampMode.MANUAL, -4.5, g).preampDb, 0.0)
         assertEquals(-15.0, playChain(boost, Flavour.NONE, PreampMode.MANUAL, -40.0, g).preampDb, 0.0)
+        // a quiet system may lift the whole EQ a little, never more than +6 dB
+        assertEquals(4.0, playChain(boost, Flavour.NONE, PreampMode.MANUAL, 4.0, g).preampDb, 0.0)
+        assertEquals(6.0, playChain(boost, Flavour.NONE, PreampMode.MANUAL, 20.0, g).preampDb, 0.0)
         // cuts only: nothing to protect
         assertEquals(0.0, playChain(listOf(EqFilter(200.0, -5.0, 1.0)), Flavour.NONE, PreampMode.SAFE, 0.0, g).preampDb, 0.0)
     }

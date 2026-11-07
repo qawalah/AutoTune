@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -204,6 +205,15 @@ class ShotsTest {
     @Test fun n2_live_tab() = shot("n2_live_tab", nav = Tab.LIVE) { LiveTab(s, null, null, vm, pick, {}) }
     @Test fun w9_accent_green_light() = shot("w9_accent_green_light", dark = false, accent = Accent.GREEN) { tune(s.copy(tuneStep = TuneStep.HOME))() }
     @Test fun w10_accent_yellow_result() = shot("w10_accent_yellow_result", dark = false, accent = Accent.YELLOW) { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns.take(2), false), runs = runs3.take(2)))() }
+    @Test fun w11_graphite_light() = shot("w11_graphite_light", dark = false, look = Look.BRAUN_GRAPHITE, nav = Tab.TESTS) { TestsTab(s, vm, {}) }
+    @Test fun w12_graphite_dark_home() = shot("w12_graphite_dark_home", look = Look.BRAUN_GRAPHITE) { tune(s.copy(tuneStep = TuneStep.HOME))() }
+    @Test fun w13_black_dark_eq() = shot("w13_black_dark_eq", look = Look.BRAUN_BLACK, nav = Tab.EQ) { EqTab(s.copy(systemEqOn = true), vm, {}, pick) }
+    @Test fun w14_black_light_live() = shot("w14_black_light_live", dark = false, look = Look.BRAUN_BLACK, nav = Tab.LIVE) { LiveTab(s, null, null, vm, pick, {}) }
+    @Test fun i1_icon() = paparazzi.snapshot("i1_icon") {
+        androidx.compose.foundation.layout.Box(Modifier.size(216.dp).background(androidx.compose.ui.graphics.Color(0xFFE3E3E0))) {
+            androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(dev.autotune.R.drawable.ic_launcher_foreground), null, Modifier.size(216.dp))
+        }
+    }
     @Test fun w5_result_pinned() = shot("w5_result_pinned", look = Look.CONSOLE) { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns.take(2), false), runs = runs3.take(2)))() }
     @Test fun w6_eq_check() = shot("w6_eq_check") {
         val g = grid

@@ -44,30 +44,12 @@ import dev.autotune.dsp.SystemReport
 
 /** The list of tests. One tap on a test opens its results; a new test starts from the button at the bottom. */
 @Composable
-fun TestsTab(s: UiState, vm: TuneViewModel, openResults: (String) -> Unit) {
+fun TestsTab(s: UiState, vm: TuneViewModel, openResults: (String) -> Unit, continueTest: (String) -> Unit = {}) {
     val readingCount = s.tests.sumOf { it.runCount }
-    val active = s.tests.firstOrNull { it.id == s.currentTestId }
-    ScreenTitle("Tests", context = if (s.tests.isEmpty()) "Your measured systems" else "${s.tests.size} systems · $readingCount readings")
-    if (s.tests.isNotEmpty()) {
-        // A quiet instrument-style overview: useful status, without turning the test list into a dashboard full of cards.
-        Panel(pad = 14.dp) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Muted("CURRENT SYSTEM")
-                    Text(active?.let { dev.autotune.shortTestName(it.name, it.target).first } ?: "No system selected", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                }
-                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("${s.tests.size}", style = MaterialTheme.typography.headlineMedium, fontFamily = AtFigures)
-                    Muted(if (s.tests.size == 1) "system" else "systems")
-                }
-            }
-            androidx.compose.material3.HorizontalDivider(color = At.c.line)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Muted("MEASUREMENT READINGS")
-                Text("$readingCount", style = MaterialTheme.typography.titleMedium, fontFamily = AtFigures)
-            }
-        }
-    }
+    var renameId by remember { mutableStateOf<String?>(null) }
+    var renameText by remember { mutableStateOf("") }
+    var deleteId by remember { mutableStateOf<String?>(null) }
+    ScreenTitle("Tests", context = if (s.tests.isEmpty()) null else "${s.tests.size} systems · $readingCount readings")
     if (s.tests.isEmpty()) {
         Panel {
             Text("No tests yet", style = MaterialTheme.typography.titleLarge)
@@ -82,13 +64,39 @@ fun TestsTab(s: UiState, vm: TuneViewModel, openResults: (String) -> Unit) {
     Column {
         s.tests.forEachIndexed { i, t ->
             if (i > 0) HorizontalDivider(color = At.c.line)
-            TestRow(t, t.id == s.currentTestId) { openResults(t.id) }
+            TestRow(
+                t, t.id == s.currentTestId, onOpen = { openResults(t.id) },
+                onContinue = { continueTest(t.id) },
+                onRename = { renameId = t.id; renameText = t.name },
+                onDelete = { deleteId = t.id },
+            )
         }
+    }
+    renameId?.let { id ->
+        AlertDialog(
+            onDismissRequest = { renameId = null },
+            title = { Text("Rename") },
+            text = {
+                OutlinedTextField(value = renameText, onValueChange = { renameText = it }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            },
+            confirmButton = { TextButton(onClick = { vm.renameTest(id, renameText); renameId = null }) { Text("Save") } },
+            dismissButton = { TextButton(onClick = { renameId = null }) { Text("Cancel") } },
+        )
+    }
+    deleteId?.let { id ->
+        val name = s.tests.firstOrNull { it.id == id }?.let { dev.autotune.shortTestName(it.name, it.target).first } ?: "this test"
+        AlertDialog(
+            onDismissRequest = { deleteId = null },
+            title = { Text("Delete $name?") },
+            text = { Text("Every reading of this test is deleted. Saved EQs stay.") },
+            confirmButton = { TextButton(onClick = { vm.deleteTest(id); deleteId = null }) { Text("Delete", color = At.c.bad) } },
+            dismissButton = { TextButton(onClick = { deleteId = null }) { Text("Keep it") } },
+        )
     }
 }
 
 @Composable
-private fun TestRow(t: TestSummary, isOpen: Boolean, onOpen: () -> Unit) {
+private fun TestRow(t: TestSummary, isOpen: Boolean, onOpen: () -> Unit, onContinue: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 76.dp).clickable(onClickLabel = "Open the results of ${t.name}", onClick = onOpen).padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -131,7 +139,17 @@ private fun TestRow(t: TestSummary, isOpen: Boolean, onOpen: () -> Unit) {
                 } else Text("stock", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
             }
         }
-        Box(Modifier.padding(start = 6.dp)) { AtIcon(Ic.CHEVRON, At.c.muted, size = 20.dp) }
+        // the quick actions: open, continue tuning, rename, delete
+        var menu by remember { mutableStateOf(false) }
+        Box {
+            IconAction(Ic.MORE, "Actions for ${t.name}") { menu = true }
+            androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                androidx.compose.material3.DropdownMenuItem(text = { Text("Open results") }, leadingIcon = { AtIcon(Ic.TESTS, At.c.muted) }, onClick = { menu = false; onOpen() })
+                androidx.compose.material3.DropdownMenuItem(text = { Text("Continue tuning") }, leadingIcon = { AtIcon(Ic.TUNE, At.c.muted) }, onClick = { menu = false; onContinue() })
+                androidx.compose.material3.DropdownMenuItem(text = { Text("Rename") }, leadingIcon = { AtIcon(Ic.EDIT, At.c.muted) }, onClick = { menu = false; onRename() })
+                androidx.compose.material3.DropdownMenuItem(text = { Text("Delete", color = At.c.bad) }, leadingIcon = { AtIcon(Ic.TRASH, At.c.bad) }, onClick = { menu = false; onDelete() })
+            }
+        }
     }
 }
 
@@ -161,14 +179,11 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
         // The response is the visual proof of the result; keep its legend directly with the plot.
         s.chart?.let { c ->
             Panel {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("SYSTEM RESPONSE", style = MaterialTheme.typography.labelSmall, color = At.c.muted, fontWeight = FontWeight.SemiBold)
-                    Text("Stock, latest and target", style = MaterialTheme.typography.titleMedium)
-                }
                 ResponseChart(c, height = 220.dp, showTarget = s.showTargetResults, onToggleTarget = { vm.setShowTarget(true, !s.showTargetResults) })
-                Muted("Lower distance from the target is better. Tap a curve name to show or hide it.")
             }
         }
+        // the runs to draw, right under the graph they change; any run but the stock can be deleted from here
+        RunsDeck(s, vm)
         Actions {
             TextAction("Open the EQ", { go(Tab.EQ) }, icon = Ic.EQ)
             TextAction("AI review", vm::aiOpen, icon = Ic.AI)
@@ -198,41 +213,6 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
                 val main = b.runs.last()
                 Panel { RtaBars(main.bars, b.target, ghosts = b.runs.dropLast(1).map { it.bars to runColor(it.colorIdx) }, caption = false) }
                 Muted("Bars: ${main.label}" + if (b.runs.size > 1) ". Caps: " + b.runs.dropLast(1).joinToString { it.label } else "")
-            }
-        }
-
-        Fold(
-            "Runs", summary = "${s.runs.size} readings · ${s.selectedRuns.size} shown",
-            info = "Tick the runs to draw on the graph and compare in the table. The stock run (no EQ) is your permanent reference.\n\nThe EQ and the export follow the latest ticked run.",
-        ) {
-            if (s.runs.size > 1) {
-                val both = s.selectedRuns == setOf(0, s.runs.lastIndex)
-                val all = s.selectedRuns.size == s.runs.size
-                DropSelect(
-                    listOf("Stock and latest", "All runs", "Your own choice (tick below)"), if (all) 1 else if (both) 0 else 2,
-                    { if (it < 2) vm.selectRuns(it == 1) }, label = "Show",
-                )
-            }
-            s.runs.forEach { r ->
-                Row(
-                    Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { vm.toggleRun(r.index) },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(
-                        checked = r.index in s.selectedRuns, onCheckedChange = { vm.toggleRun(r.index) },
-                        colors = CheckboxDefaults.colors(checkedColor = runColor(r.index), checkmarkColor = At.c.bg, uncheckedColor = At.c.muted),
-                    )
-                    Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                        Text(r.label, style = MaterialTheme.typography.titleSmall)
-                        Muted(
-                            r.whenText + " · " + (if (r.index == 0) "no EQ" else "${r.appliedBands} bands applied") +
-                                if (r.calibration == "unknown") "" else " · mic cal: ${r.calibration}",
-                        )
-                        if (r.note.isNotBlank()) Muted("“${r.note}”")
-                    }
-                    Text("%.2f".format(r.rmsDb), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures)
-                    Muted(" dB")
-                }
             }
         }
 
@@ -438,5 +418,52 @@ private fun ResonanceGroup(s: UiState) {
                 Muted(r.suggestion)
             }
         }
+    }
+}
+
+
+/** The runs of the test: tick one to draw it on the graph; delete any run but the stock reading. */
+@Composable
+private fun RunsDeck(s: UiState, vm: TuneViewModel) {
+    var confirm by remember { mutableStateOf<Int?>(null) }
+    Group(
+        "Runs", divider = false,
+        info = "Tick the runs to draw on the graph. The stock run (no EQ) is your permanent reference and stays.\n\nThe EQ and the export follow the latest ticked run.",
+        trailing = {
+            if (s.runs.size > 2 && isAdvanced()) {
+                val all = s.selectedRuns.size == s.runs.size
+                TextAction(if (all) "Stock and latest" else "All", { vm.selectRuns(!all) })
+            }
+        },
+    ) {
+        s.runs.forEach { r ->
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClickLabel = "Show or hide ${r.label}") { vm.toggleRun(r.index) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(
+                    checked = r.index in s.selectedRuns, onCheckedChange = { vm.toggleRun(r.index) },
+                    colors = CheckboxDefaults.colors(checkedColor = runColor(r.index), checkmarkColor = At.c.bg, uncheckedColor = At.c.muted),
+                )
+                Column(Modifier.weight(1f).padding(start = 4.dp)) {
+                    Text(r.label, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                    Text(r.whenText, style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
+                }
+                Text("%.1f".format(r.rmsDb), style = MaterialTheme.typography.titleMedium, fontFamily = AtFigures)
+                Text(" dB", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
+                if (dev.autotune.canDeleteRun(r.index, s.runs.size)) IconAction(Ic.TRASH, "Delete ${r.label}") { confirm = r.index }
+                else Box(Modifier.size(48.dp))
+            }
+        }
+    }
+    confirm?.let { i ->
+        val label = s.runs.getOrNull(i)?.label ?: return@let
+        AlertDialog(
+            onDismissRequest = { confirm = null },
+            title = { Text("Delete $label?") },
+            text = { Text("The reading is deleted. The suggestion is rebuilt from the runs that are left.") },
+            confirmButton = { TextButton(onClick = { confirm = null; vm.deleteRun(i) }) { Text("Delete", color = At.c.bad) } },
+            dismissButton = { TextButton(onClick = { confirm = null }) { Text("Keep it") } },
+        )
     }
 }

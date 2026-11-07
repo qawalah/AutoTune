@@ -211,13 +211,13 @@ fun FlavourAndPreamp(s: UiState, vm: dev.autotune.TuneViewModel) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             androidx.compose.material3.Slider(
                 value = s.manualPreampDb.toFloat(), onValueChange = { vm.setManualPreamp(it.toDouble()) },
-                valueRange = -15f..0f, steps = 29, modifier = Modifier.weight(1f),
+                valueRange = dev.autotune.PREAMP_MIN.toFloat()..dev.autotune.PREAMP_MAX.toFloat(), steps = 41, modifier = Modifier.weight(1f),
                 colors = androidx.compose.material3.SliderDefaults.colors(
                     thumbColor = At.c.signal, activeTrackColor = At.c.signal, inactiveTrackColor = At.c.line,
                     activeTickColor = At.c.onSignal.copy(alpha = 0.4f), inactiveTickColor = At.c.muted.copy(alpha = 0.4f),
                 ),
             )
-            Text("  %.1f dB".format(s.manualPreampDb), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures)
+            Text("  %+.1f dB".format(s.manualPreampDb), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures)
         }
     }
 }

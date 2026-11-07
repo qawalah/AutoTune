@@ -40,8 +40,9 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
         }
     }
 
-    if (!s.rtaRunning) PrimaryButton("Start", { vm.startRta(s.rtaWithEq) }, Modifier.fillMaxWidth(), enabled = ready && !s.busy, icon = Ic.PLAY)
-    else SecondaryButton("Stop", vm::stopRta, Modifier.fillMaxWidth(), icon = Ic.STOP)
+    // Start and Stop are the screen's main key, at the bottom within reach
+    if (!s.rtaRunning) PinAction("Start", { vm.startRta(s.rtaWithEq) }, icon = Ic.PLAY, enabled = ready && !s.busy)
+    else PinAction("Stop", vm::stopRta, icon = Ic.STOP)
 
     // The spectrum is the primary live instrument. Never draw a synthetic target-shaped
     // spectrum while idle: that can be mistaken for a real microphone reading.
@@ -57,8 +58,7 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
             else -> {
                 Box(Modifier.fillMaxWidth().height(248.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("SPECTRUM STANDBY", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
-                        Text("Start to measure the sound", style = MaterialTheme.typography.bodyMedium, color = At.c.text)
+                        Text("standby", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
                     }
                 }
             }

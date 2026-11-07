@@ -60,6 +60,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 
 /**
@@ -243,8 +245,13 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                         else slideSideways(dev.autotune.navSlide(from.tab.name, to.tab.name))
                     },
                 ) { d ->
+                    // each screen has its own header slot; the slim bar shows once the tall header has scrolled away
+                    val titleSlot = androidx.compose.runtime.remember(d) { TitleSlot() }
+                    val sc = scrollFor(d.page?.name ?: d.tab.name)
+                    Box(Modifier.fillMaxSize()) {
+                    androidx.compose.runtime.CompositionLocalProvider(LocalTitleSlot provides titleSlot, LocalBack provides (if (d.page != null) back else null)) {
                     Column(
-                        Modifier.fillMaxSize().imePadding().verticalScroll(scrollFor(d.page?.name ?: d.tab.name), enabled = true)
+                        Modifier.fillMaxSize().imePadding().verticalScroll(sc, enabled = true)
                             .padding(horizontal = 16.dp).padding(bottom = 96.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
@@ -257,7 +264,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                                 }
                             }
                         } else when (d.tab) {
-                            Tab.TESTS -> TestsTab(s, vm, { id -> vm.openTest(id); openResults() })
+                            Tab.TESTS -> TestsTab(s, vm, { id -> vm.openTest(id); openResults() }, continueTest = { id -> vm.openTest(id); vm.tuneContinue(); go(Tab.MEASURE) })
                             Tab.MEASURE -> TuneTab(s, vm, sharer, go, openResults, pick)
                             Tab.EQ -> EqTab(s, vm, go, pick)
                             Tab.LIVE -> LiveTab(s, live, level, vm, pick, go)
@@ -265,6 +272,9 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                             // Export always opens as a page
                             Tab.EXPORT -> Unit
                         }
+                    }
+                    CollapsedHeader(titleSlot, sc, Modifier.align(Alignment.TopCenter))
+                    }
                     }
                 }
             }
@@ -325,20 +335,34 @@ fun AtNavBar(tab: Tab, busy: Boolean, eqOn: Boolean = false, onSelect: (Tab) -> 
                     if (t == Tab.MEASURE) TuneButton(here, busy && !here, src)
                     else {
                         // the key travels down a little when pressed, like a real push key
-                        val down by androidx.compose.animation.core.animateDpAsState(if (here) 1.dp else 0.dp, androidx.compose.animation.core.tween(motionMs(120)), label = "key")
+                        // a latched key (AutoTune EQ on) stays down, its face in shadow from the rim, as a pressed Braun key
+                        val latched = t == Tab.EQ && eqOn
+                        val down by androidx.compose.animation.core.animateDpAsState((if (here) 1.dp else 0.dp) + (if (latched) 2.dp else 0.dp), androidx.compose.animation.core.tween(motionMs(120)), label = "key")
+                        val face = when {
+                            here -> c.text
+                            latched -> androidx.compose.ui.graphics.lerp(c.panelHigh, c.line, 0.55f)
+                            else -> c.panelHigh
+                        }
                         Box(
                             Modifier.offset(y = down).size(62.dp, 42.dp).pressScale(src).clip(RoundedCornerShape(4.dp))
-                                .background(if (here) c.text else c.panelHigh).border(1.dp, if (here) c.text else c.line, RoundedCornerShape(4.dp)),
+                                .background(face).border(1.dp, if (here) c.text else c.line, RoundedCornerShape(4.dp))
+                                .semantics { if (latched) stateDescription = "AutoTune EQ on" },
                             contentAlignment = Alignment.Center,
                         ) {
+                            if (latched) Box(
+                                Modifier.matchParentSize().background(
+                                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                                        0f to androidx.compose.ui.graphics.Color.Black.copy(alpha = if (c.dark) 0.45f else 0.22f),
+                                        0.45f to androidx.compose.ui.graphics.Color.Transparent,
+                                    ),
+                                ),
+                            )
                             AtIcon(t.icon, if (here) c.bg else c.text, size = 24.dp)
-                            // AutoTune EQ on: a green pilot light in the key's corner, like a lit power key
-                            if (t == Tab.EQ && eqOn) Box(Modifier.align(Alignment.TopEnd).padding(5.dp).size(8.dp).clip(CircleShape).background(c.good))
                         }
                     }
                     Text(
-                        if (t == Tab.EQ && eqOn) "eq on" else t.title.lowercase(), Modifier.padding(top = 6.dp), style = MaterialTheme.typography.labelMedium,
-                        color = if (here) c.text else c.muted, fontWeight = if (here) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1,
+                        t.title, Modifier.padding(top = 6.dp), style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.2.sp),
+                        color = if (here) c.onShell else c.onShellMuted, fontWeight = if (here) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1,
                     )
                 }
             }

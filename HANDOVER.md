@@ -324,3 +324,10 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 ### 2.0.0
 - 1.29.0 plus five UI-only review passes made in another session (`UI-REDESIGN-NOTES.md`, `PASS5-REVIEW.md`): LiveTab spectrum first with a standby state (no synthetic bars), EqTab chart moved up, TestsTab overview deck and closer/further labels, results chart heading, MeasureStep pin moved after the context, Settings section headings, graphite New test FAB. No DSP, measurement, EQ, storage or ViewModel changes.
 
+### 2.1.0
+- TuningLogic: `PREAMP_MIN`/`PREAMP_MAX` (−15/+6), `canDeleteRun`, `selectionAfterDelete` (tested); `Accent.GRAPHITE`. VM: `deleteRun(index)`; `LiveSignal` defaults to NONE.
+- Theme: Braun palettes greyer; `Look.BRAUN_GRAPHITE` and `Look.BRAUN_BLACK` appended.
+- Kit: `ScreenTitle` is the One UI header (tall, `HeaderArt(key)` per screen, wordmark or Back + mode key + menu on top); `TitleSlot`/`LocalTitleSlot` and `CollapsedHeader` (drawn per screen in AutoTuneScreen's `Transit`) show a slim bar once the header has scrolled away. `PulsingButton` is the speaker grille with the Tune key.
+- AutoTuneScreen: tab labels title case on `onShell`; the EQ key latches (offset + inner shade) when AutoTune EQ is on. TestsTab: per-row ⋮ menu (open, continue, rename, delete) and `RunsDeck` under the graph with per-run delete.
+- Resources: new `ic_launcher_foreground`, `ic_launcher_monochrome`, `ic_stat_autotune`; launcher background #E3E3E0. SystemEq notification: the new small icon, Braun red, short wording.
+

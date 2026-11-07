@@ -85,7 +85,7 @@ components:
 
 The world lends material, type and a few signature objects. It never replaces Material 3 behaviour: drop-downs for choices, standard switches and dialogs, five tabs.
 
-Braun is the default look (`Look.BRAUN` in `ui/Theme.kt`). Dyno sheet, Studio, Mixing console, Hi-fi blue meters, Analog VU, Synthwave and Navy remain selectable as colour variants of the same shapes.
+Braun is the default look (`Look.BRAUN` in `ui/Theme.kt`), with two siblings: Braun graphite (greys, dark grey accent) and Braun black (black and aluminium, orange accent). Dyno sheet, Studio, Mixing console, Hi-fi blue meters, Analog VU, Synthwave and Navy remain selectable as colour variants of the same shapes.
 
 ## Colours
 
@@ -100,7 +100,7 @@ Braun is the default look (`Look.BRAUN` in `ui/Theme.kt`). Dyno sheet, Studio, M
 Inter, one family, as Braun used one grotesk. Weight carries the hierarchy, and readings are large and **light**, like a display. Every style uses tabular figures. Labels are small, lowercase and slightly tracked ("stock · from target", "tests", "suggested").
 
 - **Display** (Light 42): the main reading. **Headline** (Medium 21–26): step titles. **Title** (Medium 14–18). **Body** (14). **Label** (Medium 11, +0.6 tracking).
-- The header is the bold wordmark "autotune" alone, as the braun badge sits on a device; the pressed key names the tab. Pages show the page's short name with a back arrow.
+- **The header follows Samsung One UI**: a tall space at the top (about a quarter of the screen) holds the screen's name in large type and a Bauhaus composition of its own (a list for Tests, faders for EQ, a speaker for Tune, a spectrum for Live, circle-square-triangle elsewhere), so the content starts lower, nearer the thumb. Its top line carries the small "autotune" wordmark (Back on a page), the Simple / Advanced key and the menu. Scrolled away, a slim bar with the name takes over (`CollapsedHeader`).
 
 ## Layout
 
@@ -122,10 +122,10 @@ Flat. A section is a **deck** (`Panel`, `Group`, `Fold`): the grey plate, 6dp co
 
 - **Main key** (`BigActionBar` via `PinAction`): one per screen, full width, graphite, the action centred in large type with "suggested" under it, a pilot light in the accent at the start. Disabled: grey key, unlit pilot. The reason shows only in Advanced or when it is disabled.
 - **Push keys** (`AtNavBar`): the tabs. Rectangular keys (62×42dp) with the tab's line icon, the pressed one graphite; a lowercase label under each. The key moves down 1dp when chosen.
+- **Tab labels** are title case under each key ("EQ" in capitals). **EQ on** latches the EQ key down, shaded from the rim like a pressed push key; no text, no dot.
 - **Tune button**: the centre of the key row, a round push button in the accent with the Tune mark (Bauhaus: a plain circle). Chosen, it is pressed in (graphite, a step lower); a ring pulses round it while a measurement runs on another tab.
-- **EQ on**: while AutoTune EQ is on, the EQ key carries a green pilot light and reads "eq on".
 - **Measuring screen**: the live level large and light with a pilot light, the sweep on a radio dial (20 Hz–20 kHz, needle follows the tone), the waveform in ink, the level on a needle meter, checks as pilot lights.
-- **The record** (`PulsingButton`, Tune home): a black disc with fine grooves and a red label reading "tune". While waiting, one faint ring runs over the grooves.
+- **The speaker** (`PulsingButton`, Tune home): a Braun speaker front, the T 3's perforated circle in an aluminium rim, with the round Tune key in the accent at its centre. While waiting, a soft wave runs out through the holes.
 - **Display** (`RunSheet`, `ReadingCells`): the result's deck has a lettering line (test, run, date), then the readings: the main one large and light, the change from stock and the best beside it.
 - **Buttons**: `PrimaryButton` a graphite key; `SecondaryButton` a key-grey key with a hairline edge; `TextAction` in `Actions { }` a full-width key-grey row with icon and chevron.
 - **Drop-downs** (`DropSelect`, `PickField`, `GroupedPick`): key-grey fields with a chevron.
