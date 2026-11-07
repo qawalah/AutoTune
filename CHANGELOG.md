@@ -4,6 +4,17 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.0.0] - 2026-11-07
+AutoTune 2.0: the Braun redesign (1.27 to 1.29) plus five UI review passes on top of it (see `UI-REDESIGN-NOTES.md` and `PASS5-REVIEW.md`).
+### Changed
+- **Live**: the spectrum comes first, and while stopped it no longer draws target-shaped bars that could pass for a reading: it shows "standby" until real data arrives.
+- **EQ**: the response chart sits right under AutoTune EQ and the EQ in use; the sliders section is "Adjust bands"; the main key reads "Verify this EQ".
+- **Tests**: an overview deck (current system, systems, readings); each row says whether the latest run is closer to the target than stock, further, or about the same.
+- **Results**: the response chart has a heading and a short legend hint.
+- **Measuring steps**: the main key's hint says what the reading is for (Advanced); Verify reminds you to keep the same mic spot and volume.
+- **New test** is a graphite key with a red mark instead of a red button.
+- **Settings**: section headings for equipment, tuning defaults, playback and data.
+
 ## [1.29.0] - 2026-11-07
 ### Changed
 - **Tuning has five steps instead of seven**: Set up · Stock · EQ · Verify · Result. The Tune button goes straight to Set up (a fresh start; the checklist is in its ⓘ, Continue is on the Tune screen), and the stock review is now the top of the EQ step. A reading that looks wrong is measured again before any EQ is shown. A place saved on the old stock review opens the EQ step.

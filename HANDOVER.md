@@ -321,3 +321,6 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - ResultViews: no `TuningScale` in summaries (the composable stays in Kit for later use); stock headline is computed ("The EQ should bring it to ≈x dB."); findings join the warnings in one `Alerts` line, which shows only the count.
 - AutoTuneScreen: `TuneButton` (round, accent, pressed when chosen) replaces `TuneSwitch`; `AtNavBar(tab, busy, eqOn)` lights a pilot on the EQ key. `ScreenTitle` shows only the wordmark on tabs. AiScreen restyled.
 
+### 2.0.0
+- 1.29.0 plus five UI-only review passes made in another session (`UI-REDESIGN-NOTES.md`, `PASS5-REVIEW.md`): LiveTab spectrum first with a standby state (no synthetic bars), EqTab chart moved up, TestsTab overview deck and closer/further labels, results chart heading, MeasureStep pin moved after the context, Settings section headings, graphite New test FAB. No DSP, measurement, EQ, storage or ViewModel changes.
+

@@ -117,6 +117,13 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
         if (isAdvanced()) FlavourAndPreamp(s, vm)
     }
 
+    // The response is the main instrument readout: put it immediately after the power/profile controls.
+    s.eqChart?.let { chart ->
+        Group("Frequency response", divider = false, info = "The measured or proposed response of the selected EQ. Toggle the target line to compare the correction with your chosen target.") {
+            ResponseChart(chart, height = 224.dp, showTarget = s.showTargetEq, onToggleTarget = { vm.setShowTarget(false, !s.showTargetEq) })
+        }
+    }
+
     // ---- loud EQ: less bass and harshness when it's loud
     if (isAdvanced()) LoudEqFold(s, vm)
 
@@ -132,16 +139,9 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
         }
     }
 
-    // ---- graph
-    s.eqChart?.let { chart ->
-        Panel {
-            ResponseChart(chart, height = 200.dp, showTarget = s.showTargetEq, onToggleTarget = { vm.setShowTarget(false, !s.showTargetEq) })
-        }
-    }
-
     // ---- equaliser: classic sliders
     Group(
-        "Equaliser",
+        "Adjust bands",
         trailing = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconAction(if (locked) Ic.LOCK else Ic.UNLOCK, if (locked) "Unlock the sliders" else "Lock the sliders") { locked = !locked }
@@ -170,7 +170,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
     if (hasTest && s.runs.isNotEmpty()) {
         // follow the way this test applies its EQ: a car tuned on the head unit must be verified on the head unit
         val onEquipment = !s.systemEqOn && (s.source != Source.PHONE || (s.applyWay == ApplyWay.EQUIPMENT && s.runs.size > 1))
-        PinAction("Measure this EQ", {
+        PinAction("Verify this EQ", {
             when {
                 s.systemEqOn -> vm.applyWithAutoTuneEq()
                 onEquipment -> vm.appliedOnEquipment()

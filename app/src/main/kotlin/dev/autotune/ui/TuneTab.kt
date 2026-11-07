@@ -217,16 +217,6 @@ private fun MeasureStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pic
     }
     val failed = !s.busy && s.status?.startsWith("Failed: ") == true
 
-    PinAction(
-        when {
-            failed -> "Try again"
-            s.positions > 1 -> "Measure spot ${s.positionsDone + 1} of ${s.positions}"
-            stock -> "Measure the stock system"
-            else -> "Measure with the EQ"
-        },
-        vm::measure, icon = if (failed) Ic.AGAIN else Ic.MEASURE, enabled = ready && !s.busy,
-        hint = if (!ready) "Allow microphone access first." else null,
-    )
     StepHeader(if (stock) 1 else 3, STEPS, if (stock) "Stock reading" else "Verify", exit, onBack = vm::tuneBack, names = dev.autotune.STEP_NAMES)
     Panel {
         CardTitle(
@@ -246,6 +236,21 @@ private fun MeasureStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pic
         if (failed) Failure(s) else if (!s.busy) s.status?.let { Muted(it) }
         LevelResult(s)
     }
+    // Keep the primary action after the context and readiness checks: users should know what is about to happen.
+    PinAction(
+        when {
+            failed -> "Try again"
+            s.positions > 1 -> "Measure spot ${s.positionsDone + 1} of ${s.positions}"
+            stock -> "Measure the stock system"
+            else -> "Measure with the EQ"
+        },
+        vm::measure, icon = if (failed) Ic.AGAIN else Ic.MEASURE, enabled = ready && !s.busy,
+        hint = when {
+            !ready -> "Allow microphone access first."
+            stock -> "This becomes the reference for every comparison."
+            else -> "Keep the same mic position and playback volume as the stock reading."
+        },
+    )
     // the other moves, one per row under each other; Back is the arrow in the header
     if (!s.busy) Adv {
         Actions {
@@ -264,9 +269,14 @@ private fun MeasureStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pic
             Bullet("Your normal listening volume.")
         }
     } else {
-        Row(verticalAlignment = Alignment.Top) {
-            AtIcon(Ic.MIC, At.c.signal, Modifier.padding(top = 1.dp, end = 10.dp), 20.dp)
-            Text(say("Same mic spot and volume as the stock.", "Same mic spot and volume as the stock reading. Only the EQ changes between runs."), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+        Panel(pad = 12.dp) {
+            Row(verticalAlignment = Alignment.Top) {
+                AtIcon(Ic.MIC, At.c.signal, Modifier.padding(top = 1.dp, end = 10.dp), 20.dp)
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("Keep the reference conditions", style = MaterialTheme.typography.titleSmall)
+                    Text("Same mic position and playback volume as the stock reading. Only the EQ should change.", style = MaterialTheme.typography.bodyMedium, color = At.c.muted)
+                }
+            }
         }
     }
     if (!stock && !s.busy && isAdvanced()) {

@@ -43,6 +43,29 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
     if (!s.rtaRunning) PrimaryButton("Start", { vm.startRta(s.rtaWithEq) }, Modifier.fillMaxWidth(), enabled = ready && !s.busy, icon = Ic.PLAY)
     else SecondaryButton("Stop", vm::stopRta, Modifier.fillMaxWidth(), icon = Ic.STOP)
 
+    // The spectrum is the primary live instrument. Never draw a synthetic target-shaped
+    // spectrum while idle: that can be mistaken for a real microphone reading.
+    Group("Spectrum", divider = false) {
+        val target = Rta.targetBars(Target.ALL[s.targetIdx.coerceIn(0, Target.ALL.size - 1)])
+        when {
+            s.rtaRunning && live != null -> RtaBars(live, target, height = 248.dp)
+            s.rtaRunning -> {
+                Box(Modifier.fillMaxWidth().height(248.dp), contentAlignment = Alignment.Center) {
+                    Text("Listening for the first reading…", style = MaterialTheme.typography.bodyMedium, color = At.c.muted)
+                }
+            }
+            else -> {
+                Box(Modifier.fillMaxWidth().height(248.dp), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("SPECTRUM STANDBY", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
+                        Text("Start to measure the sound", style = MaterialTheme.typography.bodyMedium, color = At.c.text)
+                    }
+                }
+            }
+        }
+        if (!s.rtaRunning && s.status?.startsWith("RTA stopped") == true) Warning(s.status!!)
+    }
+
     // ---- level
     Panel {
         if (level != null) {
@@ -85,14 +108,6 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
                     "Peak is the loudest recent moment. Leq is the average level since you pressed Start.",
             )
         }
-    }
-
-    // ---- spectrum
-    Panel {
-        val target = Rta.targetBars(Target.ALL[s.targetIdx.coerceIn(0, Target.ALL.size - 1)])
-        if (live != null && s.rtaRunning) RtaBars(live, target, height = 240.dp)
-        else RtaBars(DoubleArray(target.size) { target[it] }, target, height = 240.dp, caption = false)
-        if (!s.rtaRunning && s.status?.startsWith("RTA stopped") == true) Warning(s.status!!)
     }
 
     // ---- sound source

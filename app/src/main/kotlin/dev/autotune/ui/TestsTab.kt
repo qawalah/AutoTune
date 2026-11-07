@@ -45,7 +45,29 @@ import dev.autotune.dsp.SystemReport
 /** The list of tests. One tap on a test opens its results; a new test starts from the button at the bottom. */
 @Composable
 fun TestsTab(s: UiState, vm: TuneViewModel, openResults: (String) -> Unit) {
-    ScreenTitle("Tests")
+    val readingCount = s.tests.sumOf { it.runCount }
+    val active = s.tests.firstOrNull { it.id == s.currentTestId }
+    ScreenTitle("Tests", context = if (s.tests.isEmpty()) "Your measured systems" else "${s.tests.size} systems · $readingCount readings")
+    if (s.tests.isNotEmpty()) {
+        // A quiet instrument-style overview: useful status, without turning the test list into a dashboard full of cards.
+        Panel(pad = 14.dp) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Muted("CURRENT SYSTEM")
+                    Text(active?.let { dev.autotune.shortTestName(it.name, it.target).first } ?: "No system selected", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("${s.tests.size}", style = MaterialTheme.typography.headlineMedium, fontFamily = AtFigures)
+                    Muted(if (s.tests.size == 1) "system" else "systems")
+                }
+            }
+            androidx.compose.material3.HorizontalDivider(color = At.c.line)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Muted("MEASUREMENT READINGS")
+                Text("$readingCount", style = MaterialTheme.typography.titleMedium, fontFamily = AtFigures)
+            }
+        }
+    }
     if (s.tests.isEmpty()) {
         Panel {
             Text("No tests yet", style = MaterialTheme.typography.titleLarge)
@@ -94,7 +116,19 @@ private fun TestRow(t: TestSummary, isOpen: Boolean, onOpen: () -> Unit) {
                         style = MaterialTheme.typography.headlineSmall, color = if (better) At.c.good else At.c.text,
                     )
                 }
-                Text("dB", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
+                Text("dB from target", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
+                if (t.runCount > 1) {
+                    val change = t.stockRms - t.latestRms
+                    Text(
+                        when {
+                            change > 0.3 -> "%.1f dB closer".format(change)
+                            change < -0.3 -> "%.1f dB further".format(-change)
+                            else -> "about the same"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = when { change > 0.3 -> At.c.good; change < -0.3 -> At.c.warn; else -> At.c.muted },
+                    )
+                } else Text("stock", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
             }
         }
         Box(Modifier.padding(start = 6.dp)) { AtIcon(Ic.CHEVRON, At.c.muted, size = 20.dp) }
@@ -124,8 +158,17 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
         // the page title names the test; the pinned button is the one next move
         ResultSummary(s, showNext = true, namesTest = false)
         PinAction("Continue tuning", { vm.tuneContinue(); go(Tab.MEASURE) }, icon = Ic.TUNE)
-        // the graph is always there
-        s.chart?.let { c -> Panel { ResponseChart(c, height = 200.dp, showTarget = s.showTargetResults, onToggleTarget = { vm.setShowTarget(true, !s.showTargetResults) }) } }
+        // The response is the visual proof of the result; keep its legend directly with the plot.
+        s.chart?.let { c ->
+            Panel {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("SYSTEM RESPONSE", style = MaterialTheme.typography.labelSmall, color = At.c.muted, fontWeight = FontWeight.SemiBold)
+                    Text("Stock, latest and target", style = MaterialTheme.typography.titleMedium)
+                }
+                ResponseChart(c, height = 220.dp, showTarget = s.showTargetResults, onToggleTarget = { vm.setShowTarget(true, !s.showTargetResults) })
+                Muted("Lower distance from the target is better. Tap a curve name to show or hide it.")
+            }
+        }
         Actions {
             TextAction("Open the EQ", { go(Tab.EQ) }, icon = Ic.EQ)
             TextAction("AI review", vm::aiOpen, icon = Ic.AI)

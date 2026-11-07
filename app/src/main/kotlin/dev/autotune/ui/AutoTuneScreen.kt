@@ -224,8 +224,8 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                     if (tab == Tab.TESTS && page == null && overlay == OVERLAY_NONE && !keyboardOpen) {
                         ExtendedFloatingActionButton(
                             onClick = { vm.tuneStart(); go(Tab.MEASURE) },
-                            containerColor = At.c.signal, contentColor = At.c.onSignal,
-                            icon = { AtIcon(Ic.PLUS, At.c.onSignal) },
+                            containerColor = At.c.text, contentColor = At.c.bg,
+                            icon = { AtIcon(Ic.PLUS, At.c.signal) },
                             text = { Text("New test", style = MaterialTheme.typography.labelLarge) },
                         )
                     }
