@@ -35,3 +35,14 @@ Status: planned only. Do not start until told to execute. The owner first asked 
 - Keep: the launcher icon's colours (graphite on light grey, one red element), the white-on-transparent rule for the status bar icon, readability at 20 dp. Render both icons at all their sizes, light and dark, before release.
 - Open point: should the Tune home screen's speaker grille keep the word "Tune" on its centre key, or carry the knob?
 - When executed: the drawings above, a render sheet for the owner, `DESIGN.md` (the mark and the icon rules), a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
+
+## Header: the graphic minimises into the corner, the mode key stays in the middle, the three-bar menu goes (asked 2026-11-07, HOLD until the owner says "execute")
+Status: planned only. Do not start until told to execute. Works with the two header entries above (text aligned with the graphic; the header returns at the top like One UI).
+- **The graphic transitions into the header.** As the screen scrolls, the tab's Braun graphic does not just vanish and let a separate slim bar take over: it shrinks and glides into the **right corner** of the slim header as a small version of itself, while the screen's name settles at the left. Scrolling back to the top grows it back out to the full graphic. Smooth, tied to the scroll position, with `motionMs()` and "Remove animations" respected (then it simply switches).
+- **The Simple / Advanced switch stays in the middle of the header, always**: in the tall header and in the slim one, at the same place, so it never moves when the header changes shape.
+- **The three-bar menu is removed** (the screenshot's circled button): it is not needed. Its two entries move into Settings:
+  - **Export EQ files**: a row in Settings that opens the Export page over Settings (Back returns to Settings).
+  - **Send diagnostics**: already in Settings under Diagnostics (Advanced); make it reachable in Simple too, or leave it in Advanced.
+- Open points to settle before building: should Export EQ files also stay reachable from the EQ tab or a test's results (it is the only way in today, so it should not get harder to find)? Is Send diagnostics needed in Simple?
+- Keep: the wordmark AUTOTUNE, the One UI fresh-open and scroll-to-top rules from the entries above, 48 dp touch targets, and Back from the Export page returning to where it was opened.
+- When executed: `ScreenTitle`, `CollapsedHeader`, `HeaderArt` (the scale and position follow the scroll offset) in `ui/Kit.kt`; remove `MenuButton` and `LocalMenu` from `ui/AutoTuneScreen.kt` and the title rows; add the Export row to `SettingsTab` in `ui/SetupScreens.kt`; `DESIGN.md`, a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
