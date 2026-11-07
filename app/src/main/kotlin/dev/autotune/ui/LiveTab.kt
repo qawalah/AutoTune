@@ -30,7 +30,7 @@ import dev.autotune.dsp.Target
 @Composable
 fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel, pick: Pickers, go: (Tab) -> Unit) {
     val ready = s.hasPermission
-    ScreenTitle("Live", "Spectrum and sound level")
+    ScreenTitle("Live")
 
     if (!ready) {
         Panel {

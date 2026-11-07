@@ -215,7 +215,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                                 else LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = At.c.signal, trackColor = At.c.line)
                             }
                             // a page is a step away from its tab: the tabs come back with Back
-                            if (page == null) AtNavBar(tab, s.busy) { t -> go(t) }
+                            if (page == null) AtNavBar(tab, s.busy, s.systemEqOn) { t -> go(t) }
                             else Box(Modifier.fillMaxWidth().background(At.c.bg).navigationBarsPadding())
                         }
                     }
@@ -304,7 +304,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
  * to the tab's side when chosen and its index pulses while a measurement runs on another tab.
  */
 @Composable
-fun AtNavBar(tab: Tab, busy: Boolean, onSelect: (Tab) -> Unit) {
+fun AtNavBar(tab: Tab, busy: Boolean, eqOn: Boolean = false, onSelect: (Tab) -> Unit) {
     val c = At.c
     val items = Tab.bar
     Column(Modifier.fillMaxWidth().background(c.shell)) {
@@ -322,7 +322,7 @@ fun AtNavBar(tab: Tab, busy: Boolean, onSelect: (Tab) -> Unit) {
                         .semantics { contentDescription = t.title },
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    if (t == Tab.MEASURE) TuneSwitch(here, busy && !here, src)
+                    if (t == Tab.MEASURE) TuneButton(here, busy && !here, src)
                     else {
                         // the key travels down a little when pressed, like a real push key
                         val down by androidx.compose.animation.core.animateDpAsState(if (here) 1.dp else 0.dp, androidx.compose.animation.core.tween(motionMs(120)), label = "key")
@@ -330,10 +330,14 @@ fun AtNavBar(tab: Tab, busy: Boolean, onSelect: (Tab) -> Unit) {
                             Modifier.offset(y = down).size(62.dp, 42.dp).pressScale(src).clip(RoundedCornerShape(4.dp))
                                 .background(if (here) c.text else c.panelHigh).border(1.dp, if (here) c.text else c.line, RoundedCornerShape(4.dp)),
                             contentAlignment = Alignment.Center,
-                        ) { AtIcon(t.icon, if (here) c.bg else c.text, size = 24.dp) }
+                        ) {
+                            AtIcon(t.icon, if (here) c.bg else c.text, size = 24.dp)
+                            // AutoTune EQ on: a green pilot light in the key's corner, like a lit power key
+                            if (t == Tab.EQ && eqOn) Box(Modifier.align(Alignment.TopEnd).padding(5.dp).size(8.dp).clip(CircleShape).background(c.good))
+                        }
                     }
                     Text(
-                        t.title.lowercase(), Modifier.padding(top = 6.dp), style = MaterialTheme.typography.labelMedium,
+                        if (t == Tab.EQ && eqOn) "eq on" else t.title.lowercase(), Modifier.padding(top = 6.dp), style = MaterialTheme.typography.labelMedium,
                         color = if (here) c.text else c.muted, fontWeight = if (here) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1,
                     )
                 }
@@ -344,29 +348,28 @@ fun AtNavBar(tab: Tab, busy: Boolean, onSelect: (Tab) -> Unit) {
 }
 
 /**
- * Tune is an on/off slide switch, like the power switch of a Braun T 3: an aluminium track with a knob. Chosen, the
- * knob slides to "on" and lights in the accent; while a measurement runs on another tab, the knob pulses.
+ * Tune is a round push button, Bauhaus plain: a circle in the accent with the Tune mark. Chosen, it is pressed in like
+ * the other keys (graphite, the mark in the accent, a step lower); while a measurement runs on another tab a ring
+ * pulses round it.
  */
 @Composable
-private fun TuneSwitch(selected: Boolean, pulse: Boolean, src: androidx.compose.foundation.interaction.MutableInteractionSource) {
+private fun TuneButton(selected: Boolean, pulse: Boolean, src: androidx.compose.foundation.interaction.MutableInteractionSource) {
     val c = At.c
-    val x by androidx.compose.animation.core.animateDpAsState(if (selected) 34.dp else 0.dp, androidx.compose.animation.core.tween(motionMs(220), easing = EaseArrive), label = "switch")
-    val knob by androidx.compose.animation.animateColorAsState(if (selected || pulse) c.signal else c.bg, androidx.compose.animation.core.tween(motionMs(220)), label = "knob")
-    val glow = if (pulse && animationsOn()) {
+    val face by androidx.compose.animation.animateColorAsState(if (selected) c.text else c.signal, androidx.compose.animation.core.tween(motionMs(160)), label = "face")
+    val down by androidx.compose.animation.core.animateDpAsState(if (selected) 2.dp else 0.dp, androidx.compose.animation.core.tween(motionMs(120)), label = "down")
+    val ring = if (pulse && animationsOn()) {
         val inf = androidx.compose.animation.core.rememberInfiniteTransition(label = "busy")
-        inf.animateFloat(0.35f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(900), androidx.compose.animation.core.RepeatMode.Reverse), label = "g").value
-    } else 1f
-    Box(
-        Modifier.size(78.dp, 42.dp).pressScale(src).clip(RoundedCornerShape(21.dp))
-            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.lerp(c.alu, androidx.compose.ui.graphics.Color.White, 0.2f), c.alu)))
-            .border(1.dp, if (selected) c.text else c.line, RoundedCornerShape(21.dp)),
-        contentAlignment = Alignment.CenterStart,
-    ) {
+        inf.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1400)), label = "r").value
+    } else null
+    Box(Modifier.size(62.dp, 52.dp), contentAlignment = Alignment.Center) {
+        if (ring != null) androidx.compose.foundation.Canvas(Modifier.size(62.dp)) {
+            drawCircle(c.signal.copy(alpha = 0.5f * (1f - ring)), size.minDimension / 2 * (0.8f + 0.2f * ring), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
+        }
         Box(
-            Modifier.padding(4.dp).offset(x = x).size(34.dp).clip(CircleShape).background(knob.copy(alpha = if (pulse) glow else 1f))
-                .border(1.dp, c.line, CircleShape),
+            Modifier.offset(y = down).size(if (selected) 48.dp else 50.dp).pressScale(src).clip(CircleShape).background(face)
+                .border(if (selected) 2.dp else 0.dp, c.line, CircleShape),
             contentAlignment = Alignment.Center,
-        ) { AtIcon(Ic.TUNE, if (selected || pulse) c.onSignal else c.text, size = 18.dp) }
+        ) { AtIcon(Ic.TUNE, if (selected) c.signal else c.onSignal, size = 26.dp) }
     }
 }
 

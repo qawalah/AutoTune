@@ -45,7 +45,7 @@ import dev.autotune.dsp.SystemReport
 /** The list of tests. One tap on a test opens its results; a new test starts from the button at the bottom. */
 @Composable
 fun TestsTab(s: UiState, vm: TuneViewModel, openResults: (String) -> Unit) {
-    ScreenTitle("Tests", if (s.tests.isEmpty()) null else "${s.tests.size} ${if (s.tests.size == 1) "system" else "systems"} measured")
+    ScreenTitle("Tests")
     if (s.tests.isEmpty()) {
         Panel {
             Text("No tests yet", style = MaterialTheme.typography.titleLarge)
@@ -74,12 +74,15 @@ private fun TestRow(t: TestSummary, isOpen: Boolean, onOpen: () -> Unit) {
         Box(Modifier.padding(end = 12.dp)) { AtIcon(kindIcon(t.kind), if (isOpen) At.c.signal else At.c.muted, size = 26.dp) }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(t.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                // an automatic name reads as its date; the target is not repeated on every row
+                val shown = dev.autotune.shortTestName(t.name, t.target).first
+                Text(shown, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 if (isOpen) {
                     Box(Modifier.padding(start = 8.dp).size(8.dp).clip(CircleShape).background(At.c.signal).semantics { contentDescription = "open now" })
                 }
             }
-            Muted("${t.target} · ${if (t.runCount == 0) "no readings" else "${t.runCount} ${if (t.runCount == 1) "reading" else "readings"}"} · ${t.whenText}")
+            val auto = dev.autotune.shortTestName(t.name, t.target).first != t.name
+            Muted(listOfNotNull(if (t.runCount == 0) "no readings" else "${t.runCount} ${if (t.runCount == 1) "reading" else "readings"}", if (auto) null else t.whenText.split(" ").take(2).joinToString(" ")).joinToString(" · "))
         }
         if (t.stockRms != null && t.latestRms != null) {
             val better = t.runCount > 1 && t.latestRms < t.stockRms - 0.05
@@ -91,7 +94,7 @@ private fun TestRow(t: TestSummary, isOpen: Boolean, onOpen: () -> Unit) {
                         style = MaterialTheme.typography.headlineSmall, color = if (better) At.c.good else At.c.text,
                     )
                 }
-                Muted("dB from target")
+                Text("dB", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
             }
         }
         Box(Modifier.padding(start = 6.dp)) { AtIcon(Ic.CHEVRON, At.c.muted, size = 20.dp) }
@@ -113,11 +116,8 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
         return
     }
 
-    ScreenTitle(
-        s.testName,
-        "${dev.autotune.dsp.Target.ALL[s.targetIdx.coerceIn(0, dev.autotune.dsp.Target.ALL.size - 1)].name} · ${s.source.title}",
-        contextIcon = s.tests.firstOrNull { it.id == s.currentTestId }?.kind?.let { kindIcon(it) },
-    )
+    // the test's short name only; its target and route are in the details
+    ScreenTitle(dev.autotune.shortTestName(s.testName, dev.autotune.dsp.Target.ALL[s.targetIdx.coerceIn(0, dev.autotune.dsp.Target.ALL.size - 1)].name).first)
 
     if (s.runs.isNotEmpty()) {
         // the same summary as the Tune result screens, then the one action; diagnostics follow, closed

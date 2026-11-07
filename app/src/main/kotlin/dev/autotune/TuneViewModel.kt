@@ -1583,7 +1583,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 resonances = res,
                 log = listOf("Stock run: %.2f dB RMS; predicted with the suggested EQ: %.2f dB".format(baselineRms, fit.rmsAfter)),
                 warnings = emptyList(), lastWarnings = warns,
-                status = null, tuneStep = TuneStep.STOCK_RESULT, repeatNext = false,
+                status = null, tuneStep = TuneStep.APPLY, repeatNext = false,
             )
         }
     }
@@ -1853,8 +1853,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         if (to == TuneStep.HOME) tuneExit() else tuneGo(to)
     }
 
-    /** The big Tune button: always asks first whether this is a fresh start. */
-    fun tuneStart() = tuneGo(TuneStep.FRESH)
+    /** The big Tune button: a fresh start straight into Set up (every EQ off, a new test); Continue is beside it. */
+    fun tuneStart() = tuneFresh()
 
     /** Fresh start: every EQ off (AutoTune's here, the user's on their equipment), then a new test is set up. */
     fun tuneFresh() {
@@ -1907,7 +1907,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     fun tuneDiscard() {
         discardLastRun()
         val t = current ?: return
-        tuneGo(if (t.runs.size <= 1) TuneStep.STOCK_RESULT else TuneStep.RESULT)
+        tuneGo(if (t.runs.size <= 1) TuneStep.APPLY else TuneStep.RESULT)
     }
 
     /**

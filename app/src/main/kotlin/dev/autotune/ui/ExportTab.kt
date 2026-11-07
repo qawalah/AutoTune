@@ -26,7 +26,7 @@ fun ExportTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit) {
     var key by rememberSaveable { mutableStateOf(if (choices.any { it.key == s.eqPick && it.key != "own" }) s.eqPick else choices.firstOrNull()?.key ?: "") }
     var format by rememberSaveable { mutableIntStateOf(0) }
 
-    ScreenTitle("Export", "Save an EQ as a file for your EQ app")
+    ScreenTitle("Export")
 
     if (choices.isEmpty()) {
         Panel {

@@ -407,7 +407,7 @@ fun Alerts(items: List<String>, title: String = "Notes on this reading") {
     ) {
         AtIcon(Ic.ALERT, At.c.warn, size = 18.dp)
         Text(
-            if (items.size == 1) " " + items[0] else " ${items.size} notes: " + items[0],
+            if (items.size == 1) " 1 note" else " ${items.size} notes",
             Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = At.c.text, maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )
@@ -675,11 +675,10 @@ fun ScreenTitle(title: String, context: String? = null, onContext: (() -> Unit)?
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
             } else {
-                // the small wordmark, as the braun badge sits on every device, then the tab's name
-                Text("autotune", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp), color = At.c.text)
+                // the wordmark alone, as the braun badge sits on every device; the pressed key already names the tab
                 Text(
-                    "  " + title.lowercase(), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Normal),
-                    color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    "autotune", Modifier.weight(1f).semantics { contentDescription = "AutoTune, $title" },
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp), color = At.c.text,
                 )
             }
             actions()

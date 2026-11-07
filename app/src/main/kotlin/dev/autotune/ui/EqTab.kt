@@ -85,7 +85,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
 
     val testKind = s.tests.firstOrNull { it.id == s.currentTestId }?.kind
     var locked by rememberSaveable { mutableStateOf(true) }
-    ScreenTitle("EQ", if (hasTest) s.testName else null, contextIcon = testKind?.let { kindIcon(it) })
+    ScreenTitle("EQ", if (hasTest) dev.autotune.shortTestName(s.testName, "").first else null, contextIcon = testKind?.let { kindIcon(it) })
 
     // ---- on / off
     Panel {

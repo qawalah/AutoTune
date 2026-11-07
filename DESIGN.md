@@ -100,7 +100,7 @@ Braun is the default look (`Look.BRAUN` in `ui/Theme.kt`). Dyno sheet, Studio, M
 Inter, one family, as Braun used one grotesk. Weight carries the hierarchy, and readings are large and **light**, like a display. Every style uses tabular figures. Labels are small, lowercase and slightly tracked ("stock · from target", "tests", "suggested").
 
 - **Display** (Light 42): the main reading. **Headline** (Medium 21–26): step titles. **Title** (Medium 14–18). **Body** (14). **Label** (Medium 11, +0.6 tracking).
-- The header is the small bold wordmark "autotune" with the tab's name beside it in lowercase, as the braun badge sits on a device.
+- The header is the bold wordmark "autotune" alone, as the braun badge sits on a device; the pressed key names the tab. Pages show the page's short name with a back arrow.
 
 ## Layout
 
@@ -110,7 +110,9 @@ One column, 16dp margins, 16dp between sections. Five tabs: Tests, EQ, **Tune** 
 
 **Words on the page.** Labels, readings and one-line facts only. Explanations live in info bubbles (`InfoButton`, `info =` on drop-downs, groups and folds). Cautions fold into one `Alerts` line.
 
-**Results open with the answer.** The display (big light reading, the change from stock, the best), the tuning scale, one headline, the findings or alerts in one line each, and "Next: …".
+**Results open with the answer.** The display (big light reading, the change from stock, the best), one short headline, every warning and finding folded into one "N notes" line, and "Next: …". Test names made by the app show as their date; target names are not repeated on lists.
+
+**Tuning is five steps**: Set up · Stock · EQ (the stock review on top) · Verify · Result.
 
 ## Surfaces
 
@@ -120,10 +122,11 @@ Flat. A section is a **deck** (`Panel`, `Group`, `Fold`): the grey plate, 6dp co
 
 - **Main key** (`BigActionBar` via `PinAction`): one per screen, full width, graphite, the action centred in large type with "suggested" under it, a pilot light in the accent at the start. Disabled: grey key, unlit pilot. The reason shows only in Advanced or when it is disabled.
 - **Push keys** (`AtNavBar`): the tabs. Rectangular keys (62×42dp) with the tab's line icon, the pressed one graphite; a lowercase label under each. The key moves down 1dp when chosen.
-- **Tune switch**: the centre of the key row, an aluminium slide switch like the T 3's power switch. Chosen, the knob slides to "on" and lights in the accent; it pulses while a measurement runs on another tab.
+- **Tune button**: the centre of the key row, a round push button in the accent with the Tune mark (Bauhaus: a plain circle). Chosen, it is pressed in (graphite, a step lower); a ring pulses round it while a measurement runs on another tab.
+- **EQ on**: while AutoTune EQ is on, the EQ key carries a green pilot light and reads "eq on".
 - **Measuring screen**: the live level large and light with a pilot light, the sweep on a radio dial (20 Hz–20 kHz, needle follows the tone), the waveform in ink, the level on a needle meter, checks as pilot lights.
 - **The record** (`PulsingButton`, Tune home): a black disc with fine grooves and a red label reading "tune". While waiting, one faint ring runs over the grooves.
-- **Display + tuning scale** (`RunSheet`, `ReadingCells`, `TuningScale`): the result's deck has a lettering line (test, run, date), then the readings, then a radio scale: ticks every half dB, a grey mark at the stock, a green mark at the best run, and the red needle at this run (dashed when it is a prediction). The needle glides to its place.
+- **Display** (`RunSheet`, `ReadingCells`): the result's deck has a lettering line (test, run, date), then the readings: the main one large and light, the change from stock and the best beside it.
 - **Buttons**: `PrimaryButton` a graphite key; `SecondaryButton` a key-grey key with a hairline edge; `TextAction` in `Actions { }` a full-width key-grey row with icon and chevron.
 - **Drop-downs** (`DropSelect`, `PickField`, `GroupedPick`): key-grey fields with a chevron.
 - **Switch** (`PowerToggle`): a slide switch; on, the track is graphite and the knob is the green pilot.
@@ -141,7 +144,7 @@ Short and mechanical. Arrivals ease out (`EaseArrive`), exits are quick (`EaseLe
 - Do keep red for what is live or acted on.
 - Do put each section on a deck, and stack its actions one per row.
 - Do set readings large and light, with tabular figures, and labels small and lowercase.
-- Do open every result with the display, the tuning scale and one headline.
+- Do open every result with the display and one short headline.
 
 ### Don't:
 - Don't add borders or shadows to decks, buttons or rows.

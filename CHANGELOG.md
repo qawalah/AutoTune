@@ -4,6 +4,16 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [1.29.0] - 2026-11-07
+### Changed
+- **Tuning has five steps instead of seven**: Set up · Stock · EQ · Verify · Result. The Tune button goes straight to Set up (a fresh start; the checklist is in its ⓘ, Continue is on the Tune screen), and the stock review is now the top of the EQ step. A reading that looks wrong is measured again before any EQ is shown. A place saved on the old stock review opens the EQ step.
+- **Results say less**: a short headline, every warning and finding folded into one "N notes" line, then the next step. The tuning-scale bar is gone.
+- **Tests list**: rows show the test's short name (the date for automatic names) and the reading count, without the target name; the page title has no subtitle.
+- **Header**: the "autotune" wordmark alone, without the tab name.
+- **Tune key**: a round push button in the accent (Bauhaus), pressed in when chosen; a ring pulses round it while measuring elsewhere.
+- **EQ key shows "on"**: a green pilot light on the key and "eq on" under it while AutoTune EQ is on.
+- **AI review** in the Braun look: the wordmark header, the review on a deck with its summary and next step in one sentence each (the rest in ⓘ), findings as pilot lights with titles only, EQ changes as a compact list, the prediction as a display, notes folded, and the main actions on the main key.
+
 ## [1.28.0] - 2026-11-06
 ### Added
 - **Accent colour** in Settings > Appearance: as the look (Braun red), red, orange, yellow, green or blue. It colours what is live or acted on: the Tune record, the needles, the pilot lights and the EQ. Every choice is checked for contrast in light and dark.

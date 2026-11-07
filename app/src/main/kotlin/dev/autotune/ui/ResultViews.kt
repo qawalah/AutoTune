@@ -54,20 +54,18 @@ fun ResultSummary(s: UiState, showNext: Boolean, namesTest: Boolean = true) {
                     a?.predictedDb?.takeIf { !suspicious }?.let { Reading("≈" + db(it), "dB", "with the eq", c.signal) },
                 ),
             )
-            // the radio scale: grey at the stock, the red needle (dashed) where the suggested EQ should land
+            // the summary in a few words, the why in its bubble
             val pred = a?.predictedDb?.takeIf { !suspicious }
-            TuningScale(pred ?: stock.rmsDb, stock.rmsDb, predicted = pred != null)
-            // the summary in one line, the why in its bubble
-            Headline(a?.verdict?.let(::firstSentence) ?: "Stock reading saved.", about + (a?.verdict?.let { "\n\n$it" } ?: ""))
-            Alerts(s.resultWarnings)
-            // the findings that need work, named in one line; each is explained further down
-            a?.findings?.filter { it.severity > 0 }?.takeIf { it.isNotEmpty() }?.let { fs ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    AtIcon(if (fs.any { it.severity >= 2 }) Ic.ALERT else Ic.INFO, if (fs.any { it.severity >= 2 }) c.bad else c.warn, Modifier.padding(end = 8.dp), 18.dp)
-                    Text(fs.joinToString(" · ") { it.title }, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                    InfoButton("What the reading shows", fs.joinToString("\n\n") { "${it.title}: ${it.detail}" }, small = true)
-                }
-            }
+            Headline(
+                when {
+                    suspicious -> "This reading looks wrong."
+                    pred != null -> "The EQ should bring it to ≈%.1f dB.".format(pred)
+                    else -> "Stock reading saved."
+                },
+                about + (a?.verdict?.let { "\n\n$it" } ?: ""),
+            )
+            // every warning and finding in one folded line
+            Alerts(s.resultWarnings + (a?.findings?.filter { it.severity > 0 }?.map { "${it.title}: ${it.detail}" } ?: emptyList()))
             if (showNext) NextLine(if (suspicious) "Measure the stock again" else "Review the suggested EQ", null)
         }
     } else {
@@ -85,8 +83,6 @@ fun ResultSummary(s: UiState, showNext: Boolean, namesTest: Boolean = true) {
                     if (best != null && best != latest) Reading(db(best.rmsDb), "dB", "best · ${best.label}") else null,
                 ),
             )
-            // the radio scale: grey at the stock, green at the best, the red needle at this run
-            TuningScale(latest.rmsDb, stock.rmsDb, best?.takeIf { it != latest }?.rmsDb)
             Headline(dev.autotune.resultHeadline(stock.rmsDb, latest.rmsDb, best?.rmsDb, best?.label), about)
             Alerts(s.resultWarnings)
             val rec = s.recommendation
@@ -102,7 +98,7 @@ internal fun firstSentence(t: String): String = t.substringBefore(". ").let { if
 @Composable
 private fun Headline(text: String, info: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 2)
+        Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         InfoButton("About this result", info, small = true)
     }
 }

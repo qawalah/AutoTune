@@ -249,54 +249,54 @@ fun recommendNext(runs: List<SavedRun>, eqMayNotBeApplied: Boolean): Recommendat
     }
 }
 
-/** Where Back goes inside the Tune workflow: the previous screen, never deleting anything. */
+/**
+ * Where Back goes inside the Tune workflow: the previous screen, never deleting anything. Since 1.29 the workflow is
+ * five steps (Set up, Stock, EQ, Verify, Result): the fresh-start question is part of Tune itself and the stock review
+ * is the top of the EQ step, so FRESH and STOCK_RESULT only survive as names for older saved places.
+ */
 fun previousStep(step: TuneStep, runCount: Int): TuneStep = when (step) {
-    TuneStep.HOME, TuneStep.FRESH -> TuneStep.HOME
-    TuneStep.SETUP -> TuneStep.FRESH
-    TuneStep.STOCK -> if (runCount > 0) TuneStep.STOCK_RESULT else TuneStep.SETUP
-    TuneStep.STOCK_RESULT -> TuneStep.HOME
-    TuneStep.APPLY -> if (runCount > 1) TuneStep.RESULT else TuneStep.STOCK_RESULT
+    TuneStep.HOME, TuneStep.FRESH, TuneStep.SETUP -> TuneStep.HOME
+    TuneStep.STOCK -> if (runCount > 0) TuneStep.APPLY else TuneStep.SETUP
+    TuneStep.STOCK_RESULT, TuneStep.APPLY -> if (runCount > 1) TuneStep.RESULT else TuneStep.HOME
     TuneStep.VERIFY -> TuneStep.APPLY
     TuneStep.RESULT, TuneStep.DONE -> TuneStep.HOME
 }
 
-/** Steps worth coming back to after Exit (Fresh start and Set up are asked again; Done is finished). */
+/** Steps worth coming back to after Exit (Set up is asked again; Done is finished). */
 val RESUMABLE = setOf(TuneStep.STOCK, TuneStep.STOCK_RESULT, TuneStep.APPLY, TuneStep.VERIFY, TuneStep.RESULT)
 
 /** Where Continue lands: the remembered step when it still makes sense for the test, otherwise its latest result. */
 fun resumeAt(saved: TuneStep?, runCount: Int): TuneStep {
-    val ok = when (saved) {
+    val s = if (saved == TuneStep.STOCK_RESULT) TuneStep.APPLY else saved
+    val ok = when (s) {
         TuneStep.STOCK -> true
-        TuneStep.STOCK_RESULT, TuneStep.APPLY, TuneStep.VERIFY -> runCount >= 1
+        TuneStep.APPLY, TuneStep.VERIFY -> runCount >= 1
         TuneStep.RESULT -> runCount >= 2
         else -> false
     }
-    if (ok && saved != null) return saved
+    if (ok && s != null) return s
     return when {
         runCount == 0 -> TuneStep.STOCK
-        runCount == 1 -> TuneStep.STOCK_RESULT
+        runCount == 1 -> TuneStep.APPLY
         else -> TuneStep.RESULT
     }
 }
 
-/** The step names shown in the Tune progress bar, in order (Fresh start is step 1). */
-val STEP_NAMES = listOf("Start", "Set up", "Stock", "Review", "EQ", "Verify", "Result")
+/** The step names shown in the Tune progress bar, in order. */
+val STEP_NAMES = listOf("Set up", "Stock", "EQ", "Verify", "Result")
 
 fun stepIndex(step: TuneStep): Int = when (step) {
-    TuneStep.HOME, TuneStep.FRESH -> 0
-    TuneStep.SETUP -> 1
-    TuneStep.STOCK -> 2
-    TuneStep.STOCK_RESULT -> 3
-    TuneStep.APPLY -> 4
-    TuneStep.VERIFY -> 5
-    TuneStep.RESULT, TuneStep.DONE -> 6
+    TuneStep.HOME, TuneStep.FRESH, TuneStep.SETUP -> 0
+    TuneStep.STOCK -> 1
+    TuneStep.STOCK_RESULT, TuneStep.APPLY -> 2
+    TuneStep.VERIFY -> 3
+    TuneStep.RESULT, TuneStep.DONE -> 4
 }
 
 /** Where Continue picks up, in words. */
 fun resumePlace(step: TuneStep): String = when (step) {
     TuneStep.STOCK -> "the stock reading"
-    TuneStep.STOCK_RESULT -> "the stock review"
-    TuneStep.APPLY -> "applying the suggested EQ"
+    TuneStep.STOCK_RESULT, TuneStep.APPLY -> "the EQ"
     TuneStep.VERIFY -> "measuring with the EQ"
     TuneStep.RESULT, TuneStep.DONE -> "the result"
     TuneStep.HOME, TuneStep.FRESH, TuneStep.SETUP -> "the set-up"

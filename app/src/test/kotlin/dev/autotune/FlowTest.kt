@@ -54,10 +54,10 @@ class FlowTest {
 
     @Test
     fun backGoesToThePreviousScreen() {
-        assertEquals(TuneStep.FRESH, previousStep(TuneStep.SETUP, 0))
+        assertEquals(TuneStep.HOME, previousStep(TuneStep.SETUP, 0))
         assertEquals(TuneStep.SETUP, previousStep(TuneStep.STOCK, 0))
-        assertEquals(TuneStep.STOCK_RESULT, previousStep(TuneStep.STOCK, 1))
-        assertEquals(TuneStep.STOCK_RESULT, previousStep(TuneStep.APPLY, 1))
+        assertEquals(TuneStep.APPLY, previousStep(TuneStep.STOCK, 1))
+        assertEquals(TuneStep.HOME, previousStep(TuneStep.APPLY, 1))
         assertEquals(TuneStep.RESULT, previousStep(TuneStep.APPLY, 3))
         assertEquals(TuneStep.APPLY, previousStep(TuneStep.VERIFY, 2))
         assertEquals(TuneStep.HOME, previousStep(TuneStep.RESULT, 2))
@@ -70,10 +70,13 @@ class FlowTest {
         assertEquals(TuneStep.APPLY, resumeAt(TuneStep.APPLY, 1))
         assertEquals(TuneStep.VERIFY, resumeAt(TuneStep.VERIFY, 3))
         // a remembered step that no longer fits the test falls back to its latest result
-        assertEquals(TuneStep.STOCK_RESULT, resumeAt(TuneStep.RESULT, 1))
+        assertEquals(TuneStep.APPLY, resumeAt(TuneStep.RESULT, 1))
         assertEquals(TuneStep.STOCK, resumeAt(TuneStep.APPLY, 0))
         assertEquals(TuneStep.RESULT, resumeAt(null, 4))
-        assertEquals(TuneStep.STOCK_RESULT, resumeAt(TuneStep.DONE, 1))
+        assertEquals(TuneStep.APPLY, resumeAt(TuneStep.DONE, 1))
+        // a place saved by an older version on the old stock review lands on the EQ step
+        assertEquals(TuneStep.APPLY, resumeAt(TuneStep.STOCK_RESULT, 1))
+        assertEquals(5, STEP_NAMES.size)
         // the progress bar has a name for every step
         TuneStep.entries.forEach { assertTrue(stepIndex(it) in STEP_NAMES.indices) }
     }

@@ -198,7 +198,7 @@ class ConvergenceTest {
 
     @Test
     fun tuneStepsSlideForwardAndBack() {
-        assertEquals(1, stepSlide(TuneStep.STOCK, TuneStep.STOCK_RESULT))
+        assertEquals(1, stepSlide(TuneStep.STOCK, TuneStep.APPLY))
         assertEquals(-1, stepSlide(TuneStep.VERIFY, TuneStep.APPLY))
         assertEquals(0, stepSlide(TuneStep.HOME, TuneStep.HOME))
     }

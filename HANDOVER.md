@@ -315,3 +315,9 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - MeasureOverlay: wordmark header, display with `Pilot`, `SweepDial` (log 20 Hz–20 kHz needle), `SignalMeter` as a needle scale, pilot-light `CheckRow`.
 - AutoTuneScreen: tab keys 62×42; `TuneSwitch` replaces the wheel; teak cheeks drawn last, over every screen.
 
+### Five-step Tune, quieter results, Tune button (1.29.0)
+- TuningLogic: `previousStep`, `resumeAt`, `stepIndex`, `STEP_NAMES` describe five steps. `TuneStep.FRESH` and `STOCK_RESULT` stay in the enum for saved places only: FRESH renders Set up, STOCK_RESULT renders the EQ step and `resumeAt` maps it to APPLY. `tuneStart()` is `tuneFresh()`; a finished stock reading goes to APPLY. FlowTest updated.
+- TuneTab: `ApplyStep` opens with `ResultSummary` after the stock reading; a suspicious stock pins "Measure the stock again" with "Use this reading anyway". `FreshStep` and `StockResultStep` are gone.
+- ResultViews: no `TuningScale` in summaries (the composable stays in Kit for later use); stock headline is computed ("The EQ should bring it to ≈x dB."); findings join the warnings in one `Alerts` line, which shows only the count.
+- AutoTuneScreen: `TuneButton` (round, accent, pressed when chosen) replaces `TuneSwitch`; `AtNavBar(tab, busy, eqOn)` lights a pilot on the EQ key. `ScreenTitle` shows only the wordmark on tabs. AiScreen restyled.
+

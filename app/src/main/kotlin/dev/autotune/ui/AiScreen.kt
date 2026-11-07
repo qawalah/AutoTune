@@ -1,5 +1,8 @@
 package dev.autotune.ui
 
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -62,7 +65,7 @@ fun AiKeySetup(a: AiUi, vm: TuneViewModel) {
                 TextAction("Remove", vm::aiRemoveKey, danger = true, icon = Ic.TRASH)
             }
         } else {
-            Muted("Paste a ${a.provider.title} API key from ${a.provider.keyWhere}. It is stored encrypted on this phone and only used to ask for reviews; the requests are charged to that key's account.")
+            InfoLabel("Where the key comes from", "Paste a ${a.provider.title} API key from ${a.provider.keyWhere}. It is stored encrypted on this phone and only used to ask for reviews; the requests are charged to that key's account.")
             OutlinedTextField(
                 value = key, onValueChange = { key = it.trim() }, label = { Text("${a.provider.title} API key") }, singleLine = true,
                 placeholder = { Text(a.provider.keyHint) },
@@ -85,59 +88,78 @@ fun AiKeySetup(a: AiUi, vm: TuneViewModel) {
 @Composable
 fun AiScreen(a: AiUi, s: UiState, vm: TuneViewModel, go: (Tab) -> Unit) {
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        // the device header: the wordmark, what this is, and close
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("autotune", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = At.c.text)
+            Text(
+                "  ai review" + (a.testName?.let { " · " + dev.autotune.shortTestName(it, "").first.lowercase() } ?: ""), Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            InfoButton(
+                "AI review",
+                "The AI reads this test's measurements and points out what is limiting the result: the measurement itself, the setup and speakers, and the EQ, with what to do next. It can also suggest EQ changes, which the app checks against its own limits before you try them.\n\n" + aiPrivacy(a.provider),
+                small = true,
+            )
             IconAction(Ic.CLOSE, "Close", vm::aiClose)
-            AtIcon(Ic.AI, At.c.signal, Modifier.padding(start = 4.dp, end = 8.dp), 22.dp)
-            Column(Modifier.weight(1f)) {
-                Text("AI review", style = MaterialTheme.typography.headlineSmall)
-                a.testName?.let { Muted(it) }
-            }
         }
+        Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(At.c.line))
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 32.dp),
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 16.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             if (!a.hasKey) {
-                Text("The AI reads this test's measurements and points out what is limiting the result: the measurement itself, the setup and speakers, and the EQ, with what to do next. It can also suggest EQ changes, which the app checks against its own limits before you try them.", style = MaterialTheme.typography.bodyMedium)
-                AiKeySetup(a, vm)
-                Muted(aiPrivacy(a.provider))
+                Panel { AiKeySetup(a, vm) }
                 return@Column
             }
 
             if (a.busy) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(Modifier.size(24.dp), color = At.c.signal, strokeWidth = 2.5.dp)
-                    Column(Modifier.padding(start = 12.dp)) {
-                        Text("${a.model.title} is reading the test…", style = MaterialTheme.typography.bodyMedium)
-                        Muted("Usually 10 to 40 seconds.")
+                Panel {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        BlinkPilot()
+                        Text("  ${a.model.title} is reading the test", style = MaterialTheme.typography.titleMedium)
                     }
+                    Text("10 to 40 seconds", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
                 }
             }
             a.error?.let { e ->
-                Warning(e)
-                if (!a.busy) SecondaryButton("Try again", { vm.aiReview(a.review?.aboutFailure == true) }, icon = Ic.AGAIN)
+                Alerts(listOf(e), "The review failed")
+                if (!a.busy) Actions { TextAction("Try again", { vm.aiReview(a.review?.aboutFailure == true) }, icon = Ic.AGAIN) }
             }
 
             val r = a.review
             if (r == null && !a.busy && a.error == null) {
-                Muted("No review of this test yet.")
-                PrimaryButton("Review this test", { vm.aiReview() }, Modifier.fillMaxWidth(), enabled = s.runs.isNotEmpty(), icon = Ic.AI)
+                PinAction("Review this test", { vm.aiReview() }, icon = Ic.AI, enabled = s.runs.isNotEmpty())
+                Text("No review yet", style = MaterialTheme.typography.titleMedium, color = At.c.muted)
             }
 
             if (r != null) {
                 val run = r.focusRun?.let { f -> s.runs.getOrNull(f)?.label ?: "Run $f" }
-                Muted(
-                    listOfNotNull(
-                        AiModel.of(r.model).title,
-                        SimpleDateFormat("d MMM HH:mm", Locale.getDefault()).format(Date(r.atMillis)),
-                        if (r.aboutFailure) "about the failed measurement" else run?.let { "after $it" },
-                    ).joinToString(" · "),
-                )
-                if (a.stale) {
-                    Warning("Runs were added after this review.")
-                    PrimaryButton("Review again", { vm.aiReview() }, Modifier.fillMaxWidth(), enabled = !a.busy, icon = Ic.AI)
+                // the review's display: what it read, then its summary in one sentence, the rest in a bubble
+                Panel {
+                    Text(
+                        listOfNotNull(
+                            AiModel.of(r.model).title,
+                            SimpleDateFormat("d MMM HH:mm", Locale.getDefault()).format(Date(r.atMillis)),
+                            if (r.aboutFailure) "failed measurement" else run,
+                        ).joinToString(" · ").lowercase(),
+                        style = MaterialTheme.typography.labelSmall, color = At.c.muted,
+                    )
+                    if (r.summary.isNotBlank()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(firstSentence(r.summary), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 3)
+                            if (firstSentence(r.summary).length < r.summary.length) InfoButton("Summary", r.summary, small = true)
+                        }
+                    }
+                    if (a.stale) Alerts(listOf("Runs were added after this review."), "Out of date")
+                    r.nextStep?.let { n ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            AtIcon(Ic.NEXT, At.c.signal, size = 18.dp)
+                            Text("  Next: " + firstSentence(n), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 2)
+                            if (firstSentence(n).length < n.length) InfoButton("Next", n, small = true)
+                        }
+                    }
                 }
-                if (r.summary.isNotBlank()) Text(r.summary, style = MaterialTheme.typography.bodyLarge)
+                if (a.stale) PinAction("Review again", { vm.aiReview() }, icon = Ic.AI, enabled = !a.busy)
 
                 if (r.issues.isNotEmpty()) {
                     Group("What it found", divider = false) {
@@ -146,15 +168,15 @@ fun AiScreen(a: AiUi, s: UiState, vm: TuneViewModel, go: (Tab) -> Unit) {
                 }
 
                 if (r.bands.isNotEmpty() || r.eqNote != null) {
-                    Group("EQ") {
-                        r.eqNote?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                    Group("EQ changes", divider = false, info = r.eqNote) {
                         r.bands.forEach { b ->
-                            Row(verticalAlignment = Alignment.Top) {
+                            Row(Modifier.heightIn(min = 36.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    "%+.1f dB  %s  Q %.1f".format(b.filter.gainDb, hz(b.filter.freqHz), b.filter.q),
-                                    Modifier.widthIn(min = 150.dp), style = MaterialTheme.typography.bodyMedium, fontFamily = AtFigures,
+                                    "%+.1f dB".format(b.filter.gainDb), Modifier.widthIn(min = 72.dp), style = MaterialTheme.typography.titleSmall,
+                                    color = if (b.filter.gainDb < 0) At.c.text else At.c.signal,
                                 )
-                                b.reason?.let { Text(it, Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodySmall, color = At.c.muted) }
+                                Text("${hz(b.filter.freqHz)} · Q %.1f".format(b.filter.q), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = At.c.muted)
+                                b.reason?.let { InfoButton(hz(b.filter.freqHz), it, small = true) }
                             }
                         }
                         val eq = a.eq
@@ -162,64 +184,65 @@ fun AiScreen(a: AiUi, s: UiState, vm: TuneViewModel, go: (Tab) -> Unit) {
                             val before = eq.predictedSuggestionDb
                             val after = eq.predictedAiDb
                             if (before != null && after != null) {
-                                Panel(pad = 12.dp) {
-                                    Text("%.1f → %.1f dB".format(before, after), style = MaterialTheme.typography.titleMedium, fontFamily = AtFigures)
-                                    Muted("Predicted distance from the target for ${run ?: "the run"}: AutoTune's suggestion → with these changes")
-                                }
-                                if (after > before + 0.1) Warning("The app predicts this does worse than AutoTune's own suggestion. Measure it before keeping it.")
+                                ReadingCells(
+                                    listOf(
+                                        Reading("%.1f".format(after), "dB", "with these changes", if (after < before - 0.1) At.c.good else null),
+                                        Reading("%.1f".format(before), "dB", "autotune's own"),
+                                    ),
+                                )
                             }
-                            eq.adjusted.forEach { Muted(it) }
+                            Alerts(
+                                listOfNotNull(
+                                    if (before != null && after != null && after > before + 0.1) "The app predicts this does worse than AutoTune's own suggestion. Measure it before keeping it." else null,
+                                ) + eq.adjusted,
+                                "About these changes",
+                            )
                             val inUse = s.eqPick == "ai:${r.testId}"
-                            if (!inUse) PrimaryButton("Use this EQ", vm::aiUseEq, Modifier.fillMaxWidth(), icon = Ic.EQ)
-                            else StatusLine(true, "In use: ${eq.chain.filters.size} bands, preamp %.1f dB".format(eq.chain.preampDb))
-                            if (inUse) SecondaryButton("Measure it", { vm.aiClose(); vm.tuneGo(TuneStep.APPLY); go(Tab.MEASURE) }, Modifier.fillMaxWidth(), icon = Ic.MEASURE)
+                            if (!inUse) PinAction("Use this EQ", vm::aiUseEq, icon = Ic.EQ)
+                            else {
+                                StatusLine(true, "In use · ${eq.chain.filters.size} bands")
+                                PinAction("Measure it", { vm.aiClose(); vm.tuneGo(TuneStep.APPLY); go(Tab.MEASURE) }, icon = Ic.MEASURE)
+                            }
                         } else if (r.bands.isNotEmpty() && r.testId == null) {
                             Muted("Open the test to try these changes.")
                         }
                         a.message?.let { Muted(it) }
                     }
                 }
-
-                r.nextStep?.let { n ->
-                    Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).background(At.c.panelHigh).padding(12.dp), verticalAlignment = Alignment.Top) {
-                        AtIcon(Ic.NEXT, At.c.signal, Modifier.padding(top = 1.dp, end = 10.dp), 20.dp)
-                        Column {
-                            Text("Next", style = MaterialTheme.typography.labelMedium, color = At.c.muted)
-                            Text(n, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                        }
-                    }
-                }
-                if (!a.stale && !a.busy) TextAction("Review again", { vm.aiReview(r.aboutFailure) }, icon = Ic.AGAIN)
+                if (!a.stale && !a.busy) Actions { TextAction("Review again", { vm.aiReview(r.aboutFailure) }, icon = Ic.AGAIN) }
             }
 
             if (r != null || a.chat.isNotEmpty()) Chat(a, vm)
-            Muted(aiPrivacy(a.provider))
         }
     }
 }
 
+/** A pilot light that blinks while the AI works. */
+@Composable
+private fun BlinkPilot() {
+    val alpha = if (animationsOn()) {
+        val inf = androidx.compose.animation.core.rememberInfiniteTransition(label = "ai")
+        inf.animateFloat(0.3f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(700), androidx.compose.animation.core.RepeatMode.Reverse), label = "a").value
+    } else 1f
+    Box(Modifier.size(12.dp).clip(androidx.compose.foundation.shape.CircleShape).background(At.c.signal.copy(alpha = alpha)))
+}
+
 @Composable
 private fun IssueRow(i: AiIssue) {
-    val (icon, tint) = when (i.severity) {
-        AiSeverity.PROBLEM -> Ic.ALERT to At.c.bad
-        AiSeverity.CHECK -> Ic.INFO to At.c.warn
-        AiSeverity.FINE -> Ic.DONE to At.c.good
+    // a pilot light for how much it matters, the title, and everything else in its bubble
+    val tint = when (i.severity) {
+        AiSeverity.PROBLEM -> At.c.bad
+        AiSeverity.CHECK -> At.c.warn
+        AiSeverity.FINE -> At.c.good
     }
-    Row(verticalAlignment = Alignment.Top) {
-        AtIcon(icon, tint, Modifier.padding(top = 2.dp, end = 10.dp), 20.dp)
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(i.title, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleSmall)
-                Text("  ${i.area}", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
-            }
-            if (i.detail.isNotBlank()) Text(i.detail, style = MaterialTheme.typography.bodyMedium)
-            i.action?.let { act ->
-                Row(verticalAlignment = Alignment.Top) {
-                    AtIcon(Ic.NEXT, At.c.signal, Modifier.padding(top = 2.dp, end = 6.dp), 16.dp)
-                    Text(act, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                }
-            }
+    Row(Modifier.heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.padding(end = 12.dp).size(10.dp).clip(androidx.compose.foundation.shape.CircleShape).background(tint))
+        Column(Modifier.weight(1f)) {
+            Text(i.title, style = MaterialTheme.typography.titleSmall, maxLines = 2)
+            i.action?.let { Text(firstSentence(it), style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
         }
+        val more = listOfNotNull(i.detail.takeIf { it.isNotBlank() }, i.action?.let { "What to do: $it" }, "Area: ${i.area}").joinToString("\n\n")
+        InfoButton(i.title, more, small = true)
     }
 }
 
@@ -246,10 +269,9 @@ private fun Chat(a: AiUi, vm: TuneViewModel) {
                 Muted("Thinking…")
             }
         }
-        if (a.chat.isEmpty()) Muted("For example: why is 63 Hz still high? Should I change the crossover? Is my mic in the right place?")
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
-                value = q, onValueChange = { q = it }, placeholder = { Text("Ask a question") },
+                value = q, onValueChange = { q = it }, placeholder = { Text("e.g. why is 63 Hz still high?") },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { if (q.isNotBlank() && !a.asking) { vm.aiAsk(q); q = "" } }),
                 modifier = Modifier.weight(1f).bringIntoViewOnFocus(), maxLines = 4,
