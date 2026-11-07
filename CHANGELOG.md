@@ -4,6 +4,17 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.2.0] - 2026-11-07
+### Changed
+- **Header**: the name is a mark in capitals, **AUTOTUNE**, on every screen, the measuring screen and the AI review. Each tab keeps its name and its own graphic in the header, now drawn as the face of a Braun hi-fi component: a record player for Tests, a fader strip for EQ, the round speaker grille for Tune, a radio tuning scale with its needle over a slot grille of level bars for Live, a row of push keys and knobs for Settings (a tape deck elsewhere). Flat, in the deck greys, the accent only on one pilot light, needle or key.
+- **The tall header shows only on a fresh open**: a cold start, or coming back after 15 minutes or more in the background. Then every tab opens tall once. Jumping between tabs, going Back to a tab and pages over a tab open compact: the slim bar, content high.
+- **On/off switches are Braun latching push keys**: a rectangular key that stays down while on, with a small pilot light in the accent. Used for AutoTune EQ, the Dynamic EQ by hand, keep recordings, wallpaper colours, the noise through my EQ, automatic switching and standard bands.
+- **Loud EQ is now called Dynamic EQ** everywhere you see it: the EQ tab, the notification ("Dynamic on" / "Dynamic off", "Equalising · dynamic 40%"), the Quick Settings tile and the info text. "This is loud" is "Set this level", "Loud level" is "Full strength". Shortcuts, routines (`dev.autotune.action.TOGGLE_LOUD`, `LOUD_ON`, `LOUD_OFF`), the tile and saved settings keep working.
+- **EQ tab order**: the band sliders sit right under the AutoTune EQ switch and the EQ in use, then the response graph, then the rest.
+- **More bands than fit** (15 bands): the edge where more sliders wait fades with a small chevron, and a thin bar under the row shows where you are. The cue goes when everything is in view.
+- **Icons redrawn as one Braun family**: one stroke weight on a 24-unit grid, plain geometry from Braun controls and speakers (a record for Tests, a knob for Settings, the speaker ring and key for Tune, a needle meter for measuring, a cassette for saving), square ends on straight lines, filled shapes only for knobs, caps and pilot lights.
+- **New icons**: bass (a slow, wide wave) and treble (a tight wave) for "to taste", a fader for the preamp, and one per flavour: the Tune mark for As tuned, bass for More bass, a drum for Rock, a singer's mic for Pop, a square wave for Electronic / hip-hop, a guitar for Acoustic / classical, a speech bubble for Speech / podcasts, the volume ramp for Low volume, a moon for Late night.
+
 ## [2.1.1] - 2026-11-07
 ### Changed
 - **No stop before a measurement.** The Stock reading screen (microphone, "Plays through", "Before you start", then a Measure button) is gone from the way through: Set up now ends in "Measure the stock system", which creates the test and starts the reading at once. The same goes for every other measurement: choosing how to apply the EQ ("Use the phone's EQ and measure", "It's set, measure"), "Verify this EQ" on the EQ tab, "Measure again" and "Measure the stock again" all start measuring immediately.

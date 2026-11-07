@@ -76,8 +76,8 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
                 targets.map { it.name }, tIdx, { set(t = targets[it].name) }, label = "Target curve",
                 icons = targets.map { kindIcon(dev.autotune.targetKind(it)) }, details = targets.map { targetDetail(it) },
             )
-            DropSelect(BASS_STEPS.map(::db), BASS_STEPS.indexOf(s.defBassDb).let { if (it < 0) 1 else it }, { set(b = BASS_STEPS[it]) }, label = "Bass to taste", icon = Ic.SPEAKER)
-            DropSelect(TREBLE_STEPS.map(::db), TREBLE_STEPS.indexOf(s.defTrebleDb).let { if (it < 0) 3 else it }, { set(tr = TREBLE_STEPS[it]) }, label = "Treble to taste", icon = Ic.CURVE)
+            DropSelect(BASS_STEPS.map(::db), BASS_STEPS.indexOf(s.defBassDb).let { if (it < 0) 1 else it }, { set(b = BASS_STEPS[it]) }, label = "Bass to taste", icon = Ic.BASS)
+            DropSelect(TREBLE_STEPS.map(::db), TREBLE_STEPS.indexOf(s.defTrebleDb).let { if (it < 0) 3 else it }, { set(tr = TREBLE_STEPS[it]) }, label = "Treble to taste", icon = Ic.TREBLE)
             DropSelect(
                 listOf("Automatic (3 in a car, 1 in a room)", "1 spot", "3 spots", "5 spots"), spots.indexOf(s.defSpots).coerceAtLeast(0),
                 { set(sp = spots[it]) }, label = "Mic spots per reading", icon = Ic.MIC,
@@ -116,13 +116,7 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
         }
 
         if (isAdvanced()) Group("Diagnostics", info = "A record of every measurement (levels, the EQ in effect, how it was applied, warnings), every EQ change and every failure, plus the last recordings. Send it when something sounds wrong, so the cause can be found. It stays on this phone until you share it.") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Keep the last 12 recordings", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                Switch(
-                    checked = s.keepRecordings, onCheckedChange = vm::setKeepRecordings,
-                    colors = SwitchDefaults.colors(checkedTrackColor = At.c.signal, checkedThumbColor = At.c.onSignal),
-                )
-            }
+            SwitchRow("Keep the last 12 recordings", s.keepRecordings, vm::setKeepRecordings)
             Actions {
                 SecondaryButton("Send diagnostics", vm::shareDiagnostics, icon = Ic.DIAG)
                 TextAction("Clear", vm::clearDiagnostics, danger = true, icon = Ic.TRASH)
@@ -148,13 +142,7 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             )
             DropSelect(ThemeMode.entries.map { it.title }, ThemeMode.entries.indexOf(s.themeMode), { vm.setThemeMode(ThemeMode.entries[it]) }, label = "Light or dark")
             if (Build.VERSION.SDK_INT >= 31) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Use my wallpaper colours", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                    Switch(
-                        checked = s.dynamicColor, onCheckedChange = vm::setDynamicColor,
-                        colors = SwitchDefaults.colors(checkedTrackColor = At.c.signal, checkedThumbColor = At.c.onSignal),
-                    )
-                }
+                SwitchRow("Use my wallpaper colours", s.dynamicColor, vm::setDynamicColor)
             }
         }
 

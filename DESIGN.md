@@ -100,7 +100,9 @@ Braun is the default look (`Look.BRAUN` in `ui/Theme.kt`), with two siblings: Br
 Inter, one family, as Braun used one grotesk. Weight carries the hierarchy, and readings are large and **light**, like a display. Every style uses tabular figures. Labels are small, lowercase and slightly tracked ("stock · from target", "tests", "suggested").
 
 - **Display** (Light 42): the main reading. **Headline** (Medium 21–26): step titles. **Title** (Medium 14–18). **Body** (14). **Label** (Medium 11, +0.6 tracking).
-- **The header follows Samsung One UI**: a tall space at the top (about a quarter of the screen) holds the screen's name in large type and a Bauhaus composition of its own (a list for Tests, faders for EQ, a speaker for Tune, a spectrum for Live, circle-square-triangle elsewhere), so the content starts lower, nearer the thumb. Its top line carries the small "autotune" wordmark (Back on a page), the Simple / Advanced key and the menu. Scrolled away, a slim bar with the name takes over (`CollapsedHeader`).
+- **The wordmark** is the name as a mark: **AUTOTUNE**, bold capitals, spaced (`Wordmark`), on the header, the measuring screen and the AI review.
+- **The header keeps one Samsung One UI feature, and only that one**: on a fresh open a tall space at the top (about a quarter of the screen) holds the screen's name in large type and the face of a Braun hi-fi component (`HeaderArt`), so the content starts lower, nearer the thumb. Tests is a record player (platter, record, tonearm), EQ a fader strip, Tune the round speaker grille, Live a radio tuning scale with its needle over a slot grille of level bars, Settings a row of push keys and knobs, anything else a tape deck's reels. Flat, deck greys and aluminium, the accent only on one pilot light, needle or key. Its top line carries the wordmark (Back on a page), the Simple / Advanced key and the menu. Scrolled away, a slim bar with the name takes over (`CollapsedHeader`).
+- **When it is tall**: on a fresh open only, a cold start or a return after 15 minutes or more in the background (`freshOpen`), and then on every tab, once. Jumping between tabs, Back to a tab, and pages open compact: the slim bar is the header and the content starts high (`LocalHeaderTall`).
 
 ## Layout
 
@@ -123,16 +125,26 @@ Flat. A section is a **deck** (`Panel`, `Group`, `Fold`): the grey plate, 6dp co
 - **Main key** (`BigActionBar` via `PinAction`): one per screen, full width, graphite, the action centred in large type with "suggested" under it, a pilot light in the accent at the start. Disabled: grey key, unlit pilot. The reason shows only in Advanced or when it is disabled.
 - **Push keys** (`AtNavBar`): the tabs. Rectangular keys (62×42dp) with the tab's line icon, the pressed one graphite; a lowercase label under each. The key moves down 1dp when chosen.
 - **Tab labels** are title case under each key ("EQ" in capitals). **EQ on** latches the EQ key down, shaded from the rim like a pressed push key; no text, no dot.
-- **Tune button**: the centre of the key row, a round push button in the accent with the Tune mark (Bauhaus: a plain circle). Chosen, it is pressed in (graphite, a step lower); a ring pulses round it while a measurement runs on another tab.
+- **Tune button**: the centre of the key row, a round push button in the accent with the Tune mark (the speaker ring and round key of the launcher icon). Chosen, it is pressed in (graphite, a step lower); a ring pulses round it while a measurement runs on another tab.
 - **Measuring screen**: the live level large and light with a pilot light, the sweep on a radio dial (20 Hz–20 kHz, needle follows the tone), the waveform in ink, the level on a needle meter, checks as pilot lights.
 - **The speaker** (`PulsingButton`, Tune home): a Braun speaker front, the T 3's perforated circle in an aluminium rim, with the round Tune key in the accent at its centre. While waiting, a soft wave runs out through the holes.
 - **Display** (`RunSheet`, `ReadingCells`): the result's deck has a lettering line (test, run, date), then the readings: the main one large and light, the change from stock and the best beside it.
 - **Buttons**: `PrimaryButton` a graphite key; `SecondaryButton` a key-grey key with a hairline edge; `TextAction` in `Actions { }` a full-width key-grey row with icon and chevron.
 - **Drop-downs** (`DropSelect`, `PickField`, `GroupedPick`): key-grey fields with a chevron.
-- **Switch** (`PowerToggle`): a slide switch; on, the track is graphite and the knob is the green pilot.
-- **EQ sliders**: faders (`SliderStyle.FADER`), a slot and a square cap.
+- **Switch** (`LatchKey`, `PowerToggle`, `SwitchRow`): a Braun latching push key, 56×34dp in a 64×48dp target. Off it stands up, key grey with a hairline edge, the pilot unlit, lettered "off". On it latches 2dp down, its face shaded from the rim like the latched EQ key in the tab row, the pilot lit in the accent, lettered "on". Every on/off setting in the app uses it; there are no Material switches.
+- **EQ sliders**: faders (`SliderStyle.FADER`), a slot and a square cap. On the EQ tab they sit right under the AutoTune EQ key and the EQ in use, before the response graph. When the row has more bands than fit (15), the deck's grey fades over the edge where more wait, with a small chevron, and a thin position bar runs under the row (`scrollCue`); both go when everything is in view.
 - **Step header** (`StepHeader`): Back, the step title on one line, Exit; "Step n of 7 · Next: …" with the mode switch; a slim bar (done grey, current red).
 - **Info bubbles**: a small (i) next to the thing it explains.
+
+## Icons
+
+One family (`Ic`, drawn in `drawIc` in `ui/Kit.kt`), in the language of the launcher and notification icons (speaker ring, round key, fader):
+- A 24-unit grid, one stroke weight (1.8 units), readable at 20dp.
+- Plain geometry from Braun controls and speakers: circles, square keys, slots, a record, a knob, a cassette, a needle meter.
+- Straight lines end square with sharp corners; round ends only on round things (waves, curves, sticks).
+- Filled shapes only for knobs, fader caps, pivots and pilot lights.
+- Each icon says what it is: bass a slow wave, treble a tight one, each flavour its own (drum for rock, a singer's mic for pop, a square wave for electronic, a guitar for acoustic, a speech bubble, the volume ramp, a moon).
+- New icons are appended to `Ic`, never reordered. The whole set renders on one sheet in light and dark (`z1_icons_light`, `z2_icons_dark` in `tools/screenshots/ShotsTest.kt`).
 
 ## Motion
 

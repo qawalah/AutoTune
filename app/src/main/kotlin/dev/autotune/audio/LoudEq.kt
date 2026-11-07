@@ -185,8 +185,8 @@ object LoudEq {
         dev.autotune.Diag.log(ctx, if (on) "loud_on" else "loud_off", mapOf("route" to route(ctx)))
         changed(ctx)
         return when {
-            on -> if (SystemEq.chain == null) "Loud EQ on. It plays once AutoTune EQ is on." else "Loud EQ on"
-            else -> "Loud EQ off"
+            on -> if (SystemEq.chain == null) "Dynamic EQ on. It plays once AutoTune EQ is on." else "Dynamic EQ on"
+            else -> "Dynamic EQ off"
         }
     }
 
@@ -338,7 +338,7 @@ class LevelMeter(private val ctx: Context) {
     }
 }
 
-/** Quick Settings tile: the loud EQ on or off with one tap, from anywhere. */
+/** Quick Settings tile: the dynamic EQ (internally the loud EQ) on or off with one tap, from anywhere. */
 class LoudTile : TileService() {
     override fun onStartListening() = paint()
 
@@ -351,7 +351,7 @@ class LoudTile : TileService() {
         val t = qsTile ?: return
         val on = LoudEq.manual(this) && LoudEq.mode(this) != LoudMode.OFF
         t.state = if (on) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
-        t.label = "Loud EQ"
+        t.label = "Dynamic EQ"
         if (Build.VERSION.SDK_INT >= 29) t.subtitle = when {
             SystemEq.chain == null -> if (on) "Waits for the EQ" else "EQ is off"
             on -> "On"

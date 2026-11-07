@@ -121,7 +121,7 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
     ) {
         // the device header: the wordmark and what is being measured
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("autotune", style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = At.c.text)
+            Wordmark(large = true)
             Text(
                 "  " + v.title.lowercase() + if (v.spots > 1) " · spot ${v.spot} of ${v.spots}" else "", Modifier.weight(1f),
                 style = MaterialTheme.typography.titleMedium, color = At.c.muted, maxLines = 1,

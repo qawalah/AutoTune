@@ -156,11 +156,11 @@ fun TargetSoundFold(s: UiState, vm: dev.autotune.TuneViewModel, startOpen: Boole
         )
         DropSelect(
             BASS_STEPS.map(::db), BASS_STEPS.indexOf(s.bassDb).let { if (it < 0) BASS_STEPS.indexOf(0.0) else it },
-            { vm.setTargetSound(idx, BASS_STEPS[it], s.trebleDb) }, label = "Bass to taste", icon = Ic.SPEAKER,
+            { vm.setTargetSound(idx, BASS_STEPS[it], s.trebleDb) }, label = "Bass to taste", icon = Ic.BASS,
         )
         DropSelect(
             TREBLE_STEPS.map(::db), TREBLE_STEPS.indexOf(s.trebleDb).let { if (it < 0) TREBLE_STEPS.indexOf(0.0) else it },
-            { vm.setTargetSound(idx, s.bassDb, TREBLE_STEPS[it]) }, label = "Treble to taste", icon = Ic.CURVE,
+            { vm.setTargetSound(idx, s.bassDb, TREBLE_STEPS[it]) }, label = "Treble to taste", icon = Ic.TREBLE,
         )
     }
 }
@@ -196,13 +196,13 @@ fun FlavourAndPreamp(s: UiState, vm: dev.autotune.TuneViewModel) {
     val flavours = dev.autotune.Flavour.entries
     DropSelect(
         flavours.map { it.title }, flavours.indexOf(s.flavour), { vm.setFlavour(flavours[it]) }, label = "Flavour",
-        details = flavours.map { it.detail }, icon = Ic.CURVE,
+        details = flavours.map { it.detail }, icons = flavours.map { flavourIcon(it) },
         info = "A flavour plays on top of the tuned EQ. It only plays: measurements always use the tuned EQ alone.",
     )
     val modes = dev.autotune.PreampMode.entries
     DropSelect(
         modes.map { it.title }, modes.indexOf(s.preampMode), { vm.setPreampMode(modes[it]) }, label = "Preamp",
-        details = modes.map { it.detail }, icon = Ic.SPEAKER,
+        details = modes.map { it.detail }, icon = Ic.GAIN,
         info = "The preamp lowers the whole EQ so boosts cannot clip." +
             (s.playPreampDb?.takeIf { s.systemEqOn }?.let { " Playing now with %.1f dB.".format(it) } ?: "") +
             " If it sounds quieter than before, turn the volume up: the shape is what matters.",

@@ -758,3 +758,51 @@ fun selectionAfterDelete(selected: Set<Int>, removed: Int, newCount: Int): Set<I
  */
 fun refineGoesStraightToMeasure(phoneRoute: Boolean, way: ApplyWay, systemEqSuspect: Boolean): Boolean =
     phoneRoute && ((way == ApplyWay.AUTOTUNE_EQ && !systemEqSuspect) || way == ApplyWay.IN_APP)
+
+// ---------------------------------------------------------------- the tall header on a fresh open (2.2.0)
+
+/** After this long in the background, coming back counts as a fresh open: 15 minutes. */
+const val FRESH_OPEN_AFTER_MS = 15L * 60 * 1000
+
+/**
+ * Whether opening the app now is a fresh open: a cold start (never backgrounded, [lastBackgroundedAtMs] null), or a
+ * return after the app was in the background for [thresholdMs] or more. A clock that went backwards (a reboot between
+ * the two readings) counts as fresh too. Both times come from the same monotonic clock.
+ */
+fun freshOpen(lastBackgroundedAtMs: Long?, nowMs: Long, thresholdMs: Long = FRESH_OPEN_AFTER_MS): Boolean =
+    lastBackgroundedAtMs == null || nowMs < lastBackgroundedAtMs || nowMs - lastBackgroundedAtMs >= thresholdMs
+
+/**
+ * The screens that open with the tall header when the app comes to the front: every one of [all] on a fresh open
+ * (see [freshOpen]), otherwise only those still in [current] (not yet visited since the last fresh open).
+ */
+fun tallOnStart(current: Set<String>, all: Set<String>, lastBackgroundedAtMs: Long?, nowMs: Long): Set<String> =
+    if (freshOpen(lastBackgroundedAtMs, nowMs)) all else current
+
+/**
+ * Leaving screen [left] uses up its tall header: jumping back to it, or going Back to it, opens it compact. The
+ * other screens keep theirs until they are visited.
+ */
+fun tallAfterLeaving(current: Set<String>, left: String): Set<String> = current - left
+
+// ---------------------------------------------------------------- the slider row's scroll cue (2.2.0)
+
+/**
+ * What the cue on a sideways row shows: a fade and chevron on the side where more waits, and the position bar
+ * (thumb start and width, both as fractions of the row). [shown] is false when everything fits.
+ */
+data class ScrollCue(val moreLeft: Boolean, val moreRight: Boolean, val thumbStart: Float, val thumbWidth: Float) {
+    val shown: Boolean get() = moreLeft || moreRight
+}
+
+/**
+ * The cue for a row scrolled to [scrollPx] of [maxScrollPx] with [viewportPx] in view. [slackPx] absorbs rounding,
+ * so a row a pixel short of its end reads as at the end.
+ */
+fun scrollCue(scrollPx: Int, maxScrollPx: Int, viewportPx: Int, slackPx: Int = 2): ScrollCue {
+    if (maxScrollPx <= slackPx || viewportPx <= 0) return ScrollCue(false, false, 0f, 1f)
+    val pos = scrollPx.coerceIn(0, maxScrollPx)
+    val width = viewportPx.toFloat() / (viewportPx + maxScrollPx)
+    val start = (1f - width) * pos / maxScrollPx
+    return ScrollCue(pos > slackPx, pos < maxScrollPx - slackPx, start, width)
+}

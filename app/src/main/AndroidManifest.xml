@@ -89,12 +89,12 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps the user's equaliser audio effect active while the user has it switched on" />
         </service>
-        <!-- Quick Settings tile: the loud EQ on or off -->
+        <!-- Quick Settings tile: the dynamic EQ on or off (class and id keep the old "loud" name) -->
         <service
             android:name=".audio.LoudTile"
             android:exported="true"
             android:icon="@drawable/ic_tile_loud"
-            android:label="Loud EQ"
+            android:label="Dynamic EQ"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE" />

@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package dev.autotune.ui
 
 import androidx.compose.foundation.background
@@ -21,7 +23,7 @@ import org.junit.Test
 
 class ShotsTest {
     @get:Rule
-    val paparazzi = Paparazzi(deviceConfig = DeviceConfig.PIXEL_5.copy(screenHeight = 3400), theme = "android:Theme.Material.NoActionBar", showSystemUi = false)
+    val paparazzi = Paparazzi(deviceConfig = DeviceConfig.PIXEL_5.copy(screenHeight = 3400), theme = "android:Theme.Material.NoActionBar", showSystemUi = false, useDeviceResolution = true)
 
     private val vm: TuneViewModel = run {
         val uc = Class.forName("sun.misc.Unsafe")
@@ -82,7 +84,8 @@ class ShotsTest {
             }
         }
     }
-    private fun shot(name: String, dark: Boolean = true, look: Look = Look.BRAUN, adv: Boolean = false, nav: Tab? = Tab.MEASURE, accent: Accent = Accent.LOOK, content: @Composable () -> Unit) {
+    private fun shot(name: String, dark: Boolean = true, look: Look = Look.BRAUN, adv: Boolean = false, nav: Tab? = Tab.MEASURE, accent: Accent = Accent.LOOK, h: Int = 3400, content: @Composable () -> Unit) {
+        if (h != 3400) paparazzi.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenHeight = h))
         paparazzi.snapshot(name) { Frame(dark, look, adv, nav, accent, content) }
     }
     private fun tune(st: UiState) = @Composable { TuneTab(st, vm, sharer, {}, {}, pick) }
@@ -237,5 +240,69 @@ class ShotsTest {
         val f = EqFollow(0.55, listOf(BandFollow(31.5, 3.0, 0.2), BandFollow(63.0, 2.0, 1.6), BandFollow(125.0, -4.0, -3.6), BandFollow(250.0, -1.0, -0.8), BandFollow(500.0, 0.0, 0.1), BandFollow(1000.0, -2.0, -1.9), BandFollow(2000.0, 0.0, 0.2), BandFollow(4000.0, -3.0, -2.5), BandFollow(8000.0, 1.0, 0.4)), 45.0,
             "The sound followed about 55% of the EQ. Boosts below about 45 Hz did nothing: the speakers do not play that low, so AutoTune stops boosting there.")
         FollowAndChecks(s.copy(eqFollow = f, checkSuggestions = suggestChecks(savedRuns, true, 1, f, 1.2)), vm)
+    }
+
+    // ---- 2.2.0: the icon family, the header, the latching key, the slider row's cue
+    private fun iconSheet(name: String, dark: Boolean) = paparazzi.also { it.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenWidth = 2300, screenHeight = 1500)) }.snapshot(name) {
+        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, Look.BRAUN) {
+            androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
+                androidx.compose.foundation.layout.FlowRow(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Ic.entries.forEach { ic ->
+                        Column(Modifier.size(width = 76.dp, height = 74.dp).background(At.c.panel).padding(4.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                            androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = androidx.compose.ui.Alignment.Bottom) {
+                                AtIcon(ic, At.c.text, size = 32.dp); AtIcon(ic, At.c.text, size = 20.dp)
+                            }
+                            androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { AtIcon(ic, At.c.signal, size = 18.dp); AtIcon(ic, At.c.muted, size = 14.dp) }
+                            androidx.compose.material3.Text(ic.name.lowercase(), style = androidx.compose.material3.MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    @Test fun z1_icons_light() = iconSheet("z1_icons_light", false)
+    @Test fun z2_icons_dark() = iconSheet("z2_icons_dark", true)
+
+    @Composable private fun Headers() {
+        listOf("Tests", "EQ", "Tune", "Live", "Settings", "Export").forEach { ScreenTitle(it, if (it == "EQ") "9 Oct · car" else null) }
+    }
+    @Test fun z3_headers_light() = paparazzi.also { it.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenHeight = 5200)) }.snapshot("z3_headers_light") { Frame(false, nav = null) { Headers() } }
+    @Test fun z4_headers_dark() = paparazzi.also { it.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenHeight = 5200)) }.snapshot("z4_headers_dark") { Frame(true, nav = null) { Headers() } }
+    @Test fun z5_headers_graphite() = paparazzi.also { it.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenHeight = 5200)) }.snapshot("z5_headers_graphite") { Frame(false, look = Look.BRAUN_GRAPHITE, nav = null) { Headers() } }
+    @Test fun z6_headers_black() = paparazzi.also { it.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenHeight = 5200)) }.snapshot("z6_headers_black") { Frame(true, look = Look.BRAUN_BLACK, nav = null) { Headers() } }
+
+    private fun phone(name: String, dark: Boolean, look: Look = Look.BRAUN, nav: Tab, tall: Boolean, content: @Composable () -> Unit) =
+        paparazzi.also { it.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5) }.snapshot(name) {
+            Frame(dark, look, nav = nav) { androidx.compose.runtime.CompositionLocalProvider(LocalHeaderTall provides tall) { content() } }
+        }
+    @Test fun z7_tests_tall() = phone("z7_tests_tall", false, nav = Tab.TESTS, tall = true) { TestsTab(s, vm, {}) }
+    @Test fun z8_tests_compact() = phone("z8_tests_compact", false, nav = Tab.TESTS, tall = false) { TestsTab(s, vm, {}) }
+    @Test fun z9_eq_tall_dark() = phone("z9_eq_tall_dark", true, nav = Tab.EQ, tall = true) { EqTab(s.copy(systemEqOn = true), vm, {}, pick) }
+    @Test fun z10_eq_compact_dark() = phone("z10_eq_compact_dark", true, nav = Tab.EQ, tall = false) { EqTab(s.copy(systemEqOn = true), vm, {}, pick) }
+    @Test fun z11_eq_light_full() = shot("z11_eq_light_full", dark = false, nav = Tab.EQ, h = 5000) { EqTab(s, vm, {}, pick) }
+    @Test fun z12_eq_black_adv() = shot("z12_eq_black_adv", look = Look.BRAUN_BLACK, adv = true, nav = Tab.EQ, h = 6400) { EqTab(s.copy(systemEqOn = true, flavour = Flavour.ROCK), vm, {}, pick) }
+
+    @Composable private fun Keys() {
+        Panel {
+            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) { androidx.compose.material3.Text("AutoTune EQ", style = androidx.compose.material3.MaterialTheme.typography.titleLarge); Muted("On") }
+                PowerToggle(true, {}, "AutoTune EQ")
+            }
+            SwitchRow("Keep the last 12 recordings", false, {})
+            SwitchRow("Use my wallpaper colours", true, {})
+            SwitchRow("Disabled", false, {}, enabled = false)
+        }
+        Group("Adjust bands") { GraphicSliders(s, vm, GRAPHIC_SETS[2].first, GRAPHIC_SETS[2].second) }
+        Group("10 bands") { GraphicSliders(s, vm, GRAPHIC_SETS[1].first, GRAPHIC_SETS[1].second) }
+    }
+    @Test fun z13_keys_light() = shot("z13_keys_light", dark = false, nav = null, h = 3000) { Keys() }
+    @Test fun z14_keys_dark() = shot("z14_keys_dark", nav = null, h = 3000) { Keys() }
+    @Test fun z15_keys_graphite() = shot("z15_keys_graphite", dark = false, look = Look.BRAUN_GRAPHITE, nav = null, h = 3000) { Keys() }
+    @Test fun z16_keys_black() = shot("z16_keys_black", look = Look.BRAUN_BLACK, nav = null, h = 3000) { Keys() }
+    @Test fun z17_dynamic() = shot("z17_dynamic", dark = false, nav = null, h = 3600) { LoudEqFold(s.copy(systemEqOn = true, loudMode = LoudMode.LEVEL, loudLevelDb = 86.5), vm, startOpen = true) }
+    @Test fun z18_flavours() = shot("z18_flavours", dark = false, adv = true, nav = null, h = 3600) {
+        Panel { FlavourAndPreamp(s.copy(flavour = Flavour.ELECTRONIC), vm) }
+        Panel { Flavour.entries.forEach { f -> androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { AtIcon(flavourIcon(f), At.c.signal, size = 20.dp); androidx.compose.material3.Text("  " + f.title) } } }
+        TargetSoundFold(s.copy(bassDb = 2.0), vm, startOpen = true)
     }
 }

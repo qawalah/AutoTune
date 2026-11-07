@@ -178,7 +178,7 @@ class SystemEqService : Service() {
         if (automationOn()) b.addAction(action(android.R.drawable.ic_menu_close_clear_cancel, "Auto off", ProfileController.ACTION_AUTO_OFF, 202))
         if (SystemEq.chain != null && LoudEq.mode(this) != dev.autotune.LoudMode.OFF) {
             val loudOn = LoudEq.manual(this)
-            b.addAction(action(android.R.drawable.ic_lock_silent_mode_off, if (loudOn) "Loud off" else "Loud on", ProfileController.ACTION_TOGGLE_LOUD, 203))
+            b.addAction(action(android.R.drawable.ic_lock_silent_mode_off, if (loudOn) "Dynamic off" else "Dynamic on", ProfileController.ACTION_TOGGLE_LOUD, 203))
         }
         val n = b.build()
         // the sound level mode needs the microphone type; Android allows it only while the app is on screen
@@ -246,7 +246,7 @@ class SystemEqService : Service() {
     private fun refreshInner() {
         val on = SystemEq.chain != null
         shownLoud = LoudEq.lastAmount
-        val loud = if (on && LoudEq.lastAmount > 0.0) " · loud %.0f%%".format(LoudEq.lastAmount * 100) else ""
+        val loud = if (on && LoudEq.lastAmount > 0.0) " · dynamic %.0f%%".format(LoudEq.lastAmount * 100) else ""
         // the user wants the EQ on but it could not start (yet): stay up and say so, as the widget does
         val wanted = ProfileController.prefs(this).getBoolean("eqWanted", false)
         when {

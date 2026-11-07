@@ -90,7 +90,7 @@ fun AiScreen(a: AiUi, s: UiState, vm: TuneViewModel, go: (Tab) -> Unit) {
     Column(Modifier.fillMaxSize()) {
         // the device header: the wordmark, what this is, and close
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("autotune", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = At.c.text)
+            Wordmark(large = true)
             Text(
                 "  ai review" + (a.testName?.let { " · " + dev.autotune.shortTestName(it, "").first.lowercase() } ?: ""), Modifier.weight(1f),
                 style = MaterialTheme.typography.titleMedium, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,

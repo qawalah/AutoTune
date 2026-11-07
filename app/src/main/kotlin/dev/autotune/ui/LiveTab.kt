@@ -120,13 +120,7 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
                 { vm.setLiveSignal(dev.autotune.LiveSignal.entries[it]) },
             )
             if (s.exportChain?.filters?.isNotEmpty() == true && !s.systemEqOn && isAdvanced()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Play the noise through my EQ", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                    Switch(
-                        checked = s.rtaWithEq, onCheckedChange = { if (s.rtaRunning) vm.setRtaEq(it) else vm.startRta(it) },
-                        colors = SwitchDefaults.colors(checkedTrackColor = At.c.signal, checkedThumbColor = At.c.onSignal),
-                    )
-                }
+                SwitchRow("Play the noise through my EQ", s.rtaWithEq, { if (s.rtaRunning) vm.setRtaEq(it) else vm.startRta(it) })
             }
         } else {
         }

@@ -7,6 +7,10 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
@@ -67,7 +71,7 @@ import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.ln
 
-/** The EQ page: on/off, the graph, classic sliders, grouped profiles, and an Advanced section for everything else. */
+/** The EQ page: on/off and the EQ in use, the sliders right under it, then the graph, then the rest (Advanced). */
 @Composable
 fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
     val mine = s.editFilters != null
@@ -117,28 +121,6 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
         if (isAdvanced()) FlavourAndPreamp(s, vm)
     }
 
-    // The response is the main instrument readout: put it immediately after the power/profile controls.
-    s.eqChart?.let { chart ->
-        Group("Frequency response", divider = false, info = "The measured or proposed response of the selected EQ. Toggle the target line to compare the correction with your chosen target.") {
-            ResponseChart(chart, height = 224.dp, showTarget = s.showTargetEq, onToggleTarget = { vm.setShowTarget(false, !s.showTargetEq) })
-        }
-    }
-
-    // ---- loud EQ: less bass and harshness when it's loud
-    if (isAdvanced()) LoudEqFold(s, vm)
-
-    // ---- does the EQ reach the speakers?
-    if (bandCount > 0) {
-        val check = s.eqCheck
-        if (check != null) EqCheckCard(check, vm) else if (isAdvanced()) Row(verticalAlignment = Alignment.CenterVertically) {
-            TextAction("Check the EQ reaches the speakers", vm::eqCheck, enabled = !s.busy && s.hasPermission, icon = Ic.CHECK)
-            InfoButton(
-                "EQ check",
-                "Plays the test sweep twice through this phone: once with AutoTune EQ off, once with the EQ in use on, and compares the change with what the EQ should do. It tells you whether the EQ really reaches the speakers. Android Auto (wireless or cable) and some car systems take the sound past the phone's own EQ. AutoTune EQ is left the way it was.",
-            )
-        }
-    }
-
     // ---- equaliser: classic sliders
     Group(
         "Adjust bands",
@@ -164,6 +146,28 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
             "About this EQ",
         )
         if (s.sliderLayer.isNotEmpty()) TextAction("Remove my slider changes", vm::resetSliders, icon = Ic.UNDO)
+    }
+
+    // ---- the response of the EQ in use, after the sliders that shape it
+    s.eqChart?.let { chart ->
+        Group("Frequency response", divider = false, info = "The measured or proposed response of the selected EQ. Toggle the target line to compare the correction with your chosen target.") {
+            ResponseChart(chart, height = 224.dp, showTarget = s.showTargetEq, onToggleTarget = { vm.setShowTarget(false, !s.showTargetEq) })
+        }
+    }
+
+    // ---- dynamic EQ: less bass and harshness when it's loud
+    if (isAdvanced()) LoudEqFold(s, vm)
+
+    // ---- does the EQ reach the speakers?
+    if (bandCount > 0) {
+        val check = s.eqCheck
+        if (check != null) EqCheckCard(check, vm) else if (isAdvanced()) Row(verticalAlignment = Alignment.CenterVertically) {
+            TextAction("Check the EQ reaches the speakers", vm::eqCheck, enabled = !s.busy && s.hasPermission, icon = Ic.CHECK)
+            InfoButton(
+                "EQ check",
+                "Plays the test sweep twice through this phone: once with AutoTune EQ off, once with the EQ in use on, and compares the change with what the EQ should do. It tells you whether the EQ really reaches the speakers. Android Auto (wireless or cable) and some car systems take the sound past the phone's own EQ. AutoTune EQ is left the way it was.",
+            )
+        }
     }
 
     // ---- the one primary action: verify
@@ -341,17 +345,10 @@ fun AutomationSection(s: UiState, vm: TuneViewModel, pick: Pickers) {
     var prof by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { vm.refreshBluetooth() }
 
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Switch profile when a Bluetooth device connects", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Switch(
-            checked = s.automationOn,
-            onCheckedChange = { on ->
-                if (on) { pick.notifications(); if (!s.btPermission) pick.bluetooth() }
-                vm.setAutomation(on)
-            },
-            colors = SwitchDefaults.colors(checkedTrackColor = At.c.signal, checkedThumbColor = At.c.onSignal),
-        )
-    }
+    SwitchRow("Switch profile when a Bluetooth device connects", s.automationOn, { on ->
+        if (on) { pick.notifications(); if (!s.btPermission) pick.bluetooth() }
+        vm.setAutomation(on)
+    })
     if (s.profiles.isEmpty()) Muted("Save a profile first, then choose when it should switch on.")
 
     s.rules.forEach { r ->
@@ -396,13 +393,7 @@ fun AutomationSection(s: UiState, vm: TuneViewModel, pick: Pickers) {
                 if (d != null && pid != null) { vm.setRule(d.address, d.name, pid); dev = null; prof = null }
             }, Modifier.fillMaxWidth(), enabled = dev != null && prof != null, icon = Ic.PLUS)
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Turn the EQ off when the device disconnects", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-            Switch(
-                checked = s.offOnDisconnect, onCheckedChange = vm::setOffOnDisconnect,
-                colors = SwitchDefaults.colors(checkedTrackColor = At.c.signal, checkedThumbColor = At.c.onSignal),
-            )
-        }
+        SwitchRow("Turn the EQ off when the device disconnects", s.offOnDisconnect, vm::setOffOnDisconnect)
     }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -581,18 +572,11 @@ fun filterLines(chain: EqChain, previous: EqChain?): List<BandLine> {
 /** The EQ as a list, always low to high. Toggle between exact filters and the sliders of a standard graphic EQ. */
 @Composable
 fun EqListView(chain: EqChain, s: UiState, vm: TuneViewModel) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Standard bands instead of exact frequencies", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Switch(
-            checked = s.showBands, onCheckedChange = vm::setShowBands,
-            colors = SwitchDefaults.colors(checkedTrackColor = At.c.signal, checkedThumbColor = At.c.onSignal),
-        )
-        InfoButton(
-            "Exact frequencies or standard bands",
-            "Exact frequencies: parametric filters (frequency, gain, Q). Most accurate. Use them in a parametric EQ (Poweramp Equalizer, a DSP or head unit with parametric bands).\n\n" +
+    SwitchRow(
+        "Standard bands instead of exact frequencies", s.showBands, vm::setShowBands,
+        info = "Exact frequencies: parametric filters (frequency, gain, Q). Most accurate. Use them in a parametric EQ (Poweramp Equalizer, a DSP or head unit with parametric bands).\n\n" +
                 "Standard bands: the same correction converted to the fixed sliders of a graphic EQ. Pick the number of bands your EQ has. It is less precise, because narrow cuts get spread over the nearest band, but it works on any slider EQ.",
-        )
-    }
+    )
     val prev = s.previousChain
     if (!s.showBands) {
         BandTable(filterLines(chain, prev), chain.preampDb, compared = prev != null)
@@ -637,24 +621,72 @@ internal fun GraphicSliders(s: UiState, vm: TuneViewModel, centres: List<Double>
     val gains = graphicGains(s.exportChain, centres)
     val many = centres.size > 10
     val scroll = androidx.compose.foundation.rememberScrollState()
-    Row(
-        Modifier.fillMaxWidth().then(if (many) Modifier.androidxHorizontalScroll(scroll) else Modifier),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        centres.forEachIndexed { i, f ->
-            Column(
-                (if (many) Modifier.width(48.dp) else Modifier.weight(1f)),
-                horizontalAlignment = Alignment.CenterHorizontally,
+    val deck = At.c.panel
+    val chevron = At.c.text
+    val track = At.c.line
+    val thumb = At.c.muted
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        // more bands out of view: the deck's grey fades over the edge where they wait, with a chevron. Read while
+        // drawing, so the cue follows the scroll without recomposing the sliders.
+        Box(
+            Modifier.fillMaxWidth().then(
+                if (!many) Modifier else Modifier.drawWithContent {
+                    drawContent()
+                    val cue = dev.autotune.scrollCue(scroll.value, scroll.maxValue.takeIf { it != Int.MAX_VALUE } ?: 0, size.width.toInt())
+                    val fade = 36.dp.toPx(); val icon = 18.dp.toPx()
+                    fun edge(left: Boolean) {
+                        val x0 = if (left) 0f else size.width - fade
+                        drawRect(
+                            androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                if (left) listOf(deck, deck.copy(alpha = 0.85f), deck.copy(alpha = 0f)) else listOf(deck.copy(alpha = 0f), deck.copy(alpha = 0.85f), deck),
+                                startX = x0, endX = x0 + fade,
+                            ),
+                            androidx.compose.ui.geometry.Offset(x0, 0f), androidx.compose.ui.geometry.Size(fade, size.height),
+                        )
+                        val ix = if (left) 0f else size.width - icon
+                        translate(ix, size.height / 2 - icon / 2) {
+                            scale(if (left) -1f else 1f, 1f, androidx.compose.ui.geometry.Offset(icon / 2, icon / 2)) {
+                                drawIcAt(Ic.CHEVRON, chevron, icon)
+                            }
+                        }
+                    }
+                    if (cue.moreLeft) edge(true)
+                    if (cue.moreRight) edge(false)
+                },
+            ),
+        ) {
+            Row(
+                Modifier.fillMaxWidth().then(if (many) Modifier.androidxHorizontalScroll(scroll) else Modifier),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                val g = gains[i]
-                Text(
-                    if (abs(g) < 0.05) "0" else "%+.1f".format(g).replace('-', '\u2212'),
-                    style = MaterialTheme.typography.labelSmall, fontFamily = AtFigures,
-                    color = if (g < -0.05) At.c.bad else if (g > 0.05) At.c.signal else At.c.muted,
-                    maxLines = 1,
+                centres.forEachIndexed { i, f ->
+                    Column(
+                        (if (many) Modifier.width(48.dp) else Modifier.weight(1f)),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        val g = gains[i]
+                        Text(
+                            if (abs(g) < 0.05) "0" else "%+.1f".format(g).replace('-', '\u2212'),
+                            style = MaterialTheme.typography.labelSmall, fontFamily = AtFigures,
+                            color = if (g < -0.05) At.c.bad else if (g > 0.05) At.c.signal else At.c.muted,
+                            maxLines = 1,
+                        )
+                        VSlider(g, { vm.graphicSet(centres, q, i, it) }, "${freqLabel(f)} Hz", enabled = !locked)
+                        Text(freqLabel(f), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
+                    }
+                }
+            }
+        }
+        if (many) {
+            // the position bar: where the row is, and how much of it is in view; gone when it all fits
+            androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(3.dp)) {
+                val cue = dev.autotune.scrollCue(scroll.value, scroll.maxValue.takeIf { it != Int.MAX_VALUE } ?: 0, size.width.toInt())
+                if (!cue.shown) return@Canvas
+                drawRoundRect(track, cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2))
+                drawRoundRect(
+                    thumb, androidx.compose.ui.geometry.Offset(size.width * cue.thumbStart, 0f), androidx.compose.ui.geometry.Size(size.width * cue.thumbWidth, size.height),
+                    androidx.compose.ui.geometry.CornerRadius(size.height / 2),
                 )
-                VSlider(g, { vm.graphicSet(centres, q, i, it) }, "${freqLabel(f)} Hz", enabled = !locked)
-                Text(freqLabel(f), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
             }
         }
     }
@@ -763,30 +795,30 @@ private fun Modifier.androidx_semantics(label: String, value: Double, range: Dou
     }
 
 
-/** The loud EQ: when it plays, whether the car's volume reaches the phone, what it cuts, and the hand switch. */
+/** The dynamic EQ (internally the loud EQ, `LoudEq`): when it plays, whether the car's volume reaches the phone, what it cuts, and the hand switch. */
 @Composable
 fun LoudEqFold(s: UiState, vm: TuneViewModel, startOpen: Boolean = false) {
     val live by vm.loudLive.collectAsState()
     val modes = dev.autotune.LoudMode.entries
     val playing = s.systemEqOn && live.amount > 0.0
     Fold(
-        "Loud EQ",
+        "Dynamic EQ",
         summary = when {
             s.loudMode == dev.autotune.LoudMode.OFF -> "Off"
             playing -> "Playing, %.0f%%".format(live.amount * 100)
             else -> "Ready"
         },
         startOpen = startOpen,
-        info = "Speakers change as you turn them up: the bass runs out of room and the treble gets harsh. The loud EQ comes in at high volume " +
+        info = "Speakers change as you turn them up: the bass runs out of room and the treble gets harsh. The dynamic EQ comes in at high volume " +
             "and only cuts, so it can never clip. It takes back part of your bass and treble boosts, and cuts where the speakers distort.\n\n" +
             "It can follow the volume when the car's volume knob reaches the phone (Bluetooth with absolute volume does; Android Auto often doesn't). " +
-            "Use the volume check to find out. Otherwise switch it by hand: the button here, the notification, the Loud EQ tile in Quick Settings, " +
+            "Use the volume check to find out. Otherwise switch it by hand: the button here, the notification, the Dynamic EQ tile in Quick Settings, " +
             "or the volume keys: down, up, down, up within 3 seconds.\n\n" +
-            "Or let it listen: in “Follow the sound level” the phone's mic hears how loud the cabin is while music plays, and the loud EQ comes in above the level you set. It works with any output, Android Auto included.\n\nMeasurements never use it.",
+            "Or let it listen: in “Follow the sound level” the phone's mic hears how loud the cabin is while music plays, and the dynamic EQ comes in above the level you set. It works with any output, Android Auto included.\n\nMeasurements never use it.",
     ) {
         DropSelect(
             modes.map { it.title }, modes.indexOf(s.loudMode), { vm.setLoudMode(modes[it]) }, label = "When it plays",
-            details = modes.map { it.detail }, icon = Ic.SPEAKER,
+            details = modes.map { it.detail }, icons = modes.map { loudModeIcon(it) },
         )
         if (s.loudMode == dev.autotune.LoudMode.OFF) return@Fold
         Text(
@@ -799,9 +831,7 @@ fun LoudEqFold(s: UiState, vm: TuneViewModel, startOpen: Boolean = false) {
             },
             style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium,
         )
-        Actions {
-            SecondaryButton(if (live.manual) "Switch the loud EQ off" else "Switch the loud EQ on now", vm::toggleLoud, icon = Ic.POWER)
-        }
+        SwitchRow("On now, by hand", live.manual, { vm.toggleLoud() })
 
         if (s.loudMode == dev.autotune.LoudMode.VOLUME) {
             val c = s.volCheck
@@ -839,13 +869,13 @@ fun LoudEqFold(s: UiState, vm: TuneViewModel, startOpen: Boolean = false) {
                 },
             )
             Actions {
-                SecondaryButton("This is loud", vm::loudLevelNow, enabled = s.systemEqOn && live.listening && live.levelDb != null, icon = Ic.MIC)
+                SecondaryButton("Set this level", vm::loudLevelNow, enabled = s.systemEqOn && live.listening && live.levelDb != null, icon = Ic.MIC)
             }
             val levels = (listOf(75.0, 80.0, 85.0, 90.0, 95.0) + s.loudLevelDb).distinct().sorted()
             DropSelect(
                 levels.map { "Full from %.0f dB".format(it) }, levels.indexOf(s.loudLevelDb), { vm.setLoudLevel(levels[it]) },
-                label = "Loud level", details = levels.map { "Starts at %.0f dB".format(it - 6) },
-                info = "Play music at the volume where it starts to sound strained, then tap “This is loud”. The loud EQ comes in over the 6 dB below it.\n\nThe mic dot shows while it listens. It closes the mic when no music plays, while AutoTune measures, and during calls. Only the level is kept, never the sound. Road noise counts too: keep the loud level above it.",
+                label = "Full strength", details = levels.map { "Starts at %.0f dB".format(it - 6) },
+                info = "Play music at the volume where it starts to sound strained, then tap “Set this level”. The dynamic EQ comes in over the 6 dB below it.\n\nThe mic dot shows while it listens. It closes the mic when no music plays, while AutoTune measures, and during calls. Only the level is kept, never the sound. Road noise counts too: keep this level above it.",
             )
         }
 
@@ -858,14 +888,14 @@ fun LoudEqFold(s: UiState, vm: TuneViewModel, startOpen: Boolean = false) {
                 Modifier.weight(1f),
             )
             InfoButton(
-                "What the loud EQ changes",
+                "What the dynamic EQ changes",
                 "It cuts where your speakers strain" + (if (cuts.isEmpty()) " (no distortion was found, so no cuts)" else "") + ", and takes back 60% of your boosts below 150 Hz and above 5 kHz.\n\n" +
-                    "For a loud EQ made for your speakers, measure once at the loudest volume you listen at, then use that reading's distortion here.",
+                    "For a dynamic EQ made for your speakers, measure once at the loudest volume you listen at, then use that reading's distortion here.",
                 small = true,
             )
         }
         Actions {
-            TextAction("Use the last reading's distortion", vm::loudFromReading, enabled = s.distortion != null, icon = Ic.CURVE)
+            TextAction("Use the last reading's distortion", vm::loudFromReading, enabled = s.distortion != null, icon = Ic.MEASURE)
             if (s.loudCuts != null) TextAction("Back to the safe default", vm::loudUseDefault, icon = Ic.UNDO)
         }
         DropSelect(

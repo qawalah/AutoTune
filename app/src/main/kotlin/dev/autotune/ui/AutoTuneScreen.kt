@@ -129,6 +129,50 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     val open: (Page) -> Unit = { p -> scrolls.remove(p.name); pages = pages.filter { it != p.ordinal } + p.ordinal }
     val back: () -> Unit = { pages = pages.dropLast(1) }
 
+    // The tall header shows on a fresh open only: a cold start, or back after 15 minutes or more in the background
+    // (freshOpen in TuningLogic). Then every tab opens tall once; leaving a tab uses it up, so jumping back to it or
+    // going Back to it opens it compact. Pages over a tab always open compact.
+    val allTabs = Tab.bar.map { it.name }.toSet()
+    var tallKeys by rememberSaveable { mutableStateOf(allTabs.toList()) }
+    var backgroundedAt by rememberSaveable { mutableStateOf<Long?>(null) }
+    var freshEpoch by rememberSaveable { mutableIntStateOf(0) }
+    val titleSlots = androidx.compose.runtime.remember { mutableMapOf<String, TitleSlot>() }
+    // how far a screen that was last drawn tall has to move up when it comes back compact, so it keeps its place
+    val shrinkPx = androidx.compose.runtime.remember { mutableMapOf<String, Int>() }
+    val compactPx = with(LocalDensity.current) { 61.dp.toPx() }.toInt()
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val watch = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            when (e) {
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> backgroundedAt = android.os.SystemClock.elapsedRealtime()
+                androidx.lifecycle.Lifecycle.Event.ON_START -> {
+                    val now = android.os.SystemClock.elapsedRealtime()
+                    if (dev.autotune.freshOpen(backgroundedAt, now) && backgroundedAt != null) {
+                        // back after a long while: every tab tall again, each from its top
+                        tallKeys = dev.autotune.tallOnStart(tallKeys.toSet(), allTabs, backgroundedAt, now).toList()
+                        shrinkPx.clear()
+                        allTabs.forEach { k -> scrolls[k]?.let { st -> st.dispatchRawDelta(-st.value.toFloat()) } }
+                        freshEpoch++
+                    }
+                    backgroundedAt = null
+                }
+                else -> Unit
+            }
+        }
+        lifecycle.lifecycle.addObserver(watch)
+        onDispose { lifecycle.lifecycle.removeObserver(watch) }
+    }
+    val screenKey = page?.name ?: tab.name
+    val lastKey = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    LaunchedEffect(screenKey) {
+        val left = lastKey.value
+        if (left != null && left != screenKey && left in tallKeys) {
+            tallKeys = dev.autotune.tallAfterLeaving(tallKeys.toSet(), left).toList()
+            titleSlots[left]?.heightPx?.takeIf { it > compactPx }?.let { shrinkPx[left] = it - compactPx }
+        }
+        lastKey.value = screenKey
+    }
+
     LaunchedEffect(Unit) {
         LaunchRequest.tab.collect { t ->
             if (t != null) { tabIdx = Tab.valueOf(dev.autotune.requestedTab(t)).ordinal; pages = emptyList(); overlay = OVERLAY_NONE; LaunchRequest.tab.value = null }
@@ -246,10 +290,16 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                     },
                 ) { d ->
                     // each screen has its own header slot; the slim bar shows once the tall header has scrolled away
-                    val titleSlot = androidx.compose.runtime.remember(d) { TitleSlot() }
-                    val sc = scrollFor(d.page?.name ?: d.tab.name)
+                    val key = d.page?.name ?: d.tab.name
+                    val titleSlot = titleSlots.getOrPut(key) { TitleSlot() }
+                    val sc = scrollFor(key)
+                    // decided as the screen arrives, so a screen on its way out keeps the header it had
+                    val tall = androidx.compose.runtime.remember(d, freshEpoch) { d.page == null && key in tallKeys }
+                    androidx.compose.runtime.remember(d, freshEpoch) {
+                        if (!tall) shrinkPx.remove(key)?.let { px -> sc.dispatchRawDelta(-px.toFloat()) }
+                    }
                     Box(Modifier.fillMaxSize()) {
-                    androidx.compose.runtime.CompositionLocalProvider(LocalTitleSlot provides titleSlot, LocalBack provides (if (d.page != null) back else null)) {
+                    androidx.compose.runtime.CompositionLocalProvider(LocalTitleSlot provides titleSlot, LocalHeaderTall provides tall, LocalBack provides (if (d.page != null) back else null)) {
                     Column(
                         Modifier.fillMaxSize().imePadding().verticalScroll(sc, enabled = true)
                             .padding(horizontal = 16.dp).padding(bottom = 96.dp),

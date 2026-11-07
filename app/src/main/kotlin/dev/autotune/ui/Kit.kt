@@ -85,12 +85,22 @@ interface Sharer {
     fun files(list: List<File>, mime: String, title: String)
 }
 
-// ---------------------------------------------------------------- icons (drawn, one stroke weight)
+// ---------------------------------------------------------------- icons (one Braun family)
 
+/**
+ * The app's icons, drawn as one family in the Braun audio language: plain geometry on a 24-unit grid, the shapes of
+ * Braun controls and speakers (circles, square keys, slots, a record, a cassette), one stroke weight (1.8 units),
+ * square ends and sharp corners on straight things, round ends only on round things (waves, curves, sticks). Filled
+ * shapes are kept for knobs, fader caps, pivots and pilot lights. Readable from 20dp.
+ *
+ * New entries are appended, never reordered.
+ */
 enum class Ic {
     TESTS, MEASURE, EQ, LIVE, EXPORT, GEAR, PLUS, INFO, CHEVRON, CHEVRON_DOWN, CLOSE, CHECK, BACK, ALERT, MORE, MENU,
     TUNE, MIC, SPEAKER, PLAY, STOP, SHARE, SAVE, AGAIN, TRASH, POWER, UNDO, EDIT, DIAG, DONE, BLUETOOTH, NEXT, FILE,
     CAR, HOME, FLAT, CURVE, LOCK, UNLOCK, AI, SEND, EXPAND,
+    // 2.2.0: bass and treble, the preamp, and one per flavour
+    BASS, TREBLE, GAIN, VOLUME, NIGHT, SPEECH, DRUM, VOCAL, GUITAR, SYNTH,
 }
 
 /** The icon for the kind of system a test tunes. */
@@ -102,183 +112,233 @@ fun kindIcon(k: dev.autotune.TargetKind): Ic = when (k) {
     dev.autotune.TargetKind.HAND -> Ic.EDIT
 }
 
+/** The icon that says what a flavour is: the tune itself, bass, a drum for rock, a singer's mic for pop, and so on. */
+fun flavourIcon(f: dev.autotune.Flavour): Ic = when (f) {
+    dev.autotune.Flavour.NONE -> Ic.TUNE
+    dev.autotune.Flavour.BASS -> Ic.BASS
+    dev.autotune.Flavour.ROCK -> Ic.DRUM
+    dev.autotune.Flavour.POP -> Ic.VOCAL
+    dev.autotune.Flavour.ELECTRONIC -> Ic.SYNTH
+    dev.autotune.Flavour.ACOUSTIC -> Ic.GUITAR
+    dev.autotune.Flavour.SPEECH -> Ic.SPEECH
+    dev.autotune.Flavour.LOUDNESS -> Ic.VOLUME
+    dev.autotune.Flavour.NIGHT -> Ic.NIGHT
+}
+
+/** The icon for each way the dynamic EQ comes in. */
+fun loudModeIcon(m: dev.autotune.LoudMode): Ic = when (m) {
+    dev.autotune.LoudMode.OFF -> Ic.FLAT
+    dev.autotune.LoudMode.VOLUME -> Ic.VOLUME
+    dev.autotune.LoudMode.BUTTON -> Ic.POWER
+    dev.autotune.LoudMode.LEVEL -> Ic.MIC
+}
+
 @Composable
 fun AtIcon(kind: Ic, tint: Color, modifier: Modifier = Modifier, size: Dp = 24.dp) {
-    Canvas(modifier.size(size)) {
-        val u = this.size.width / 24f
-        val sw = 1.8f * u
-        val st = Stroke(sw, cap = StrokeCap.Round)
-        fun line(x1: Float, y1: Float, x2: Float, y2: Float) = drawLine(tint, Offset(x1 * u, y1 * u), Offset(x2 * u, y2 * u), sw, StrokeCap.Round)
-        when (kind) {
-            Ic.TESTS -> {
-                line(9f, 6f, 20f, 6f); line(9f, 12f, 20f, 12f); line(9f, 18f, 20f, 18f)
-                drawCircle(tint, 1.4f * u, Offset(4.8f * u, 6f * u)); drawCircle(tint, 1.4f * u, Offset(4.8f * u, 12f * u)); drawCircle(tint, 1.4f * u, Offset(4.8f * u, 18f * u))
-            }
-            Ic.MEASURE -> {
-                drawCircle(tint, 8.5f * u, Offset(12f * u, 12f * u), style = st)
-                drawCircle(tint, 3.2f * u, Offset(12f * u, 12f * u))
-            }
-            Ic.EQ -> {
-                line(6f, 4f, 6f, 20f); line(12f, 4f, 12f, 20f); line(18f, 4f, 18f, 20f)
-                drawCircle(tint, 2.6f * u, Offset(6f * u, 15f * u)); drawCircle(tint, 2.6f * u, Offset(12f * u, 8f * u)); drawCircle(tint, 2.6f * u, Offset(18f * u, 13f * u))
-            }
-            Ic.LIVE -> {
-                line(4.5f, 20f, 4.5f, 14f); line(9.5f, 20f, 9.5f, 8f); line(14.5f, 20f, 14.5f, 11f); line(19.5f, 20f, 19.5f, 5f)
-            }
-            Ic.EXPORT -> {
-                line(12f, 4f, 12f, 15f); line(7.5f, 10.5f, 12f, 15f); line(16.5f, 10.5f, 12f, 15f)
-                line(5f, 19f, 19f, 19f)
-            }
-            Ic.GEAR -> {
-                drawCircle(tint, 3.2f * u, Offset(12f * u, 12f * u), style = st)
-                for (k in 0 until 8) {
-                    val a = Math.toRadians(k * 45.0)
-                    val c = Math.cos(a).toFloat(); val s = Math.sin(a).toFloat()
-                    line(12f + 6.4f * c, 12f + 6.4f * s, 12f + 9.4f * c, 12f + 9.4f * s)
+    Canvas(modifier.size(size)) { drawIc(kind, tint) }
+}
+
+/** Draws [kind] into this scope, which is treated as the icon's 24-unit square. */
+fun DrawScope.drawIc(kind: Ic, tint: Color) = drawIcAt(kind, tint, size.width)
+
+/** Draws [kind] at [px] square from this scope's origin. */
+fun DrawScope.drawIcAt(kind: Ic, tint: Color, px: Float) {
+    val u = px / 24f
+    val sw = 1.8f * u
+    val flat = Stroke(sw, cap = StrokeCap.Butt, join = androidx.compose.ui.graphics.StrokeJoin.Miter)
+    val soft = Stroke(sw, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
+    fun p(x: Float, y: Float) = Offset(x * u, y * u)
+    fun seg(x1: Float, y1: Float, x2: Float, y2: Float) = drawLine(tint, p(x1, y1), p(x2, y2), sw, StrokeCap.Butt)
+    fun poly(vararg xy: Float, closed: Boolean = false, round: Boolean = false) {
+        val path = androidx.compose.ui.graphics.Path()
+        var i = 0
+        while (i < xy.size) { if (i == 0) path.moveTo(xy[0] * u, xy[1] * u) else path.lineTo(xy[i] * u, xy[i + 1] * u); i += 2 }
+        if (closed) path.close()
+        drawPath(path, tint, style = if (round) soft else flat)
+    }
+    fun ring(cx: Float, cy: Float, r: Float) = drawCircle(tint, r * u, p(cx, cy), style = Stroke(sw))
+    fun dot(cx: Float, cy: Float, r: Float) = drawCircle(tint, r * u, p(cx, cy))
+    fun box(x: Float, y: Float, w: Float, h: Float, r: Float = 1.5f) =
+        drawRoundRect(tint, p(x, y), Size(w * u, h * u), androidx.compose.ui.geometry.CornerRadius(r * u), style = flat)
+    fun cap(x: Float, y: Float, w: Float, h: Float) = drawRect(tint, p(x, y), Size(w * u, h * u))
+    fun wave(x0: Float, x1: Float, y: Float, amp: Float, periods: Float) {
+        val path = androidx.compose.ui.graphics.Path()
+        val n = 64
+        for (k in 0..n) {
+            val t = k / n.toFloat()
+            val x = x0 + (x1 - x0) * t
+            val yy = y - amp * kotlin.math.sin(t * periods * 2 * Math.PI).toFloat()
+            if (k == 0) path.moveTo(x * u, yy * u) else path.lineTo(x * u, yy * u)
+        }
+        drawPath(path, tint, style = soft)
+    }
+    fun polar(cx: Float, cy: Float, r: Float, deg: Float): Offset {
+        val a = Math.toRadians(deg.toDouble())
+        return p(cx + r * kotlin.math.cos(a).toFloat(), cy + r * kotlin.math.sin(a).toFloat())
+    }
+    fun ray(cx: Float, cy: Float, r0: Float, r1: Float, deg: Float) = drawLine(tint, polar(cx, cy, r0, deg), polar(cx, cy, r1, deg), sw, StrokeCap.Butt)
+    fun oval(x: Float, y: Float, w: Float, h: Float) = androidx.compose.ui.graphics.Path().apply { addOval(androidx.compose.ui.geometry.Rect(x * u, y * u, (x + w) * u, (y + h) * u)) }
+    fun circlePath(cx: Float, cy: Float, r: Float) = oval(cx - r, cy - r, 2 * r, 2 * r)
+    fun outline(a: androidx.compose.ui.graphics.Path, b: androidx.compose.ui.graphics.Path, op: androidx.compose.ui.graphics.PathOperation) {
+        val out = androidx.compose.ui.graphics.Path()
+        out.op(a, b, op)
+        drawPath(out, tint, style = flat)
+    }
+
+    when (kind) {
+        // ---- the tabs: a record, the fader strip, the Tune mark, level bars, a knob
+        Ic.TESTS -> { // a record on the platter, the tonearm resting on it
+            ring(10f, 14f, 7.5f); dot(10f, 14f, 1.5f)
+            dot(19.5f, 4f, 1.7f); poly(19.5f, 4f, 19.5f, 11f, 14.8f, 15.7f)
+        }
+        Ic.EQ -> { // three fader slots with square caps
+            seg(6f, 3f, 6f, 21f); seg(12f, 3f, 12f, 21f); seg(18f, 3f, 18f, 21f)
+            cap(3f, 13.2f, 6f, 3.6f); cap(9f, 6.2f, 6f, 3.6f); cap(15f, 10.2f, 6f, 3.6f)
+        }
+        Ic.TUNE -> { // the launcher mark: speaker ring, the round Tune key, the fader slot under it
+            ring(12f, 10f, 7f); dot(12f, 10f, 3f)
+            seg(5f, 20.5f, 19f, 20.5f)
+        }
+        Ic.LIVE -> { // a slot grille of level bars
+            seg(4f, 20.5f, 4f, 14f); seg(8f, 20.5f, 8f, 8.5f); seg(12f, 20.5f, 12f, 4f); seg(16f, 20.5f, 16f, 10f); seg(20f, 20.5f, 20f, 13f)
+        }
+        Ic.GEAR -> { // a Braun knob: ring, pointer, a scale of dots
+            ring(12f, 12f, 6.6f)
+            ray(12f, 12f, 1.2f, 4.9f, -135f)
+            for (k in 0..6) if (k != 3) drawCircle(tint, 0.9f * u, polar(12f, 12f, 10.2f, 135f + k * 45f))
+        }
+        Ic.MEASURE -> { // a needle meter: the scale arc, three marks, the needle on its pivot
+            drawArc(tint, 205f, 130f, false, p(3f, 7f), Size(18f * u, 18f * u), style = flat)
+            ray(12f, 16f, 6.3f, 9f, 230f); ray(12f, 16f, 6.3f, 9f, 270f); ray(12f, 16f, 6.3f, 9f, 310f)
+            ray(12f, 16f, 0f, 8f, 295f); dot(12f, 16f, 1.8f)
+            seg(4f, 20.5f, 20f, 20.5f)
+        }
+        // ---- what the sound comes from and goes to
+        Ic.MIC -> { // the measurement mic: a small round head on a long tube
+            box(9f, 2.5f, 6f, 6.5f, 3f)
+            poly(10.1f, 9.5f, 11f, 21.5f, 13f, 21.5f, 13.9f, 9.5f)
+        }
+        Ic.SPEAKER -> { // a speaker cabinet: woofer and tweeter
+            box(5f, 2.5f, 14f, 19f); ring(12f, 15f, 3.8f); ring(12f, 7.6f, 1.7f)
+        }
+        Ic.CAR -> {
+            poly(2.5f, 16f, 2.5f, 12f, 6f, 11f, 8.5f, 6.5f, 15.5f, 6.5f, 18f, 11f, 21.5f, 12f, 21.5f, 16f)
+            seg(2.5f, 16f, 4.6f, 16f); seg(9.4f, 16f, 14.6f, 16f); seg(19.4f, 16f, 21.5f, 16f)
+            ring(7f, 16.5f, 2.3f); ring(17f, 16.5f, 2.3f)
+        }
+        Ic.HOME -> { // a screen with a soundbar under it: a home theatre
+            box(2.5f, 3.5f, 19f, 12f, 1f); seg(12f, 15.5f, 12f, 17.5f)
+            box(5f, 18.5f, 14f, 3f, 1f)
+        }
+        Ic.BLUETOOTH -> poly(7f, 7.5f, 17f, 16.5f, 12f, 21f, 12f, 3f, 17f, 7.5f, 7f, 16.5f)
+        // ---- the sound itself
+        Ic.FLAT -> { seg(3f, 12f, 21f, 12f); seg(3f, 7f, 3f, 17f); seg(21f, 7f, 21f, 17f) }
+        Ic.CURVE -> {
+            val path = androidx.compose.ui.graphics.Path().apply { moveTo(3f * u, 8f * u); cubicTo(8f * u, 8f * u, 9f * u, 13f * u, 12f * u, 13f * u); cubicTo(15f * u, 13f * u, 16f * u, 16f * u, 21f * u, 17f * u) }
+            drawPath(path, tint, style = soft)
+        }
+        Ic.BASS -> wave(2.5f, 21.5f, 12f, 6.5f, 1f) // one slow, wide wave
+        Ic.TREBLE -> wave(2.5f, 21.5f, 12f, 3f, 5f) // a tight, small wave
+        Ic.GAIN -> { // one fader: the preamp
+            seg(12f, 3f, 12f, 21f); cap(7.5f, 10.2f, 9f, 3.6f)
+            seg(3.5f, 4f, 6.5f, 4f); seg(3.5f, 8f, 5.5f, 8f); seg(3.5f, 12f, 6.5f, 12f); seg(3.5f, 16f, 5.5f, 16f); seg(3.5f, 20f, 6.5f, 20f)
+        }
+        Ic.VOLUME -> { // the volume ramp, set low
+            poly(2.5f, 19.5f, 21.5f, 19.5f, 21.5f, 5f, closed = true); seg(8f, 11f, 8f, 22f)
+        }
+        Ic.NIGHT -> outline(circlePath(11.5f, 12.5f, 8.5f), circlePath(16.5f, 8f, 7f), androidx.compose.ui.graphics.PathOperation.Difference)
+        Ic.SPEECH -> {
+            val bubble = androidx.compose.ui.graphics.Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(3f * u, 3.5f * u, 21f * u, 16f * u, androidx.compose.ui.geometry.CornerRadius(2f * u))) }
+            val tail = androidx.compose.ui.graphics.Path().apply { moveTo(7f * u, 15f * u); lineTo(6.5f * u, 21f * u); lineTo(12.5f * u, 15f * u); close() }
+            outline(bubble, tail, androidx.compose.ui.graphics.PathOperation.Union)
+            seg(7f, 8f, 17f, 8f); seg(7f, 11.5f, 14f, 11.5f)
+        }
+        Ic.DRUM -> { // a snare drum and two sticks: rock
+            drawOval(tint, p(4f, 8.5f), Size(16f * u, 5f * u), style = flat)
+            seg(4f, 11f, 4f, 18f); seg(20f, 11f, 20f, 18f)
+            drawArc(tint, 0f, 180f, false, p(4f, 15.5f), Size(16f * u, 5f * u), style = flat)
+            drawLine(tint, p(5f, 2.5f), p(12.5f, 9.5f), sw, StrokeCap.Round); drawLine(tint, p(19f, 2.5f), p(11.5f, 9.5f), sw, StrokeCap.Round)
+        }
+        Ic.VOCAL -> { // a singer's ball mic: pop
+            ring(15f, 8f, 4.5f)
+            drawLine(tint, p(15f - 4.5f * 0.74f, 8f - 4.5f * 0.673f), p(15f + 4.5f * 0.74f, 8f + 4.5f * 0.673f), sw, StrokeCap.Butt)
+            poly(10.79f, 10.25f, 4.09f, 18.36f, 5.71f, 19.84f, 13.15f, 12.41f)
+        }
+        Ic.GUITAR -> { // an acoustic guitar: acoustic and classical
+            outline(circlePath(8.5f, 16f, 5f), circlePath(12f, 11f, 3.6f), androidx.compose.ui.graphics.PathOperation.Union)
+            ring(8.8f, 15.6f, 1.5f)
+            seg(14f, 8.2f, 18.6f, 2.6f); seg(17f, 1.8f, 20.2f, 3.6f)
+        }
+        Ic.SYNTH -> poly(2.5f, 16f, 6.5f, 16f, 6.5f, 8f, 11.5f, 8f, 11.5f, 16f, 16.5f, 16f, 16.5f, 8f, 21.5f, 8f) // a square wave: electronic
+        // ---- actions
+        Ic.PLAY -> poly(7.5f, 5f, 18.5f, 12f, 7.5f, 19f, closed = true)
+        Ic.STOP -> box(6.5f, 6.5f, 11f, 11f, 1f)
+        Ic.EXPORT -> { seg(12f, 15f, 12f, 4f); poly(7.5f, 8.5f, 12f, 4f, 16.5f, 8.5f); poly(4f, 13f, 4f, 20f, 20f, 20f, 20f, 13f) }
+        Ic.SHARE -> {
+            ring(17.5f, 5.5f, 2.4f); ring(6.5f, 12f, 2.4f); ring(17.5f, 18.5f, 2.4f)
+            seg(8.6f, 10.8f, 15.4f, 6.7f); seg(8.6f, 13.2f, 15.4f, 17.3f)
+        }
+        Ic.SAVE -> { // a cassette: kept on tape
+            box(2.5f, 5f, 19f, 14f); ring(8.5f, 10.5f, 2f); ring(15.5f, 10.5f, 2f); seg(8.5f, 12.5f, 15.5f, 12.5f)
+            poly(6.5f, 19f, 8f, 16f, 16f, 16f, 17.5f, 19f)
+        }
+        Ic.AGAIN -> {
+            drawArc(tint, -60f, 300f, false, p(5f, 5f), Size(14f * u, 14f * u), style = flat)
+            poly(15.6f, 2.6f, 15.6f, 6.4f, 19.4f, 6.4f)
+        }
+        Ic.UNDO -> {
+            drawArc(tint, 180f, 180f, false, p(7f, 8f), Size(12f * u, 10f * u), style = flat)
+            seg(19f, 13f, 19f, 17.5f); poly(4f, 10f, 7f, 13f, 10f, 10f)
+        }
+        Ic.TRASH -> {
+            seg(4f, 6.5f, 20f, 6.5f); poly(9.5f, 6.5f, 9.5f, 3.5f, 14.5f, 3.5f, 14.5f, 6.5f)
+            poly(6f, 6.5f, 7f, 20.5f, 17f, 20.5f, 18f, 6.5f)
+            seg(10f, 10f, 10f, 17f); seg(14f, 10f, 14f, 17f)
+        }
+        Ic.POWER -> { drawArc(tint, -60f, 300f, false, p(4.5f, 5f), Size(15f * u, 15f * u), style = flat); seg(12f, 3f, 12f, 11.5f) }
+        Ic.EDIT -> { poly(5f, 19f, 6f, 15f, 16f, 5f, 19f, 8f, 9f, 18f, closed = true); seg(14f, 7f, 17f, 10f) }
+        Ic.DIAG -> { box(4.5f, 3f, 15f, 18f); poly(7f, 13f, 9.5f, 13f, 11f, 9f, 13f, 17f, 14.5f, 13f, 17f, 13f) }
+        Ic.FILE -> { poly(6f, 3f, 14f, 3f, 19f, 8f, 19f, 21f, 6f, 21f, closed = true); poly(14f, 3f, 14f, 8f, 19f, 8f) }
+        Ic.LOCK, Ic.UNLOCK -> {
+            box(5f, 11f, 14f, 10f)
+            if (kind == Ic.LOCK) drawArc(tint, 180f, 180f, false, p(8f, 4f), Size(8f * u, 13f * u), style = flat)
+            else drawArc(tint, 200f, 160f, false, p(11f, 3f), Size(8f * u, 12f * u), style = flat)
+            dot(12f, 16f, 1.4f)
+        }
+        Ic.SEND -> { poly(4f, 4.5f, 20.5f, 12f, 4f, 19.5f, 6.5f, 12f, closed = true); seg(6.5f, 12f, 12f, 12f) }
+        Ic.EXPAND -> {
+            poly(4f, 9f, 4f, 4f, 9f, 4f); poly(15f, 4f, 20f, 4f, 20f, 9f)
+            poly(4f, 15f, 4f, 20f, 9f, 20f); poly(15f, 20f, 20f, 20f, 20f, 15f)
+        }
+        Ic.AI -> { // a four-point spark and a small one
+            fun star(cx: Float, cy: Float, r: Float, w: Float) {
+                val path = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(cx * u, (cy - r) * u)
+                    quadraticTo((cx + w) * u, (cy - w) * u, (cx + r) * u, cy * u)
+                    quadraticTo((cx + w) * u, (cy + w) * u, cx * u, (cy + r) * u)
+                    quadraticTo((cx - w) * u, (cy + w) * u, (cx - r) * u, cy * u)
+                    quadraticTo((cx - w) * u, (cy - w) * u, cx * u, (cy - r) * u)
+                    close()
                 }
-                drawCircle(tint, 6.4f * u, Offset(12f * u, 12f * u), style = Stroke(sw * 0.9f))
+                drawPath(path, tint, style = soft)
             }
-            Ic.PLUS -> { line(12f, 5f, 12f, 19f); line(5f, 12f, 19f, 12f) }
-            Ic.INFO -> {
-                drawCircle(tint, 9f * u, Offset(12f * u, 12f * u), style = st)
-                line(12f, 11f, 12f, 16.5f); drawCircle(tint, 1.1f * u, Offset(12f * u, 7.8f * u))
-            }
-            Ic.CHEVRON -> { line(9f, 5f, 16f, 12f); line(16f, 12f, 9f, 19f) }
-            Ic.CHEVRON_DOWN -> { line(5f, 9f, 12f, 16f); line(12f, 16f, 19f, 9f) }
-            Ic.CLOSE -> { line(6f, 6f, 18f, 18f); line(18f, 6f, 6f, 18f) }
-            Ic.CHECK -> { line(5f, 12.5f, 10f, 17.5f); line(10f, 17.5f, 19f, 7f) }
-            Ic.BACK -> { line(19f, 12f, 5f, 12f); line(11f, 6f, 5f, 12f); line(11f, 18f, 5f, 12f) }
-            Ic.MENU -> for (y in listOf(6f, 12f, 18f)) drawLine(tint, Offset(4f * u, y * u), Offset(20f * u, y * u), strokeWidth = 2f * u, cap = StrokeCap.Round)
-            Ic.MORE -> { drawCircle(tint, 1.7f * u, Offset(12f * u, 5.5f * u)); drawCircle(tint, 1.7f * u, Offset(12f * u, 12f * u)); drawCircle(tint, 1.7f * u, Offset(12f * u, 18.5f * u)) }
-            Ic.ALERT -> {
-                line(12f, 4f, 21f, 19.5f); line(21f, 19.5f, 3f, 19.5f); line(3f, 19.5f, 12f, 4f)
-                line(12f, 10f, 12f, 14.5f); drawCircle(tint, 1f * u, Offset(12f * u, 17f * u))
-            }
-            Ic.TUNE -> { // a wave settling onto a straight line
-                val p = androidx.compose.ui.graphics.Path()
-                for (k in 0..40) {
-                    val x = 3f + k * 18f / 40f
-                    val a = 6f * (1f - k / 40f)
-                    val y = 12f + a * kotlin.math.sin(k / 40f * 6f * Math.PI.toFloat())
-                    if (k == 0) p.moveTo(x * u, y * u) else p.lineTo(x * u, y * u)
-                }
-                drawPath(p, tint, style = st)
-            }
-            Ic.MIC -> {
-                drawRoundRect(tint, Offset(9f * u, 3f * u), Size(6f * u, 11f * u), androidx.compose.ui.geometry.CornerRadius(3f * u), style = st)
-                drawArc(tint, 0f, 180f, false, Offset(5.5f * u, 5f * u), Size(13f * u, 12f * u), style = st)
-                line(12f, 17f, 12f, 21f); line(8.5f, 21f, 15.5f, 21f)
-            }
-            Ic.SPEAKER -> {
-                line(4f, 9.5f, 7.5f, 9.5f); line(4f, 14.5f, 7.5f, 14.5f); line(4f, 9.5f, 4f, 14.5f)
-                line(7.5f, 9.5f, 12f, 5f); line(12f, 5f, 12f, 19f); line(12f, 19f, 7.5f, 14.5f)
-                drawArc(tint, -45f, 90f, false, Offset(9f * u, 8f * u), Size(8f * u, 8f * u), style = st)
-                drawArc(tint, -45f, 90f, false, Offset(6.5f * u, 4.5f * u), Size(14f * u, 15f * u), style = st)
-            }
-            Ic.PLAY -> {
-                val p = androidx.compose.ui.graphics.Path().apply { moveTo(7f * u, 5f * u); lineTo(19f * u, 12f * u); lineTo(7f * u, 19f * u); close() }
-                drawPath(p, tint)
-            }
-            Ic.STOP -> drawRoundRect(tint, Offset(6.5f * u, 6.5f * u), Size(11f * u, 11f * u), androidx.compose.ui.geometry.CornerRadius(1.5f * u))
-            Ic.SHARE -> {
-                drawCircle(tint, 2.4f * u, Offset(17.5f * u, 6f * u)); drawCircle(tint, 2.4f * u, Offset(6.5f * u, 12f * u)); drawCircle(tint, 2.4f * u, Offset(17.5f * u, 18f * u))
-                line(6.5f, 12f, 17.5f, 6f); line(6.5f, 12f, 17.5f, 18f)
-            }
-            Ic.SAVE -> {
-                line(5f, 4f, 16f, 4f); line(16f, 4f, 20f, 8f); line(20f, 8f, 20f, 20f); line(20f, 20f, 5f, 20f); line(5f, 20f, 5f, 4f)
-                line(8.5f, 4f, 8.5f, 9f); line(8.5f, 9f, 15f, 9f); line(15f, 9f, 15f, 4f)
-                drawCircle(tint, 2.3f * u, Offset(12.5f * u, 14.5f * u), style = st)
-            }
-            Ic.AGAIN -> {
-                drawArc(tint, -60f, 300f, false, Offset(5f * u, 5f * u), Size(14f * u, 14f * u), style = st)
-                line(18.5f, 3.5f, 15.5f, 6.6f); line(15.5f, 6.6f, 19.6f, 8.4f)
-            }
-            Ic.TRASH -> {
-                line(4f, 6.5f, 20f, 6.5f); line(9.5f, 6.5f, 10f, 3.5f); line(10f, 3.5f, 14f, 3.5f); line(14f, 3.5f, 14.5f, 6.5f)
-                line(6f, 6.5f, 7f, 20f); line(7f, 20f, 17f, 20f); line(17f, 20f, 18f, 6.5f)
-                line(10f, 10f, 10f, 16.5f); line(14f, 10f, 14f, 16.5f)
-            }
-            Ic.POWER -> {
-                drawArc(tint, -60f, 300f, false, Offset(4.5f * u, 5f * u), Size(15f * u, 15f * u), style = st)
-                line(12f, 3f, 12f, 11.5f)
-            }
-            Ic.UNDO -> {
-                drawArc(tint, 180f, 180f, false, Offset(7f * u, 8f * u), Size(12f * u, 10f * u), style = st)
-                line(19f, 13f, 19f, 17f); line(7f, 13f, 4f, 10f); line(7f, 13f, 10f, 10.5f)
-            }
-            Ic.EDIT -> {
-                line(5f, 19f, 6f, 15f); line(6f, 15f, 16f, 5f); line(16f, 5f, 19f, 8f); line(19f, 8f, 9f, 18f); line(9f, 18f, 5f, 19f)
-                line(14f, 7f, 17f, 10f)
-            }
-            Ic.DIAG -> {
-                drawRoundRect(tint, Offset(5f * u, 3f * u), Size(14f * u, 18f * u), androidx.compose.ui.geometry.CornerRadius(2f * u), style = st)
-                line(7.5f, 13f, 9.5f, 13f); line(9.5f, 13f, 11f, 9f); line(11f, 9f, 13f, 17f); line(13f, 17f, 14.5f, 13f); line(14.5f, 13f, 16.5f, 13f)
-            }
-            Ic.DONE -> {
-                drawCircle(tint, 9f * u, Offset(12f * u, 12f * u), style = st)
-                line(7.5f, 12.5f, 10.5f, 15.5f); line(10.5f, 15.5f, 16.5f, 9f)
-            }
-            Ic.BLUETOOTH -> { line(7f, 7.5f, 17f, 16.5f); line(17f, 16.5f, 12f, 21f); line(12f, 21f, 12f, 3f); line(12f, 3f, 17f, 7.5f); line(17f, 7.5f, 7f, 16.5f) }
-            Ic.NEXT -> { line(5f, 12f, 19f, 12f); line(13f, 6f, 19f, 12f); line(13f, 18f, 19f, 12f) }
-            Ic.CAR -> {
-                // body, cabin, wheels
-                line(3f, 15f, 3f, 12.5f); line(3f, 12.5f, 6f, 11.5f); line(6f, 11.5f, 8.5f, 7.5f); line(8.5f, 7.5f, 15.5f, 7.5f)
-                line(15.5f, 7.5f, 18f, 11.5f); line(18f, 11.5f, 21f, 12.5f); line(21f, 12.5f, 21f, 15f)
-                line(3f, 15f, 5f, 15f); line(9.5f, 15f, 14.5f, 15f); line(19f, 15f, 21f, 15f)
-                drawCircle(tint, 2.2f * u, Offset(7.2f * u, 15.5f * u), style = st); drawCircle(tint, 2.2f * u, Offset(16.8f * u, 15.5f * u), style = st)
-            }
-            Ic.HOME -> {
-                // a screen on a stand with a speaker either side: a home theatre
-                drawRoundRect(tint, Offset(6.5f * u, 5f * u), Size(11f * u, 8f * u), androidx.compose.ui.geometry.CornerRadius(1f * u), style = st)
-                line(12f, 13f, 12f, 16f); line(9f, 16f, 15f, 16f)
-                drawRoundRect(tint, Offset(2f * u, 9f * u), Size(3f * u, 10f * u), androidx.compose.ui.geometry.CornerRadius(1f * u), style = st)
-                drawRoundRect(tint, Offset(19f * u, 9f * u), Size(3f * u, 10f * u), androidx.compose.ui.geometry.CornerRadius(1f * u), style = st)
-            }
-            Ic.FLAT -> { line(3f, 12f, 21f, 12f); line(3f, 7f, 3f, 17f); line(21f, 7f, 21f, 17f) }
-            Ic.CURVE -> {
-                val p = androidx.compose.ui.graphics.Path().apply { moveTo(3f * u, 8f * u); cubicTo(8f * u, 8f * u, 9f * u, 13f * u, 12f * u, 13f * u); cubicTo(15f * u, 13f * u, 16f * u, 16f * u, 21f * u, 17f * u) }
-                drawPath(p, tint, style = st)
-            }
-            Ic.LOCK, Ic.UNLOCK -> {
-                drawRoundRect(tint, Offset(5f * u, 11f * u), Size(14f * u, 10f * u), androidx.compose.ui.geometry.CornerRadius(2f * u), style = st)
-                if (kind == Ic.LOCK) drawArc(tint, 180f, 180f, false, Offset(8f * u, 4f * u), Size(8f * u, 13f * u), style = st)
-                else drawArc(tint, 200f, 160f, false, Offset(11f * u, 3f * u), Size(8f * u, 12f * u), style = st)
-                drawCircle(tint, 1.3f * u, Offset(12f * u, 16f * u))
-            }
-            Ic.AI -> {
-                // a four-point sparkle and a small one: the AI assistant
-                fun star(cx: Float, cy: Float, r: Float, w: Float) {
-                    val p = androidx.compose.ui.graphics.Path().apply {
-                        moveTo(cx * u, (cy - r) * u)
-                        quadraticTo((cx + w) * u, (cy - w) * u, (cx + r) * u, cy * u)
-                        quadraticTo((cx + w) * u, (cy + w) * u, cx * u, (cy + r) * u)
-                        quadraticTo((cx - w) * u, (cy + w) * u, (cx - r) * u, cy * u)
-                        quadraticTo((cx - w) * u, (cy - w) * u, cx * u, (cy - r) * u)
-                        close()
-                    }
-                    drawPath(p, tint, style = androidx.compose.ui.graphics.drawscope.Stroke(sw * 0.9f, join = androidx.compose.ui.graphics.StrokeJoin.Round))
-                }
-                star(10f, 13f, 8f, 1.6f)
-                star(18.5f, 5.5f, 3.2f, 0.7f)
-            }
-            Ic.EXPAND -> {
-                // four corners pointing out: open full screen
-                line(4f, 9f, 4f, 4f); line(4f, 4f, 9f, 4f)
-                line(15f, 4f, 20f, 4f); line(20f, 4f, 20f, 9f)
-                line(4f, 15f, 4f, 20f); line(4f, 20f, 9f, 20f)
-                line(15f, 20f, 20f, 20f); line(20f, 20f, 20f, 15f)
-            }
-            Ic.SEND -> {
-                val p = androidx.compose.ui.graphics.Path().apply {
-                    moveTo(4f * u, 4.5f * u); lineTo(20.5f * u, 12f * u); lineTo(4f * u, 19.5f * u); lineTo(6.5f * u, 12f * u); close()
-                }
-                drawPath(p, tint, style = androidx.compose.ui.graphics.drawscope.Stroke(sw, join = androidx.compose.ui.graphics.StrokeJoin.Round))
-                line(6.5f, 12f, 12f, 12f)
-            }
-            Ic.FILE -> {
-                line(6f, 3f, 14f, 3f); line(14f, 3f, 19f, 8f); line(19f, 8f, 19f, 21f); line(19f, 21f, 6f, 21f); line(6f, 21f, 6f, 3f)
-                line(14f, 3f, 14f, 8f); line(14f, 8f, 19f, 8f)
-            }
+            star(10f, 13f, 8f, 1.6f); star(18.5f, 5.5f, 3.2f, 0.7f)
+        }
+        // ---- the plain marks
+        Ic.PLUS -> { seg(12f, 5f, 12f, 19f); seg(5f, 12f, 19f, 12f) }
+        Ic.CLOSE -> { seg(6f, 6f, 18f, 18f); seg(18f, 6f, 6f, 18f) }
+        Ic.CHECK -> poly(5f, 12.5f, 10f, 17.5f, 19f, 7f)
+        Ic.CHEVRON -> poly(9f, 5f, 16f, 12f, 9f, 19f)
+        Ic.CHEVRON_DOWN -> poly(5f, 9f, 12f, 16f, 19f, 9f)
+        Ic.BACK -> { seg(20f, 12f, 5f, 12f); poly(11f, 6f, 5f, 12f, 11f, 18f) }
+        Ic.NEXT -> { seg(4f, 12f, 19f, 12f); poly(13f, 6f, 19f, 12f, 13f, 18f) }
+        Ic.MENU -> { seg(4f, 6.5f, 20f, 6.5f); seg(4f, 12f, 20f, 12f); seg(4f, 17.5f, 20f, 17.5f) }
+        Ic.MORE -> { dot(12f, 5.5f, 1.7f); dot(12f, 12f, 1.7f); dot(12f, 18.5f, 1.7f) }
+        Ic.INFO -> { ring(12f, 12f, 9f); seg(12f, 10.5f, 12f, 17f); dot(12f, 7.6f, 1.2f) }
+        Ic.DONE -> { ring(12f, 12f, 9f); poly(7.5f, 12.5f, 10.5f, 15.5f, 16.5f, 9f) }
+        Ic.ALERT -> {
+            drawPath(androidx.compose.ui.graphics.Path().apply { moveTo(12f * u, 3.5f * u); lineTo(21.5f * u, 20f * u); lineTo(2.5f * u, 20f * u); close() }, tint, style = flat)
+            seg(12f, 9.5f, 12f, 14.5f); dot(12f, 17.1f, 1.1f)
         }
     }
 }
@@ -661,23 +721,40 @@ fun InfoButton(title: String, text: String, small: Boolean = false) {
     }
 }
 
-/**
- * Page title with an optional line of context under it, ruled off from the page like a sheet's header. On a page
- * opened over a tab ([LocalBack] set) it starts with a back arrow and leaves the menu out.
- */
 /** What the collapsed header bar needs to know: the screen's title, and how far to scroll before it shows. */
 class TitleSlot {
     var title by mutableStateOf<String?>(null)
     var collapseAtPx by mutableStateOf(Int.MAX_VALUE)
+    /** The header's own height as last drawn, so the shell can keep the place when a tall header turns compact. */
+    var heightPx = 0
 }
 
 val LocalTitleSlot = androidx.compose.runtime.staticCompositionLocalOf<TitleSlot?> { null }
 
 /**
- * The screen header, after Samsung One UI: a tall space at the top holds the screen's name in large type and a
- * Bauhaus composition of its own, so the content starts lower, nearer the thumb. The wordmark (or Back on a page),
- * the Simple / Advanced key and the menu sit on its top line. Scrolled past, a slim bar with the name takes over
- * (drawn by the app shell from [LocalTitleSlot]).
+ * Whether the screen opens with the tall header. The app shell sets it: true on a fresh open (a cold start, or back
+ * after 15 minutes or more in the background, see [dev.autotune.freshOpen]) for every tab not yet visited since; a
+ * jump between tabs, Back, and a page over a tab open compact.
+ */
+val LocalHeaderTall = androidx.compose.runtime.compositionLocalOf { true }
+
+/** The name as a mark, the lettering on the device's face: AUTOTUNE in spaced capitals. */
+@Composable
+fun Wordmark(modifier: Modifier = Modifier, large: Boolean = false) {
+    Text(
+        "AUTOTUNE", modifier.semantics { contentDescription = "AutoTune" },
+        style = (if (large) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall)
+            .copy(fontWeight = FontWeight.Bold, letterSpacing = if (large) 2.4.sp else 2.sp),
+        color = At.c.text, maxLines = 1,
+    )
+}
+
+/**
+ * The screen header. Tall (the one Samsung One UI feature kept): a space at the top holds the screen's name in large
+ * type and its own Braun audio graphic, so the content starts lower, nearer the thumb; the wordmark (or Back on a
+ * page), the Simple / Advanced key and the menu sit on its top line, and scrolled past, a slim bar takes over (drawn by
+ * the app shell from [LocalTitleSlot]). Compact ([LocalHeaderTall] false): that slim bar is the header itself and the
+ * content starts high.
  */
 @Composable
 fun ScreenTitle(title: String, context: String? = null, onContext: (() -> Unit)? = null, contextIcon: Ic? = null, actions: @Composable () -> Unit = {}) {
@@ -685,99 +762,213 @@ fun ScreenTitle(title: String, context: String? = null, onContext: (() -> Unit)?
     val slot = LocalTitleSlot.current
     val density = androidx.compose.ui.platform.LocalDensity.current
     androidx.compose.runtime.SideEffect { slot?.title = title }
+    // a screen that stops showing its title (Tune's steps) must not leave the slim bar behind
+    androidx.compose.runtime.DisposableEffect(slot) { onDispose { slot?.title = null } }
+    val place = Modifier.fillMaxWidth().onGloballyPositioned {
+        slot?.heightPx = it.size.height
+        slot?.collapseAtPx = (it.size.height - with(density) { 56.dp.toPx() }).toInt()
+    }
+    val contextLine: @Composable () -> Unit = {
+        if (context != null) {
+            Row(
+                (if (onContext != null) Modifier.clickable(onClick = onContext) else Modifier).heightIn(min = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (contextIcon != null) { AtIcon(contextIcon, At.c.muted, size = 16.dp); androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp)) }
+                Text(context, style = MaterialTheme.typography.bodyMedium, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+        }
+    }
+    if (!LocalHeaderTall.current) {
+        // compact: the slim bar, the name on the left, the context under it in one line
+        Column(place) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (back != null) Box(Modifier.offset(x = (-12).dp)) { IconAction(Ic.BACK, "Back", back) }
+                Column(Modifier.weight(1f).then(if (back != null) Modifier.offset(x = (-8).dp) else Modifier)) {
+                    Text(
+                        title, style = MaterialTheme.typography.titleLarge, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.semantics { heading() },
+                    )
+                    contextLine()
+                }
+                actions()
+                ModeSwitch()
+                if (back == null) LocalMenu.current()
+            }
+            SheetRule()
+        }
+        return
+    }
     val tall = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.27f).dp.coerceIn(170.dp, 260.dp)
-    Column(
-        Modifier.fillMaxWidth().onGloballyPositioned { slot?.collapseAtPx = (it.size.height - with(density) { 56.dp.toPx() }).toInt() },
-    ) {
+    Column(place) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (back != null) Box(Modifier.offset(x = (-12).dp)) { IconAction(Ic.BACK, "Back", back) }
-            else Text("autotune", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp), color = At.c.text)
+            else Wordmark()
             androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
             actions()
             ModeSwitch()
             if (back == null) LocalMenu.current()
         }
         Box(Modifier.fillMaxWidth().height(tall)) {
-            HeaderArt(title.lowercase(), Modifier.align(Alignment.CenterEnd).size(tall * 0.72f))
-            Column(Modifier.align(Alignment.BottomStart).padding(bottom = 18.dp).fillMaxWidth(0.68f)) {
+            HeaderArt(title.lowercase(), Modifier.align(Alignment.TopEnd).padding(top = 10.dp).fillMaxWidth(0.52f).height(tall * 0.54f))
+            Column(Modifier.align(Alignment.BottomStart).padding(bottom = 18.dp).fillMaxWidth(0.72f)) {
                 Text(
                     title, style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Normal, fontSize = 36.sp, lineHeight = 40.sp),
                     color = At.c.text, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.semantics { heading() },
                 )
-                if (context != null) {
-                    Row(
-                        (if (onContext != null) Modifier.clickable(onClick = onContext) else Modifier).padding(top = 6.dp).heightIn(min = 20.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (contextIcon != null) { AtIcon(contextIcon, At.c.muted, size = 16.dp); androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp)) }
-                        Text(context, style = MaterialTheme.typography.bodyMedium, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                    }
-                }
+                if (context != null) Box(Modifier.padding(top = 6.dp)) { contextLine() }
             }
         }
         SheetRule()
     }
 }
 
+/** The plain black of a record, the same by day and by night. */
+private val Vinyl = Color(0xFF161615)
+
 /**
- * The header's Bauhaus composition: circle, square and bar, in the deck greys with one element in the accent, a
- * different arrangement for each screen that says what it is (a list, faders, a speaker, a spectrum, the three
- * primary shapes).
+ * The header's graphic: the face of a Braun hi-fi component for each screen, flat, in the deck greys, with the accent
+ * only on one needle, pilot light or key. Tests is a record player (the SK 4's platter and tonearm), EQ a fader strip,
+ * Tune the round speaker grille (the L 2 / T 3), Live a radio's tuning scale with its needle over a slot grille of level
+ * bars, Settings a row of push keys and knobs (the audio 1), and anything else the reels of a tape deck (the TG 60).
  */
 @Composable
 fun HeaderArt(key: String, modifier: Modifier) {
     val c = At.c
-    val soft = c.panel
-    val mid = c.line
-    val ink = c.text.copy(alpha = 0.85f)
+    val plate = c.panel
+    val keyFace = c.panelHigh
+    val rule = c.line
+    val ink = c.text
+    val alu = c.alu
     val accent = c.signal
-    Canvas(modifier) {
-        val w = size.width; val h = size.height; val u = minOf(w, h)
+    val slotInk = androidx.compose.ui.graphics.Color.Black.copy(alpha = if (c.dark) 0.6f else 0.45f)
+    Canvas(modifier.semantics { }) {
+        val w = size.width; val h = size.height
+        val r6 = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx())
+        val r2 = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
+        val hair = 1.dp.toPx()
+        fun deck() = drawRoundRect(plate, Offset.Zero, size, r6)
+        fun pilot(x: Float, y: Float) = drawCircle(accent, h * 0.035f, Offset(x, y))
         when (key) {
             "tests" -> {
-                // a list: four bars of different lengths, the open one in the accent
-                for (k in 0 until 4) {
-                    val y = h * (0.2f + k * 0.19f)
-                    drawRoundRect(if (k == 1) accent else if (k == 3) mid else soft, Offset(w - u * (0.95f - k * 0.08f), y), Size(u * (0.95f - k * 0.13f), u * 0.11f), androidx.compose.ui.geometry.CornerRadius(u * 0.055f))
-                }
-                drawCircle(ink, u * 0.07f, Offset(w - u * 1.02f + u * 0.07f, h * 0.2f + u * 0.055f + h * 0.19f))
+                // a record player: the platter's record, grooves, the label; the tonearm from its pivot
+                deck()
+                val ctr = Offset(w * 0.38f, h * 0.5f); val r = h * 0.41f
+                drawCircle(alu.copy(alpha = 0.55f), r * 1.06f, ctr)
+                drawCircle(Vinyl, r, ctr)
+                for (k in 1..4) drawCircle(Color.White.copy(alpha = 0.07f), r * (0.45f + k * 0.12f), ctr, style = Stroke(hair))
+                drawCircle(keyFace, r * 0.3f, ctr)
+                drawCircle(rule, r * 0.3f, ctr, style = Stroke(hair))
+                drawCircle(ink, r * 0.05f, ctr)
+                val pivot = Offset(w * 0.86f, h * 0.2f)
+                drawCircle(alu, h * 0.08f, pivot); drawCircle(ink, h * 0.03f, pivot)
+                val elbow = Offset(w * 0.86f, h * 0.6f); val head = Offset(w * 0.64f, h * 0.73f)
+                drawLine(alu, pivot, elbow, h * 0.025f, StrokeCap.Round); drawLine(alu, elbow, head, h * 0.025f, StrokeCap.Round)
+                drawCircle(ink, h * 0.03f, head)
+                pilot(w * 0.92f, h * 0.88f)
             }
             "eq" -> {
-                // three faders: slots and caps, one cap in the accent
-                val xs = listOf(0.25f, 0.55f, 0.85f); val caps = listOf(0.62f, 0.32f, 0.5f)
-                xs.forEachIndexed { k, fx ->
-                    val x = w - u + u * fx
-                    drawLine(mid, Offset(x, h * 0.1f), Offset(x, h * 0.9f), u * 0.035f, StrokeCap.Round)
-                    drawRoundRect(if (k == 1) accent else ink, Offset(x - u * 0.09f, h * caps[k] - u * 0.045f), Size(u * 0.18f, u * 0.09f), androidx.compose.ui.geometry.CornerRadius(u * 0.02f))
+                // a fader strip: slots with a scale, square caps riding a gentle curve, one cap in the accent
+                deck()
+                val n = 6; val top = h * 0.14f; val bottom = h * 0.86f
+                val caps = listOf(0.62f, 0.42f, 0.5f, 0.66f, 0.36f, 0.48f)
+                for (k in 0 until n) {
+                    val x = w * (0.13f + k * 0.148f)
+                    for (t in 0..4) { val y = top + (bottom - top) * t / 4f; drawLine(rule, Offset(x - w * 0.045f, y), Offset(x - w * 0.025f, y), hair) }
+                    drawRoundRect(slotInk, Offset(x - w * 0.008f, top), Size(w * 0.016f, bottom - top), androidx.compose.ui.geometry.CornerRadius(w * 0.008f))
+                    val y = h * caps[k]
+                    drawRoundRect(if (k == 2) accent else ink, Offset(x - w * 0.04f, y - h * 0.055f), Size(w * 0.08f, h * 0.11f), r2)
+                    drawLine(if (k == 2) c.onSignal else c.bg, Offset(x - w * 0.028f, y), Offset(x + w * 0.028f, y), hair * 1.5f)
                 }
-                drawCircle(soft, u * 0.16f, Offset(w - u * 0.2f, h * 0.2f))
             }
             "tune" -> {
-                // a speaker: the big circle, its cone ring and the accent centre, a square set against it
-                drawRect(soft, Offset(w - u * 1.0f, h * 0.48f), Size(u * 0.42f, u * 0.42f))
-                drawCircle(mid, u * 0.36f, Offset(w - u * 0.42f, h * 0.45f))
-                drawCircle(soft, u * 0.25f, Offset(w - u * 0.42f, h * 0.45f))
-                drawCircle(accent, u * 0.1f, Offset(w - u * 0.42f, h * 0.45f))
+                // the round speaker: an aluminium rim, the perforated grille, the Tune key's pilot below
+                val ctr = Offset(w * 0.6f, h * 0.5f); val r = h * 0.48f
+                drawCircle(alu.copy(alpha = 0.55f), r, ctr)
+                drawCircle(plate, r * 0.93f, ctr)
+                val step = r * 0.13f; val hole = r * 0.028f; val outer = r * 0.84f
+                var y = ctr.y - outer
+                while (y <= ctr.y + outer) {
+                    var x = ctr.x - outer
+                    while (x <= ctr.x + outer) {
+                        if (kotlin.math.hypot(x - ctr.x, y - ctr.y) <= outer) drawCircle(ink.copy(alpha = 0.42f), hole, Offset(x, y))
+                        x += step
+                    }
+                    y += step
+                }
+                drawRoundRect(keyFace, Offset(w * 0.02f, h * 0.7f), Size(w * 0.16f, h * 0.2f), r2)
+                drawRoundRect(rule, Offset(w * 0.02f, h * 0.7f), Size(w * 0.16f, h * 0.2f), r2, style = Stroke(hair))
+                pilot(w * 0.1f, h * 0.8f)
             }
             "live" -> {
-                // a spectrum rising and falling, the level line in the accent
-                val n = 7
-                for (k in 0 until n) {
-                    val v = listOf(0.35f, 0.6f, 0.8f, 0.7f, 0.5f, 0.62f, 0.4f)[k]
-                    val x = w - u + u * (k + 0.5f) / n
-                    drawLine(if (k == 2) ink else mid, Offset(x, h * 0.88f), Offset(x, h * (0.88f - 0.75f * v)), u / n * 0.55f, StrokeCap.Butt)
+                // a radio: the tuning scale with its red needle, and a slot grille of level bars under it
+                deck()
+                val win = Offset(w * 0.06f, h * 0.12f); val ws = Size(w * 0.88f, h * 0.34f)
+                drawRoundRect(c.bg, win, ws, r2)
+                val n = 40
+                for (k in 0..n) {
+                    val x = win.x + ws.width * (0.04f + 0.92f * k / n)
+                    val long = k % 5 == 0
+                    drawLine(c.muted.copy(alpha = if (long) 0.9f else 0.5f), Offset(x, win.y + ws.height * 0.2f), Offset(x, win.y + ws.height * if (long) 0.62f else 0.45f), hair)
                 }
-                drawLine(accent, Offset(w - u, h * 0.42f), Offset(w, h * 0.42f), u * 0.025f)
+                val nx = win.x + ws.width * 0.63f
+                drawLine(accent, Offset(nx, win.y - h * 0.04f), Offset(nx, win.y + ws.height + h * 0.04f), 2.5.dp.toPx())
+                val bars = listOf(0.35f, 0.55f, 0.8f, 0.95f, 0.7f, 0.6f, 0.75f, 0.5f, 0.42f, 0.58f, 0.4f, 0.3f, 0.36f, 0.22f)
+                val gx = w * 0.06f; val gw = w * 0.88f; val gTop = h * 0.56f; val gBottom = h * 0.88f
+                val bw = gw / bars.size
+                bars.forEachIndexed { k, v ->
+                    val x = gx + bw * k + bw * 0.28f
+                    drawRoundRect(slotInk.copy(alpha = 0.18f), Offset(x, gTop), Size(bw * 0.44f, gBottom - gTop), r2)
+                    drawRoundRect(ink.copy(alpha = 0.8f), Offset(x, gBottom - (gBottom - gTop) * v), Size(bw * 0.44f, (gBottom - gTop) * v), r2)
+                }
+            }
+            "settings" -> {
+                // the audio 1's controls: a row of push keys, one latched with its pilot, and two knobs
+                deck()
+                val kw = w * 0.13f; val kh = h * 0.2f; val ky = h * 0.18f
+                for (k in 0 until 5) {
+                    val x = w * (0.07f + k * 0.175f)
+                    val latched = k == 1
+                    drawRoundRect(if (latched) androidx.compose.ui.graphics.lerp(keyFace, rule, 0.55f) else keyFace, Offset(x, ky + if (latched) h * 0.02f else 0f), Size(kw, kh), r2)
+                    drawRoundRect(rule, Offset(x, ky + if (latched) h * 0.02f else 0f), Size(kw, kh), r2, style = Stroke(hair))
+                    if (latched) pilot(x + kw / 2, ky - h * 0.07f)
+                }
+                fun knob(cx: Float, r: Float, deg: Float) {
+                    val ctr = Offset(cx, h * 0.68f)
+                    for (t in 0..6) {
+                        val a = Math.toRadians(135.0 + t * 45.0)
+                        val o = Offset(ctr.x + (r * 1.25f) * kotlin.math.cos(a).toFloat(), ctr.y + (r * 1.25f) * kotlin.math.sin(a).toFloat())
+                        drawCircle(c.muted.copy(alpha = 0.7f), hair * 1.2f, o)
+                    }
+                    drawCircle(alu, r, ctr)
+                    drawCircle(Color.Black.copy(alpha = 0.12f), r, ctr, style = Stroke(hair))
+                    val a = Math.toRadians(deg.toDouble())
+                    drawLine(ink, Offset(ctr.x + r * 0.25f * kotlin.math.cos(a).toFloat(), ctr.y + r * 0.25f * kotlin.math.sin(a).toFloat()), Offset(ctr.x + r * 0.85f * kotlin.math.cos(a).toFloat(), ctr.y + r * 0.85f * kotlin.math.sin(a).toFloat()), hair * 2f)
+                }
+                knob(w * 0.2f, h * 0.14f, -120f)
+                knob(w * 0.5f, h * 0.14f, -40f)
+                // a short horizontal fader at the end
+                drawRoundRect(slotInk, Offset(w * 0.68f, h * 0.675f), Size(w * 0.25f, h * 0.025f), r2)
+                drawRoundRect(ink, Offset(w * 0.76f, h * 0.6f), Size(w * 0.05f, h * 0.17f), r2)
             }
             else -> {
-                // the Bauhaus primaries: a circle, a square and a triangle, the circle in the accent
-                drawCircle(accent, u * 0.2f, Offset(w - u * 0.72f, h * 0.36f))
-                drawRect(ink, Offset(w - u * 0.48f, h * 0.18f), Size(u * 0.3f, u * 0.3f))
-                val path = androidx.compose.ui.graphics.Path().apply {
-                    moveTo(w - u * 0.62f, h * 0.88f); lineTo(w - u * 0.18f, h * 0.88f); lineTo(w - u * 0.4f, h * 0.52f); close()
+                // a tape deck: two reels, the tape between them over the head
+                deck()
+                fun reel(cx: Float) {
+                    val ctr = Offset(cx, h * 0.44f); val r = h * 0.3f
+                    drawCircle(alu.copy(alpha = 0.7f), r, ctr)
+                    drawCircle(Vinyl.copy(alpha = 0.85f), r * 0.62f, ctr)
+                    drawCircle(keyFace, r * 0.24f, ctr)
+                    for (t in 0 until 3) {
+                        val a = Math.toRadians(-90.0 + t * 120.0)
+                        drawCircle(plate, r * 0.13f, Offset(ctr.x + r * 0.43f * kotlin.math.cos(a).toFloat(), ctr.y + r * 0.43f * kotlin.math.sin(a).toFloat()))
+                    }
                 }
-                drawPath(path, mid)
+                reel(w * 0.27f); reel(w * 0.73f)
+                drawLine(ink.copy(alpha = 0.7f), Offset(w * 0.27f, h * 0.74f), Offset(w * 0.73f, h * 0.74f), hair * 1.5f)
+                drawRoundRect(keyFace, Offset(w * 0.44f, h * 0.7f), Size(w * 0.12f, h * 0.14f), r2)
+                pilot(w * 0.9f, h * 0.88f)
             }
         }
     }
@@ -1027,21 +1218,60 @@ fun StepHeader(index: Int, total: Int, title: String, onExit: (() -> Unit)?, onB
     }
 }
 
-/** Big on/off switch for the system EQ. */
+/**
+ * An on/off switch drawn as a Braun latching push key (the SK 4's and audio 1's rows of keys, and the latched EQ key in
+ * the tab row): a rectangular key that stays down while on, its face shaded from the rim, with a small pilot light
+ * that lights in the accent. The 48dp touch target, the switch role and [label] are kept for accessibility.
+ */
 @Composable
-fun PowerToggle(on: Boolean, onChange: (Boolean) -> Unit, label: String, enabled: Boolean = true) {
-    val t = updateTransition(on, label = "power")
-    val x by t.animateDp(transitionSpec = { tween(if (animationsOn()) 160 else 0) }, label = "x") { if (it) 28.dp else 0.dp }
+fun LatchKey(on: Boolean, onChange: (Boolean) -> Unit, label: String, enabled: Boolean = true, modifier: Modifier = Modifier) {
+    val c = At.c
+    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val down by androidx.compose.animation.core.animateDpAsState(if (on) 2.dp else 0.dp, tween(motionMs(120), easing = EaseArrive), label = "latch")
+    val lit by androidx.compose.animation.animateColorAsState(
+        if (on && enabled) c.signal else c.muted.copy(alpha = 0.4f), tween(motionMs(160), easing = EaseArrive), label = "pilot",
+    )
+    val shape = RoundedCornerShape(3.dp)
     Box(
-        Modifier.size(72.dp, 44.dp).clip(RoundedCornerShape(22.dp))
-            .background(if (on) At.c.text else At.c.panelHigh).border(1.dp, At.c.line, RoundedCornerShape(22.dp))
-            .toggleable(value = on, enabled = enabled, role = Role.Switch, onValueChange = onChange)
-            .semantics { contentDescription = label },
+        modifier.size(64.dp, 48.dp)
+            .toggleable(value = on, enabled = enabled, role = Role.Switch, interactionSource = src, indication = null, onValueChange = onChange)
+            .semantics { contentDescription = label }
+            .graphicsLayer { alpha = if (enabled) 1f else 0.5f },
+        contentAlignment = Alignment.Center,
     ) {
         Box(
-            Modifier.padding(5.dp).offset(x = x).size(34.dp).clip(CircleShape)
-                .background(if (on) At.c.good else At.c.muted),
-        )
+            Modifier.offset(y = down).size(56.dp, 34.dp).pressScale(src).clip(shape)
+                .background(if (on) androidx.compose.ui.graphics.lerp(c.panelHigh, c.line, 0.55f) else c.panelHigh)
+                .border(1.dp, c.line, shape),
+        ) {
+            if (on) Box(
+                Modifier.matchParentSize().background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        0f to Color.Black.copy(alpha = if (c.dark) 0.45f else 0.2f), 0.45f to Color.Transparent,
+                    ),
+                ),
+            )
+            // the pilot light, and the key's lettering
+            Box(Modifier.align(Alignment.CenterStart).padding(start = 11.dp).size(8.dp).clip(CircleShape).background(lit))
+            Text(
+                if (on) "on" else "off", Modifier.align(Alignment.CenterEnd).padding(end = 10.dp),
+                style = MaterialTheme.typography.labelSmall, color = if (on) c.text else c.muted, maxLines = 1,
+            )
+        }
+    }
+}
+
+/** The AutoTune EQ's on/off key: the [LatchKey]. */
+@Composable
+fun PowerToggle(on: Boolean, onChange: (Boolean) -> Unit, label: String, enabled: Boolean = true) = LatchKey(on, onChange, label, enabled)
+
+/** A setting that is on or off: its name, and the latching key at the end of the row. */
+@Composable
+fun SwitchRow(text: String, checked: Boolean, onChange: (Boolean) -> Unit, enabled: Boolean = true, info: String? = null) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 52.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = if (enabled) At.c.text else At.c.muted)
+        if (info != null) InfoButton(text, info, small = true)
+        LatchKey(checked, onChange, text, enabled)
     }
 }
 
