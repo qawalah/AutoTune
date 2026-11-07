@@ -806,3 +806,72 @@ fun scrollCue(scrollPx: Int, maxScrollPx: Int, viewportPx: Int, slackPx: Int = 2
     val start = (1f - width) * pos / maxScrollPx
     return ScrollCue(pos > slackPx, pos < maxScrollPx - slackPx, start, width)
 }
+
+// ---------------------------------------------------------------- the header that folds into a slim bar (2.3.0)
+
+/**
+ * How far the tall header has folded into the slim bar, 0 (tall, at the very top) to 1 (slim): the content's scroll
+ * [scrollPx] over the height the header gives up, [rangePx]. The header's space is part of the content, so the full
+ * header only comes back when the content is scrolled all the way to its top.
+ */
+fun headerProgress(scrollPx: Float, rangePx: Float): Float =
+    if (rangePx <= 0f) 1f else (scrollPx / rangePx).coerceIn(0f, 1f)
+
+/**
+ * The progress the header's parts follow. With animations on it is [headerProgress]; with "Remove animations" it
+ * switches: 0 until the header has scrolled away, then 1.
+ */
+fun headerPhase(scrollPx: Float, rangePx: Float, animate: Boolean): Float =
+    if (animate) headerProgress(scrollPx, rangePx) else if (scrollPx >= rangePx) 1f else 0f
+
+/** The full header is only shown with the content at its very top. */
+fun headerFull(scrollPx: Int): Boolean = scrollPx <= 0
+
+/** Where the header's lower edge is drawn: it follows the content up, from [tallPx] down to the slim bar's [slimPx]. */
+fun headerBottomPx(scrollPx: Float, tallPx: Float, slimPx: Float): Float =
+    (tallPx - scrollPx.coerceAtLeast(0f)).coerceIn(slimPx, tallPx.coerceAtLeast(slimPx))
+
+/**
+ * A ramp: 0 at or before [from], 1 at or after [to], straight between. The parts of the header fade on their own
+ * stretch of the fold (the wordmark leaves before the name arrives).
+ */
+fun ramp(p: Float, from: Float, to: Float): Float =
+    if (to <= from) (if (p >= to) 1f else 0f) else ((p - from) / (to - from)).coerceIn(0f, 1f)
+
+/** A rectangle in pixels, for the header's graphic as it moves. */
+data class HeaderRect(val x: Float, val y: Float, val w: Float, val h: Float) {
+    val right: Float get() = x + w
+    val bottom: Float get() = y + h
+}
+
+/**
+ * The small version of the header's graphic in the slim bar: [slimH] high, the same proportions as [tall], its right
+ * edge on [rowEndX] and centred on the bar's middle line [rowCentreY].
+ */
+fun slimArtRect(tall: HeaderRect, rowEndX: Float, rowCentreY: Float, slimH: Float): HeaderRect {
+    val w = if (tall.h <= 0f) slimH else tall.w * slimH / tall.h
+    return HeaderRect(rowEndX - w, rowCentreY - slimH / 2f, w, slimH)
+}
+
+/** The graphic's place at fold [p]: it shrinks and glides from [tall] to [slim], keeping its proportions. */
+fun artAt(p: Float, tall: HeaderRect, slim: HeaderRect): HeaderRect {
+    val t = p.coerceIn(0f, 1f)
+    fun mix(a: Float, b: Float) = a + (b - a) * t
+    return HeaderRect(mix(tall.x, slim.x), mix(tall.y, slim.y), mix(tall.w, slim.w), mix(tall.h, slim.h))
+}
+
+/**
+ * Where a screen that opens compact starts: high enough that the header has folded into the slim bar, or where the
+ * user left it if that is further down (so the content keeps its place). A screen without the header ([hasHeader]
+ * false, a Tune step) keeps its scroll.
+ */
+fun compactOpenScroll(scrollPx: Int, rangePx: Int, hasHeader: Boolean = true): Int =
+    if (!hasHeader) scrollPx else maxOf(scrollPx, rangePx.coerceAtLeast(0))
+
+/**
+ * The type size that lets the longest word of a name fit [availablePx] at [basePx]: never larger than the base, never
+ * smaller than [minPx], so a long name or a large font scale wraps between words, not inside one.
+ */
+fun fitTitlePx(basePx: Float, longestWordPx: Float, availablePx: Float, minPx: Float): Float =
+    if (longestWordPx <= 0f || longestWordPx <= availablePx) basePx
+    else (basePx * availablePx / longestWordPx).coerceIn(minPx.coerceAtMost(basePx), basePx)

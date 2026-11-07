@@ -59,6 +59,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import dev.autotune.HeaderRect
+import dev.autotune.artAt
+import dev.autotune.fitTitlePx
+import dev.autotune.headerBottomPx
+import dev.autotune.headerPhase
+import dev.autotune.ramp
+import dev.autotune.slimArtRect
 import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -72,6 +82,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -133,6 +144,42 @@ fun loudModeIcon(m: dev.autotune.LoudMode): Ic = when (m) {
     dev.autotune.LoudMode.LEVEL -> Ic.MIC
 }
 
+// ---- the geometry of the Tune knob and the Settings gear (pure, tested in IconTest)
+
+const val KNOB_CX = 12f
+const val KNOB_CY = 14.6f
+const val KNOB_R = 5.9f
+/** The knob's pointer, set towards the upper right as if tuned to a station. */
+const val KNOB_POINTER_DEG = -60f
+const val GEAR_BODY_R = 6.4f
+
+/** The tuning scale over the knob: [n] ticks spread over its upper half, from [fromDeg] to [toDeg] (screen angles, -90 is up). */
+fun knobTicks(n: Int = 5, fromDeg: Float = -150f, toDeg: Float = -30f): List<Float> =
+    if (n <= 1) listOf((fromDeg + toDeg) / 2f) else List(n) { fromDeg + (toDeg - fromDeg) * it / (n - 1) }
+
+/** The knob's ridged edge as a closed outline: [ridges] shallow ridges of [depth] round a circle of [r]. */
+fun knobEdge(cx: Float, cy: Float, r: Float, ridges: Int = 24, depth: Float = 0.32f, steps: Int = 288): List<Pair<Float, Float>> =
+    List(steps) { k ->
+        val a = 2 * Math.PI * k / steps
+        val rr = r + depth * 0.5f * kotlin.math.cos(a * ridges).toFloat()
+        Pair(cx + rr * kotlin.math.cos(a).toFloat(), cy + rr * kotlin.math.sin(a).toFloat())
+    }
+
+/**
+ * The gear's square teeth round (12, 12): [n] of them, evenly spaced, each a square-ended block [width] wide from
+ * inside the hub's edge out to [outer]. Each tooth is its four corners.
+ */
+fun gearTeeth(n: Int = 8, inner: Float = GEAR_BODY_R - 0.8f, outer: Float = 9.7f, width: Float = 3.6f): List<List<Pair<Float, Float>>> =
+    List(n) { k ->
+        val a = 2 * Math.PI * k / n - Math.PI / 2
+        val dx = kotlin.math.cos(a).toFloat(); val dy = kotlin.math.sin(a).toFloat()
+        val nx = -dy * width / 2; val ny = dx * width / 2
+        listOf(
+            Pair(12f + dx * inner + nx, 12f + dy * inner + ny), Pair(12f + dx * outer + nx, 12f + dy * outer + ny),
+            Pair(12f + dx * outer - nx, 12f + dy * outer - ny), Pair(12f + dx * inner - nx, 12f + dy * inner - ny),
+        )
+    }
+
 @Composable
 fun AtIcon(kind: Ic, tint: Color, modifier: Modifier = Modifier, size: Dp = 24.dp) {
     Canvas(modifier.size(size)) { drawIc(kind, tint) }
@@ -186,7 +233,7 @@ fun DrawScope.drawIcAt(kind: Ic, tint: Color, px: Float) {
     }
 
     when (kind) {
-        // ---- the tabs: a record, the fader strip, the Tune mark, level bars, a knob
+        // ---- the tabs: a record, the fader strip, the tuning knob, level bars, a gear
         Ic.TESTS -> { // a record on the platter, the tonearm resting on it
             ring(10f, 14f, 7.5f); dot(10f, 14f, 1.5f)
             dot(19.5f, 4f, 1.7f); poly(19.5f, 4f, 19.5f, 11f, 14.8f, 15.7f)
@@ -195,17 +242,37 @@ fun DrawScope.drawIcAt(kind: Ic, tint: Color, px: Float) {
             seg(6f, 3f, 6f, 21f); seg(12f, 3f, 12f, 21f); seg(18f, 3f, 18f, 21f)
             cap(3f, 13.2f, 6f, 3.6f); cap(9f, 6.2f, 6f, 3.6f); cap(15f, 10.2f, 6f, 3.6f)
         }
-        Ic.TUNE -> { // the launcher mark: speaker ring, the round Tune key, the fader slot under it
-            ring(12f, 10f, 7f); dot(12f, 10f, 3f)
-            seg(5f, 20.5f, 19f, 20.5f)
+        Ic.TUNE -> { // a Braun radio's tuning knob: the ridged knob with its pointer cut in, a short scale over it
+            val knob = androidx.compose.ui.graphics.Path()
+            knobEdge(KNOB_CX, KNOB_CY, KNOB_R).forEachIndexed { i, (x, y) -> if (i == 0) knob.moveTo(x * u, y * u) else knob.lineTo(x * u, y * u) }
+            knob.close()
+            val slot = androidx.compose.ui.graphics.Path()
+            val ends = listOf(KNOB_POINTER_DEG - 90f, KNOB_POINTER_DEG + 90f)
+            val a = polar(KNOB_CX, KNOB_CY, 1.4f, KNOB_POINTER_DEG); val b = polar(KNOB_CX, KNOB_CY, KNOB_R - 1.1f, KNOB_POINTER_DEG)
+            val half = 0.95f * u
+            ends.forEachIndexed { i, d ->
+                val r = Math.toRadians(d.toDouble())
+                val off = Offset(half * kotlin.math.cos(r).toFloat(), half * kotlin.math.sin(r).toFloat())
+                if (i == 0) { slot.moveTo(a.x + off.x, a.y + off.y); slot.lineTo(b.x + off.x, b.y + off.y) }
+                else { slot.lineTo(b.x + off.x, b.y + off.y); slot.lineTo(a.x + off.x, a.y + off.y); slot.close() }
+            }
+            val cut = androidx.compose.ui.graphics.Path(); cut.op(knob, slot, androidx.compose.ui.graphics.PathOperation.Difference)
+            drawPath(cut, tint)
+            knobTicks().forEach { d -> ray(KNOB_CX, KNOB_CY, 9.2f, 10.8f, d) }
         }
         Ic.LIVE -> { // a slot grille of level bars
             seg(4f, 20.5f, 4f, 14f); seg(8f, 20.5f, 8f, 8.5f); seg(12f, 20.5f, 12f, 4f); seg(16f, 20.5f, 16f, 10f); seg(20f, 20.5f, 20f, 13f)
         }
-        Ic.GEAR -> { // a Braun knob: ring, pointer, a scale of dots
-            ring(12f, 12f, 6.6f)
-            ray(12f, 12f, 1.2f, 4.9f, -135f)
-            for (k in 0..6) if (k != 3) drawCircle(tint, 0.9f * u, polar(12f, 12f, 10.2f, 135f + k * 45f))
+        Ic.GEAR -> { // a gear: a round hub with its hole, eight square teeth, one line round it all
+            var body = circlePath(12f, 12f, GEAR_BODY_R)
+            gearTeeth().forEach { t ->
+                val tooth = androidx.compose.ui.graphics.Path()
+                t.forEachIndexed { i, (x, y) -> if (i == 0) tooth.moveTo(x * u, y * u) else tooth.lineTo(x * u, y * u) }
+                tooth.close()
+                body = androidx.compose.ui.graphics.Path().also { it.op(body, tooth, androidx.compose.ui.graphics.PathOperation.Union) }
+            }
+            drawPath(body, tint, style = flat)
+            ring(12f, 12f, 3f)
         }
         Ic.MEASURE -> { // a needle meter: the scale arc, three marks, the needle on its pivot
             drawArc(tint, 205f, 130f, false, p(3f, 7f), Size(18f * u, 18f * u), style = flat)
@@ -506,7 +573,10 @@ fun ModeSwitch() {
                     .padding(start = 10.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(if (mode.advanced) "advanced" else "simple", style = MaterialTheme.typography.labelMedium, color = At.c.text)
+                Text(
+                    if (mode.advanced) "advanced" else "simple", color = At.c.text, maxLines = 1,
+                    style = MaterialTheme.typography.labelMedium.let { it.copy(fontSize = cappedSp(it.fontSize, androidx.compose.ui.platform.LocalDensity.current.fontScale)) },
+                )
                 AtIcon(Ic.CHEVRON_DOWN, At.c.muted, Modifier.padding(start = 4.dp), size = 16.dp)
             }
         }
@@ -721,106 +791,274 @@ fun InfoButton(title: String, text: String, small: Boolean = false) {
     }
 }
 
-/** What the collapsed header bar needs to know: the screen's title, and how far to scroll before it shows. */
+/** What a screen's header shows: its name, the one line under it, and the graphic's key (the name in lower case). */
+data class HeaderSpec(val title: String, val context: String? = null, val contextIcon: Ic? = null) {
+    val artKey: String get() = title.lowercase()
+}
+
+/** Where a screen hands its header to the app shell, which draws it over the content ([ScreenHeader]). */
 class TitleSlot {
-    var title by mutableStateOf<String?>(null)
-    var collapseAtPx by mutableStateOf(Int.MAX_VALUE)
-    /** The header's own height as last drawn, so the shell can keep the place when a tall header turns compact. */
-    var heightPx = 0
+    var spec by mutableStateOf<HeaderSpec?>(null)
 }
 
 val LocalTitleSlot = androidx.compose.runtime.staticCompositionLocalOf<TitleSlot?> { null }
 
-/**
- * Whether the screen opens with the tall header. The app shell sets it: true on a fresh open (a cold start, or back
- * after 15 minutes or more in the background, see [dev.autotune.freshOpen]) for every tab not yet visited since; a
- * jump between tabs, Back, and a page over a tab open compact.
- */
-val LocalHeaderTall = androidx.compose.runtime.compositionLocalOf { true }
+/** The header's top line: the wordmark or Back at the start, the Simple / Advanced key in the middle. */
+val HEADER_ROW: Dp = 56.dp
+
+/** The tall header's own space under the top line, about a quarter of the screen (One UI). */
+@Composable
+fun headerArea(): Dp = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.27f).dp.coerceIn(170.dp, 260.dp)
+
+/** The whole tall header: the top line, the space, the hairline. */
+@Composable
+fun headerTall(): Dp = HEADER_ROW + headerArea() + 1.dp
+
+/** How far the content scrolls while the header folds into the slim bar, in pixels. */
+@Composable
+fun headerRangePx(): Int = with(androidx.compose.ui.platform.LocalDensity.current) { headerArea().roundToPx() }
 
 /** The name as a mark, the lettering on the device's face: AUTOTUNE in spaced capitals. */
 @Composable
-fun Wordmark(modifier: Modifier = Modifier, large: Boolean = false) {
+fun Wordmark(modifier: Modifier = Modifier, large: Boolean = false, fixedSize: Boolean = false) {
+    // a mark, not a text to read: on the header it keeps its size at any font scale (it is read out as "AutoTune")
+    val fs = androidx.compose.ui.platform.LocalDensity.current.fontScale
+    val base = if (large) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall
     Text(
         "AUTOTUNE", modifier.semantics { contentDescription = "AutoTune" },
-        style = (if (large) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall)
-            .copy(fontWeight = FontWeight.Bold, letterSpacing = if (large) 2.4.sp else 2.sp),
+        style = base.copy(
+            fontWeight = FontWeight.Bold, letterSpacing = if (large) 2.4.sp else 2.sp,
+            fontSize = if (fixedSize) (base.fontSize.value / fs).sp else base.fontSize,
+        ),
         color = At.c.text, maxLines = 1,
     )
 }
 
 /**
- * The screen header. Tall (the one Samsung One UI feature kept): a space at the top holds the screen's name in large
- * type and its own Braun audio graphic, so the content starts lower, nearer the thumb; the wordmark (or Back on a
- * page), the Simple / Advanced key and the menu sit on its top line, and scrolled past, a slim bar takes over (drawn by
- * the app shell from [LocalTitleSlot]). Compact ([LocalHeaderTall] false): that slim bar is the header itself and the
- * content starts high.
+ * The screen header (the one Samsung One UI feature kept). It belongs to the content: the screen keeps the tall
+ * header's room at its top, and the app shell draws the header over that room ([ScreenHeader]), so scrolling up to the
+ * very top always brings the full header back. Tall: the name in large type, centred on the screen's own Braun graphic
+ * ([HeaderArt]). As the content scrolls, the graphic shrinks and glides into the slim bar's right corner and the name
+ * settles at its left; the Simple / Advanced key stays in the middle of the top line throughout.
+ *
+ * Outside the app shell (no [LocalTitleSlot]) the tall header is drawn in place.
  */
 @Composable
-fun ScreenTitle(title: String, context: String? = null, onContext: (() -> Unit)? = null, contextIcon: Ic? = null, actions: @Composable () -> Unit = {}) {
-    val back = LocalBack.current
+fun ScreenTitle(title: String, context: String? = null, contextIcon: Ic? = null) {
+    val spec = HeaderSpec(title, context, contextIcon)
     val slot = LocalTitleSlot.current
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    androidx.compose.runtime.SideEffect { slot?.title = title }
-    // a screen that stops showing its title (Tune's steps) must not leave the slim bar behind
-    androidx.compose.runtime.DisposableEffect(slot) { onDispose { slot?.title = null } }
-    val place = Modifier.fillMaxWidth().onGloballyPositioned {
-        slot?.heightPx = it.size.height
-        slot?.collapseAtPx = (it.size.height - with(density) { 56.dp.toPx() }).toInt()
-    }
-    val contextLine: @Composable () -> Unit = {
-        if (context != null) {
-            Row(
-                (if (onContext != null) Modifier.clickable(onClick = onContext) else Modifier).heightIn(min = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (contextIcon != null) { AtIcon(contextIcon, At.c.muted, size = 16.dp); androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp)) }
-                Text(context, style = MaterialTheme.typography.bodyMedium, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            }
-        }
-    }
-    if (!LocalHeaderTall.current) {
-        // compact: the slim bar, the name on the left, the context under it in one line
-        Column(place) {
-            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (back != null) Box(Modifier.offset(x = (-12).dp)) { IconAction(Ic.BACK, "Back", back) }
-                Column(Modifier.weight(1f).then(if (back != null) Modifier.offset(x = (-8).dp) else Modifier)) {
-                    Text(
-                        title, style = MaterialTheme.typography.titleLarge, maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.semantics { heading() },
-                    )
-                    contextLine()
-                }
-                actions()
-                ModeSwitch()
-                if (back == null) LocalMenu.current()
-            }
-            SheetRule()
-        }
+    if (slot == null) {
+        HeaderFace(spec, { 0f })
         return
     }
-    val tall = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.27f).dp.coerceIn(170.dp, 260.dp)
-    Column(place) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            if (back != null) Box(Modifier.offset(x = (-12).dp)) { IconAction(Ic.BACK, "Back", back) }
-            else Wordmark()
-            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
-            actions()
-            ModeSwitch()
-            if (back == null) LocalMenu.current()
+    androidx.compose.runtime.SideEffect { slot.spec = spec }
+    // a screen that stops showing its title (Tune's steps) must not leave the header behind
+    androidx.compose.runtime.DisposableEffect(slot) { onDispose { slot.spec = null } }
+    androidx.compose.foundation.layout.Spacer(Modifier.fillMaxWidth().height(headerTall()))
+}
+
+/** The header the app shell draws over a screen's top, folded as far as [scroll] says. */
+@Composable
+fun ScreenHeader(slot: TitleSlot, scroll: androidx.compose.foundation.ScrollState, modifier: Modifier = Modifier) {
+    val spec = slot.spec ?: return
+    HeaderFace(spec, { scroll.value.toFloat() }, modifier)
+}
+
+/**
+ * A scroll that always leaves room for the header to fold: the content is at least the viewport plus [roomPx] high,
+ * so even a short screen can open compact, and its top still reveals the full header.
+ */
+@Composable
+fun Modifier.scrollWithHeaderRoom(scroll: androidx.compose.foundation.ScrollState, roomPx: Int): Modifier {
+    val viewport = remember { IntArray(1) }
+    return this
+        .layout { m, c ->
+            viewport[0] = if (c.hasBoundedHeight) c.maxHeight else 0
+            val p = m.measure(c)
+            layout(p.width, p.height) { p.place(0, 0) }
         }
-        Box(Modifier.fillMaxWidth().height(tall)) {
-            HeaderArt(title.lowercase(), Modifier.align(Alignment.TopEnd).padding(top = 10.dp).fillMaxWidth(0.52f).height(tall * 0.54f))
-            Column(Modifier.align(Alignment.BottomStart).padding(bottom = 18.dp).fillMaxWidth(0.72f)) {
+        .verticalScroll(scroll)
+        .layout { m, c ->
+            val min = if (roomPx > 0 && viewport[0] > 0) maxOf(c.minHeight, viewport[0] + roomPx) else c.minHeight
+            val p = m.measure(c.copy(minHeight = if (c.hasBoundedHeight) min.coerceAtMost(c.maxHeight) else min))
+            layout(p.width, p.height) { p.place(0, 0) }
+        }
+}
+
+/** [v] at the font scale, held to at most [cap] times its size so the header keeps its shape. */
+private fun cappedSp(v: androidx.compose.ui.unit.TextUnit, fontScale: Float, cap: Float = 1.3f): androidx.compose.ui.unit.TextUnit =
+    (v.value * minOf(fontScale, cap) / fontScale).sp
+
+/**
+ * The header itself, folded by [scrollPx] (read in the layer and draw phases only, so the fold never recomposes):
+ * the plate's lower edge follows the content up; the graphic shrinks and glides from beside the name into the slim
+ * bar's right corner ([artAt]); the large name moves and scales into the bar's start and hands over to the bar's own
+ * one-line name; the wordmark makes way before it arrives. With "Remove animations" the tall parts scroll away with
+ * the content and the slim parts switch on once it has gone ([headerPhase]).
+ */
+@Composable
+private fun HeaderFace(spec: HeaderSpec, scrollPx: () -> Float, modifier: Modifier = Modifier) {
+    val back = LocalBack.current
+    val anim = animationsOn()
+    val c = At.c
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val area = headerArea()
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxWidth().height(HEADER_ROW + area + 1.dp)) {
+        val pad = 16.dp
+        val inner = maxWidth - pad * 2
+        val artW = inner * 0.46f
+        val artH = minOf(area * 0.62f, artW * 0.64f)
+        val centreY = HEADER_ROW + area * 0.52f
+        val nameW = inner - artW - 14.dp
+        val slimX = if (back != null) 40.dp else 0.dp
+        val px = with(density) {
+            HeaderPx(
+                pad = pad.toPx(), row = HEADER_ROW.toPx(), range = area.toPx(), hair = 1.dp.toPx(),
+                tall = (HEADER_ROW + area + 1.dp).toPx(), slim = (HEADER_ROW + 1.dp).toPx(),
+                centreY = centreY.toPx(), slimX = slimX.toPx(), nameW = nameW.toPx(),
+                art = HeaderRect((pad + inner - artW).toPx(), (centreY - artH / 2).toPx(), artW.toPx(), artH.toPx()),
+            )
+        }
+        fun phase() = headerPhase(scrollPx(), px.range, anim)
+        fun bottom() = headerBottomPx(scrollPx(), px.tall, px.slim)
+
+        // the name: large, fitted so its longest word never breaks; and the bar's name it hands over to
+        val slimStyle = MaterialTheme.typography.titleLarge.let { it.copy(fontSize = cappedSp(it.fontSize, density.fontScale), lineHeight = cappedSp(it.lineHeight, density.fontScale)) }
+        val baseStyle = MaterialTheme.typography.displaySmall.copy(fontFamily = AtSans, fontWeight = FontWeight.Normal, letterSpacing = (-0.4).sp)
+            .let { it.copy(fontSize = cappedSp(36.sp, density.fontScale), lineHeight = cappedSp(40.sp, density.fontScale)) }
+        val bigStyle = remember(spec.title, baseStyle, px.nameW) {
+            val longest = spec.title.split(' ').filter { it.isNotEmpty() }.maxOfOrNull { measurer.measure(it, baseStyle).size.width.toFloat() } ?: 0f
+            val base = with(density) { baseStyle.fontSize.toPx() }
+            val fit = fitTitlePx(base, longest, px.nameW, with(density) { slimStyle.fontSize.toPx() } * 1.25f)
+            val k = fit / base
+            baseStyle.copy(fontSize = baseStyle.fontSize * k, lineHeight = baseStyle.lineHeight * k)
+        }
+        val firstLinePx = with(density) { bigStyle.lineHeight.toPx() }
+        val shrink = with(density) { slimStyle.fontSize.toPx() / bigStyle.fontSize.toPx() }
+        val nameTop = remember { FloatArray(1) }
+
+        // the plate and its hairline, the lower edge riding up with the content
+        Box(Modifier.matchParentSize().drawBehind {
+            val b = bottom()
+            drawRect(c.bg, size = Size(size.width, b))
+            drawRect(c.line, Offset(0f, b - px.hair), Size(size.width, px.hair))
+        })
+
+        // what moves: the graphic and the large name, clipped to the plate
+        Box(Modifier.matchParentSize().drawWithContent {
+            clipRect(top = if (anim) 0f else px.row, bottom = bottom() - px.hair) { this@drawWithContent.drawContent() }
+        }) {
+            HeaderArt(
+                spec.artKey,
+                Modifier.offset(x = pad + inner - artW, y = centreY - artH / 2).size(artW, artH).graphicsLayer {
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                    val p = phase()
+                    if (anim) {
+                        val r = artAt(p, px.art, px.slimArt)
+                        translationX = r.x - px.art.x; translationY = r.y - px.art.y
+                        scaleX = r.h / px.art.h; scaleY = scaleX
+                    } else {
+                        translationY = -scrollPx(); alpha = if (p >= 1f) 0f else 1f
+                    }
+                },
+            )
+            Column(
+                Modifier.width(nameW)
+                    .layout { m, cons ->
+                        val pl = m.measure(cons)
+                        layout(pl.width, pl.height) {
+                            nameTop[0] = px.centreY - pl.height / 2f
+                            pl.place(px.pad.toInt(), nameTop[0].toInt())
+                        }
+                    }
+                    .graphicsLayer {
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                        val p = phase()
+                        if (anim) {
+                            val k = 1f + (shrink - 1f) * p
+                            scaleX = k; scaleY = k
+                            translationX = px.slimX * p
+                            translationY = (px.row / 2f - shrink * firstLinePx / 2f - nameTop[0]) * p
+                            alpha = 1f - ramp(p, 0.86f, 1f)
+                        } else {
+                            translationY = -scrollPx(); alpha = if (p >= 1f) 0f else 1f
+                        }
+                    },
+            ) {
                 Text(
-                    title, style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Normal, fontSize = 36.sp, lineHeight = 40.sp),
-                    color = At.c.text, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.semantics { heading() },
+                    spec.title, style = bigStyle, color = c.text, maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.semantics { heading() },
                 )
-                if (context != null) Box(Modifier.padding(top = 6.dp)) { contextLine() }
+                if (spec.context != null) Row(
+                    Modifier.padding(top = 6.dp).heightIn(min = 20.dp).graphicsLayer { if (anim) alpha = 1f - ramp(phase(), 0f, 0.3f) },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (spec.contextIcon != null) { AtIcon(spec.contextIcon, c.muted, size = 16.dp); androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp)) }
+                    Text(spec.context, style = MaterialTheme.typography.bodyMedium, color = c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
             }
         }
-        SheetRule()
+
+        // without animations the small graphic simply appears in the corner once the header has gone
+        if (!anim) HeaderArt(
+            spec.artKey,
+            with(density) { Modifier.offset(x = px.slimArt.x.toDp(), y = px.slimArt.y.toDp()).size(px.slimArt.w.toDp(), px.slimArt.h.toDp()) }
+                .graphicsLayer { alpha = if (phase() >= 1f) 1f else 0f },
+        )
+
+        // the top line: the wordmark (Back on a page) and the bar's name at the start, the mode key in the middle
+        CentreRow(Modifier.padding(horizontal = pad).fillMaxWidth().height(HEADER_ROW)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (back != null) Box(Modifier.offset(x = (-12).dp)) { IconAction(Ic.BACK, "Back", back) }
+                Box(Modifier.then(if (back != null) Modifier.offset(x = (-8).dp) else Modifier), contentAlignment = Alignment.CenterStart) {
+                    if (back == null) Wordmark(fixedSize = true, modifier = Modifier.fitWidth().graphicsLayer { alpha = 1f - (if (anim) ramp(phase(), 0.3f, 0.6f) else phase()) })
+                    Text(
+                        spec.title, style = slimStyle, color = c.text, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.graphicsLayer { alpha = if (anim) ramp(phase(), 0.86f, 1f) else phase() }
+                            .clearAndSetSemantics { },
+                    )
+                }
+            }
+            ModeSwitch()
+        }
+    }
+}
+
+/** Measures the content at its natural width and, if the room is narrower (a large font scale), draws it smaller to fit. */
+private fun Modifier.fitWidth(): Modifier = this.layout { m, c ->
+    val p = m.measure(c.copy(maxWidth = androidx.compose.ui.unit.Constraints.Infinity, minWidth = 0))
+    val k = if (c.hasBoundedWidth && p.width > c.maxWidth) c.maxWidth.toFloat() / p.width else 1f
+    layout((p.width * k).toInt(), p.height) {
+        p.placeWithLayer(0, 0) { scaleX = k; scaleY = k; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f) }
+    }
+}
+
+/** The header's measures in pixels, worked out once per size. */
+private class HeaderPx(
+    val pad: Float, val row: Float, val range: Float, val hair: Float, val tall: Float, val slim: Float,
+    val centreY: Float, val slimX: Float, val nameW: Float, val art: HeaderRect,
+) {
+    /** The graphic's small version: 28dp high (the mode key's height), its right end on the row's end. */
+    val slimArt: HeaderRect = slimArtRect(art, art.right, row / 2f, row * 28f / 56f)
+}
+
+/**
+ * A row whose second child sits exactly in the middle whatever the first one holds; the first is held to the room
+ * left of it, so the mode key never moves and nothing runs into it.
+ */
+@Composable
+private fun CentreRow(modifier: Modifier, content: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(content, modifier) { ms, cons ->
+        val w = cons.maxWidth; val h = cons.maxHeight
+        val gap = 8.dp.roundToPx()
+        val centre = ms[1].measure(cons.copy(minWidth = 0, minHeight = 0))
+        val side = ((w - centre.width) / 2 - gap).coerceAtLeast(0)
+        val start = ms[0].measure(androidx.compose.ui.unit.Constraints(0, side, 0, h))
+        layout(w, h) {
+            start.place(0, (h - start.height) / 2)
+            centre.place((w - centre.width) / 2, (h - centre.height) / 2)
+        }
     }
 }
 
@@ -973,38 +1211,6 @@ fun HeaderArt(key: String, modifier: Modifier) {
         }
     }
 }
-
-/** The slim bar that replaces the tall header once it has scrolled away: the name, the mode key, the menu or Back. */
-@Composable
-fun CollapsedHeader(slot: TitleSlot, scroll: androidx.compose.foundation.ScrollState, modifier: Modifier = Modifier) {
-    val title = slot.title ?: return
-    val shown = scroll.value > slot.collapseAtPx
-    val back = LocalBack.current
-    androidx.compose.animation.AnimatedVisibility(
-        shown, modifier,
-        enter = androidx.compose.animation.fadeIn(tween(motionMs(160), easing = EaseArrive)) + androidx.compose.animation.slideInVertically(tween(motionMs(200), easing = EaseArrive)) { -it / 3 },
-        exit = androidx.compose.animation.fadeOut(tween(motionMs(100), easing = EaseLeave)),
-    ) {
-        Column(Modifier.fillMaxWidth().background(At.c.bg)) {
-            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (back != null) Box(Modifier.offset(x = (-12).dp)) { IconAction(Ic.BACK, "Back", back) }
-                Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                ModeSwitch()
-                if (back == null) LocalMenu.current()
-            }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(At.c.line))
-        }
-    }
-}
-
-/** The hairline under a screen's header. */
-@Composable
-fun SheetRule() {
-    Box(Modifier.fillMaxWidth().padding(top = 4.dp).height(1.dp).background(At.c.line))
-}
-
-/** The hamburger menu, supplied once by the screen and shown in every tab's title row. */
-val LocalMenu = androidx.compose.runtime.compositionLocalOf<@Composable () -> Unit> { {} }
 
 /** Set while a page is open over a tab: what its back arrow does. Null on the tabs themselves. */
 val LocalBack = androidx.compose.runtime.compositionLocalOf<(() -> Unit)?> { null }

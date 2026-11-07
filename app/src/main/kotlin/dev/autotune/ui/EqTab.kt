@@ -204,6 +204,9 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
         }
     }
 
+    // ---- files for other equipment, in reach without opening a fold
+    if (isAdvanced()) Actions { TextAction("Export EQ files", { go(Tab.EXPORT) }, icon = Ic.EXPORT) }
+
     // ---- everything else
     if (isAdvanced()) Fold("More", summary = "Exact bands, listen, measure, automatic switching") {
         Fold("Exact bands", summary = if (bandCount == 0) "None yet" else "$bandCount bands" + if (mine) " · your own" else " · from tuning") {
@@ -255,7 +258,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
             s.convertMessage?.let { Muted(it) }
         }
 
-        Fold("Try it", summary = "Listen with and without, measure, export") {
+        Fold("Try it", summary = "Listen with and without") {
             Text("Listen: ${s.clipName}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             Actions {
                 if (s.playing && s.playingWithEq) PrimaryButton("With EQ", { vm.playClip(true) }, icon = Ic.PLAY) else SecondaryButton("With EQ", { vm.playClip(true) }, enabled = !s.busy, icon = Ic.PLAY)
@@ -263,7 +266,6 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
                 if (s.playing) TextAction("Stop", vm::stopClip, icon = Ic.STOP)
                 TextAction("Other clip", pick.clip, icon = Ic.FILE)
             }
-            SecondaryButton("Export as files", { go(Tab.EXPORT) }, enabled = bandCount > 0, icon = Ic.EXPORT)
         }
 
         Fold(

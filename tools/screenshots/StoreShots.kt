@@ -225,7 +225,7 @@ class StoreShots {
     @Composable private fun App(tab: Tab, dark: Boolean = true, look: Look = Look.DYNO, content: @Composable () -> Unit) {
         AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, look) {
             val slot = androidx.compose.runtime.remember { PinSlot() }
-            androidx.compose.runtime.CompositionLocalProvider(LocalPin provides slot, LocalMenu provides { IconAction(Ic.MENU, "Menu") {} }) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalPin provides slot) {
                 androidx.compose.material3.Surface(color = At.c.bg, contentColor = At.c.text) {
                     Column(Modifier.fillMaxSize().background(At.c.bg)) {
                         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 28.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) { content() }

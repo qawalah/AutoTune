@@ -137,9 +137,8 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     var backgroundedAt by rememberSaveable { mutableStateOf<Long?>(null) }
     var freshEpoch by rememberSaveable { mutableIntStateOf(0) }
     val titleSlots = androidx.compose.runtime.remember { mutableMapOf<String, TitleSlot>() }
-    // how far a screen that was last drawn tall has to move up when it comes back compact, so it keeps its place
-    val shrinkPx = androidx.compose.runtime.remember { mutableMapOf<String, Int>() }
-    val compactPx = with(LocalDensity.current) { 61.dp.toPx() }.toInt()
+    // how far the content scrolls while the header folds into the slim bar
+    val rangePx = headerRangePx()
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycle) {
         val watch = androidx.lifecycle.LifecycleEventObserver { _, e ->
@@ -150,7 +149,6 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                     if (dev.autotune.freshOpen(backgroundedAt, now) && backgroundedAt != null) {
                         // back after a long while: every tab tall again, each from its top
                         tallKeys = dev.autotune.tallOnStart(tallKeys.toSet(), allTabs, backgroundedAt, now).toList()
-                        shrinkPx.clear()
                         allTabs.forEach { k -> scrolls[k]?.let { st -> st.dispatchRawDelta(-st.value.toFloat()) } }
                         freshEpoch++
                     }
@@ -166,10 +164,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     val lastKey = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     LaunchedEffect(screenKey) {
         val left = lastKey.value
-        if (left != null && left != screenKey && left in tallKeys) {
-            tallKeys = dev.autotune.tallAfterLeaving(tallKeys.toSet(), left).toList()
-            titleSlots[left]?.heightPx?.takeIf { it > compactPx }?.let { shrinkPx[left] = it - compactPx }
-        }
+        if (left != null && left != screenKey && left in tallKeys) tallKeys = dev.autotune.tallAfterLeaving(tallKeys.toSet(), left).toList()
         lastKey.value = screenKey
     }
 
@@ -227,7 +222,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     val viewMode = androidx.compose.runtime.remember(s.advanced) { ViewMode(s.advanced, vm::setAdvanced) }
     AutoTuneTheme(s.themeMode, s.dynamicColor, s.look, s.accent) {
       androidx.compose.runtime.CompositionLocalProvider(
-          LocalMenu provides { MenuButton(go, vm::shareDiagnostics) }, LocalPin provides pin, LocalViewMode provides viewMode,
+          LocalPin provides pin, LocalViewMode provides viewMode,
       ) {
         Box(Modifier.fillMaxSize().background(At.c.bg)) {
             Scaffold(
@@ -289,19 +284,25 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                         else slideSideways(dev.autotune.navSlide(from.tab.name, to.tab.name))
                     },
                 ) { d ->
-                    // each screen has its own header slot; the slim bar shows once the tall header has scrolled away
+                    // each screen has its own header slot; the shell draws the header over the room the screen keeps for it
                     val key = d.page?.name ?: d.tab.name
                     val titleSlot = titleSlots.getOrPut(key) { TitleSlot() }
                     val sc = scrollFor(key)
-                    // decided as the screen arrives, so a screen on its way out keeps the header it had
-                    val tall = androidx.compose.runtime.remember(d, freshEpoch) { d.page == null && key in tallKeys }
+                    // A screen that does not open tall opens with its header folded into the slim bar (content high),
+                    // or where it was left if that is further down. Its header's room stays at its top, so scrolling
+                    // all the way up brings the full header back. Decided as the screen arrives.
+                    val hasHeader = !(d.page == null && d.tab == Tab.MEASURE && s.tuneStep != dev.autotune.TuneStep.HOME)
                     androidx.compose.runtime.remember(d, freshEpoch) {
-                        if (!tall) shrinkPx.remove(key)?.let { px -> sc.dispatchRawDelta(-px.toFloat()) }
+                        val tall = d.page == null && key in tallKeys
+                        if (!tall) {
+                            val want = dev.autotune.compactOpenScroll(sc.value, rangePx, hasHeader)
+                            if (want != sc.value) sc.dispatchRawDelta((want - sc.value).toFloat())
+                        }
                     }
                     Box(Modifier.fillMaxSize()) {
-                    androidx.compose.runtime.CompositionLocalProvider(LocalTitleSlot provides titleSlot, LocalHeaderTall provides tall, LocalBack provides (if (d.page != null) back else null)) {
+                    androidx.compose.runtime.CompositionLocalProvider(LocalTitleSlot provides titleSlot, LocalBack provides (if (d.page != null) back else null)) {
                     Column(
-                        Modifier.fillMaxSize().imePadding().verticalScroll(sc, enabled = true)
+                        Modifier.fillMaxSize().imePadding().scrollWithHeaderRoom(sc, if (hasHeader) rangePx else 0)
                             .padding(horizontal = 16.dp).padding(bottom = 96.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
@@ -318,12 +319,12 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                             Tab.MEASURE -> TuneTab(s, vm, sharer, go, openResults, pick)
                             Tab.EQ -> EqTab(s, vm, go, pick)
                             Tab.LIVE -> LiveTab(s, live, level, vm, pick, go)
-                            Tab.SETTINGS -> SettingsTab(s, ai, vm, pick)
+                            Tab.SETTINGS -> SettingsTab(s, ai, vm, pick, go)
                             // Export always opens as a page
                             Tab.EXPORT -> Unit
                         }
                     }
-                    CollapsedHeader(titleSlot, sc, Modifier.align(Alignment.TopCenter))
+                    ScreenHeader(titleSlot, sc, Modifier.align(Alignment.TopCenter))
                     }
                     }
                 }
@@ -445,26 +446,4 @@ private fun TuneButton(selected: Boolean, pulse: Boolean, src: androidx.compose.
             contentAlignment = Alignment.Center,
         ) { AtIcon(Ic.TUNE, if (selected) c.signal else c.onSignal, size = 26.dp) }
     }
-}
-
-/** The three-bar menu: tools that are not part of the tuning loop. Live and Settings are tabs now. */
-@Composable
-fun MenuButton(go: (Tab) -> Unit, sendDiagnostics: () -> Unit) {
-    var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    Box {
-        IconAction(Ic.MENU, "Menu") { open = true }
-        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            MenuHeader("Tools")
-            androidx.compose.material3.DropdownMenuItem(text = { Text("Export EQ files") }, leadingIcon = { AtIcon(Ic.EXPORT, At.c.muted) }, onClick = { open = false; go(Tab.EXPORT) })
-            androidx.compose.material3.DropdownMenuItem(text = { Text("Send diagnostics") }, leadingIcon = { AtIcon(Ic.DIAG, At.c.muted) }, onClick = { open = false; sendDiagnostics() })
-        }
-    }
-}
-
-@Composable
-private fun MenuHeader(text: String) {
-    Text(
-        text.uppercase(), style = MaterialTheme.typography.labelSmall, color = At.c.muted,
-        modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 4.dp),
-    )
 }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
@@ -271,10 +272,37 @@ class ShotsTest {
     @Test fun z5_headers_graphite() = paparazzi.also { it.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenHeight = 5200)) }.snapshot("z5_headers_graphite") { Frame(false, look = Look.BRAUN_GRAPHITE, nav = null) { Headers() } }
     @Test fun z6_headers_black() = paparazzi.also { it.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenHeight = 5200)) }.snapshot("z6_headers_black") { Frame(true, look = Look.BRAUN_BLACK, nav = null) { Headers() } }
 
-    private fun phone(name: String, dark: Boolean, look: Look = Look.BRAUN, nav: Tab, tall: Boolean, content: @Composable () -> Unit) =
-        paparazzi.also { it.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5) }.snapshot(name) {
-            Frame(dark, look, nav = nav) { androidx.compose.runtime.CompositionLocalProvider(LocalHeaderTall provides tall) { content() } }
+    /**
+     * A phone screen the way the app shell draws it: the content keeps the header's room, and the header folds over it
+     * as far as [scroll] says (pixels). [page] adds Back. Paparazzi cannot scroll, so the fold is shown at fixed offsets.
+     */
+    private fun phoneAt(name: String, dark: Boolean, look: Look = Look.BRAUN, nav: Tab?, scroll: Int, adv: Boolean = false, page: Boolean = false, w: Int = 1080, content: @Composable () -> Unit) =
+        paparazzi.also { it.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenWidth = w)) }.snapshot(name) {
+            AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, look) {
+                val pin = androidx.compose.runtime.remember { PinSlot() }
+                val title = androidx.compose.runtime.remember { TitleSlot() }
+                val sc = androidx.compose.runtime.remember { androidx.compose.foundation.ScrollState(scroll) }
+                androidx.compose.runtime.CompositionLocalProvider(LocalPin provides pin, LocalViewMode provides ViewMode(adv) {}, LocalBack provides (if (page) ({}) else null)) {
+                    androidx.compose.material3.Surface(color = At.c.bg, contentColor = At.c.text) {
+                        Column(Modifier.fillMaxSize().background(At.c.bg)) {
+                            androidx.compose.foundation.layout.Box(Modifier.weight(1f)) {
+                                androidx.compose.runtime.CompositionLocalProvider(LocalTitleSlot provides title) {
+                                    Column(Modifier.fillMaxSize().scrollWithHeaderRoom(sc, headerRangePx()).padding(horizontal = 16.dp).padding(bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) { content() }
+                                }
+                                ScreenHeader(title, sc, Modifier.align(androidx.compose.ui.Alignment.TopCenter))
+                            }
+                            pin.action?.let { BigActionBar(it) }
+                            if (nav != null) AtNavBar(nav, busy = false, eqOn = nav == Tab.EQ) {}
+                        }
+                    }
+                }
+            }
         }
+    private fun phone(name: String, dark: Boolean, look: Look = Look.BRAUN, nav: Tab, tall: Boolean, content: @Composable () -> Unit) =
+        phoneAt(name, dark, look, nav, if (tall) 0 else 99_999.coerceAtMost(fold), content = content)
+    /** The fold's full range at the Pixel 5's 2.75 density: the header area of 0.27 x 851dp, held to 170..260dp. */
+    private val fold = (minOf(260f, maxOf(170f, 851 * 0.27f)) * 2.75f).toInt()
+
     @Test fun z7_tests_tall() = phone("z7_tests_tall", false, nav = Tab.TESTS, tall = true) { TestsTab(s, vm, {}) }
     @Test fun z8_tests_compact() = phone("z8_tests_compact", false, nav = Tab.TESTS, tall = false) { TestsTab(s, vm, {}) }
     @Test fun z9_eq_tall_dark() = phone("z9_eq_tall_dark", true, nav = Tab.EQ, tall = true) { EqTab(s.copy(systemEqOn = true), vm, {}, pick) }
@@ -305,4 +333,80 @@ class ShotsTest {
         Panel { Flavour.entries.forEach { f -> androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { AtIcon(flavourIcon(f), At.c.signal, size = 20.dp); androidx.compose.material3.Text("  " + f.title) } } }
         TargetSoundFold(s.copy(bassDb = 2.0), vm, startOpen = true)
     }
+
+    // ---- 2.3.0: the header folds into the slim bar; the mode key in the middle; Export in Settings and on EQ; knob and gear
+    @Test fun h1_fold_0() = phoneAt("h1_fold_0", false, nav = Tab.TESTS, scroll = 0) { TestsTab(s, vm, {}) }
+    @Test fun h2_fold_25() = phoneAt("h2_fold_25", false, nav = Tab.TESTS, scroll = fold / 4) { TestsTab(s, vm, {}) }
+    @Test fun h3_fold_50() = phoneAt("h3_fold_50", false, nav = Tab.TESTS, scroll = fold / 2) { TestsTab(s, vm, {}) }
+    @Test fun h4_fold_75() = phoneAt("h4_fold_75", false, nav = Tab.TESTS, scroll = fold * 3 / 4) { TestsTab(s, vm, {}) }
+    @Test fun h5_fold_100() = phoneAt("h5_fold_100", false, nav = Tab.TESTS, scroll = fold) { TestsTab(s, vm, {}) }
+    @Test fun h6_fold_far() = phoneAt("h6_fold_far", false, nav = Tab.TESTS, scroll = fold + 600) { TestsTab(s, vm, {}) }
+    @Test fun h7_eq_dark_0() = phoneAt("h7_eq_dark_0", true, nav = Tab.EQ, scroll = 0) { EqTab(s.copy(systemEqOn = true), vm, {}, pick) }
+    @Test fun h8_eq_dark_50() = phoneAt("h8_eq_dark_50", true, nav = Tab.EQ, scroll = fold / 2) { EqTab(s.copy(systemEqOn = true), vm, {}, pick) }
+    @Test fun h9_eq_dark_100() = phoneAt("h9_eq_dark_100", true, nav = Tab.EQ, scroll = fold, adv = true) { EqTab(s.copy(systemEqOn = true), vm, {}, pick) }
+    @Test fun h10_tune_graphite_0() = phoneAt("h10_tune_graphite_0", false, look = Look.BRAUN_GRAPHITE, nav = Tab.MEASURE, scroll = 0) { tune(s.copy(tuneStep = TuneStep.HOME))() }
+    @Test fun h11_tune_graphite_60() = phoneAt("h11_tune_graphite_60", false, look = Look.BRAUN_GRAPHITE, nav = Tab.MEASURE, scroll = fold * 3 / 5) { tune(s.copy(tuneStep = TuneStep.HOME))() }
+    @Test fun h12_live_black_0() = phoneAt("h12_live_black_0", true, look = Look.BRAUN_BLACK, nav = Tab.LIVE, scroll = 0) { LiveTab(s, null, null, vm, pick, {}) }
+    @Test fun h13_live_black_100() = phoneAt("h13_live_black_100", true, look = Look.BRAUN_BLACK, nav = Tab.LIVE, scroll = fold) { LiveTab(s, null, null, vm, pick, {}) }
+    @Test fun h14_settings_0() = phoneAt("h14_settings_0", false, nav = Tab.SETTINGS, scroll = 0) { SettingsTab(s, AiUi(), vm, pick) }
+    @Test fun h15_settings_100_adv() = phoneAt("h15_settings_100_adv", false, nav = Tab.SETTINGS, scroll = fold, adv = true) { SettingsTab(s, AiUi(), vm, pick) }
+    @Test fun h16_results_page_0() = phoneAt("h16_results_page_0", false, nav = null, scroll = 0, page = true) { ResultsPage(s, vm, {}, {}) }
+    @Test fun h17_results_page_100() = phoneAt("h17_results_page_100", false, nav = null, scroll = fold, page = true) { ResultsPage(s, vm, {}, {}) }
+    @Test fun h18_export_page_100() = phoneAt("h18_export_page_100", true, nav = null, scroll = fold, page = true) { ExportTab(s, vm, {}) }
+    // 360dp wide (the narrowest the owner's phones go), and a large font
+    @Test fun h19_narrow_0() = phoneAt("h19_narrow_0", false, nav = Tab.SETTINGS, scroll = 0, w = 990) { SettingsTab(s, AiUi(), vm, pick) }
+    @Test fun h20_narrow_100_adv() = phoneAt("h20_narrow_100_adv", false, nav = Tab.SETTINGS, scroll = fold, adv = true, w = 990) { SettingsTab(s, AiUi(), vm, pick) }
+    @Test fun h21_narrow_page_100() = phoneAt("h21_narrow_page_100", false, nav = null, scroll = fold, page = true, w = 990) { ResultsPage(s, vm, {}, {}) }
+    @Test fun h22_bigfont_0() { paparazzi.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenWidth = 990, fontScale = 1.6f)); paparazzi.snapshot("h22_bigfont_0") { BigFontShell(0) } }
+    @Test fun h23_bigfont_100() { paparazzi.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenWidth = 990, fontScale = 1.6f)); paparazzi.snapshot("h23_bigfont_100") { BigFontShell(fold) } }
+    @Composable private fun BigFontShell(scroll: Int) {
+        AutoTuneTheme(ThemeMode.LIGHT, false, Look.BRAUN) {
+            val title = androidx.compose.runtime.remember { TitleSlot() }
+            val sc = androidx.compose.runtime.remember { androidx.compose.foundation.ScrollState(scroll) }
+            androidx.compose.runtime.CompositionLocalProvider(LocalPin provides androidx.compose.runtime.remember { PinSlot() }, LocalViewMode provides ViewMode(true) {}) {
+                androidx.compose.material3.Surface(color = At.c.bg, contentColor = At.c.text) {
+                    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+                        androidx.compose.runtime.CompositionLocalProvider(LocalTitleSlot provides title) {
+                            Column(Modifier.fillMaxSize().scrollWithHeaderRoom(sc, headerRangePx()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) { SettingsTab(s, AiUi(), vm, pick) }
+                        }
+                        ScreenHeader(title, sc, Modifier.align(androidx.compose.ui.Alignment.TopCenter))
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable private fun KnobAndGear() {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            listOf(Ic.TUNE, Ic.GEAR).forEach { ic ->
+                androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    listOf(72, 32, 26, 20, 16).forEach { sz -> AtIcon(ic, At.c.text, size = sz.dp) }
+                    // the Tune key in the tab row, and the main key's icon
+                    androidx.compose.foundation.layout.Box(Modifier.size(50.dp).androidxClipCircle().background(At.c.signal), contentAlignment = androidx.compose.ui.Alignment.Center) { AtIcon(ic, At.c.onSignal, size = 26.dp) }
+                    androidx.compose.foundation.layout.Box(Modifier.size(48.dp).androidxClipCircle().background(At.c.text), contentAlignment = androidx.compose.ui.Alignment.Center) { AtIcon(ic, At.c.signal, size = 26.dp) }
+                }
+            }
+            AtNavBar(Tab.MEASURE, busy = false) {}
+            AtNavBar(Tab.SETTINGS, busy = false) {}
+            Actions { PrimaryButton("Start tuning", {}, icon = Ic.TUNE); TextAction("Continue tuning", {}, icon = Ic.TUNE) }
+            // the launcher icon on its background, the themed icon, the status bar icon
+            androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                androidx.compose.foundation.layout.Box(Modifier.size(108.dp).androidxClipCircle().background(androidx.compose.ui.graphics.Color(0xFFE3E3E0))) {
+                    androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_launcher_foreground), null, Modifier.fillMaxSize())
+                }
+                androidx.compose.foundation.layout.Box(Modifier.size(108.dp).androidxClipCircle().background(androidx.compose.ui.graphics.Color(0xFF3B4A5A))) {
+                    androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_launcher_monochrome), null, Modifier.fillMaxSize(), colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(androidx.compose.ui.graphics.Color(0xFFD5E3F5)))
+                }
+                androidx.compose.foundation.layout.Box(Modifier.size(width = 120.dp, height = 40.dp).background(androidx.compose.ui.graphics.Color(0xFF202124)), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(24, 18).forEach { sz -> androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_stat_autotune), null, Modifier.size(sz.dp)) }
+                    }
+                }
+            }
+        }
+    }
+    @Test fun k1_knob_gear_light() = shot("k1_knob_gear_light", dark = false, nav = null, h = 2600) { KnobAndGear() }
+    @Test fun k2_knob_gear_dark() = shot("k2_knob_gear_dark", nav = null, h = 2600) { KnobAndGear() }
+    @Test fun k3_knob_gear_black() = shot("k3_knob_gear_black", look = Look.BRAUN_BLACK, nav = null, h = 2600) { KnobAndGear() }
+    private fun Modifier.androidxClipCircle(): Modifier = this.clip(androidx.compose.foundation.shape.CircleShape)
 }

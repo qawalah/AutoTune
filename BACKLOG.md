@@ -17,32 +17,6 @@ The six held items were built together: AUTOTUNE wordmark and Braun audio header
 - Check on the owner's phone: the fresh-open rule after real sleep, the latching key's feel, and whether the 15-band cue is seen.
 - The first scroll hinting itself once (from the slider item) was not built; the fade, chevron and bar carry the cue.
 
-## Header: text aligned with the graphic, and the header comes back at the top like One UI (asked 2026-11-07, HOLD until the owner says "execute")
-Status: planned only. Do not start until told to execute.
-- **Align the header text with the graphic.** Today the screen's name sits at the bottom-left while the Braun graphic sits at the top-right, with a gap between them. Line them up: the name and the graphic share one row and one alignment (for example the name centred on the graphic's height, or its baseline on the graphic's bottom edge), so they read as one unit.
-- **The header comes back when you scroll all the way up, as in One UI (owner's clarification of the 2.2.0 rule).**
-  - It opens fully expanded only when the app is started (a fresh open, as already built) and a tab is chosen.
-  - When switching between tabs, a tab may open with the header hidden (content high).
-  - Scrolling back **all the way to the top** brings the full header (name and graphic) back, in every case. It does not come back part-way down the page; until the top is reached, the slim bar with the name stays.
-- Keep: the `freshOpen` rule (15 minutes in the background), compact opening on tab jumps and Back, the slim bar once scrolled away, and `motionMs()` for the animation.
-- When executed: `ScreenTitle`, `CollapsedHeader` and the scroll handling in `ui/Kit.kt` and `ui/AutoTuneScreen.kt` (a tab that opens compact must still be able to scroll up to the full header, so its top has to reveal the header's space); tests for any pure rule; `DESIGN.md`, a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
-
-## Tune becomes a tuning knob; Settings goes back to a gear (asked 2026-11-07, HOLD until the owner says "execute")
-Status: planned only. Do not start until told to execute. The owner first asked for a tuning fork, then discarded it: **no fork.**
-- **Tune** (today a ring with a dot and a line, which reads as a webcam) becomes a **tuning knob**: the round, ridged knob of a Braun radio, with a pointer line, in the Braun line style. A short scale of ticks around its upper half would say "tuning" (as on the T 3 and SK 4 dials). Add it as a new `Ic` entry or redraw `Ic.TUNE` in `ui/Kit.kt`.
-- **Settings** (today a Braun knob with a dot scale, `Ic.GEAR`) becomes a **gear** again, drawn in the same plain geometric language: a round hub, evenly spaced square teeth, one stroke weight. The two icons must not look alike once Tune is a knob.
-- Where Tune's mark appears: the round Tune key in the tab row, the Tune main keys, "Continue tuning" and "Start tuning", and, because the owner asked for "the logo", the app icon (`res/drawable/ic_launcher_foreground.xml`, `ic_launcher_monochrome.xml`) and the notification icon (`res/drawable/ic_stat_autotune.xml`). Settings' gear appears in the tab row and the Settings header graphic's key row stays as it is.
-- Keep: the launcher icon's colours (graphite on light grey, one red element), the white-on-transparent rule for the status bar icon, readability at 20 dp. Render both icons at all their sizes, light and dark, before release.
-- Open point: should the Tune home screen's speaker grille keep the word "Tune" on its centre key, or carry the knob?
-- When executed: the drawings above, a render sheet for the owner, `DESIGN.md` (the mark and the icon rules), a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
-
-## Header: the graphic minimises into the corner, the mode key stays in the middle, the three-bar menu goes (asked 2026-11-07, HOLD until the owner says "execute")
-Status: planned only. Do not start until told to execute. Works with the two header entries above (text aligned with the graphic; the header returns at the top like One UI).
-- **The graphic transitions into the header.** As the screen scrolls, the tab's Braun graphic does not just vanish and let a separate slim bar take over: it shrinks and glides into the **right corner** of the slim header as a small version of itself, while the screen's name settles at the left. Scrolling back to the top grows it back out to the full graphic. Smooth, tied to the scroll position, with `motionMs()` and "Remove animations" respected (then it simply switches).
-- **The Simple / Advanced switch stays in the middle of the header, always**: in the tall header and in the slim one, at the same place, so it never moves when the header changes shape.
-- **The three-bar menu is removed** (the screenshot's circled button): it is not needed. Its two entries move into Settings:
-  - **Export EQ files**: a row in Settings that opens the Export page over Settings (Back returns to Settings).
-  - **Send diagnostics**: already in Settings under Diagnostics (Advanced); make it reachable in Simple too, or leave it in Advanced.
-- Open points to settle before building: should Export EQ files also stay reachable from the EQ tab or a test's results (it is the only way in today, so it should not get harder to find)? Is Send diagnostics needed in Simple?
-- Keep: the wordmark AUTOTUNE, the One UI fresh-open and scroll-to-top rules from the entries above, 48 dp touch targets, and Back from the Export page returning to where it was opened.
-- When executed: `ScreenTitle`, `CollapsedHeader`, `HeaderArt` (the scale and position follow the scroll offset) in `ui/Kit.kt`; remove `MenuButton` and `LocalMenu` from `ui/AutoTuneScreen.kt` and the title rows; add the Export row to `SettingsTab` in `ui/SetupScreens.kt`; `DESIGN.md`, a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
+## Header fold, mode key in the middle, no menu, Tune knob and Settings gear (asked 2026-11-07): done in 2.3.0
+The three held entries were built together: the name centred on the header graphic, the graphic shrinking and gliding into the slim bar's right corner with the scroll (and back at the very top, on every screen), the Simple / Advanced key fixed in the middle of the top line, the three-bar menu removed (Export EQ files in Settings for Simple and Advanced and on the EQ tab in Advanced; Send diagnostics stays in Advanced), Tune drawn as a Braun tuning knob everywhere including the app and notification icons, and Settings as a gear. The Tune speaker keeps "Tune" on its key. Open follow-ups:
+- Check on the owner's phone: the feel of the fold under a finger and with a fling, and the folded opening after a tab jump.

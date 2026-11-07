@@ -4,6 +4,16 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.3.0] - 2026-11-08
+### Changed
+- **Header: the name and the graphic are one unit.** In the tall header the screen's name now sits beside its Braun graphic, centred on its height, instead of at the bottom left with the graphic at the top right.
+- **The graphic folds into the header, like One UI.** As you scroll, the graphic shrinks and glides into the right corner of the slim bar as a small version of itself, and the name settles at the left. Scroll back to the very top and both grow back out. With "Remove animations" on, the header simply switches.
+- **The full header always comes back at the top.** A tab you jump to, or go Back to, still opens with the header folded and the content high, but scrolling all the way up now brings the full header back on every screen, pages included. Part-way down the page the slim bar stays.
+- **The Simple / Advanced key stays in the middle of the header**, in the tall and the slim form, so it never moves.
+- **The three-bar menu is gone.** Export EQ files is a row in Settings (in Simple and Advanced) that opens Export over Settings; Back returns there. In Advanced the EQ tab also has "Export EQ files" in reach, without opening "More". Send diagnostics stays in Settings › Diagnostics (Advanced).
+- **Tune is a tuning knob**: the ridged knob of a Braun radio with its pointer and a short tuning scale, on the Tune key, the Tune main keys, "Start tuning" and "Continue tuning", the app icon (graphite knob, red pointer, on light grey), the themed icon and the EQ notification's icon. The Tune speaker keeps "Tune" on its centre key.
+- **Settings is a gear again**, a round hub with square teeth in the same line style, so it no longer looks like a knob.
+
 ## [2.2.0] - 2026-11-07
 ### Changed
 - **Header**: the name is a mark in capitals, **AUTOTUNE**, on every screen, the measuring screen and the AI review. Each tab keeps its name and its own graphic in the header, now drawn as the face of a Braun hi-fi component: a record player for Tests, a fader strip for EQ, the round speaker grille for Tune, a radio tuning scale with its needle over a slot grille of level bars for Live, a row of push keys and knobs for Settings (a tape deck elsewhere). Flat, in the deck greys, the accent only on one pilot light, needle or key.

@@ -5,7 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** When the tall header shows (2.2.0), and the cue on the slider row. */
+/** When the tall header shows (2.2.0), how it folds into the slim bar (2.3.0), and the cue on the slider row. */
 class HeaderTest {
     private val min = 60_000L
 
@@ -81,5 +81,95 @@ class HeaderTest {
         assertFalse(scrollCue(299, 300, 900).moreRight)
         // out of range is held to the row
         assertFalse(scrollCue(-40, 300, 900).moreLeft)
+    }
+
+    // ---- 2.3.0: the header folds into the slim bar with the scroll
+
+    @Test
+    fun foldFollowsTheScroll() {
+        assertEquals(0f, headerProgress(0f, 400f), 1e-6f)
+        assertEquals(0.25f, headerProgress(100f, 400f), 1e-6f)
+        assertEquals(1f, headerProgress(400f, 400f), 1e-6f)
+        // past the header and overscroll are held
+        assertEquals(1f, headerProgress(5000f, 400f), 1e-6f)
+        assertEquals(0f, headerProgress(-30f, 400f), 1e-6f)
+        // no header to fold is folded
+        assertEquals(1f, headerProgress(0f, 0f), 1e-6f)
+    }
+
+    @Test
+    fun withoutAnimationsTheHeaderSwitches() {
+        assertEquals(0f, headerPhase(0f, 400f, animate = false), 0f)
+        assertEquals(0f, headerPhase(399f, 400f, animate = false), 0f)
+        assertEquals(1f, headerPhase(400f, 400f, animate = false), 0f)
+        assertEquals(0.5f, headerPhase(200f, 400f, animate = true), 1e-6f)
+    }
+
+    @Test
+    fun theFullHeaderComesBackOnlyAtTheTop() {
+        assertTrue(headerFull(0))
+        assertFalse(headerFull(1))
+        assertFalse(headerFull(300))
+        // part-way up the page the header is still the slim bar
+        assertEquals(1f, headerProgress(2000f - 1500f, 400f), 1e-6f)
+        // it only starts to open in the last stretch of the way to the top
+        assertTrue(headerProgress(399f, 400f) < 1f)
+    }
+
+    @Test
+    fun theHeaderEdgeFollowsTheContent() {
+        assertEquals(900f, headerBottomPx(0f, 900f, 170f), 1e-4f)
+        assertEquals(600f, headerBottomPx(300f, 900f, 170f), 1e-4f)
+        assertEquals(170f, headerBottomPx(800f, 900f, 170f), 1e-4f)
+        assertEquals(170f, headerBottomPx(99_999f, 900f, 170f), 1e-4f)
+        assertEquals(900f, headerBottomPx(-50f, 900f, 170f), 1e-4f)
+    }
+
+    @Test
+    fun rampsFadeOnTheirOwnStretch() {
+        assertEquals(0f, ramp(0.2f, 0.35f, 0.7f), 0f)
+        assertEquals(0.5f, ramp(0.525f, 0.35f, 0.7f), 1e-5f)
+        assertEquals(1f, ramp(0.9f, 0.35f, 0.7f), 0f)
+        // an empty stretch is a switch
+        assertEquals(0f, ramp(0.49f, 0.5f, 0.5f), 0f)
+        assertEquals(1f, ramp(0.5f, 0.5f, 0.5f), 0f)
+    }
+
+    @Test
+    fun theGraphicGlidesIntoTheRightCorner() {
+        val tall = HeaderRect(520f, 330f, 450f, 300f)
+        val slim = slimArtRect(tall, rowEndX = 1032f, rowCentreY = 84f, slimH = 78f)
+        // a small version of itself: same proportions, right edge on the bar's end, centred on the bar
+        assertEquals(tall.w / tall.h, slim.w / slim.h, 1e-4f)
+        assertEquals(1032f, slim.right, 1e-3f)
+        assertEquals(84f, slim.y + slim.h / 2, 1e-3f)
+        assertEquals(tall, artAt(0f, tall, slim))
+        assertEquals(slim, artAt(1f, tall, slim))
+        val mid = artAt(0.5f, tall, slim)
+        assertTrue(mid.h < tall.h && mid.h > slim.h)
+        assertTrue(mid.y < tall.y && mid.y > slim.y)
+        // its proportions hold all the way
+        assertEquals(tall.w / tall.h, mid.w / mid.h, 1e-3f)
+        assertEquals(slim, artAt(3f, tall, slim))
+    }
+
+    @Test
+    fun aCompactScreenStartsWithTheHeaderFolded() {
+        // left at the top: it comes back folded, content high
+        assertEquals(400, compactOpenScroll(0, 400))
+        // left part-way: folded the rest of the way
+        assertEquals(400, compactOpenScroll(120, 400))
+        // left further down: it keeps its place
+        assertEquals(1800, compactOpenScroll(1800, 400))
+        // a Tune step has no header and keeps its scroll
+        assertEquals(0, compactOpenScroll(0, 400, hasHeader = false))
+    }
+
+    @Test
+    fun aLongNameShrinksToFitItsLongestWord() {
+        assertEquals(90f, fitTitlePx(90f, 300f, 400f, 60f), 1e-4f)
+        assertEquals(72f, fitTitlePx(90f, 500f, 400f, 60f), 1e-4f)
+        // never below the floor: it then ellipsises
+        assertEquals(60f, fitTitlePx(90f, 2000f, 400f, 60f), 1e-4f)
     }
 }

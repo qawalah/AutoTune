@@ -46,7 +46,7 @@ import dev.autotune.UiState
 
 /** The Settings tab: how much the app shows, the mic, defaults, the EQ, files, AI, diagnostics and the look. */
 @Composable
-fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pickers) {
+fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pickers, go: (Tab) -> Unit = {}) {
     run {
         ScreenTitle("Settings")
         Group("Show", divider = false, info = "Simple keeps each screen to the essentials and the main choices. Advanced adds the explanations, extra checks and every option. The switch at the top of each screen changes the same setting.") {
@@ -63,6 +63,17 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
                 if (!s.hasPermission) SecondaryButton("Allow microphone", pick.permission, icon = Ic.MIC)
                 SecondaryButton(if (s.calibrationName == null) "Import calibration" else "Replace calibration", pick.calibration, icon = Ic.FILE)
                 if (s.calibrationName != null) TextAction("Remove", vm::removeCalibration, danger = true, icon = Ic.TRASH)
+            }
+        }
+
+        Group("EQ files", info = "Save or share an EQ as files for other equipment: ParametricEQ.txt for Poweramp and Equalizer APO, GraphicEQ.txt for Wavelet, and the test's report and measurements. In Advanced you can also choose the folder Save uses; Share always goes through the share sheet.") {
+            Actions { TextAction("Export EQ files", { go(Tab.EXPORT) }, icon = Ic.EXPORT) }
+            if (isAdvanced()) {
+                StatusLine(true, "Saved to " + (s.exportFolder ?: "Downloads/AutoTune"))
+                Actions {
+                    SecondaryButton(if (s.exportFolder == null) "Choose a folder" else "Choose another folder", pick.exportFolder, icon = Ic.FILE)
+                    if (s.exportFolder != null) TextAction("Use Downloads", { vm.setExportFolder(null) }, icon = Ic.UNDO)
+                }
             }
         }
 
@@ -101,14 +112,6 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
                 label = "Band resolution", icon = Ic.EQ,
                 details = listOf("Tested; light on the phone", "Finer narrow cuts; more work for the phone. Measure again after switching"),
             )
-        }
-
-        if (isAdvanced()) Group("Saved files", info = "Where Save puts the EQ files, the report and the measurements. Share always goes through the share sheet instead.") {
-            StatusLine(true, "Saved to " + (s.exportFolder ?: "Downloads/AutoTune"))
-            Actions {
-                SecondaryButton(if (s.exportFolder == null) "Choose a folder" else "Choose another folder", pick.exportFolder, icon = Ic.FILE)
-                if (s.exportFolder != null) TextAction("Use Downloads", { vm.setExportFolder(null) }, icon = Ic.UNDO)
-            }
         }
 
         if (isAdvanced()) Group("AI assistant", info = "Claude (Anthropic) or Gemini (Google) reviews a test on request: what limits the result, what to check, what to do next, and optional EQ changes that the app holds to its own limits. It needs your own API key for the one you pick; each review costs a few cents on that key's account. ${aiPrivacy(ai.provider)}") {
