@@ -17,21 +17,21 @@ The six held items were built together: AUTOTUNE wordmark and Braun audio header
 - Check on the owner's phone: the fresh-open rule after real sleep, the latching key's feel, and whether the 15-band cue is seen.
 - The first scroll hinting itself once (from the slider item) was not built; the fade, chevron and bar carry the cue.
 
-## Header: text aligned with the graphic, and the header comes back on scroll (asked 2026-11-07, HOLD until the owner says "execute")
+## Header: text aligned with the graphic, and the header comes back at the top like One UI (asked 2026-11-07, HOLD until the owner says "execute")
 Status: planned only. Do not start until told to execute.
 - **Align the header text with the graphic.** Today the screen's name sits at the bottom-left while the Braun graphic sits at the top-right, with a gap between them. Line them up: the name and the graphic share one row and one alignment (for example the name centred on the graphic's height, or its baseline on the graphic's bottom edge), so they read as one unit.
-- **The header is always reachable by scrolling (owner's clarification of the 2.2.0 rule).**
+- **The header comes back when you scroll all the way up, as in One UI (owner's clarification of the 2.2.0 rule).**
   - It opens fully expanded only when the app is started (a fresh open, as already built) and a tab is chosen.
   - When switching between tabs, a tab may open with the header hidden (content high).
-  - Whenever the user scrolls, the header (name and graphic) re-appears. It is never locked away, whatever way the tab was opened.
-- Open points to settle before building: does it re-appear on any scroll up, even in the middle of a long page (the "enter always" behaviour), or only when the page is scrolled back to its top? Does it come back full (tall, with the graphic) or as the slim bar first and full at the top?
+  - Scrolling back **all the way to the top** brings the full header (name and graphic) back, in every case. It does not come back part-way down the page; until the top is reached, the slim bar with the name stays.
 - Keep: the `freshOpen` rule (15 minutes in the background), compact opening on tab jumps and Back, the slim bar once scrolled away, and `motionMs()` for the animation.
-- When executed: `ScreenTitle`, `CollapsedHeader` and the scroll handling in `ui/Kit.kt` and `ui/AutoTuneScreen.kt`; tests for any pure scroll-direction rule; `DESIGN.md`, a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
+- When executed: `ScreenTitle`, `CollapsedHeader` and the scroll handling in `ui/Kit.kt` and `ui/AutoTuneScreen.kt` (a tab that opens compact must still be able to scroll up to the full header, so its top has to reveal the header's space); tests for any pure rule; `DESIGN.md`, a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
 
-## The logo becomes a tuning fork (asked 2026-11-07, HOLD until the owner says "execute")
-Status: planned only. Do not start until told to execute.
-- The Tune mark (today a ring with a dot and a line, which reads as a webcam) becomes a **tuning fork**, in the Braun line style: two straight tines joined by a round bend, a stem, and the accent on the foot or the tip of one tine (the sketch "A" from the icon options).
-- Everywhere the mark appears: `Ic.TUNE` in `ui/Kit.kt` (the round Tune key in the tab row, the Tune main keys, "Continue tuning" and "Start tuning"), the app icon (`res/drawable/ic_launcher_foreground.xml` and `ic_launcher_monochrome.xml`), and the notification icon (`res/drawable/ic_stat_autotune.xml`). The owner asked for "the logo", so the app and notification icons follow the tab key.
-- Keep: the launcher icon's colours (graphite on light grey, one red element), the white-on-transparent rule for the status bar icon, and the readability at 20 dp. Render the new mark at all its sizes in light and dark before release.
-- Open point: should the Tune home screen's speaker grille (the big circle with the round Tune key) keep a plain "Tune" word on its key, or carry the fork too?
-- When executed: the three drawings above, a render sheet for the owner, `DESIGN.md` (the mark), a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
+## Tune becomes a tuning knob; Settings goes back to a gear (asked 2026-11-07, HOLD until the owner says "execute")
+Status: planned only. Do not start until told to execute. The owner first asked for a tuning fork, then discarded it: **no fork.**
+- **Tune** (today a ring with a dot and a line, which reads as a webcam) becomes a **tuning knob**: the round, ridged knob of a Braun radio, with a pointer line, in the Braun line style. A short scale of ticks around its upper half would say "tuning" (as on the T 3 and SK 4 dials). Add it as a new `Ic` entry or redraw `Ic.TUNE` in `ui/Kit.kt`.
+- **Settings** (today a Braun knob with a dot scale, `Ic.GEAR`) becomes a **gear** again, drawn in the same plain geometric language: a round hub, evenly spaced square teeth, one stroke weight. The two icons must not look alike once Tune is a knob.
+- Where Tune's mark appears: the round Tune key in the tab row, the Tune main keys, "Continue tuning" and "Start tuning", and, because the owner asked for "the logo", the app icon (`res/drawable/ic_launcher_foreground.xml`, `ic_launcher_monochrome.xml`) and the notification icon (`res/drawable/ic_stat_autotune.xml`). Settings' gear appears in the tab row and the Settings header graphic's key row stays as it is.
+- Keep: the launcher icon's colours (graphite on light grey, one red element), the white-on-transparent rule for the status bar icon, readability at 20 dp. Render both icons at all their sizes, light and dark, before release.
+- Open point: should the Tune home screen's speaker grille keep the word "Tune" on its centre key, or carry the knob?
+- When executed: the drawings above, a render sheet for the owner, `DESIGN.md` (the mark and the icon rules), a `CHANGELOG.md` entry, and bump the version in `gradle.properties`.
