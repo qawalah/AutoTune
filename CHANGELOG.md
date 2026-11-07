@@ -4,6 +4,10 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.3.1] - 2026-11-07
+### Fixed
+- **EQ not applied in Android Auto until you pause and play**: the system effect is now opened again when the output changes (Android Auto, a car, a dock) and when playback starts, so the EQ takes hold without pausing the song. Direct Bluetooth was already fine.
+
 ## [2.3.0] - 2026-11-08
 ### Changed
 - **Header: the name and the graphic are one unit.** In the tall header the screen's name now sits beside its Braun graphic, centred on its height, instead of at the bottom left with the graphic at the top right.

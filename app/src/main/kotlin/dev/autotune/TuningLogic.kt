@@ -875,3 +875,5 @@ fun compactOpenScroll(scrollPx: Int, rangePx: Int, hasHeader: Boolean = true): I
 fun fitTitlePx(basePx: Float, longestWordPx: Float, availablePx: Float, minPx: Float): Float =
     if (longestWordPx <= 0f || longestWordPx <= availablePx) basePx
     else (basePx * availablePx / longestWordPx).coerceIn(minPx.coerceAtMost(basePx), basePx)
+/** True when more players are active than before: audio just started (or came back after a route change). */
+fun playbackStarted(before: Int, now: Int): Boolean = now > before
