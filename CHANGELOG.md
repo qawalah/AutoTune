@@ -4,6 +4,13 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.4.0] - 2026-11-08
+### Changed
+- **Dark body, light decks.** The Braun look now has a dark graphite background with warm white sections, each with a thin outline. Titles, the main key and the tab keys sit on the dark body in light ink; the header graphic is a light device on it. At night the background goes near-black and the sections graphite, outlined, so nothing glares in the car. Every look's sections now have the outline.
+- **Quieter Simple mode.**
+  - **Tune:** when the mic is ready, the mic and EQ status is one small line under the speaker ("umik-1 · eq off") instead of a box. If something needs fixing, the box comes back with its buttons.
+  - **EQ and Live:** the graph and the spectrum show without a title. Advanced keeps the titles and their (i).
+
 ## [2.3.2] - 2026-11-08
 ### Fixed
 - **Suggested EQs hollowed out the upper bass.** Where a car has narrow peaks with a dip between them (an F-150 had peaks at 125, 160 and 250 Hz and a dip at 200 Hz), the fitter placed wide cuts either side and stacked boosts to refill the dip, and the merge that makes the final EQ then threw two thirds of that refill away. On that F-150 the EQ left 120-250 Hz 5.6 dB under the target and 200 Hz 10.6 dB under it. The fitter now merges first and fine-tunes the merged EQ, so what plays is what was balanced: 120-250 Hz now ends 1.3 dB under the target on the phone's system EQ (0.7 dB with AutoTune's own EQ), with smaller cuts at 135 and 257 Hz. The deep bass stays on the target.

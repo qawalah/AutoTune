@@ -46,7 +46,8 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
 
     // The spectrum is the primary live instrument. Never draw a synthetic target-shaped
     // spectrum while idle: that can be mistaken for a real microphone reading.
-    Group("Spectrum", divider = false) {
+    // Simple: the spectrum needs no title
+    val spectrum: @Composable () -> Unit = {
         val target = Rta.targetBars(Target.ALL[s.targetIdx.coerceIn(0, Target.ALL.size - 1)])
         when {
             s.rtaRunning && live != null -> RtaBars(live, target, height = 248.dp)
@@ -65,6 +66,7 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
         }
         if (!s.rtaRunning && s.status?.startsWith("RTA stopped") == true) Warning(s.status!!)
     }
+    if (isAdvanced()) Group("Spectrum", divider = false) { spectrum() } else Panel(pad = 12.dp) { spectrum() }
 
     // ---- level
     Panel {

@@ -89,7 +89,7 @@ Braun is the default look (`Look.BRAUN` in `ui/Theme.kt`), with two siblings: Br
 
 ## Colours
 
-- **Body** (`bg`): warm white by day, Braun black by night. **Deck** (`panel`): the grey plate that holds a section. **Key** (`panelHigh`): fields, push keys and action rows. **Rule** (`line`): hairlines and key edges.
+- **Body** (`bg`): dark graphite by day (#2B2B29), near-black by night (#121211). Titles, the main key and the key row sit on it in light ink. **Deck** (`panel` of `AtColors.deck`): the plate that holds a section, warm white by day (#F3F2EE) and graphite at night (#232321) so nothing glares in a car; everything inside a deck draws with the deck's own colours (`DeckColors`). **Key** (`panelHigh`): fields, push keys and action rows. **Rule** (`line`): hairlines and key edges.
 - **Accent** (`signal`, red by default, chosen in Settings: red, orange, yellow, green, blue): only what is live or acted on: the record label (Tune), the needle on the tuning scale, the pilot light of the main key, the EQ curve and EQ fader caps. If everything is red, nothing is.
 - **Pilot green** (`good`): on states and improvements. **Warn** and **bad**: cautions, always beside an icon.
 - **Teak** (`teak`): the cheeks down both screen edges. Never elsewhere.
@@ -120,7 +120,7 @@ One column, 16dp margins, 16dp between sections. Five tabs: Tests, EQ, **Tune** 
 
 ## Surfaces
 
-Flat. A section is a **deck** (`Panel`, `Group`, `Fold`): the grey plate, 6dp corners, no border, no shadow. Inside a deck, a nested `Panel`/`Group`/`Fold` draws flat under a hairline (`LocalInCard`). The screen header and the key row are ruled off with 1dp hairlines. Nothing has a drop shadow.
+Flat. A section is a **deck** (`Panel`, `Group`, `Fold`, `RunSheet`): a light plate on the dark body, 8dp corners, a 1dp hairline edge in the deck's rule colour (`deckPlate`), no shadow. The header graphic is drawn in the deck's colours, a light device on the dark body. Inside a deck, a nested `Panel`/`Group`/`Fold` draws flat under a hairline (`LocalInCard`). The screen header and the key row are ruled off with 1dp hairlines. Nothing has a drop shadow.
 
 ## Components
 
@@ -163,7 +163,7 @@ Short and mechanical. Arrivals ease out (`EaseArrive`), exits are quick (`EaseLe
 - Do open every result with the display and one short headline.
 
 ### Don't:
-- Don't add borders or shadows to decks, buttons or rows.
+- Don't add shadows anywhere, or borders beyond the deck's hairline edge and the keys' edges.
 - Don't use teak anywhere but the two edge cheeks.
 - Don't put explanations on the page; use a bubble.
 - Don't use pills or segmented buttons for choices.

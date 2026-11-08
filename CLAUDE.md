@@ -44,7 +44,7 @@ phone through Obtainium.
 - Simple / Advanced is app-wide and Simple is the default. Advanced adds controls and sections (`Adv { }`), never paragraphs. Simple shows only each tab's core job (see the 1.26.0 entry in `CHANGELOG.md`); gate the rest with `isAdvanced()`.
 - No explanatory text on the page, in either mode: explanations go in info bubbles (`InfoButton`, `info =` on `DropSelect`, `GroupedPick`, `Group`, `Fold`, `InfoLabel`). Warnings go through `Alerts(list)`, one line that opens the full list. A line of text under a control is a fact or a status, at most one line.
 - Every result opens with the readings, a one-line headline (`resultHeadline`), the findings or alerts in one line each, and the next step.
-- Each section is a deck (`Panel`, `Group`, `Fold`: grey plate, no border, no shadow; never nested). Stack actions one per row with `Actions { }`. Motion uses `EaseArrive`/`EaseLeave` and `motionMs()`, so "Remove animations" is respected.
+- Each section is a deck (`Panel`, `Group`, `Fold`: a light plate with a hairline outline on the dark body, no shadow; never nested). Stack actions one per row with `Actions { }`. Motion uses `EaseArrive`/`EaseLeave` and `motionMs()`, so "Remove animations" is respected.
 
 ## Don't break
 - **Saved tests** (`TestStore` text format): keep loading every older version.

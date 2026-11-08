@@ -58,6 +58,8 @@ class AtColors(
     val teak: Color? = null,
     /** The aluminium of the Tune wheel in the key row. */
     val alu: Color = androidx.compose.ui.graphics.lerp(panelHigh, muted, 0.35f),
+    /** The colours inside a deck, when they differ from the body's (Braun: a dark body with light decks). */
+    val deck: AtColors? = null,
 )
 
 /** Slider looks: a round knob on a line, a mixing-desk fader cap, or a column of LEDs. */
@@ -72,7 +74,7 @@ enum class Look(val title: String, val detail: String) {
     VU("Analog VU", "Warm cream meter face with a red needle"),
     SYNTH("Synthwave", "Deep purple with magenta and cyan"),
     NAVY("Navy", "Deep navy with a teal accent, the DevStore look"),
-    BRAUN("Braun", "Light grey body, grey decks, teak cheeks and one red, after Dieter Rams. The default"),
+    BRAUN("Braun", "Dark body, light outlined decks, teak cheeks and one red, after Dieter Rams. The default"),
     BRAUN_GRAPHITE("Braun graphite", "Greys throughout, with a dark grey accent"),
     BRAUN_BLACK("Braun black", "Black and aluminium with an orange accent, like the TP 1 and T 1000"),
     ;
@@ -83,38 +85,68 @@ enum class Look(val title: String, val detail: String) {
     companion object { fun of(name: String?) = entries.firstOrNull { it.name == name } ?: BRAUN }
 }
 
-// Braun, after Dieter Rams: a white body, a grey deck for what matters, push keys, teak cheeks, and one red for the
-// record label, the needle and the pilot light. Runs are inks and greys; the EQ is the red.
-private val BraunLight = AtColors(
+// Braun, after Dieter Rams: a dark graphite body with warm white decks, outlined, push keys, teak cheeks, and one red
+// for the record label, the needle and the pilot light. Runs are inks and greys; the EQ is the red. The body and the
+// decks have their own colours: everything inside a deck draws with [AtColors.deck].
+private val BraunRunsLight = listOf(
+    Color(0xFF85857F), Color(0xFF2F4F7F), Color(0xFF3D7F3A), Color(0xFF7A4A9C),
+    Color(0xFF0E7C86), Color(0xFF8C5A2B), Color(0xFF4B5563), Color(0xFF9C2F6B),
+)
+private val BraunRunsDark = listOf(
+    Color(0xFFA2A29C), Color(0xFF8EB4F0), Color(0xFF7CCB76), Color(0xFFC59BEB),
+    Color(0xFF4FD1DB), Color(0xFFE0A86E), Color(0xFFB8C0CC), Color(0xFFF08CC0),
+)
+
+// the warm white deck of the day look
+private val BraunDeckLight = AtColors(
     dark = false,
-    bg = Color(0xFFE6E6E3), panel = Color(0xFFD7D7D3), panelHigh = Color(0xFFF0F0ED), line = Color(0xFFBDBDB8),
-    text = Color(0xFF1F1F1E), muted = Color(0xFF5C5C58),
-    signal = Color(0xFFC8401A), onSignal = Color(0xFFFFFFFF),
+    bg = Color(0xFFE9E7E1), panel = Color(0xFFF3F2EE), panelHigh = Color(0xFFE4E2DC), line = Color(0xFFC9C7C0),
+    text = Color(0xFF232321), muted = Color(0xFF5E5C57),
+    signal = Color(0xFFBF3C18), onSignal = Color(0xFFFFFFFF),
     good = Color(0xFF3D7F3A), warn = Color(0xFF805C00), bad = Color(0xFFB3261E),
-    target = Color(0xFF1F1F1E),
-    runs = listOf(
-        Color(0xFF85857F), Color(0xFF2F4F7F), Color(0xFF3D7F3A), Color(0xFF7A4A9C),
-        Color(0xFF0E7C86), Color(0xFF8C5A2B), Color(0xFF4B5563), Color(0xFF9C2F6B),
-    ),
+    target = Color(0xFF232321), runs = BraunRunsLight,
     slider = SliderStyle.FADER,
-    shell = Color(0xFFD7D7D3), onShell = Color(0xFF1F1F1E), onShellMuted = Color(0xFF5C5C58),
+    shell = Color(0xFFF3F2EE), onShell = Color(0xFF232321), onShellMuted = Color(0xFF5E5C57),
     teak = Color(0xFFB07446), alu = Color(0xFFB9BAB8),
+)
+
+private val BraunLight = AtColors(
+    dark = true,
+    bg = Color(0xFF2B2B29), panel = Color(0xFF353533), panelHigh = Color(0xFF3A3A37), line = Color(0xFF4E4E49),
+    text = Color(0xFFECEAE4), muted = Color(0xFFA3A19A),
+    signal = Color(0xFFF0663A), onSignal = Color(0xFF1A0A03),
+    good = Color(0xFF6CB866), warn = Color(0xFFE9C14A), bad = Color(0xFFFF6B5E),
+    target = Color(0xFFECEAE4), runs = BraunRunsDark,
+    slider = SliderStyle.FADER,
+    shell = Color(0xFF2B2B29), onShell = Color(0xFFECEAE4), onShellMuted = Color(0xFFA3A19A),
+    teak = Color(0xFFB07446), alu = Color(0xFFB9BAB8),
+    deck = BraunDeckLight,
+)
+
+// at night the decks stay dark, so nothing glares in a car: a near-black body, graphite decks with a lighter edge
+private val BraunDeckDark = AtColors(
+    dark = true,
+    bg = Color(0xFF1C1C1B), panel = Color(0xFF232321), panelHigh = Color(0xFF2E2E2B), line = Color(0xFF45453F),
+    text = Color(0xFFECEAE4), muted = Color(0xFFA3A19A),
+    signal = Color(0xFFF0663A), onSignal = Color(0xFF1A0A03),
+    good = Color(0xFF6CB866), warn = Color(0xFFE9C14A), bad = Color(0xFFFF6B5E),
+    target = Color(0xFFECEAE4), runs = BraunRunsDark,
+    slider = SliderStyle.FADER,
+    shell = Color(0xFF232321), onShell = Color(0xFFECEAE4), onShellMuted = Color(0xFFA3A19A),
+    teak = Color(0xFF8E5A33), alu = Color(0xFF8F908E),
 )
 
 private val BraunDark = AtColors(
     dark = true,
-    bg = Color(0xFF262625), panel = Color(0xFF323231), panelHigh = Color(0xFF3D3D3B), line = Color(0xFF4B4B48),
-    text = Color(0xFFEDEDEA), muted = Color(0xFFABABA6),
+    bg = Color(0xFF121211), panel = Color(0xFF1C1C1B), panelHigh = Color(0xFF262624), line = Color(0xFF3A3A36),
+    text = Color(0xFFECEAE4), muted = Color(0xFFA3A19A),
     signal = Color(0xFFF0663A), onSignal = Color(0xFF1A0A03),
     good = Color(0xFF6CB866), warn = Color(0xFFE9C14A), bad = Color(0xFFFF6B5E),
-    target = Color(0xFFEDEDEA),
-    runs = listOf(
-        Color(0xFFA2A29C), Color(0xFF8EB4F0), Color(0xFF7CCB76), Color(0xFFC59BEB),
-        Color(0xFF4FD1DB), Color(0xFFE0A86E), Color(0xFFB8C0CC), Color(0xFFF08CC0),
-    ),
+    target = Color(0xFFECEAE4), runs = BraunRunsDark,
     slider = SliderStyle.FADER,
-    shell = Color(0xFF323231), onShell = Color(0xFFEDEDEA), onShellMuted = Color(0xFFABABA6),
+    shell = Color(0xFF121211), onShell = Color(0xFFECEAE4), onShellMuted = Color(0xFFA3A19A),
     teak = Color(0xFF8E5A33), alu = Color(0xFF8F908E),
+    deck = BraunDeckDark,
 )
 
 // Braun graphite: everything grey, the accent a dark grey (light) or a pale grey (dark); no wood.
@@ -354,22 +386,15 @@ fun AtColors.withAccent(a: dev.autotune.Accent): AtColors {
     if (a == dev.autotune.Accent.LOOK) return this
     val sig = Color(if (dark) a.dark else a.light)
     val on = Color(if (dark) a.onDark else a.onLight)
-    return AtColors(dark, bg, panel, panelHigh, line, text, muted, sig, on, good, warn, bad, target, runs, slider, shell, onShell, onShellMuted, teak, alu)
+    return AtColors(dark, bg, panel, panelHigh, line, text, muted, sig, on, good, warn, bad, target, runs, slider, shell, onShell, onShellMuted, teak, alu, deck?.withAccent(a))
 }
 
-@Composable
-fun AutoTuneTheme(mode: ThemeMode, dynamic: Boolean, lookChoice: Look = Look.BRAUN, accent: dev.autotune.Accent = dev.autotune.Accent.LOOK, content: @Composable () -> Unit) {
-    val dark = when (mode) {
-        ThemeMode.SYSTEM -> isSystemInDarkTheme()
-        ThemeMode.LIGHT -> false
-        ThemeMode.DARK -> true
-    }
-    val at = lookColors(lookChoice, dark).withAccent(accent)
-    val container = androidx.compose.ui.graphics.lerp(at.panel, at.signal, if (dark) 0.22f else 0.18f)
-    val ctx = LocalContext.current
-    val scheme = when {
-        dynamic && Build.VERSION.SDK_INT >= 31 -> if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
-        dark -> darkColorScheme(
+
+/** The Material colours for a palette, so drop-downs, dialogs and menus match the body or the deck they sit on. */
+fun atScheme(at: AtColors): androidx.compose.material3.ColorScheme {
+    val container = androidx.compose.ui.graphics.lerp(at.panel, at.signal, if (at.dark) 0.22f else 0.18f)
+    return when {
+        at.dark -> darkColorScheme(
             primary = at.signal, onPrimary = at.onSignal,
             primaryContainer = container, onPrimaryContainer = at.signal,
             secondary = at.muted, onSecondary = at.bg,
@@ -394,11 +419,25 @@ fun AutoTuneTheme(mode: ThemeMode, dynamic: Boolean, lookChoice: Look = Look.BRA
             inverseSurface = at.text, inverseOnSurface = at.bg,
         )
     }
+}
+
+@Composable
+fun AutoTuneTheme(mode: ThemeMode, dynamic: Boolean, lookChoice: Look = Look.BRAUN, accent: dev.autotune.Accent = dev.autotune.Accent.LOOK, content: @Composable () -> Unit) {
+    val dark = when (mode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+    val at = lookColors(lookChoice, dark).withAccent(accent)
+    val ctx = LocalContext.current
+    val scheme = if (dynamic && Build.VERSION.SDK_INT >= 31) {
+        if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
+    } else atScheme(at)
     val view = LocalView.current
     SideEffect {
         (view.context as? Activity)?.window?.let {
             val c = WindowCompat.getInsetsController(it, view)
-            c.isAppearanceLightStatusBars = !dark
+            c.isAppearanceLightStatusBars = at.bg.luminance() > 0.5f
             // the navigation band sits behind the system bar, so its icons follow the band, not the page
             c.isAppearanceLightNavigationBars = at.shell.luminance() > 0.5f
         }

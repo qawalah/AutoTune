@@ -599,8 +599,28 @@ fun ModeSwitch() {
 
 // ---------------------------------------------------------------- cards
 
-/** A deck: the grey plate of a Braun device (the SK 4's turntable deck). 6dp corners, no border, no shadow. */
-val CardShape = RoundedCornerShape(6.dp)
+/** A deck: the plate of a Braun device (the SK 4's turntable deck). 8dp corners, a hairline edge, no shadow. */
+val CardShape = RoundedCornerShape(8.dp)
+
+/** The colours a deck draws with: the look's deck colours where it has them (Braun's light decks on a dark body). */
+val deckColors: AtColors @Composable get() = At.c.deck ?: At.c
+
+/** The deck's plate: its colour and a hairline edge. */
+@Composable
+fun Modifier.deckPlate(): Modifier {
+    val d = deckColors
+    return this.clip(CardShape).background(d.panel).border(1.dp, d.line, CardShape)
+}
+
+/** Everything in [content] takes the deck's colours, Material's included, so text and keys read on the plate. */
+@Composable
+fun DeckColors(content: @Composable () -> Unit) {
+    val d = At.c.deck
+    if (d == null) { content(); return }
+    androidx.compose.runtime.CompositionLocalProvider(LocalAt provides d, androidx.compose.material3.LocalContentColor provides d.text) {
+        MaterialTheme(colorScheme = atScheme(d), typography = MaterialTheme.typography, shapes = MaterialTheme.shapes, content = content)
+    }
+}
 
 /** True inside a card, so a card placed in another card draws flat instead of nesting. */
 val LocalInCard = androidx.compose.runtime.compositionLocalOf { false }
@@ -623,10 +643,10 @@ private fun CardBox(modifier: Modifier, pad: Dp, content: @Composable () -> Unit
         return
     }
     Column(
-        modifier.fillMaxWidth().clip(CardShape).background(At.c.panel)
+        modifier.fillMaxWidth().deckPlate()
             .animateContentSize(tween(motionMs(320), easing = EaseArrive)).padding(pad),
         verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) { androidx.compose.runtime.CompositionLocalProvider(LocalInCard provides true) { content() } }
+    ) { DeckColors { androidx.compose.runtime.CompositionLocalProvider(LocalInCard provides true) { content() } } }
 }
 
 /** A card: one section of a screen (what was measured, what is set, a group of choices). */
@@ -638,10 +658,10 @@ fun Panel(modifier: Modifier = Modifier, pad: Dp = 14.dp, content: @Composable (
  * the header of a dyno printout. [trailing] sits at the strip's right end.
  */
 @Composable
-fun RunSheet(title: String, sub: String? = null, trailing: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
+fun RunSheet(title: String, sub: String? = null, trailing: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) = DeckColors {
     val c = At.c
     Column(
-        Modifier.fillMaxWidth().clip(CardShape).background(c.panel).animateContentSize(tween(motionMs(320), easing = EaseArrive)),
+        Modifier.fillMaxWidth().deckPlate().animateContentSize(tween(motionMs(320), easing = EaseArrive)),
     ) {
         // the deck's own label line, like the lettering above a device's controls
         Row(
@@ -752,7 +772,7 @@ fun Fold(title: String, summary: String? = null, startOpen: Boolean = false, inf
         }
     }
     if (inCard) Column(Modifier.fillMaxWidth()) { body() }
-    else Column(Modifier.fillMaxWidth().clip(CardShape).background(At.c.panel)) { body() }
+    else Column(Modifier.fillMaxWidth().deckPlate()) { DeckColors { body() } }
 }
 
 /** A titled block of content, separated from the previous one by a hairline. */
@@ -1073,7 +1093,8 @@ private val Vinyl = Color(0xFF161615)
  */
 @Composable
 fun HeaderArt(key: String, modifier: Modifier) {
-    val c = At.c
+    // drawn as a light device on the dark body, in the deck's colours
+    val c = deckColors
     val plate = c.panel
     val keyFace = c.panelHigh
     val rule = c.line

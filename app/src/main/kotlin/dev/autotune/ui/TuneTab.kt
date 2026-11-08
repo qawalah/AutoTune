@@ -101,7 +101,14 @@ private fun TuneHome(s: UiState, vm: TuneViewModel, pick: Pickers) {
             )
         }
     }
-    Panel(pad = 14.dp) {
+    // Simple, with nothing to fix: the mic and the EQ as one quiet line under the speaker instead of a deck
+    val micReady = s.hasPermission && !s.micAlsoOutput && (s.phoneMic || (s.micName != null && s.calibrationName != null))
+    if (micReady && !isAdvanced()) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+            QuietStatus(At.c.good, (if (s.phoneMic) "phone mic" else s.micName ?: "mic").lowercase())
+            QuietStatus(if (s.systemEqOn) At.c.signal else At.c.muted, if (s.systemEqOn) "eq on" else "eq off")
+        }
+    } else Panel(pad = 14.dp) {
         MicLine(s, pick)
         Row(verticalAlignment = Alignment.CenterVertically) {
             AtIcon(Ic.POWER, if (s.systemEqOn) At.c.signal else At.c.muted, size = 18.dp)
@@ -513,6 +520,15 @@ private fun DoneStep(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, openResul
 // ------------------------------------------------------------------ pieces
 
 /** One line when the mic is fine; the fixes only when something is missing. */
+/** A pilot light and a small lowercase label: a status read at a glance. */
+@Composable
+private fun QuietStatus(light: androidx.compose.ui.graphics.Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(6.dp).clip(androidx.compose.foundation.shape.CircleShape).background(light))
+        Text(label, Modifier.padding(start = 6.dp), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
+    }
+}
+
 @Composable
 private fun MicLine(s: UiState, pick: Pickers) {
     val ready = s.hasPermission

@@ -150,9 +150,12 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
 
     // ---- the response of the EQ in use, after the sliders that shape it
     s.eqChart?.let { chart ->
-        Group("Frequency response", divider = false, info = "The measured or proposed response of the selected EQ. Toggle the target line to compare the correction with your chosen target.") {
+        val graph: @Composable () -> Unit = {
             ResponseChart(chart, height = 224.dp, showTarget = s.showTargetEq, onToggleTarget = { vm.setShowTarget(false, !s.showTargetEq) })
         }
+        // Simple: the graph needs no title
+        if (isAdvanced()) Group("Frequency response", divider = false, info = "The measured or proposed response of the selected EQ. Toggle the target line to compare the correction with your chosen target.") { graph() }
+        else Panel(pad = 12.dp) { graph() }
     }
 
     // ---- dynamic EQ: less bass and harshness when it's loud
