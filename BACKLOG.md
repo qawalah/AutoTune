@@ -7,6 +7,20 @@ Make the phone's own mic usable for tuning by calibrating it against the calibra
 - Needs the UNPROCESSED source (no AGC or noise suppression), otherwise the curve changes with level. Check that two consecutive phone-mic runs agree within 1 dB before saving.
 - Expected accuracy about +/-1-2 dB to roughly 10 kHz; above that the phone mic is directional and depends on how it is held. Say so in the app.
 
+## Road noise: measure it, then lift the music over it (asked 2026-11-08)
+Masking-based, not phase cancellation. A phone cannot do real noise cancelling: it needs about 2-3 ms end to end, and Android audio is 10-40 ms (hundreds over Bluetooth). This version needs no tight latency and cannot make anything worse.
+- **Road-noise measurement.** Record the cabin noise spectrum while driving (UNPROCESSED mic source, no AGC or noise suppression), average over a few seconds, and draw it as a noise floor under the EQ graph. Save it with the test or as its own reading, per car and per speed band.
+- **Noise-aware EQ and loudness.** Lift the music in the bands where the noise masks it, and let the level follow speed or measured noise (like Bose Audio Pilot or speed-dependent volume). Clamp the lift to the app's EQ limits and the safe preamp; fit from the stock run as usual so EQs never stack. Likely a new mode next to Dynamic EQ.
+- Mic placement matters: use the listening spot or the USB mic, and say so in the app.
+- Open questions: take speed from GPS or from the noise level alone; how fast the correction may move so it never pumps; whether it is a Tune step or a Live-tab control.
+
+## Later, hardware: real active noise cancelling for the car (asked 2026-11-08)
+Not an app feature. A separate controller running the real-time loop, with the phone as setup and display.
+- Controller: Teensy 4.1 (or Bela) with a multichannel I2S/TDM codec, FxLMS adaptive filter, hard limiter and divergence detector.
+- Sensors: 2-4 accelerometers on the suspension as reference, one error mic per front seat at the headrest. Output through its own amp and headrest speakers, not the head unit.
+- Phone role: measure each speaker-to-mic response (the secondary path) with the existing sweep and mic code, send filter settings over USB or BLE, show the result.
+- Expect 3-6 dB below about 300 Hz at best. Prototype on a bench with one speaker and one mic first.
+
 ## UI overhaul (asked 2026-11-04): done in 1.21.0
 Cards, Simple / Advanced (Simple default, app-wide), five tabs with Tune in the centre, stacked actions with a Suggested pinned action, motion, and the Navy (DevStore) look. Open follow-ups:
 - Check the motion and the raised Tune disc on the owner's phone.
