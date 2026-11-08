@@ -30,10 +30,14 @@ object Export {
      * every band is held to the fit's own limits, near-zero bands are dropped, and the list is cut to the strongest
      * [FitConfig.maxFilters] bands, so repeated merging can never grow without bound.
      */
+    /** True when [combine] would merge these two bands into one: within 1/6 octave, with a similar Q. */
+    fun mergeable(a: EqFilter, b: EqFilter): Boolean =
+        maxOf(a.freqHz, b.freqHz) / minOf(a.freqHz, b.freqHz) < 2.0.pow(1.0 / 6.0) && maxOf(a.q, b.q) / minOf(a.q, b.q) < 1.6
+
     fun combine(filters: List<EqFilter>, cfg: FitConfig = FitConfig()): List<EqFilter> {
         val out = ArrayList<EqFilter>()
         for (f in filters.sortedBy { it.freqHz }) {
-            val i = out.indexOfLast { o -> f.freqHz / o.freqHz < 2.0.pow(1.0 / 6.0) && maxOf(f.q, o.q) / minOf(f.q, o.q) < 1.6 }
+            val i = out.indexOfLast { o -> mergeable(f, o) }
             if (i < 0) { out += f; continue }
             val o = out[i]
             val w = abs(o.gainDb) + abs(f.gainDb) + 1e-9

@@ -135,6 +135,8 @@ data class FitConfig(
     val maxBoostRingS: Double = 0.5,
     /** Highest cut Q at 10 kHz: from 1 kHz the cap slides from [maxCutQHigh] down to this (REW: 3 at 10 kHz). */
     val maxCutQTop: Double = 3.0,
+    /** A narrow dip counts as "leave alone", never as too loud, so cuts beside it cannot sink into it for free. */
+    val protectDips: Boolean = true,
 ) {
     /** Highest Q a cut at [f] may use. */
     fun cutQCap(f: Double): Double {
@@ -188,8 +190,17 @@ object EqFitter {
 
         val errCut = DoubleArray(grid.size) { smoothCut[it] - tgt[it] - off }
         val errBoost = DoubleArray(grid.size) { smoothBoost[it] - tgt[it] - off }
-        // Working error: positive = too loud (cut), negative = too quiet (boost only if it is a wide dip).
-        val e = DoubleArray(grid.size) { if (errCut[it] > 0.0) errCut[it] else max(errCut[it], errBoost[it]) }
+        // Working error: positive = too loud (cut), negative = too quiet (boost only if it is a wide dip). A narrow dip
+        // is left alone, never read as too loud: the 1/3-octave power average fills it with the peaks beside it, and
+        // reading that as "too loud" let wide cuts sink into a spot that was already low (a car's 200 Hz between peaks
+        // at 125, 160 and 250 Hz ended 11 dB under the target).
+        val e = DoubleArray(grid.size) {
+            when {
+                errCut[it] > 0.0 -> errCut[it]
+                cfg.protectDips -> max(errCut[it], min(errBoost[it], 0.0))
+                else -> max(errCut[it], errBoost[it])
+            }
+        }
 
         val lo = grid.indexAtOrAbove(cfg.fMinHz)
         val hi = grid.indexAtOrBelow(cfg.fMaxHz)
@@ -244,8 +255,13 @@ object EqFitter {
             }
         }
 
+        // Every suggestion goes through Export.combine, which merges bands within 1/6 octave and holds the merged band to
+        // the limits. The search can stack three +3 dB boosts to refill a hole that two wide cuts dig (an F-150 at
+        // 210 Hz); merged later, two thirds of that refill vanished and the hole stayed (200 Hz 11 dB under the
+        // target). Merging here, before the fine-tuning, makes the tuning balance the bands that will really play.
+        val merged = Export.combine(out, cfg)
         // a deliberately partial step (stepScale < 1) is left as it is: fine-tuning would turn it back into a full one
-        val filters = if (cfg.refine && stepScale == 1.0 && out.isNotEmpty()) refine(out, e0, weight, grid, cfg, lo, hi) else out
+        val filters = if (cfg.refine && stepScale == 1.0 && merged.isNotEmpty()) refine(merged, e0, weight, grid, cfg, lo, hi) else merged
         val real = DoubleArray(grid.size) { i -> e0[i] + filters.sumOf { it.magnitudeDb(grid.freqs[i]) } }
         return FitResult(filters.sortedBy { it.freqHz }, rmsBefore, rms(real, lo, hi), maxAbs(real, lo, hi), errCut)
     }
@@ -341,7 +357,9 @@ object EqFitter {
                     for (i in 0 until n) trial[i] = acc[i] - old[i] + nr[i]
                     val jt = cost(trial)
                     val ot = overLimits(trial)
-                    if (ot <= over + 1e-9 && jt < j - 1e-9 && costAll(trial) <= ceiling + 1e-9) {
+                    // never drift close enough to another band for Export.combine to merge the two afterwards
+                    val apart = fl.indices.none { o -> o != k && Export.mergeable(c, fl[o]) }
+                    if (apart && ot <= over + 1e-9 && jt < j - 1e-9 && costAll(trial) <= ceiling + 1e-9) {
                         fl[k] = c; resp[k] = nr
                         System.arraycopy(trial, 0, acc, 0, n)
                         j = jt; over = ot; improved = true

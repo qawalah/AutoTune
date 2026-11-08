@@ -351,3 +351,9 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - Screenshots: `phoneAt(name, …, scroll)` in `tools/screenshots/ShotsTest.kt` draws a screen the way the shell does at a fixed scroll offset (`h1`–`h23`: the fold at 0/25/50/75/100%, pages, 360dp, font scale 1.6), `k1`–`k3` the knob, the gear, the key row and the launcher/status icons.
 - Not verified on a phone: the feel of the fold under a real finger (fling, overscroll), the arrival scroll on a tab jump during the slide animation, and the fresh-open lifecycle.
 
+### 2.3.2: merge before fine-tuning, dips left alone
+- Found from a user's F-150 diagnostics (Harman car, phone system EQ route): `suggestedFor` passes every fit through `Export.combine`, which merges bands within 1/6 octave and clamps the sum to the per-band limit. The search had stacked three +3 dB boosts at 210-215 Hz to refill the hole two Q 2 cuts dug around 200 Hz; the merge kept +3 of +9, so 200 Hz played 10.6 dB under the target.
+- `EqFitter.fit` now calls `Export.combine` itself before `refine()`, and `refine()` rejects any step that would make two bands `Export.mergeable`, so the fit is already the EQ that plays (merging it again changes nothing).
+- `FitConfig.protectDips` (default on): where the 1/6-octave error is negative, the 1/3-octave boost error is capped at 0, so a narrow dip reads as "leave alone" instead of "too loud".
+- Test: `RefineTest.aDipBetweenCutsIsNotDugOutAfterMerging` (fails on 2.3.1: 120-250 Hz -3.3 dB; passes: -0.7 dB).
+- The same diagnostics showed the EQ check measuring no effect three times (output over a wireless link, 2.6 s latency): the phone's EQ did not reach the truck during the tests, so the closed loop never saw it.

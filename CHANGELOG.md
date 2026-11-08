@@ -4,6 +4,11 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.3.2] - 2026-11-08
+### Fixed
+- **Suggested EQs hollowed out the upper bass.** Where a car has narrow peaks with a dip between them (an F-150 had peaks at 125, 160 and 250 Hz and a dip at 200 Hz), the fitter placed wide cuts either side and stacked boosts to refill the dip, and the merge that makes the final EQ then threw two thirds of that refill away. On that F-150 the EQ left 120-250 Hz 5.6 dB under the target and 200 Hz 10.6 dB under it. The fitter now merges first and fine-tunes the merged EQ, so what plays is what was balanced: 120-250 Hz now ends 1.3 dB under the target on the phone's system EQ (0.7 dB with AutoTune's own EQ), with smaller cuts at 135 and 257 Hz. The deep bass stays on the target.
+- A narrow dip is never read as too loud any more, so a cut beside it can't sink into it for free.
+
 ## [2.3.1] - 2026-11-07
 ### Fixed
 - **EQ not applied in Android Auto until you pause and play**: the system effect is now opened again when the output changes (Android Auto, a car, a dock) and when playback starts, so the EQ takes hold without pausing the song. Direct Bluetooth was already fine.
