@@ -362,37 +362,86 @@ class ConvergenceTest {
         assertFalse(playbackStarted(1, 0))
     }
 
-    /** After 2.8.1: a dark ink at night read on no surface, so readableInk dropped it everywhere and the pick did nothing. */
+    /**
+     * Reported again after 2.9.0 (by day): a dark ink never reached Classic's dark body, and on its light decks it was
+     * as dark as the ink already there, so nothing changed. Each surface now takes the version the ink reads on.
+     */
     @Test
-    fun darkInkAtNightNeedsTheDaySurfaces() {
-        val nightBody = 0xFF121211L; val nightDeck = 0xFF232321L
-        val dayBody = 0xFF2B2B29L; val dayDeck = 0xFFF3F2EEL
+    fun aDarkInkBringsTheLightSurfaceItNeeds() {
+        val dayBody = 0xFF2B2B29L; val nightBody = 0xFF121211L; val lightBody = 0xFFE9E7E1L
+        val dayDeck = 0xFFF3F2EEL; val nightDeck = 0xFF232321L
         val darkInks = PALETTE_NEUTRALS.filter { it.name in setOf("Slate", "Graphite", "Charcoal", "Near black", "Black") }
         assertEquals(5, darkInks.size)
         darkInks.forEach { ink ->
-            // the cause: on Classic's night surfaces none of them reads, so each one fell back to the light ink
-            assertEquals(ink.name, InkReach.NONE, inkReach(ink.argb, listOf(nightBody, nightDeck)))
-            assertEquals(0xFFECEAE4L, readableInk(ink.argb, 0xFFECEAE4L, listOf(nightDeck)))
-            // the fix: such an ink brings the day decks, where it reads
-            assertTrue(ink.name, inkNeedsDay(ink.argb, listOf(nightBody, nightDeck), listOf(dayBody, dayDeck)))
-            assertEquals(InkReach.SOME, inkReach(ink.argb, listOf(dayBody, dayDeck)))
+            assertTrue(ink.name, isDarkInk(ink.argb))
+            // the cause: on Classic's dark body none of them reads, so readableInk kept the light ink there, silently
+            assertEquals(ink.name, InkReach.NONE, inkReach(ink.argb, listOf(dayBody, nightBody)))
+            assertEquals(0xFFECEAE4L, readableInk(ink.argb, 0xFFECEAE4L, listOf(dayBody)))
+            // the fix: the dark body takes its light version, by day and by night; night decks take the day decks
+            assertEquals(ink.name, InkSurface.LIGHT, inkSurface(ink.argb, listOf(dayBody), listOf(lightBody), listOf(nightBody)))
+            assertEquals(ink.name, InkSurface.LIGHT, inkSurface(ink.argb, listOf(nightBody), listOf(lightBody), listOf(nightBody)))
+            assertEquals(ink.name, InkSurface.LIGHT, inkSurface(ink.argb, listOf(nightDeck), listOf(dayDeck), listOf(nightDeck)))
+            // a light deck already carries it
+            assertEquals(ink.name, InkSurface.OWN, inkSurface(ink.argb, listOf(dayDeck), listOf(dayDeck), listOf(nightDeck)))
+            // a surface the user set stays as set
+            assertEquals(ink.name, InkSurface.OWN, inkSurface(ink.argb, listOf(nightBody), listOf(lightBody), listOf(nightBody), fixed = true))
         }
-        // a light ink, no ink, or an ink that reads nowhere by day either, keeps the night surfaces
-        assertFalse(inkNeedsDay(0xFFFFFFFFL, listOf(nightBody, nightDeck), listOf(dayBody, dayDeck)))
-        assertFalse(inkNeedsDay(null, listOf(nightBody, nightDeck), listOf(dayBody, dayDeck)))
-        assertFalse(inkNeedsDay(0xFF121211L, listOf(nightBody, nightDeck), listOf(dayBody, 0xFF1C1C1BL)))
-        assertEquals(InkReach.ALL, inkReach(0xFF121211L, listOf(0xFFFFFFFFL, dayDeck)))
+        // a light ink on light decks takes the dark ones; no ink changes nothing
+        assertFalse(isDarkInk(0xFFFFFFFFL))
+        assertEquals(InkSurface.DARK, inkSurface(0xFFFFFFFFL, listOf(dayDeck), listOf(dayDeck), listOf(nightDeck)))
+        assertEquals(InkSurface.OWN, inkSurface(null, listOf(dayBody), listOf(lightBody), listOf(nightBody)))
+        // an ink that reads on neither version keeps the surface (the readable-ink fallback and the note take over)
+        assertEquals(InkSurface.OWN, inkSurface(0xFF85857FL, listOf(dayDeck), listOf(dayDeck), listOf(nightDeck)))
+        assertEquals(InkSurface.OWN, inkSurface(0xFF121211L, listOf(dayBody), null, listOf(nightBody)))
     }
 
     @Test
-    fun inkNoteSaysOnlyWhatNeedsSaying() {
-        assertNull(inkNote(null, applied = false, usesDay = false))
-        assertNull(inkNote(0xFF121211L, applied = true, usesDay = false))
-        assertEquals("on light decks, so it reads", inkNote(0xFF121211L, applied = true, usesDay = true))
-        assertEquals("doesn't read on these colours", inkNote(0xFF121211L, applied = false, usesDay = false))
-        assertEquals("doesn't read on these colours", inkNote(0xFF5E5C57L, applied = false, usesDay = true))
+    fun inkNoteSaysWhatTheInkDid() {
+        val black = 0xFF121211L
+        assertNull(inkNote(null, listOf(1L), listOf(1L)))
+        // used everywhere and plainly different: nothing to say
+        assertNull(inkNote(0xFF5E5C57L, listOf(0xFF5E5C57L, 0xFF5E5C57L), listOf(0xFFECEAE4L, 0xFF232321L)))
+        // used everywhere, but as dark as the ink it replaced: say so, instead of silently looking the same
+        assertEquals("about the same as the look's ink", inkNote(black, listOf(black, black), listOf(0xFF1B1B1AL, 0xFF232321L)))
+        // it brought light or dark surfaces with it
+        assertEquals("on light surfaces, so it reads", inkNote(black, listOf(black, black), listOf(0xFFECEAE4L, 0xFF232321L), InkSurface.LIGHT))
+        assertEquals("on dark surfaces, so it reads", inkNote(0xFFFFFFFFL, listOf(0xFFFFFFFFL, 0xFFFFFFFFL), listOf(0xFFECEAE4L, 0xFF232321L), InkSurface.DARK))
+        // only some, or none, of the surfaces carry it
+        assertEquals("only where it reads", inkNote(black, listOf(0xFFECEAE4L, black), listOf(0xFFECEAE4L, 0xFF232321L)))
+        assertEquals("doesn't read on these colours", inkNote(black, listOf(0xFFECEAE4L, 0xFFECEAE4L), listOf(0xFFECEAE4L, 0xFFECEAE4L)))
         // the note is one short line
-        listOfNotNull(inkNote(1L, true, true), inkNote(1L, false, false)).forEach { assertTrue(it.length <= 40) }
+        listOf("about the same as the look's ink", "on light surfaces, so it reads", "doesn't read on these colours").forEach { assertTrue(it.length <= 40) }
+    }
+
+    /** The palette's drop-down shows what was stored, and every preset is written and read back as itself. */
+    @Test
+    fun paletteMenuShowsTheStoredColour() {
+        for (slot in PaletteSlot.entries) {
+            val presets = paletteChoices(slot)
+            val empty = paletteMenu(slot, null)
+            assertEquals(0, empty.selected)
+            assertEquals("As the look", empty.names[0])
+            assertEquals("Custom…", empty.names[empty.customIdx])
+            assertNull(empty.colourAt(0))
+            for ((i, preset) in presets.withIndex()) {
+                // pick option i+1: the value written to the preferences, read back on the next start
+                val picked = empty.colourAt(i + 1)!!
+                assertEquals(preset.argb, picked)
+                val stored = hexColour(Palette().with(slot, picked)[slot]!!)
+                val back = paletteFrom { k -> if (k == slot.key) stored else null }[slot]
+                assertEquals(preset.argb, back)
+                // the field shows that preset, by name, with its swatch
+                val m = paletteMenu(slot, back)
+                assertEquals("${slot.name} ${preset.name}", i + 1, m.selected)
+                assertEquals(preset.name, m.names[m.selected])
+                assertEquals(preset.argb, m.colours[m.selected])
+            }
+            // a typed colour is listed as itself and selected
+            val own = paletteMenu(slot, 0xFF123456L)
+            assertEquals("#123456", own.names[own.selected])
+            assertEquals(0xFF123456L, own.colourAt(own.selected))
+            assertEquals(own.names.size - 2, own.selected)
+        }
     }
 
     @Test
@@ -421,8 +470,97 @@ class ConvergenceTest {
         assertNull(knownScore(1, 3, 72, listOf(0, 3), listOf(64, 72)))
         assertNull(knownScore(3, 3, null))
         assertNull(knownScore(0, null, null, listOf(0), emptyList()))
+        // the stock review's report card: the stock's score is known even when the stock is not ticked
+        assertEquals(39, knownScore(0, 3, 52, listOf(3), listOf(52), stockScore = 39))
+        assertNull(knownScore(2, 3, 52, listOf(3), listOf(52), stockScore = 39))
+        // a compared stock keeps the compared score (the same as the runs list shows)
+        assertEquals(41, knownScore(0, 3, 52, listOf(0, 3), listOf(41, 52), stockScore = 39))
         // the results page's key: the move in lower case after "next:"
         assertEquals("next: keep this EQ and finish", nextLine(moveLabel(NextMove.KEEP_LATEST, null)))
         assertNull(nextLine(null))
+    }
+
+    @Test
+    fun graphicsPlayTwiceThenStop() {
+        assertEquals(2, GRAPHIC_PLAYS)
+        // from rest: forward, a quick return, forward again: two whole movements, ending settled
+        assertEquals(listOf(1f, 0f, 1f), arrivalLegs(0f))
+        // a replay of a settled graphic returns first, so it still plays two whole movements
+        assertEquals(listOf(0f, 1f, 0f, 1f), arrivalLegs(1f))
+        assertEquals(listOf(0f, 1f, 0f, 1f), arrivalLegs(0.4f))
+        assertEquals(2, arrivalLegs(0f).count { it == 1f })
+        assertEquals(1f, arrivalLegs(0f).last())
+        assertEquals(listOf(1f), arrivalLegs(0f, plays = 1))
+        // the return is quick, and none with animations off
+        assertEquals(300, returnMs(900))
+        assertEquals(180, returnMs(300))
+        assertEquals(0, returnMs(0))
+    }
+
+    @Test
+    fun aGraphicPlaysWhenItCanBeSeen() {
+        assertFalse(shownOnScreen(0f, 400f))
+        assertFalse(shownOnScreen(10f, 0f))
+        // half of a small graphic, or enough of a tall one
+        assertTrue(shownOnScreen(100f, 200f))
+        assertFalse(shownOnScreen(90f, 200f))
+        assertTrue(shownOnScreen(160f, 2000f))
+        assertFalse(shownOnScreen(120f, 2000f))
+    }
+
+    @Test
+    fun aPullPastTheTopReplaysOncePerGesture() {
+        val p = PullReplay(100f)
+        // scrolling in the middle of the page never counts
+        assertFalse(p.drag(80f, atTop = false))
+        assertFalse(p.drag(80f, atTop = false))
+        // at the top: the pull adds up and fires once past the threshold
+        assertFalse(p.drag(60f, atTop = true))
+        assertTrue(p.drag(60f, atTop = true))
+        assertFalse(p.drag(200f, atTop = true))
+        // a new gesture can fire again
+        p.end()
+        assertFalse(p.drag(50f, atTop = true))
+        // dragging back up starts the count over
+        assertFalse(p.drag(-10f, atTop = true))
+        assertFalse(p.drag(60f, atTop = true))
+        assertTrue(p.drag(60f, atTop = true))
+    }
+
+    @Test
+    fun theDialPulsesFromTheCentreOut() {
+        val rim = 100f
+        // the front starts at the centre and moves out past the rim, never back
+        assertEquals(0f, pulseFront(0f, rim), 1e-6f)
+        val fronts = (0..10).map { pulseFront(it / 10f, rim) }
+        assertTrue(fronts.zipWithNext().all { (a, b) -> b > a })
+        assertTrue(pulseFront(1f, rim) > rim)
+        // a hole is lit when the front passes it: inner holes first, outer holes later
+        val band = 16f
+        assertEquals(1f, pulseLight(40f, 40f, band), 1e-6f)
+        assertEquals(0f, pulseLight(80f, 40f, band), 1e-6f)
+        assertTrue(pulseLight(45f, 40f, band) in 0.5f..1f)
+        val inner = (0..20).map { pulseLight(45f, pulseFront(it / 20f, rim), band) }
+        val outer = (0..20).map { pulseLight(85f, pulseFront(it / 20f, rim), band) }
+        assertTrue(inner.indexOf(inner.max()) < outer.indexOf(outer.max()))
+        // nothing lit before it starts
+        assertEquals(0f, pulseLight(40f, 0f, band), 1e-6f)
+    }
+
+    @Test
+    fun readingsTakeASecondLineRatherThanSqueezeAScore() {
+        // the main reading and two others with score boxes are too wide for a phone: two lines
+        assertFalse(readingsFitOneLine(listOf(150, 126, 126), 12, 347))
+        // the stock with "with the eq" fits on one
+        assertTrue(readingsFitOneLine(listOf(150, 80), 12, 347))
+        assertTrue(readingsFitOneLine(emptyList(), 12, 100))
+    }
+
+    @Test
+    fun stockAnalysisKeepsTheReportScoreItWasGiven() {
+        assertNull(analyzeStock(4.0, 2.0, 6, emptyList(), emptyList(), emptyList(), null).score)
+        // the stock review's report card is already worked out; its score is kept for the display, not recomputed
+        val report = dev.autotune.dsp.SystemReport(39, "Fair", "", emptyList(), 55)
+        assertEquals(39, analyzeStock(6.6, 4.1, 6, emptyList(), emptyList(), emptyList(), report).score)
     }
 }

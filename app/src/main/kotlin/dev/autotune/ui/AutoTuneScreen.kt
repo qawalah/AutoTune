@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import dev.autotune.TuneViewModel
 import androidx.compose.animation.togetherWith
@@ -137,6 +138,11 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     var backgroundedAt by rememberSaveable { mutableStateOf<Long?>(null) }
     var freshEpoch by rememberSaveable { mutableIntStateOf(0) }
     val titleSlots = androidx.compose.runtime.remember { mutableMapOf<String, TitleSlot>() }
+    // a pull past the top of a screen plays its graphics again: one count per screen ([LocalReplay])
+    val replays = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }
+    val pullPx = with(LocalDensity.current) { 64.dp.toPx() }
+    // the one chart open full screen, drawn over everything in this window
+    val zoom = androidx.compose.runtime.remember { ChartZoom() }
     // how far the content scrolls while the header folds into the slim bar
     val rangePx = headerRangePx()
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -224,7 +230,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     val viewMode = androidx.compose.runtime.remember(s.advanced) { ViewMode(s.advanced, vm::setAdvanced) }
     AutoTuneTheme(s.themeMode, s.look, s.accent, s.palette) {
       androidx.compose.runtime.CompositionLocalProvider(
-          LocalPin provides pin, LocalViewMode provides viewMode,
+          LocalPin provides pin, LocalViewMode provides viewMode, LocalChartZoom provides zoom,
       ) {
         Box(Modifier.fillMaxSize().background(At.c.bg)) {
             Scaffold(
@@ -300,16 +306,39 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                     // the Tune tab has no header on any step: its home starts with the dial, its steps with StepHeader
                     val hasHeader = !(d.page == null && d.tab == Tab.MEASURE)
                     androidx.compose.runtime.remember(d, freshEpoch) {
-                        val tall = d.page == null && key in tallKeys
+                        // a test's results open tall, so their graphic is seen at its size and plays there
+                        val tall = (d.page == null && key in tallKeys) || d.page == Page.RESULTS
                         if (!tall) {
                             val want = dev.autotune.compactOpenScroll(sc.value, rangePx, hasHeader)
                             if (want != sc.value) sc.dispatchRawDelta((want - sc.value).toFloat())
                         }
                     }
+                    // pulled down past its top (the scroll is at 0 and the drag goes on), the screen plays its graphics again
+                    val pull = androidx.compose.runtime.remember(key) { dev.autotune.PullReplay(pullPx) }
+                    val pullWatch = androidx.compose.runtime.remember(key, sc) {
+                        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+                            override fun onPostScroll(
+                                consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset,
+                                source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
+                            ): androidx.compose.ui.geometry.Offset {
+                                if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput && pull.drag(available.y, sc.value == 0)) {
+                                    replays[key] = (replays[key] ?: 0) + 1
+                                }
+                                return androidx.compose.ui.geometry.Offset.Zero
+                            }
+
+                            override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                                pull.end()
+                                return androidx.compose.ui.unit.Velocity.Zero
+                            }
+                        }
+                    }
                     Box(Modifier.fillMaxSize()) {
-                    androidx.compose.runtime.CompositionLocalProvider(LocalTitleSlot provides titleSlot, LocalBack provides (if (d.page != null) back else null)) {
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        LocalTitleSlot provides titleSlot, LocalBack provides (if (d.page != null) back else null), LocalReplay provides (replays[key] ?: 0),
+                    ) {
                     Column(
-                        Modifier.fillMaxSize().imePadding().scrollWithHeaderRoom(sc, if (hasHeader) rangePx else 0)
+                        Modifier.fillMaxSize().imePadding().nestedScroll(pullWatch).scrollWithHeaderRoom(sc, if (hasHeader) rangePx else 0)
                             .padding(horizontal = 16.dp).padding(bottom = 96.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
@@ -354,6 +383,9 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                     }
                 }
             }
+
+            // a chart opened full screen rises over everything; Close or Back drops it
+            ChartZoomLayer(zoom)
 
             // the teak cheeks of a Braun SK 4, down both edges, over every screen
             At.c.teak?.let { teak ->

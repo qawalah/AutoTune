@@ -177,34 +177,20 @@ private fun PaletteEditor(p: dev.autotune.Palette, vm: TuneViewModel, inkNote: S
         "Palette",
         info = "Your own colours over the look. Body is the page, Deck the plates that hold each section, Ink the text, " +
             "Accent what is live or acted on, Hairline the edges and rules. “As the look” keeps the look's own. " +
-            "Text that would not read on your colours falls back to an ink that does; a dark ink at night brings the light decks with it, so it shows. " +
+            "An ink that would not read on the look's surfaces brings their light (or dark) versions with it, by day and by night, so it shows; on colours you set yourself it falls back to an ink that does. " +
             "The accent set here wins over the Accent above.",
     ) {
         dev.autotune.PaletteSlot.entries.forEach { slot ->
-            val choices = dev.autotune.paletteChoices(slot)
-            val now = p[slot]
-            val own = now != null && choices.none { it.argb == now }
-            // the look's own, the presets, the typed colour when there is one, and a way to type one
-            val names = listOf("As the look") + choices.map { it.name } + (if (own) listOf(dev.autotune.hexColour(now!!)) else emptyList()) + "Custom…"
-            val details = listOf<String?>(null) + choices.map { dev.autotune.hexColour(it.argb) } + (if (own) listOf<String?>("your colour") else emptyList()) + "type a hex colour"
-            val swatches = listOf<androidx.compose.ui.graphics.Color?>(null) + choices.map { androidx.compose.ui.graphics.Color(it.argb) } +
-                (if (own) listOf(androidx.compose.ui.graphics.Color(now!!)) else emptyList()) + null
-            val selected = when {
-                now == null -> 0
-                own -> names.size - 2
-                else -> 1 + choices.indexOfFirst { it.argb == now }
-            }
+            // the look's own, the presets, the stored colour when it is none of them, and a way to type one; the field
+            // always shows the colour that was stored (paletteMenu)
+            val m = dev.autotune.paletteMenu(slot, p[slot])
             DropSelect(
-                names, selected, { i ->
-                    when {
-                        i == 0 -> vm.setPaletteColour(slot, null)
-                        i == names.size - 1 -> custom = slot
-                        i <= choices.size -> vm.setPaletteColour(slot, choices[i - 1].argb)
-                    }
+                m.names, m.selected, { i ->
+                    if (i == m.customIdx) custom = slot else vm.setPaletteColour(slot, m.colourAt(i))
                 },
-                label = slot.title, details = details, swatches = swatches,
+                label = slot.title, details = m.details, swatches = m.colours.map { it?.let { c -> androidx.compose.ui.graphics.Color(c) } },
             )
-            // a dark ink at night brings light decks with it; one that cannot read anywhere says so (a status, one line)
+            // what the ink did, in one line: brought light or dark surfaces, reads only in places, or looks the same
             if (slot == dev.autotune.PaletteSlot.INK && inkNote != null) Muted(inkNote)
         }
         Actions { TextAction("Reset palette", vm::resetPalette, enabled = !p.isDefault, icon = Ic.UNDO) }

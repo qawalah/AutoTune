@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -58,45 +60,132 @@ internal fun chartRange(series: List<DoubleArray>, freqs: DoubleArray): Pair<Dou
  * as the baseline), thin faint line = target, solid in the accent colour =
  * the EQ, dotted text colour = predicted with the EQ. Tap a name in the legend to hide or show its curve; the corner
  * button opens the graph full screen. The range grows to fit the curves, so nothing is cut off at the edge.
+ * When the graph comes into view its curves rise from the target line, twice, then stay ([rememberArrival]).
  */
 @Composable
 fun ResponseChart(
     data: ChartData, modifier: Modifier = Modifier, height: androidx.compose.ui.unit.Dp = 220.dp,
     showTarget: Boolean = true, onToggleTarget: (() -> Unit)? = null, targetLabel: String = "Target",
 ) {
-    // hidden curves, by key; kept while the same curves are shown
-    var hidden by androidx.compose.runtime.saveable.rememberSaveable(data.curves.joinToString { it.label }) { androidx.compose.runtime.mutableStateOf(listOf<String>()) }
+    // hidden curves, by key; kept while the same curves are shown, and shared with the full-screen view
+    val hiddenState = androidx.compose.runtime.saveable.rememberSaveable(data.curves.joinToString { it.label }) { androidx.compose.runtime.mutableStateOf(listOf<String>()) }
+    val hidden = hiddenState.value
+    val toggle: (String) -> Unit = { k -> hiddenState.value = if (k in hiddenState.value) hiddenState.value - k else hiddenState.value + k }
+    // the full-screen view is drawn by the app shell over everything, in the same window ([ChartZoomLayer]);
+    // outside the shell (the screenshot sheets) a dialog stands in
+    val zoom = LocalChartZoom.current
+    val me = androidx.compose.runtime.remember { Any() }
     var big by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    val toggle: (String) -> Unit = { k -> hidden = if (k in hidden) hidden - k else hidden + k }
+    val grow = rememberArrival("chart")
     Column(modifier) {
         Box {
-            ChartCanvas(data, Modifier.fillMaxWidth().height(height), showTarget, hidden)
-            Box(Modifier.align(Alignment.TopEnd)) { IconAction(Ic.EXPAND, "Show the graph full screen") { big = true } }
+            ChartCanvas(data, Modifier.fillMaxWidth().height(height).arrival(grow), showTarget, hidden) { grow.value }
+            Box(Modifier.align(Alignment.TopEnd)) {
+                IconAction(Ic.EXPAND, "Show the graph full screen") {
+                    if (zoom != null) zoom.show(me, data, showTarget, onToggleTarget, targetLabel, hiddenState) else big = true
+                }
+            }
         }
         Legend(data, showTarget, onToggleTarget, hidden, toggle, targetLabel)
     }
-    if (big) {
+    if (zoom != null) {
+        // while it is open, the full-screen view follows this graph (a curve hidden, the target shown, new data)
+        if (zoom.owner === me) androidx.compose.runtime.SideEffect { zoom.show(me, data, showTarget, onToggleTarget, targetLabel, hiddenState) }
+        androidx.compose.runtime.DisposableEffect(zoom, me) { onDispose { if (zoom.owner === me) zoom.close() } }
+    }
+    if (big && zoom == null) {
         androidx.compose.ui.window.Dialog(
             onDismissRequest = { big = false },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
         ) {
             androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
-                Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Response", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
-                        TextAction("Close", { big = false }, icon = Ic.CLOSE)
+                ZoomedChartView(data, showTarget, onToggleTarget, targetLabel, hiddenState) { big = false }
+            }
+        }
+    }
+}
+
+/** The graph a chart opened full screen: what to draw, shared with the chart on the page while it is open. */
+class ZoomedChart internal constructor(
+    val data: ChartData, val showTarget: Boolean, val targetLabel: String,
+    internal val hidden: androidx.compose.runtime.MutableState<List<String>>,
+) {
+    /** Not part of what is drawn, so a new lambda on each recomposition does not redraw the view. */
+    internal var onToggleTarget: (() -> Unit)? = null
+}
+
+/** The one chart open full screen, drawn by the app shell over every screen ([ChartZoomLayer]); Back closes it. */
+class ChartZoom {
+    var shown by androidx.compose.runtime.mutableStateOf<ZoomedChart?>(null)
+        private set
+    internal var owner: Any? = null
+        private set
+
+    internal fun show(
+        who: Any, data: ChartData, showTarget: Boolean, onToggleTarget: (() -> Unit)?, targetLabel: String,
+        hidden: androidx.compose.runtime.MutableState<List<String>>,
+    ) {
+        owner = who
+        val cur = shown
+        // only a change in what is drawn replaces it, so following the page's chart never loops
+        if (cur == null || cur.data !== data || cur.showTarget != showTarget || cur.targetLabel != targetLabel || cur.hidden !== hidden) {
+            shown = ZoomedChart(data, showTarget, targetLabel, hidden).also { it.onToggleTarget = onToggleTarget }
+        } else cur.onToggleTarget = onToggleTarget
+    }
+
+    fun close() { owner = null; shown = null }
+}
+
+val LocalChartZoom = androidx.compose.runtime.staticCompositionLocalOf<ChartZoom?> { null }
+
+/** The full-screen chart over the whole app: it rises in as a sheet, in the deck's colours; Close or Back drops it. */
+@Composable
+fun ChartZoomLayer(zoom: ChartZoom) {
+    val z = zoom.shown
+    val last = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<ZoomedChart?>(null) }
+    if (z != null) last.value = z
+    // composed only while open, so it is the newest Back handler and closes the chart before anything else
+    if (z != null) androidx.activity.compose.BackHandler { zoom.close() }
+    androidx.compose.animation.AnimatedVisibility(z != null, enter = sheetIn(), exit = sheetOut()) {
+        last.value?.let { shown ->
+            DeckColors {
+                androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.panel, contentColor = At.c.text) {
+                    Box(Modifier.statusBarsPadding().navigationBarsPadding()) {
+                        val toggleTarget: (() -> Unit)? = if (shown.onToggleTarget != null) ({ shown.onToggleTarget?.invoke(); Unit }) else null
+                        ZoomedChartView(shown.data, shown.showTarget, toggleTarget, shown.targetLabel, shown.hidden) { zoom.close() }
                     }
-                    ChartCanvas(data, Modifier.fillMaxWidth().weight(1f), showTarget, hidden)
-                    Legend(data, showTarget, onToggleTarget, hidden, toggle, targetLabel)
-                    Muted("Tap a name to hide or show its curve. dB from the target, level-matched over 250 Hz-2.5 kHz.")
                 }
             }
         }
     }
 }
 
+/** The full-screen graph: its title and Close, the chart filling the room, the key and one line on reading it. */
 @Composable
-private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean, hidden: List<String>) {
+private fun ZoomedChartView(
+    data: ChartData, showTarget: Boolean, onToggleTarget: (() -> Unit)?, targetLabel: String,
+    hiddenState: androidx.compose.runtime.MutableState<List<String>>, onClose: () -> Unit,
+) {
+    val hidden = hiddenState.value
+    val toggle: (String) -> Unit = { k -> hiddenState.value = if (k in hiddenState.value) hiddenState.value - k else hiddenState.value + k }
+    val grow = rememberArrival("zoom")
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Response", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+            TextAction("Close", onClose, icon = Ic.CLOSE)
+        }
+        ChartCanvas(data, Modifier.fillMaxWidth().weight(1f).arrival(grow), showTarget, hidden) { grow.value }
+        Legend(data, showTarget, onToggleTarget, hidden, toggle, targetLabel)
+        Muted("Tap a name to hide or show its curve. dB from the target, level-matched over 250 Hz-2.5 kHz.")
+    }
+}
+
+/**
+ * The chart itself. [rise] (0..1, read while drawing) lifts the measured curves, the prediction and the EQ from the
+ * target line to their place; the grid and the target stay.
+ */
+@Composable
+private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean, hidden: List<String>, rise: () -> Float = { 1f }) {
     val tm = rememberTextMeasurer()
     val c = At.c
     val label = TextStyle(fontFamily = AtFigures, fontSize = 11.sp, color = c.muted, fontFeatureSettings = "tnum")
@@ -109,6 +198,7 @@ private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean
     }
     val (yMin, yMax) = chartRange(visible, data.freqs)
     Canvas(modifier) {
+        val k = rise().coerceIn(0f, 1f).toDouble()
         val left = 30.dp.toPx()
         val bottom = size.height - 16.dp.toPx()
         val right = 16.dp.toPx()
@@ -131,10 +221,10 @@ private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean
             if (db % 10 == 0) drawText(tm, "$db", Offset(2.dp.toPx(), yy - 7.dp.toPx()), label)
             db += 5
         }
-        for (decade in listOf(10, 100, 1000, 10000)) for (k in 1..9) {
-            val f = decade * k
+        for (decade in listOf(10, 100, 1000, 10000)) for (kk in 1..9) {
+            val f = decade * kk
             if (f < 20 || f > 20000) continue
-            drawLine(if (k == 1) major else minor, Offset(x(f.toDouble()), 0f), Offset(x(f.toDouble()), bottom), if (k == 1) hair * 2 else hair)
+            drawLine(if (kk == 1) major else minor, Offset(x(f.toDouble()), 0f), Offset(x(f.toDouble()), bottom), if (kk == 1) hair * 2 else hair)
         }
         drawLine(major, Offset(left, bottom), Offset(size.width - right, bottom), hair * 2)
         for (f in listOf(20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000)) {
@@ -142,10 +232,11 @@ private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean
             drawText(tm, t, Offset(x(f.toDouble()) - 6.dp.toPx(), bottom + 2.dp.toPx()), label)
         }
 
-        fun curve(values: DoubleArray, color: Color, width: Float, dashed: Boolean = false, dotted: Boolean = false) {
+        // [lift] scales a curve's distance from the target line (0 dB) while the graph arrives
+        fun curve(values: DoubleArray, color: Color, width: Float, dashed: Boolean = false, dotted: Boolean = false, lift: Double = 1.0) {
             val p = Path()
             for (i in values.indices) {
-                val px = x(data.freqs[i]); val py = y(values[i])
+                val px = x(data.freqs[i]); val py = y(values[i] * lift)
                 if (i == 0) p.moveTo(px, py) else p.lineTo(px, py)
             }
             drawPath(
@@ -161,11 +252,11 @@ private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean
         // the stock reading is the baseline, drawn dashed like the base run on a dyno sheet; the latest run is the heaviest
         data.curves.forEachIndexed { i, cv ->
             if ("run:" + cv.label !in hidden) {
-                curve(cv.values, runCols[i], if (i == data.curves.lastIndex) 3.dp.toPx() else 2.dp.toPx(), dashed = cv.colorIdx == 0 && data.curves.size > 1)
+                curve(cv.values, runCols[i], if (i == data.curves.lastIndex) 3.dp.toPx() else 2.dp.toPx(), dashed = cv.colorIdx == 0 && data.curves.size > 1, lift = k)
             }
         }
-        data.predicted?.let { if ("predicted" !in hidden) curve(it, c.text, 2.5.dp.toPx(), dotted = true) }
-        data.eq?.let { if ("eq" !in hidden) curve(it, c.signal, 2.5.dp.toPx()) }
+        data.predicted?.let { if ("predicted" !in hidden) curve(it, c.text, 2.5.dp.toPx(), dotted = true, lift = k) }
+        data.eq?.let { if ("eq" !in hidden) curve(it, c.signal, 2.5.dp.toPx(), lift = k) }
     }
 }
 

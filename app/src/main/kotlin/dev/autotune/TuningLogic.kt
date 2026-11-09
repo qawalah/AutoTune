@@ -146,6 +146,8 @@ class StockAnalysis(
     /** The reading looks like a measuring problem: measure again before building an EQ on it. */
     val suspicious: Boolean,
     val findings: List<Finding>,
+    /** The stock run's system score (0-100) from the report card already worked out for this analysis; null without one. */
+    val score: Int? = null,
 )
 
 private fun regionWords(name: String, err: Double): Pair<String, String> {
@@ -208,7 +210,7 @@ fun analyzeStock(
         rmsDb < 6.0 -> "Typical for an untuned system. The suggested EQ should take it a long way."
         else -> "Far from the target. The EQ will help a lot; the findings below say where."
     }
-    return StockAnalysis(rmsDb, predictedDb, bands, verdict, suspicious, out.sortedByDescending { it.severity })
+    return StockAnalysis(rmsDb, predictedDb, bands, verdict, suspicious, out.sortedByDescending { it.severity }, report?.overall)
 }
 
 /**
@@ -991,23 +993,77 @@ fun inkReach(ink: Long, grounds: List<Long>): InkReach {
     return when (ok) { grounds.size -> InkReach.ALL; 0 -> InkReach.NONE; else -> InkReach.SOME }
 }
 
-/**
- * Whether a palette [ink] needs the look's day surfaces to be seen at all: it reads on none of the night surfaces
- * ([night], the body and the deck as they would be) but on at least one of the day ones ([day]). A dark ink picked
- * at night is otherwise dropped everywhere by [readableInk], so the choice would do nothing (reported after 2.8.1).
- */
-fun inkNeedsDay(ink: Long?, night: List<Long>, day: List<Long>): Boolean =
-    ink != null && inkReach(ink, night) == InkReach.NONE && inkReach(ink, day) != InkReach.NONE
+/** A dark ink: one that reads better on white than on black (the inks for light surfaces). */
+fun isDarkInk(ink: Long): Boolean = contrast(ink, 0xFFFFFFFFL) >= contrast(ink, 0xFF000000L)
+
+/** Which version of a surface carries a palette ink: the look's own, its light version or its dark version. */
+enum class InkSurface { OWN, LIGHT, DARK }
 
 /**
- * The one status line under the palette's Ink field, or null when the ink simply applies: a note when it is not used
- * on the plates at all ([applied] false, it would not read), or when it brought the light decks with it ([usesDay]).
+ * The surface a palette [ink] is drawn on where text sits on [own] (the grounds of one surface: a deck, or a body):
+ * [own] when the ink reads on all of it (4.5:1); else the look's [light] version for a dark ink, or its [dark] version
+ * for a light ink, when the ink reads on all of that; else [own], where the readable-ink fallback keeps text readable
+ * and the Ink field says so. A surface the user set by hand ([fixed]) never changes.
+ *
+ * Reported again after 2.9.0: a dark ink by day reached only Classic's light decks (whose own ink is already as
+ * dark), never the dark body, so the pick changed nothing that could be seen; 2.9.0 only moved surfaces at night.
  */
-fun inkNote(ink: Long?, applied: Boolean, usesDay: Boolean): String? = when {
-    ink == null -> null
-    !applied -> "doesn't read on these colours"
-    usesDay -> "on light decks, so it reads"
-    else -> null
+fun inkSurface(ink: Long?, own: List<Long>, light: List<Long>?, dark: List<Long>?, fixed: Boolean = false): InkSurface {
+    if (ink == null || fixed || inkReach(ink, own) == InkReach.ALL) return InkSurface.OWN
+    val (want, other) = if (isDarkInk(ink)) InkSurface.LIGHT to light else InkSurface.DARK to dark
+    return if (other != null && other.isNotEmpty() && inkReach(ink, other) == InkReach.ALL) want else InkSurface.OWN
+}
+
+/** Below this contrast between two inks the text looks the same (Near black for #232321, Black for #1B1B1A). */
+const val SAME_INK_CONTRAST = 1.25
+
+/**
+ * The one status line under the palette's Ink field, or null when the ink simply applies and visibly changes the
+ * text. [shown] is the text colour on each surface text sits on with the palette as set, [before] the same without the
+ * ink; [moved] is the surface change the ink brought (LIGHT, DARK or OWN for none).
+ */
+fun inkNote(ink: Long?, shown: List<Long>, before: List<Long>, moved: InkSurface = InkSurface.OWN): String? {
+    if (ink == null || shown.isEmpty()) return null
+    val used = shown.count { it == ink }
+    return when {
+        used == 0 -> "doesn't read on these colours"
+        used < shown.size -> "only where it reads"
+        moved == InkSurface.LIGHT -> "on light surfaces, so it reads"
+        moved == InkSurface.DARK -> "on dark surfaces, so it reads"
+        before.size == shown.size && before.all { contrast(it, ink) < SAME_INK_CONTRAST } -> "about the same as the look's ink"
+        else -> null
+    }
+}
+
+/** One palette drop-down: the names, the detail line and the swatch of each option, and the option now chosen. */
+class PaletteMenu(
+    val names: List<String>, val details: List<String?>, val colours: List<Long?>,
+    /** The option that matches the stored colour (0 = as the look). */
+    val selected: Int,
+) {
+    /** "Custom…": type a hex colour. */
+    val customIdx: Int get() = names.lastIndex
+    /** The colour option [i] stores (null = back to the look's own); only meaningful when [i] is not [customIdx]. */
+    fun colourAt(i: Int): Long? = colours.getOrNull(i)
+}
+
+/**
+ * The drop-down for [slot] with [now] stored: "As the look", the presets, the stored colour when it is none of them,
+ * and "Custom…". The selection always points at the stored colour, so the field shows what was saved.
+ */
+fun paletteMenu(slot: PaletteSlot, now: Long?): PaletteMenu {
+    val choices = paletteChoices(slot)
+    val stored = now?.let { 0xFF000000L or (it and 0xFFFFFFL) }
+    val own = stored != null && choices.none { it.argb == stored }
+    val names = listOf("As the look") + choices.map { it.name } + (if (own) listOf(hexColour(stored!!)) else emptyList()) + "Custom…"
+    val details = listOf<String?>(null) + choices.map { hexColour(it.argb) } + (if (own) listOf<String?>("your colour") else emptyList()) + "type a hex colour"
+    val colours = listOf<Long?>(null) + choices.map { it.argb } + (if (own) listOf(stored) else emptyList()) + null
+    val selected = when {
+        stored == null -> 0
+        own -> names.size - 2
+        else -> 1 + choices.indexOfFirst { it.argb == stored }
+    }
+    return PaletteMenu(names, details, colours, selected)
 }
 
 /** The Tune dial's face: the first light colour among [candidates] (dark ink reads 7:1 on it), else a light grey. */
@@ -1019,12 +1075,80 @@ fun dialDots(face: Long, inks: List<Long>): Long =
     inks.firstOrNull { contrast(it, face) >= 4.5 && contrast(it, 0xFFFFFFFFL) > contrast(it, 0xFF000000L) } ?: INK_DARK
 
 /**
- * The system score (0-100) already worked out for run [runIdx]: the focus run's report ([focusIdx], [focusScore]) or
- * one of the compared runs ([comparedIdx] with [comparedScores]). Null when none is known; nothing new is computed.
+ * The system score (0-100) already worked out for run [runIdx]: the focus run's report ([focusIdx], [focusScore]),
+ * one of the compared runs ([comparedIdx] with [comparedScores]), or for the stock run (index 0) the score of the
+ * stock review's report card ([stockScore]). Null when none is known; nothing new is computed.
  */
-fun knownScore(runIdx: Int, focusIdx: Int?, focusScore: Int?, comparedIdx: List<Int> = emptyList(), comparedScores: List<Int> = emptyList()): Int? =
+fun knownScore(
+    runIdx: Int, focusIdx: Int?, focusScore: Int?, comparedIdx: List<Int> = emptyList(), comparedScores: List<Int> = emptyList(),
+    stockScore: Int? = null,
+): Int? =
     if (focusIdx == runIdx && focusScore != null) focusScore
     else comparedIdx.indexOf(runIdx).takeIf { it >= 0 }?.let { comparedScores.getOrNull(it) }
+        ?: stockScore?.takeIf { runIdx == 0 }
+
+// ---------------------------------------------------------------- graphics play twice, replay on a pull (2.10)
+
+/** How many times a graphic's movement plays when it is shown: the header art, the Tune dial, the report meters, the charts. */
+const val GRAPHIC_PLAYS = 2
+
+/**
+ * The targets a graphic's progress runs through (0 = before its movement, 1 = settled) to play the movement [plays]
+ * times from [start]: forward to 1, a quick return to 0 between plays, forward again. A replay of a settled graphic
+ * returns first, so every replay is [plays] whole movements.
+ */
+fun arrivalLegs(start: Float, plays: Int = GRAPHIC_PLAYS): List<Float> = buildList {
+    if (start > 0f) add(0f)
+    repeat(plays.coerceAtLeast(0)) { k -> if (k > 0) add(0f); add(1f) }
+}
+
+/** The quick return between two plays: a third of the movement, never under 180 ms; 0 when animations are off. */
+fun returnMs(ms: Int): Int = if (ms <= 0) 0 else maxOf(180, ms / 3)
+
+/** Whether a graphic counts as shown: half of it, or [minPx] of a tall one, inside the window. */
+fun shownOnScreen(visiblePx: Float, fullPx: Float, minPx: Float = 160f): Boolean =
+    fullPx > 0f && visiblePx > 0f && visiblePx >= minOf(fullPx * 0.5f, minPx)
+
+/**
+ * A pull past the top of a page, like a pull to refresh: the downward drag the page could not scroll because it is
+ * at its top, added up over one gesture. It fires once when the pull passes [thresholdPx]; leaving the top or
+ * dragging back up starts the count over, and so does the end of the gesture ([end]).
+ */
+class PullReplay(private val thresholdPx: Float) {
+    private var pulled = 0f
+    private var fired = false
+
+    /** One drag step: [leftoverPx] the page did not scroll (positive = down), [atTop] whether it is at its top. True = replay now. */
+    fun drag(leftoverPx: Float, atTop: Boolean): Boolean {
+        if (!atTop || leftoverPx < 0f) { pulled = 0f; return false }
+        if (leftoverPx == 0f) return false
+        pulled += leftoverPx
+        if (fired || pulled < thresholdPx) return false
+        fired = true
+        return true
+    }
+
+    fun end() { pulled = 0f; fired = false }
+}
+
+/** The Tune dial's pulse: one wave from the centre out past the rim, [PULSE_MS] long, played [GRAPHIC_PLAYS] times. */
+const val PULSE_MS = 1500
+
+/** The radius of the pulse's front at progress [p] (0..1): from the centre (0) out a little past the [rim]. */
+fun pulseFront(p: Float, rim: Float): Float = rim * 1.08f * p.coerceIn(0f, 1f)
+
+/** How lit a hole at distance [d] from the centre is with the front at [front]: 1 on the front, 0 beyond [band] either side. */
+fun pulseLight(d: Float, front: Float, band: Float): Float {
+    if (band <= 0f || front <= 0f) return 0f
+    return (1f - kotlin.math.abs(d - front) / band).coerceIn(0f, 1f)
+}
+
+/**
+ * Whether the display's readings fit on one line at their natural [widths] with [gap] between them in [maxWidth];
+ * otherwise the main reading takes a line of its own and the others share the next, so a score box is never cut.
+ */
+fun readingsFitOneLine(widths: List<Int>, gap: Int, maxWidth: Int): Boolean =
+    widths.isEmpty() || widths.sum() + gap * (widths.size - 1) <= maxWidth
 
 /** The bottom key's second line on a test's results page: the move the Tune result will pin, in lower case. */
 fun nextLine(move: String?): String? = move?.let { "next: " + it.replaceFirstChar { c -> c.lowercase() } }

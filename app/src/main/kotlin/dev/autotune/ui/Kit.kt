@@ -58,6 +58,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.boundsInWindow
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -85,6 +87,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -716,29 +719,82 @@ fun RunSheet(title: String, sub: String? = null, trailing: (@Composable () -> Un
 }
 
 /**
- * One row of ruled cells, each a reading with its name under it, the way a dyno sheet prints its figures. A cell's
- * [Reading.tint] colours the figure only.
+ * One reading of the display: the figure and its unit, the system [score] beside it when one is known for that run,
+ * and its name under it. [tint] colours the figure; [note] is a short tinted addition to the name ("−2.0 vs stock").
  */
-class Reading(val value: String, val unit: String?, val name: String, val tint: Color? = null, val score: Int? = null)
+class Reading(
+    val value: String, val unit: String?, val name: String, val tint: Color? = null, val score: Int? = null,
+    val note: String? = null, val noteTint: Color? = null,
+)
 
+/**
+ * The display's readings: the first is the main one, large and light; the rest sit beside it, smaller, each with
+ * its score box. When they do not all fit on one line (a score box needs its room), the main reading takes the first
+ * line and the others share the second, so no figure or box is ever squeezed.
+ */
 @Composable
 fun ReadingCells(cells: List<Reading>) {
-    // the first figure is the display's main reading; the rest sit beside it, smaller
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-        cells.forEachIndexed { i, r ->
-            Column(Modifier.weight(if (i == 0) (if (r.score != null) 1.6f else 1.3f) else 1f), horizontalAlignment = if (i == 0) Alignment.Start else Alignment.End) {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        r.value, style = if (i == 0) MaterialTheme.typography.displayMedium else MaterialTheme.typography.displaySmall.copy(fontSize = 24.sp, lineHeight = 30.sp),
-                        color = r.tint ?: At.c.text, maxLines = 1,
-                    )
-                    if (r.unit != null) Text(" ${r.unit}", Modifier.padding(bottom = if (i == 0) 8.dp else 4.dp), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
-                    // the system score beside the dB, as the display's second figure
-                    if (r.score != null) ScoreTag(r.score, Modifier.padding(start = 8.dp, bottom = if (i == 0) 8.dp else 4.dp))
+    androidx.compose.ui.layout.Layout(
+        content = { cells.forEachIndexed { i, r -> ReadingCell(r, main = i == 0) } },
+        modifier = Modifier.fillMaxWidth(),
+    ) { ms, cons ->
+        val gap = 12.dp.roundToPx()
+        val w = cons.maxWidth
+        val natural = ms.map { it.maxIntrinsicWidth(androidx.compose.ui.unit.Constraints.Infinity) }
+        val oneLine = dev.autotune.readingsFitOneLine(natural, gap, w)
+        if (oneLine) {
+            // the main reading at the start; the others each end a column that shares out the spare room, bottoms aligned
+            val main = ms[0].measure(androidx.compose.ui.unit.Constraints(maxWidth = natural[0].coerceAtMost(w)))
+            val rest = ms.drop(1)
+            val others = rest.mapIndexed { k, m -> m.measure(androidx.compose.ui.unit.Constraints(maxWidth = natural[k + 1])) }
+            val spare = if (rest.isEmpty()) 0 else (w - main.width - others.sumOf { it.width } - gap * rest.size).coerceAtLeast(0) / rest.size
+            val h = (listOf(main) + others).maxOf { it.height }
+            layout(w, h) {
+                main.place(0, h - main.height)
+                var x = main.width
+                others.forEach { p ->
+                    x += gap + spare + p.width
+                    p.place(x - p.width, h - p.height)
                 }
-                Text(r.name.lowercase(), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
+            }
+        } else {
+            // two lines: the main reading, then the others side by side in equal columns from the start
+            val main = ms[0].measure(androidx.compose.ui.unit.Constraints(maxWidth = w))
+            val rest = ms.drop(1)
+            val share = if (rest.isEmpty()) w else (w - gap * (rest.size - 1)) / rest.size
+            val others = rest.map { it.measure(androidx.compose.ui.unit.Constraints(maxWidth = share.coerceAtLeast(0))) }
+            val vgap = 10.dp.roundToPx()
+            val second = others.maxOfOrNull { it.height } ?: 0
+            val h = main.height + (if (others.isEmpty()) 0 else vgap + second)
+            layout(w, h) {
+                main.place(0, 0)
+                others.forEachIndexed { k, p -> p.place((share + gap) * k, main.height + vgap + second - p.height) }
             }
         }
+    }
+}
+
+/** One reading: the figure, its unit and its score box on one line (never squeezed), its name and note under it. */
+@Composable
+private fun ReadingCell(r: Reading, main: Boolean) {
+    Column(horizontalAlignment = Alignment.Start) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                r.value, style = if (main) MaterialTheme.typography.displayMedium else MaterialTheme.typography.displaySmall.copy(fontSize = 24.sp, lineHeight = 30.sp),
+                color = r.tint ?: At.c.text, maxLines = 1, softWrap = false,
+            )
+            if (r.unit != null) Text(" ${r.unit}", Modifier.padding(bottom = if (main) 8.dp else 4.dp), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1, softWrap = false)
+            // the run's system score beside its dB, the same box for every reading that has one
+            if (r.score != null) ScoreTag(r.score, Modifier.padding(start = 8.dp, bottom = if (main) 8.dp else 4.dp))
+        }
+        val label = androidx.compose.ui.text.buildAnnotatedString {
+            append(r.name.lowercase())
+            if (r.note != null) {
+                append(" · ")
+                withStyle(androidx.compose.ui.text.SpanStyle(color = r.noteTint ?: At.c.muted)) { append(r.note) }
+            }
+        }
+        Text(label, style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1, softWrap = false)
     }
 }
 
@@ -751,8 +807,8 @@ fun ScoreTag(score: Int, modifier: Modifier = Modifier) {
             .semantics(mergeDescendants = true) { contentDescription = "score $score of 100, ${dev.autotune.dsp.SystemJudge.grade(score).lowercase()}" },
         verticalAlignment = Alignment.Bottom,
     ) {
-        Text("$score", style = MaterialTheme.typography.titleSmall, color = At.c.text, maxLines = 1)
-        Text("/100", Modifier.padding(start = 1.dp, bottom = 1.dp), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
+        Text("$score", style = MaterialTheme.typography.titleSmall, color = At.c.text, maxLines = 1, softWrap = false)
+        Text("/100", Modifier.padding(start = 1.dp, bottom = 1.dp), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1, softWrap = false)
     }
 }
 
@@ -1022,7 +1078,9 @@ private fun HeaderFace(spec: HeaderSpec, scrollPx: () -> Float, modifier: Modifi
         }) {
             HeaderArt(
                 spec.artKey,
-                Modifier.offset(x = pad + inner - artW, y = centreY - artH / 2).size(artW, artH).graphicsLayer {
+                // it plays when the header is tall enough to see it, not while it sits folded small in the corner
+                shown = { phase() < 0.5f },
+                modifier = Modifier.offset(x = pad + inner - artW, y = centreY - artH / 2).size(artW, artH).graphicsLayer {
                     transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
                     val p = phase()
                     if (anim) {
@@ -1137,17 +1195,53 @@ private fun CentreRow(modifier: Modifier, content: @Composable () -> Unit) {
 private val Vinyl = Color(0xFF161615)
 
 /**
- * 0 to 1 once, when this first appears ([key] restarts it): [ms] long on [EaseArrive], then it stays at 1. With
- * "Remove animations" it is 1 from the start. Read its value in a draw lambda, so only the drawing repeats.
+ * The page's replay count: the app shell adds one when the page is pulled down past its top, and every graphic on it
+ * plays its movement again ([rememberArrival], the Tune dial).
+ */
+val LocalReplay = androidx.compose.runtime.compositionLocalOf { 0 }
+
+/**
+ * A graphic's movement: [value] runs 0 to 1, [dev.autotune.GRAPHIC_PLAYS] times, once the graphic is shown
+ * ([arrival] on it reports that), then it stays at 1. A pull past the page's top ([LocalReplay]) plays it again.
+ */
+class Arrival internal constructor(internal val anim: androidx.compose.animation.core.Animatable<Float, androidx.compose.animation.core.AnimationVector1D>) {
+    /** Whether the graphic is on screen now (set by [arrival]); the movement waits for it. */
+    internal var seen by mutableStateOf(false)
+    val value: Float get() = anim.value
+}
+
+/**
+ * The movement of a graphic, played [dev.autotune.GRAPHIC_PLAYS] times when it is first shown ([key] restarts it, a
+ * pull at the page's top replays it): forward over [ms] on [EaseArrive], a quick return on [EaseLeave] between plays.
+ * With "Remove animations" it is 1 from the start. Read [Arrival.value] in a draw lambda, so only the drawing repeats.
  */
 @Composable
-fun rememberArrival(key: Any?, ms: Int = 900): androidx.compose.runtime.State<Float> {
+fun rememberArrival(key: Any?, ms: Int = 900, shown: (() -> Boolean)? = null): Arrival {
     val dur = motionMs(ms)
-    val a = remember(key) { androidx.compose.animation.core.Animatable(if (dur == 0) 1f else 0f) }
-    androidx.compose.runtime.LaunchedEffect(key, dur) {
-        if (dur > 0) a.animateTo(1f, tween(dur, easing = EaseArrive)) else a.snapTo(1f)
+    val replay = LocalReplay.current
+    val a = remember(key) { Arrival(androidx.compose.animation.core.Animatable(if (dur == 0) 1f else 0f)) }
+    val isShown = androidx.compose.runtime.rememberUpdatedState(shown)
+    androidx.compose.runtime.LaunchedEffect(key, replay, dur) {
+        if (dur == 0) { a.anim.snapTo(1f); return@LaunchedEffect }
+        // a graphic below the visible part of the page (or folded small in the header) waits until it can be seen
+        androidx.compose.runtime.snapshotFlow { isShown.value?.invoke() ?: a.seen }.first { it }
+        playLegs(a.anim, dur)
     }
-    return a.asState()
+    return a
+}
+
+/** Runs [anim] through [dev.autotune.arrivalLegs]: forward on [EaseArrive], the returns between plays on [EaseLeave]. */
+internal suspend fun playLegs(anim: androidx.compose.animation.core.Animatable<Float, androidx.compose.animation.core.AnimationVector1D>, ms: Int) {
+    for (to in dev.autotune.arrivalLegs(anim.value)) {
+        if (to > anim.value) anim.animateTo(to, tween(ms, easing = EaseArrive))
+        else anim.animateTo(to, tween(dev.autotune.returnMs(ms), easing = EaseLeave))
+    }
+}
+
+/** Reports whether this graphic is on screen to its [Arrival], so the movement plays when it can be seen. */
+fun Modifier.arrival(a: Arrival): Modifier = this.onGloballyPositioned { coords ->
+    val visible = coords.boundsInWindow().height
+    a.seen = dev.autotune.shownOnScreen(visible, coords.size.height.toFloat())
 }
 
 /**
@@ -1159,7 +1253,7 @@ fun rememberArrival(key: Any?, ms: Int = 900): androidx.compose.runtime.State<Fl
  * glides, the knobs turn, the pilot lights last) and then stays still; nothing loops.
  */
 @Composable
-fun HeaderArt(key: String, modifier: Modifier) {
+fun HeaderArt(key: String, modifier: Modifier, shown: (() -> Boolean)? = null) {
     // drawn as a light device on the dark body, in the deck's colours
     val c = deckColors
     val plate = c.panel
@@ -1169,8 +1263,8 @@ fun HeaderArt(key: String, modifier: Modifier) {
     val alu = c.alu
     val accent = c.signal
     val slotInk = androidx.compose.ui.graphics.Color.Black.copy(alpha = if (c.dark) 0.6f else 0.45f)
-    val arrival = rememberArrival(key)
-    Canvas(modifier.semantics { }) {
+    val arrival = rememberArrival(key, shown = shown)
+    Canvas((if (shown == null) modifier.arrival(arrival) else modifier).semantics { }) {
         val t = arrival.value
         val w = size.width; val h = size.height
         val r6 = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx())
@@ -1451,60 +1545,70 @@ fun Swatch(c: Color, size: Dp = 20.dp) {
 }
 
 /**
- * The big Tune button: a disc in the middle of the screen with rings that pulse out from it while it waits.
+ * The big Tune button: a Braun speaker front with the round Tune key at its centre. When it is shown, a pulse runs
+ * from the centre out to the rim, twice, then the dial rests; a pull at the top of the page plays it again.
  */
 @Composable
 fun PulsingButton(label: String, sub: String?, icon: Ic, enabled: Boolean, onClick: () -> Unit) {
     // a Braun speaker front (the T 3's perforated circle): a grille of holes in a round field, an aluminium rim, and
-    // Tune as the round push button at its centre. While it waits, a soft wave runs out through the holes.
+    // Tune as the round push button at its centre
     val c = At.c
     // the face is always light and the holes dark, in every look, by day and by night (dialColours)
     val (face, dot) = dialColours(c)
-    // while it waits, a sweep goes round the circle like a radio's tuning pointer: the holes it passes darken and
-    // fade behind it, and a short arc rides the rim ahead of them. "Remove animations" leaves the dial still.
-    val period = motionMs(2400)
-    val anim = period > 0 && enabled
-    val phase = if (anim) {
-        val inf = rememberInfiniteTransition(label = "speaker")
-        inf.animateFloat(0f, 1f, infiniteRepeatable(tween(period, easing = LinearEasing), RepeatMode.Restart), label = "p")
-    } else null
+    // the pulse: a wave from the centre out to the rim, inside out; the holes it passes darken and swell, a faint ring
+    // marks its front and the rim answers as it arrives. Two pulses, then still ("Remove animations": always still).
+    val dur = motionMs(dev.autotune.PULSE_MS)
+    val replay = LocalReplay.current
+    val pulse = remember { androidx.compose.animation.core.Animatable(0f) }
+    var seen by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(replay, dur, enabled) {
+        if (dur == 0 || !enabled) { pulse.snapTo(0f); return@LaunchedEffect }
+        androidx.compose.runtime.snapshotFlow { seen }.first { it }
+        repeat(dev.autotune.GRAPHIC_PLAYS) { k ->
+            if (k > 0) delay(dur / 8L)
+            pulse.snapTo(0f)
+            pulse.animateTo(1f, tween(dur, easing = EaseArrive))
+            // the wave has left the rim: the face is at rest again
+            pulse.snapTo(0f)
+        }
+    }
     val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Box(Modifier.size(270.dp), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size(270.dp)) {
+        Canvas(
+            Modifier.size(270.dp).onGloballyPositioned { co ->
+                seen = dev.autotune.shownOnScreen(co.boundsInWindow().height, co.size.height.toFloat())
+            },
+        ) {
             val r = size.minDimension / 2
             val ctr = center
             drawCircle(c.alu, r)
             drawCircle(face, r * 0.95f)
-            // the sweep's angle, clockwise from the top (read here, so the sweep only redraws)
-            val sweep = (phase?.value ?: 0f) * 360f
+            // the front of the pulse, from the centre out (read here, so only the drawing repeats)
+            val p = pulse.value
+            val front = if (p > 0f) dev.autotune.pulseFront(p, r) else 0f
+            val band = r * 0.16f
             // the holes: a square grid clipped to the circle, clear of the button
             val step = 11.dp.toPx(); val hole = 1.9.dp.toPx()
             val inner = r * 0.42f; val outer = r * 0.88f
-            val trail = 110f
             var y = ctr.y - outer
             while (y <= ctr.y + outer) {
                 var x = ctr.x - outer
                 while (x <= ctr.x + outer) {
                     val d = kotlin.math.hypot(x - ctr.x, y - ctr.y)
                     if (d in inner..outer) {
-                        // how far behind the sweep this hole is, 0..360°; the trail fades over [trail] degrees
-                        val a = (Math.toDegrees(kotlin.math.atan2((x - ctr.x).toDouble(), (ctr.y - y).toDouble())).toFloat() + 360f) % 360f
-                        val behind = (sweep - a + 360f) % 360f
-                        val lit = if (phase != null && behind < trail) 1f - behind / trail else 0f
-                        drawCircle(dot.copy(alpha = 0.34f + 0.6f * lit), hole * (1f + 0.4f * lit), Offset(x, y))
+                        val lit = dev.autotune.pulseLight(d, front, band)
+                        drawCircle(dot.copy(alpha = 0.34f + 0.6f * lit), hole * (1f + 0.45f * lit), Offset(x, y))
                     }
                     x += step
                 }
                 y += step
             }
-            if (phase != null) {
-                // the pointer on the rim: a short dark arc at the sweep, on the aluminium
-                val w = 3.dp.toPx(); val rr = r * 0.975f
-                drawArc(
-                    dot.copy(alpha = 0.75f), sweep - 90f - 26f, 26f, useCenter = false,
-                    topLeft = Offset(ctr.x - rr, ctr.y - rr), size = Size(rr * 2, rr * 2),
-                    style = Stroke(w, cap = StrokeCap.Butt),
-                )
+            if (front > 0f) {
+                // a faint ring at the front, fading as it spreads; the rim darkens as the wave reaches it
+                drawCircle(dot.copy(alpha = 0.22f * (1f - p)), front.coerceAtMost(r * 0.95f), ctr, style = Stroke(1.5.dp.toPx()))
+                val atRim = dev.autotune.pulseLight(r * 0.975f, front, band)
+                val fade = 1f - ramp(p, 0.92f, 1f)
+                if (atRim > 0f) drawCircle(dot.copy(alpha = 0.55f * atRim * fade), r * 0.975f, ctr, style = Stroke(3.dp.toPx()))
             }
         }
         Box(

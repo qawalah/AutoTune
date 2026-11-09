@@ -25,24 +25,28 @@ import dev.autotune.moveLabel
 
 /**
  * The summary layer of a test's result. With only the stock reading it is the stock review; with runs it is
- * stock → latest. The display holds the readings (the main one with its system score beside it), a one-line
- * headline, and the notes as one warning icon in its corner. The next move is the pinned key, never a line here
- * ([resultNext] gives the results page its words).
+ * stock → latest. The display holds the readings, each run's figure with its system score beside it where one is
+ * already worked out, and the notes as one warning icon in its corner. With runs there is no headline line under the
+ * readings (removed at the owner's request, 2026-11-09): its words are in the bubble beside the warning icon. The next
+ * move is the pinned key, never a line here ([resultNext] gives the results page its words).
  */
 @Composable
 fun ResultSummary(s: UiState, namesTest: Boolean = true) {
     val runs = s.runs
     val stock = runs.firstOrNull() ?: return
     val latest = runs.last()
-    val c = At.c
+    // the readings sit on the deck, so their tints are the deck's (the body's green and amber are made for the dark body)
+    val c = deckColors
     val targets = dev.autotune.dsp.Target.ALL
     val target = targets[s.targetIdx.coerceIn(0, targets.size - 1)].name + dev.autotune.dsp.Target.tasteSuffix(s.bassDb, s.trebleDb)
     val name = s.testName.ifBlank { "This test" }
     val about = "The figures are the distance from the target, in dB (RMS over the audible range). Lower is better; 0 would match the target exactly. " +
-        "The score beside it (0-100) rates the system itself, as on the report card.\n\nTarget: $target."
+        "The score beside a figure (0-100) rates the system itself, as on the report card; it shows where it is already worked out for that run.\n\nTarget: $target."
     fun db(v: Double) = "%.1f".format(v)
-    // the score already worked out for a run (the focus run's report, or the compared runs); never computed here
-    fun score(idx: Int) = dev.autotune.knownScore(idx, s.selectedRuns.maxOrNull(), s.report?.overall, s.compare?.colorIdx.orEmpty(), s.compare?.scores.orEmpty())
+    // the score already worked out for a run (the focus run's report, the compared runs, the stock review); never computed here
+    fun score(idx: Int) = dev.autotune.knownScore(
+        idx, s.selectedRuns.maxOrNull(), s.report?.overall, s.compare?.colorIdx.orEmpty(), s.compare?.scores.orEmpty(), s.stock?.score,
+    )
     if (runs.size == 1) {
         val a = s.stock
         val suspicious = a?.suspicious == true
@@ -74,19 +78,24 @@ fun ResultSummary(s: UiState, namesTest: Boolean = true) {
     } else {
         val better = latest.rmsDb < stock.rmsDb - 0.3
         val best = runs.drop(1).minByOrNull { it.rmsDb }
+        val headline = dev.autotune.resultHeadline(stock.rmsDb, latest.rmsDb, best?.rmsDb, best?.label)
         RunSheet(
             if (namesTest) name else "${latest.label} vs stock",
             if (namesTest) "${latest.label} vs stock · ${latest.whenText}" else latest.whenText,
-            trailing = { AlertsIcon(s.resultWarnings) },
+            trailing = {
+                InfoButton("About this result", "$headline\n\n$about", small = true)
+                AlertsIcon(s.resultWarnings)
+            },
         ) {
+            // each run's figure with its score: the latest (with the change from the stock), the stock, the best
+            val change = "%+.1f".format(latest.rmsDb - stock.rmsDb).replace('-', '−') + " vs stock"
             ReadingCells(
                 listOfNotNull(
-                    Reading(db(latest.rmsDb), "dB", "${latest.label} · from target", score = score(latest.index)),
-                    Reading("%+.1f".format(latest.rmsDb - stock.rmsDb).replace('-', '−'), "dB", "vs stock ${db(stock.rmsDb)}", if (better) c.good else c.warn),
-                    if (best != null && best != latest) Reading(db(best.rmsDb), "dB", "best · ${best.label}") else null,
+                    Reading(db(latest.rmsDb), "dB", "${latest.label} · from target", score = score(latest.index), note = change, noteTint = if (better) c.good else c.warn),
+                    Reading(db(stock.rmsDb), "dB", "stock", score = score(stock.index)),
+                    if (best != null && best != latest) Reading(db(best.rmsDb), "dB", "best · ${best.label}", score = score(best.index)) else null,
                 ),
             )
-            Headline(dev.autotune.resultHeadline(stock.rmsDb, latest.rmsDb, best?.rmsDb, best?.label), about)
         }
     }
 }
