@@ -4,6 +4,16 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.10.0] - 2026-11-09
+### Changed
+- **Graphics play twice, then stop.** Header art, the Tune dial, report meters and charts play two passes. They replay when you pull a page down from the top. The Tune dial pulses from the centre outward.
+- **Scores beside every reading.** The results top card shows each run's score with its dB figure, and the stock and best run too (a box only where a score is known).
+- **Runs list is aligned** in fixed columns: tick, name and date, score, dB, delete.
+- **Results open with the header full size**, and the chart's expand opens a full-screen sheet inside the app.
+- **The redundant headline line is gone**; its words sit in the info bubble next to the warning icon.
+### Fixed
+- **Palette dark colours take effect by day as well as night.** Where an ink would not read, that surface switches to a readable version. The Ink field says whether the colour reads.
+
 ## [2.9.0] - 2026-11-09
 ### Changed
 - **Tune screen starts with the dial.** The wordmark line, the Simple / Advanced key, the "Tune" title and the speaker art are gone from the Tune tab. Other tabs keep their header.
