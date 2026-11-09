@@ -297,7 +297,8 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                     // A screen that does not open tall opens with its header folded into the slim bar (content high),
                     // or where it was left if that is further down. Its header's room stays at its top, so scrolling
                     // all the way up brings the full header back. Decided as the screen arrives.
-                    val hasHeader = !(d.page == null && d.tab == Tab.MEASURE && s.tuneStep != dev.autotune.TuneStep.HOME)
+                    // the Tune tab has no header on any step: its home starts with the dial, its steps with StepHeader
+                    val hasHeader = !(d.page == null && d.tab == Tab.MEASURE)
                     androidx.compose.runtime.remember(d, freshEpoch) {
                         val tall = d.page == null && key in tallKeys
                         if (!tall) {

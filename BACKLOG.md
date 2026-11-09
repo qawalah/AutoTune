@@ -27,3 +27,15 @@ From the flow maps in `FLOW.md`. Done: Set up is a draft, the EQ check decides t
 - **Level check before the stock sweep.** A short level probe as the first check on the measuring screen (reuse `levelCheck`), stopping with "turn it up/down a step" and Try again. No extra screen. (Since 2.7.0 "Check the level" is on the failed measuring screen.)
 - **Route rules out of the screens.** `onEquipment` in EqTab and the `equipment` default in ApplyStep into one pure `applyRoute(...)` in TuningLogic with FlowTest cases; later split `TuneViewModel` (tune flow, measuring) into their own classes.
 - **Back up and restore tests.** Settings › Data (Advanced), reusing the diagnostics zip layout and TestStore's loader.
+
+## Palette, Tune screen, results and graphics (asked 2026-11-09): built, not released
+Done (unreleased, on the working branch; see HANDOVER "Palette fix, Tune screen…"):
+- **Palette: the dark colour is still not editable.** Cause: a dark ink read on no night surface, so it was dropped everywhere (and by day it was nearly the look's own ink). A dark ink at night now brings the light decks with it; the Ink field says so in one line.
+- **Tune screen: remove the top part.** The Tune screen starts with the dial; other tabs keep their header.
+- **Tune dial: clearer animation, never dark.** Light face and dark dots in every look; a sweep with a rim pointer goes round the circle; still with "Remove animations".
+- **Test results: simplify and reduce text.** Notes are a warning icon in the display's corner; the next move is the second line of the pinned key; the other choices sit at the bottom; verdict and resonance advice moved into bubbles.
+- **Animate the graphics once when shown.** The header graphics (the reels on the results page and the others) and the report card's meters move once, then stay still.
+- **Show the score next to the dB score** where it is already known: results display, Tune result, EQ step, tuned panel, runs list.
+Open follow-ups:
+- Check on the owner's phone: the dial's sweep, the arrival movements, the palette at night.
+- The Tests list rows show no score: it is not worked out for tests that are not open, and computing it there would be new work.

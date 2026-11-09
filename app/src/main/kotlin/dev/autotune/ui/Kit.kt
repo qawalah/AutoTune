@@ -530,11 +530,34 @@ fun InfoLabel(label: String, info: String? = null) {
 fun Alerts(items: List<String>, title: String = "Notes on this reading") {
     if (items.isEmpty()) return
     var open by remember { mutableStateOf(false) }
+    AlertsLine(items) { open = true }
+    if (open) NotesDialog(items, title) { open = false }
+}
+
+/**
+ * The notes as an icon only: the warning sign in a 48dp target, read out as "1 note"; a tap lists them all. Used on
+ * a result's display, where the line of text was too much.
+ */
+@Composable
+fun AlertsIcon(items: List<String>, title: String = "Notes on this reading") {
+    if (items.isEmpty()) return
+    var open by remember { mutableStateOf(false) }
+    Box(
+        Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = "Read the notes") { open = true }
+            .semantics { contentDescription = alertsCount(items.size) },
+        contentAlignment = Alignment.Center,
+    ) { AtIcon(Ic.ALERT, At.c.warn, size = 22.dp) }
+    if (open) NotesDialog(items, title) { open = false }
+}
+
+@Composable
+private fun AlertsLine(items: List<String>, onOpen: () -> Unit) {
+    val open = onOpen
     // a key-grey line with a hairline edge, like the other keys: no tinted fill; the warn colour stays on the icon
     Row(
         Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(MaterialTheme.shapes.medium).background(At.c.panelHigh)
             .border(1.dp, At.c.line, MaterialTheme.shapes.medium)
-            .clickable(role = Role.Button, onClickLabel = "Read the notes") { open = true }.padding(start = 12.dp, end = 10.dp),
+            .clickable(role = Role.Button, onClickLabel = "Read the notes") { open() }.padding(start = 12.dp, end = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AtIcon(Ic.ALERT, At.c.warn, size = 18.dp)
@@ -548,18 +571,21 @@ fun Alerts(items: List<String>, title: String = "Notes on this reading") {
         )
         AtIcon(Ic.CHEVRON, At.c.muted, size = 16.dp)
     }
-    if (open) {
-        AlertDialog(
-            onDismissRequest = { open = false },
-            title = { Text(title) },
-            text = {
-                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items.forEach { Warning(it) }
-                }
-            },
-            confirmButton = { TextButton(onClick = { open = false }) { Text("Got it") } },
-        )
-    }
+}
+
+/** Every note in one dialog, each a warning line. */
+@Composable
+private fun NotesDialog(items: List<String>, title: String, onClose: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(title) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items.forEach { Warning(it) }
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text("Got it") } },
+    )
 }
 
 /** The Simple / Advanced switch at the top of every screen, as a compact drop-down. */
@@ -693,24 +719,40 @@ fun RunSheet(title: String, sub: String? = null, trailing: (@Composable () -> Un
  * One row of ruled cells, each a reading with its name under it, the way a dyno sheet prints its figures. A cell's
  * [Reading.tint] colours the figure only.
  */
-class Reading(val value: String, val unit: String?, val name: String, val tint: Color? = null)
+class Reading(val value: String, val unit: String?, val name: String, val tint: Color? = null, val score: Int? = null)
 
 @Composable
 fun ReadingCells(cells: List<Reading>) {
     // the first figure is the display's main reading; the rest sit beside it, smaller
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
         cells.forEachIndexed { i, r ->
-            Column(Modifier.weight(if (i == 0) 1.3f else 1f), horizontalAlignment = if (i == 0) Alignment.Start else Alignment.End) {
+            Column(Modifier.weight(if (i == 0) (if (r.score != null) 1.6f else 1.3f) else 1f), horizontalAlignment = if (i == 0) Alignment.Start else Alignment.End) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
                         r.value, style = if (i == 0) MaterialTheme.typography.displayMedium else MaterialTheme.typography.displaySmall.copy(fontSize = 24.sp, lineHeight = 30.sp),
                         color = r.tint ?: At.c.text, maxLines = 1,
                     )
                     if (r.unit != null) Text(" ${r.unit}", Modifier.padding(bottom = if (i == 0) 8.dp else 4.dp), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
+                    // the system score beside the dB, as the display's second figure
+                    if (r.score != null) ScoreTag(r.score, Modifier.padding(start = 8.dp, bottom = if (i == 0) 8.dp else 4.dp))
                 }
                 Text(r.name.lowercase(), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
             }
         }
+    }
+}
+
+/** The system score (0-100) as a small ruled figure beside a dB reading: the number, then "/100". */
+@Composable
+fun ScoreTag(score: Int, modifier: Modifier = Modifier) {
+    Row(
+        modifier.clip(MaterialTheme.shapes.extraSmall).border(1.dp, At.c.line, MaterialTheme.shapes.extraSmall)
+            .padding(horizontal = 5.dp, vertical = 1.dp)
+            .semantics(mergeDescendants = true) { contentDescription = "score $score of 100, ${dev.autotune.dsp.SystemJudge.grade(score).lowercase()}" },
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        Text("$score", style = MaterialTheme.typography.titleSmall, color = At.c.text, maxLines = 1)
+        Text("/100", Modifier.padding(start = 1.dp, bottom = 1.dp), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
     }
 }
 
@@ -1095,10 +1137,26 @@ private fun CentreRow(modifier: Modifier, content: @Composable () -> Unit) {
 private val Vinyl = Color(0xFF161615)
 
 /**
+ * 0 to 1 once, when this first appears ([key] restarts it): [ms] long on [EaseArrive], then it stays at 1. With
+ * "Remove animations" it is 1 from the start. Read its value in a draw lambda, so only the drawing repeats.
+ */
+@Composable
+fun rememberArrival(key: Any?, ms: Int = 900): androidx.compose.runtime.State<Float> {
+    val dur = motionMs(ms)
+    val a = remember(key) { androidx.compose.animation.core.Animatable(if (dur == 0) 1f else 0f) }
+    androidx.compose.runtime.LaunchedEffect(key, dur) {
+        if (dur > 0) a.animateTo(1f, tween(dur, easing = EaseArrive)) else a.snapTo(1f)
+    }
+    return a.asState()
+}
+
+/**
  * The header's graphic: the face of a Braun hi-fi component for each screen, flat, in the deck greys, with the accent
  * only on one needle, pilot light or key. Tests is a record player (the SK 4's platter and tonearm), EQ a fader strip,
  * Tune the round speaker grille (the L 2 / T 3), Live a radio's tuning scale with its needle over a slot grille of level
  * bars, Settings a row of push keys and knobs (the audio 1), and anything else the reels of a tape deck (the TG 60).
+ * Each plays one short movement when it appears (the reels turn, the tonearm swings in, the faders rise, the needle
+ * glides, the knobs turn, the pilot lights last) and then stays still; nothing loops.
  */
 @Composable
 fun HeaderArt(key: String, modifier: Modifier) {
@@ -1111,16 +1169,23 @@ fun HeaderArt(key: String, modifier: Modifier) {
     val alu = c.alu
     val accent = c.signal
     val slotInk = androidx.compose.ui.graphics.Color.Black.copy(alpha = if (c.dark) 0.6f else 0.45f)
+    val arrival = rememberArrival(key)
     Canvas(modifier.semantics { }) {
+        val t = arrival.value
         val w = size.width; val h = size.height
         val r6 = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx())
         val r2 = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
         val hair = 1.dp.toPx()
         fun deck() = drawRoundRect(plate, Offset.Zero, size, r6)
-        fun pilot(x: Float, y: Float) = drawCircle(accent, h * 0.035f, Offset(x, y))
+        // the pilot lights last, once the movement has settled
+        fun pilot(x: Float, y: Float) = drawCircle(accent.copy(alpha = accent.alpha * ramp(t, 0.6f, 1f)), h * 0.035f, Offset(x, y))
+        fun turn(p: Offset, about: Offset, deg: Float): Offset {
+            val a = Math.toRadians(deg.toDouble()); val dx = p.x - about.x; val dy = p.y - about.y
+            return Offset(about.x + (dx * kotlin.math.cos(a) - dy * kotlin.math.sin(a)).toFloat(), about.y + (dx * kotlin.math.sin(a) + dy * kotlin.math.cos(a)).toFloat())
+        }
         when (key) {
             "tests" -> {
-                // a record player: the platter's record, grooves, the label; the tonearm from its pivot
+                // a record player: the platter's record, grooves, the label; the tonearm swings in from its rest
                 deck()
                 val ctr = Offset(w * 0.38f, h * 0.5f); val r = h * 0.41f
                 drawCircle(alu.copy(alpha = 0.55f), r * 1.06f, ctr)
@@ -1129,29 +1194,33 @@ fun HeaderArt(key: String, modifier: Modifier) {
                 drawCircle(keyFace, r * 0.3f, ctr)
                 drawCircle(rule, r * 0.3f, ctr, style = Stroke(hair))
                 drawCircle(ink, r * 0.05f, ctr)
+                // the label's mark turns once with the platter
+                drawCircle(ink.copy(alpha = 0.5f), r * 0.035f, turn(Offset(ctr.x, ctr.y - r * 0.2f), ctr, 360f * t))
                 val pivot = Offset(w * 0.86f, h * 0.2f)
                 drawCircle(alu, h * 0.08f, pivot); drawCircle(ink, h * 0.03f, pivot)
-                val elbow = Offset(w * 0.86f, h * 0.6f); val head = Offset(w * 0.64f, h * 0.73f)
+                val swing = -24f * (1f - t)
+                val elbow = turn(Offset(w * 0.86f, h * 0.6f), pivot, swing); val head = turn(Offset(w * 0.64f, h * 0.73f), pivot, swing)
                 drawLine(alu, pivot, elbow, h * 0.025f, StrokeCap.Round); drawLine(alu, elbow, head, h * 0.025f, StrokeCap.Round)
                 drawCircle(ink, h * 0.03f, head)
                 pilot(w * 0.92f, h * 0.88f)
             }
             "eq" -> {
-                // a fader strip: slots with a scale, square caps riding a gentle curve, one cap in the accent
+                // a fader strip: slots with a scale, square caps rising one after another to a gentle curve
                 deck()
                 val n = 6; val top = h * 0.14f; val bottom = h * 0.86f
                 val caps = listOf(0.62f, 0.42f, 0.5f, 0.66f, 0.36f, 0.48f)
                 for (k in 0 until n) {
                     val x = w * (0.13f + k * 0.148f)
-                    for (t in 0..4) { val y = top + (bottom - top) * t / 4f; drawLine(rule, Offset(x - w * 0.045f, y), Offset(x - w * 0.025f, y), hair) }
+                    for (q in 0..4) { val y = top + (bottom - top) * q / 4f; drawLine(rule, Offset(x - w * 0.045f, y), Offset(x - w * 0.025f, y), hair) }
                     drawRoundRect(slotInk, Offset(x - w * 0.008f, top), Size(w * 0.016f, bottom - top), androidx.compose.ui.geometry.CornerRadius(w * 0.008f))
-                    val y = h * caps[k]
+                    val rise = ramp(t, k * 0.07f, k * 0.07f + 0.6f)
+                    val y = bottom - (bottom - h * caps[k]) * rise
                     drawRoundRect(if (k == 2) accent else ink, Offset(x - w * 0.04f, y - h * 0.055f), Size(w * 0.08f, h * 0.11f), r2)
                     drawLine(if (k == 2) c.onSignal else c.bg, Offset(x - w * 0.028f, y), Offset(x + w * 0.028f, y), hair * 1.5f)
                 }
             }
             "tune" -> {
-                // the round speaker: an aluminium rim, the perforated grille, the Tune key's pilot below
+                // the round speaker: an aluminium rim, the perforated grille filling in from the centre, the Tune key's pilot
                 val ctr = Offset(w * 0.6f, h * 0.5f); val r = h * 0.48f
                 drawCircle(alu.copy(alpha = 0.55f), r, ctr)
                 drawCircle(plate, r * 0.93f, ctr)
@@ -1160,7 +1229,8 @@ fun HeaderArt(key: String, modifier: Modifier) {
                 while (y <= ctr.y + outer) {
                     var x = ctr.x - outer
                     while (x <= ctr.x + outer) {
-                        if (kotlin.math.hypot(x - ctr.x, y - ctr.y) <= outer) drawCircle(ink.copy(alpha = 0.42f), hole, Offset(x, y))
+                        val d = kotlin.math.hypot(x - ctr.x, y - ctr.y)
+                        if (d <= outer) drawCircle(ink.copy(alpha = 0.42f * ramp(t, d / outer * 0.6f, d / outer * 0.6f + 0.4f)), hole, Offset(x, y))
                         x += step
                     }
                     y += step
@@ -1170,7 +1240,7 @@ fun HeaderArt(key: String, modifier: Modifier) {
                 pilot(w * 0.1f, h * 0.8f)
             }
             "live" -> {
-                // a radio: the tuning scale with its red needle, and a slot grille of level bars under it
+                // a radio: the tuning scale with its red needle gliding to the station, the level bars rising under it
                 deck()
                 val win = Offset(w * 0.06f, h * 0.12f); val ws = Size(w * 0.88f, h * 0.34f)
                 drawRoundRect(c.bg, win, ws, r2)
@@ -1180,32 +1250,34 @@ fun HeaderArt(key: String, modifier: Modifier) {
                     val long = k % 5 == 0
                     drawLine(c.muted.copy(alpha = if (long) 0.9f else 0.5f), Offset(x, win.y + ws.height * 0.2f), Offset(x, win.y + ws.height * if (long) 0.62f else 0.45f), hair)
                 }
-                val nx = win.x + ws.width * 0.63f
+                val nx = win.x + ws.width * (0.1f + 0.53f * t)
                 drawLine(accent, Offset(nx, win.y - h * 0.04f), Offset(nx, win.y + ws.height + h * 0.04f), 2.5.dp.toPx())
                 val bars = listOf(0.35f, 0.55f, 0.8f, 0.95f, 0.7f, 0.6f, 0.75f, 0.5f, 0.42f, 0.58f, 0.4f, 0.3f, 0.36f, 0.22f)
                 val gx = w * 0.06f; val gw = w * 0.88f; val gTop = h * 0.56f; val gBottom = h * 0.88f
                 val bw = gw / bars.size
-                bars.forEachIndexed { k, v ->
+                bars.forEachIndexed { k, v0 ->
+                    val v = v0 * ramp(t, k * 0.03f, k * 0.03f + 0.55f)
                     val x = gx + bw * k + bw * 0.28f
                     drawRoundRect(slotInk.copy(alpha = 0.18f), Offset(x, gTop), Size(bw * 0.44f, gBottom - gTop), r2)
                     drawRoundRect(ink.copy(alpha = 0.8f), Offset(x, gBottom - (gBottom - gTop) * v), Size(bw * 0.44f, (gBottom - gTop) * v), r2)
                 }
             }
             "settings" -> {
-                // the audio 1's controls: a row of push keys, one latched with its pilot, and two knobs
+                // the audio 1's controls: a row of push keys, one latching down with its pilot, and two knobs turning to place
                 deck()
                 val kw = w * 0.13f; val kh = h * 0.2f; val ky = h * 0.18f
+                val drop = h * 0.02f * ramp(t, 0.2f, 0.6f)
                 for (k in 0 until 5) {
                     val x = w * (0.07f + k * 0.175f)
                     val latched = k == 1
-                    drawRoundRect(if (latched) androidx.compose.ui.graphics.lerp(keyFace, rule, 0.55f) else keyFace, Offset(x, ky + if (latched) h * 0.02f else 0f), Size(kw, kh), r2)
-                    drawRoundRect(rule, Offset(x, ky + if (latched) h * 0.02f else 0f), Size(kw, kh), r2, style = Stroke(hair))
+                    drawRoundRect(if (latched) androidx.compose.ui.graphics.lerp(keyFace, rule, 0.55f * ramp(t, 0.2f, 0.6f)) else keyFace, Offset(x, ky + if (latched) drop else 0f), Size(kw, kh), r2)
+                    drawRoundRect(rule, Offset(x, ky + if (latched) drop else 0f), Size(kw, kh), r2, style = Stroke(hair))
                     if (latched) pilot(x + kw / 2, ky - h * 0.07f)
                 }
                 fun knob(cx: Float, r: Float, deg: Float) {
                     val ctr = Offset(cx, h * 0.68f)
-                    for (t in 0..6) {
-                        val a = Math.toRadians(135.0 + t * 45.0)
+                    for (q in 0..6) {
+                        val a = Math.toRadians(135.0 + q * 45.0)
                         val o = Offset(ctr.x + (r * 1.25f) * kotlin.math.cos(a).toFloat(), ctr.y + (r * 1.25f) * kotlin.math.sin(a).toFloat())
                         drawCircle(c.muted.copy(alpha = 0.7f), hair * 1.2f, o)
                     }
@@ -1214,26 +1286,29 @@ fun HeaderArt(key: String, modifier: Modifier) {
                     val a = Math.toRadians(deg.toDouble())
                     drawLine(ink, Offset(ctr.x + r * 0.25f * kotlin.math.cos(a).toFloat(), ctr.y + r * 0.25f * kotlin.math.sin(a).toFloat()), Offset(ctr.x + r * 0.85f * kotlin.math.cos(a).toFloat(), ctr.y + r * 0.85f * kotlin.math.sin(a).toFloat()), hair * 2f)
                 }
-                knob(w * 0.2f, h * 0.14f, -120f)
-                knob(w * 0.5f, h * 0.14f, -40f)
-                // a short horizontal fader at the end
+                // both knobs start at the scale's low end (135°, lower left) and turn up to their settings
+                knob(w * 0.2f, h * 0.14f, 135f + (240f - 135f) * t)
+                knob(w * 0.5f, h * 0.14f, 135f + (320f - 135f) * t)
+                // a short horizontal fader at the end, sliding to its place
                 drawRoundRect(slotInk, Offset(w * 0.68f, h * 0.675f), Size(w * 0.25f, h * 0.025f), r2)
-                drawRoundRect(ink, Offset(w * 0.76f, h * 0.6f), Size(w * 0.05f, h * 0.17f), r2)
+                drawRoundRect(ink, Offset(w * (0.69f + 0.07f * t), h * 0.6f), Size(w * 0.05f, h * 0.17f), r2)
             }
             else -> {
-                // a tape deck: two reels, the tape between them over the head
+                // a tape deck: two reels turning a little way, the tape between them over the head
                 deck()
-                fun reel(cx: Float) {
+                fun reel(cx: Float, spin: Float) {
                     val ctr = Offset(cx, h * 0.44f); val r = h * 0.3f
                     drawCircle(alu.copy(alpha = 0.7f), r, ctr)
                     drawCircle(Vinyl.copy(alpha = 0.85f), r * 0.62f, ctr)
                     drawCircle(keyFace, r * 0.24f, ctr)
-                    for (t in 0 until 3) {
-                        val a = Math.toRadians(-90.0 + t * 120.0)
+                    for (q in 0 until 3) {
+                        val a = Math.toRadians(-90.0 + q * 120.0 + spin)
                         drawCircle(plate, r * 0.13f, Offset(ctr.x + r * 0.43f * kotlin.math.cos(a).toFloat(), ctr.y + r * 0.43f * kotlin.math.sin(a).toFloat()))
                     }
                 }
-                reel(w * 0.27f); reel(w * 0.73f)
+                // both reels wind the same way, a turn and a third, then stop with the hubs where they always rest
+                val spin = -480f * (1f - t)
+                reel(w * 0.27f, spin); reel(w * 0.73f, spin)
                 drawLine(ink.copy(alpha = 0.7f), Offset(w * 0.27f, h * 0.74f), Offset(w * 0.73f, h * 0.74f), hair * 1.5f)
                 drawRoundRect(keyFace, Offset(w * 0.44f, h * 0.7f), Size(w * 0.12f, h * 0.14f), r2)
                 pilot(w * 0.9f, h * 0.88f)
@@ -1383,34 +1458,53 @@ fun PulsingButton(label: String, sub: String?, icon: Ic, enabled: Boolean, onCli
     // a Braun speaker front (the T 3's perforated circle): a grille of holes in a round field, an aluminium rim, and
     // Tune as the round push button at its centre. While it waits, a soft wave runs out through the holes.
     val c = At.c
-    val anim = animationsOn() && enabled
+    // the face is always light and the holes dark, in every look, by day and by night (dialColours)
+    val (face, dot) = dialColours(c)
+    // while it waits, a sweep goes round the circle like a radio's tuning pointer: the holes it passes darken and
+    // fade behind it, and a short arc rides the rim ahead of them. "Remove animations" leaves the dial still.
+    val period = motionMs(2400)
+    val anim = period > 0 && enabled
     val phase = if (anim) {
         val inf = rememberInfiniteTransition(label = "speaker")
-        inf.animateFloat(0f, 1f, infiniteRepeatable(tween(2600, easing = LinearEasing), RepeatMode.Restart), label = "p").value
-    } else 0f
+        inf.animateFloat(0f, 1f, infiniteRepeatable(tween(period, easing = LinearEasing), RepeatMode.Restart), label = "p")
+    } else null
     val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Box(Modifier.size(270.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(270.dp)) {
             val r = size.minDimension / 2
             val ctr = center
-            drawCircle(c.alu.copy(alpha = 0.5f), r)
-            drawCircle(c.panel, r * 0.95f)
+            drawCircle(c.alu, r)
+            drawCircle(face, r * 0.95f)
+            // the sweep's angle, clockwise from the top (read here, so the sweep only redraws)
+            val sweep = (phase?.value ?: 0f) * 360f
             // the holes: a square grid clipped to the circle, clear of the button
             val step = 11.dp.toPx(); val hole = 1.9.dp.toPx()
             val inner = r * 0.42f; val outer = r * 0.88f
+            val trail = 110f
             var y = ctr.y - outer
             while (y <= ctr.y + outer) {
                 var x = ctr.x - outer
                 while (x <= ctr.x + outer) {
                     val d = kotlin.math.hypot(x - ctr.x, y - ctr.y)
                     if (d in inner..outer) {
-                        // the wave: holes near its radius darken a little
-                        val wave = if (anim) (1f - kotlin.math.abs((d - inner) / (outer - inner) - phase) * 5f).coerceIn(0f, 1f) else 0f
-                        drawCircle(c.text.copy(alpha = 0.32f + 0.4f * wave), hole, Offset(x, y))
+                        // how far behind the sweep this hole is, 0..360°; the trail fades over [trail] degrees
+                        val a = (Math.toDegrees(kotlin.math.atan2((x - ctr.x).toDouble(), (ctr.y - y).toDouble())).toFloat() + 360f) % 360f
+                        val behind = (sweep - a + 360f) % 360f
+                        val lit = if (phase != null && behind < trail) 1f - behind / trail else 0f
+                        drawCircle(dot.copy(alpha = 0.34f + 0.6f * lit), hole * (1f + 0.4f * lit), Offset(x, y))
                     }
                     x += step
                 }
                 y += step
+            }
+            if (phase != null) {
+                // the pointer on the rim: a short dark arc at the sweep, on the aluminium
+                val w = 3.dp.toPx(); val rr = r * 0.975f
+                drawArc(
+                    dot.copy(alpha = 0.75f), sweep - 90f - 26f, 26f, useCenter = false,
+                    topLeft = Offset(ctr.x - rr, ctr.y - rr), size = Size(rr * 2, rr * 2),
+                    style = Stroke(w, cap = StrokeCap.Butt),
+                )
             }
         }
         Box(
@@ -1775,7 +1869,7 @@ private fun ChoiceRow(c: dev.autotune.EqChoice, selected: Boolean, onClick: () -
 // ---------------------------------------------------------------- the pinned action
 
 /** The screen's one recommended action, shown big above the tabs so it never scrolls away. */
-class PinnedAction(val text: String, val icon: Ic?, val enabled: Boolean, val hint: String?, val onClick: () -> Unit)
+class PinnedAction(val text: String, val icon: Ic?, val enabled: Boolean, val hint: String?, val onClick: () -> Unit, val sub: String? = null)
 
 /** Set by the app shell; a screen pins its action with [PinAction]. */
 class PinSlot {
@@ -1791,12 +1885,12 @@ val LocalPin = androidx.compose.runtime.staticCompositionLocalOf { PinSlot() }
  * shown); leaving it clears the pin.
  */
 @Composable
-fun PinAction(text: String, onClick: () -> Unit, icon: Ic? = null, enabled: Boolean = true, hint: String? = null) {
+fun PinAction(text: String, onClick: () -> Unit, icon: Ic? = null, enabled: Boolean = true, hint: String? = null, sub: String? = null) {
     val slot = LocalPin.current
     val me = remember { Any() }
     androidx.compose.runtime.SideEffect {
         slot.owner = me
-        slot.action = PinnedAction(text, icon, enabled, hint, onClick)
+        slot.action = PinnedAction(text, icon, enabled, hint, onClick, sub)
     }
     androidx.compose.runtime.DisposableEffect(slot) {
         onDispose { if (slot.owner === me) { slot.owner = null; slot.action = null } }
@@ -1822,7 +1916,7 @@ fun BigActionBar(a: PinnedAction) {
         Box(
             Modifier.fillMaxWidth().heightIn(min = 64.dp).pressScale(src).clip(MaterialTheme.shapes.medium).background(keyColor)
                 .clickable(interactionSource = src, indication = androidx.compose.material3.ripple(), enabled = a.enabled, role = Role.Button, onClick = a.onClick)
-                .semantics { contentDescription = "Suggested: ${a.text}" }
+                .semantics { contentDescription = "Suggested: ${a.text}" + (a.sub?.let { ", $it" } ?: "") }
                 .padding(horizontal = 18.dp, vertical = 8.dp),
             contentAlignment = Alignment.Center,
         ) {
@@ -1831,20 +1925,24 @@ fun BigActionBar(a: PinnedAction) {
             val inMs = motionMs(300)
             val outMs = motionMs(90)
             androidx.compose.animation.AnimatedContent(
-                targetState = a.text, modifier = Modifier.padding(horizontal = 28.dp),
+                targetState = a.text to a.sub, modifier = Modifier.padding(horizontal = 28.dp),
                 transitionSpec = {
                     (androidx.compose.animation.fadeIn(tween(inMs, easing = EaseArrive)) + androidx.compose.animation.slideInVertically(tween(inMs, easing = EaseArrive)) { it / 3 }) togetherWith
                         androidx.compose.animation.fadeOut(tween(outMs, easing = EaseLeave))
                 },
                 contentAlignment = Alignment.Center,
                 label = "pin",
-            ) { text ->
+            ) { (text, sub) ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         text, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold), color = onKey, maxLines = 2,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     )
-                    Text("suggested", style = MaterialTheme.typography.labelSmall, color = onKey.copy(alpha = 0.6f))
+                    // the second line: "suggested", or what comes after this key (a test's results page)
+                    Text(
+                        sub ?: "suggested", style = MaterialTheme.typography.labelSmall, color = onKey.copy(alpha = 0.6f), maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
                 }
             }
         }

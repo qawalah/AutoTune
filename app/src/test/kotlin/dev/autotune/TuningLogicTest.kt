@@ -361,4 +361,68 @@ class ConvergenceTest {
         assertFalse(playbackStarted(1, 1))
         assertFalse(playbackStarted(1, 0))
     }
+
+    /** After 2.8.1: a dark ink at night read on no surface, so readableInk dropped it everywhere and the pick did nothing. */
+    @Test
+    fun darkInkAtNightNeedsTheDaySurfaces() {
+        val nightBody = 0xFF121211L; val nightDeck = 0xFF232321L
+        val dayBody = 0xFF2B2B29L; val dayDeck = 0xFFF3F2EEL
+        val darkInks = PALETTE_NEUTRALS.filter { it.name in setOf("Slate", "Graphite", "Charcoal", "Near black", "Black") }
+        assertEquals(5, darkInks.size)
+        darkInks.forEach { ink ->
+            // the cause: on Classic's night surfaces none of them reads, so each one fell back to the light ink
+            assertEquals(ink.name, InkReach.NONE, inkReach(ink.argb, listOf(nightBody, nightDeck)))
+            assertEquals(0xFFECEAE4L, readableInk(ink.argb, 0xFFECEAE4L, listOf(nightDeck)))
+            // the fix: such an ink brings the day decks, where it reads
+            assertTrue(ink.name, inkNeedsDay(ink.argb, listOf(nightBody, nightDeck), listOf(dayBody, dayDeck)))
+            assertEquals(InkReach.SOME, inkReach(ink.argb, listOf(dayBody, dayDeck)))
+        }
+        // a light ink, no ink, or an ink that reads nowhere by day either, keeps the night surfaces
+        assertFalse(inkNeedsDay(0xFFFFFFFFL, listOf(nightBody, nightDeck), listOf(dayBody, dayDeck)))
+        assertFalse(inkNeedsDay(null, listOf(nightBody, nightDeck), listOf(dayBody, dayDeck)))
+        assertFalse(inkNeedsDay(0xFF121211L, listOf(nightBody, nightDeck), listOf(dayBody, 0xFF1C1C1BL)))
+        assertEquals(InkReach.ALL, inkReach(0xFF121211L, listOf(0xFFFFFFFFL, dayDeck)))
+    }
+
+    @Test
+    fun inkNoteSaysOnlyWhatNeedsSaying() {
+        assertNull(inkNote(null, applied = false, usesDay = false))
+        assertNull(inkNote(0xFF121211L, applied = true, usesDay = false))
+        assertEquals("on light decks, so it reads", inkNote(0xFF121211L, applied = true, usesDay = true))
+        assertEquals("doesn't read on these colours", inkNote(0xFF121211L, applied = false, usesDay = false))
+        assertEquals("doesn't read on these colours", inkNote(0xFF5E5C57L, applied = false, usesDay = true))
+        // the note is one short line
+        listOfNotNull(inkNote(1L, true, true), inkNote(1L, false, false)).forEach { assertTrue(it.length <= 40) }
+    }
+
+    @Test
+    fun tuneDialIsLightWithDarkDots() {
+        // a light candidate is used as it is; with none, a light face anyway
+        assertEquals(0xFFF3F2EEL, dialFace(listOf(0xFFF3F2EEL, 0xFF353533L), night = false))
+        assertEquals(0xFFE9E7E1L, dialFace(listOf(0xFF232321L, 0xFFE9E7E1L), night = true))
+        assertEquals(0xFFD5D5D2L, dialFace(listOf(0xFF232321L, 0xFF121211L), night = true))
+        assertEquals(0xFFF3F2EEL, dialFace(emptyList(), night = false))
+        for (face in listOf(0xFFF3F2EEL, 0xFFD5D5D2L, 0xFFFFFFFFL)) {
+            // a light ink is never a dot; a dark one that reads is
+            val dots = dialDots(face, listOf(0xFFECEAE4L, 0xFF353533L))
+            assertEquals(0xFF353533L, dots)
+            assertTrue(contrast(dialDots(face, listOf(0xFFECEAE4L)), face) >= 4.5)
+            assertTrue(contrast(dialDots(face, listOf(0xFFECEAE4L)), 0xFF000000L) < contrast(dialDots(face, listOf(0xFFECEAE4L)), 0xFFFFFFFFL))
+        }
+    }
+
+    @Test
+    fun scoreIsOnlyShownWhereItIsKnown() {
+        // the focus run's report
+        assertEquals(72, knownScore(3, 3, 72))
+        // a compared run
+        assertEquals(64, knownScore(0, 3, 72, listOf(0, 3), listOf(64, 72)))
+        // nothing known: nothing shown, nothing computed
+        assertNull(knownScore(1, 3, 72, listOf(0, 3), listOf(64, 72)))
+        assertNull(knownScore(3, 3, null))
+        assertNull(knownScore(0, null, null, listOf(0), emptyList()))
+        // the results page's key: the move in lower case after "next:"
+        assertEquals("next: keep this EQ and finish", nextLine(moveLabel(NextMove.KEEP_LATEST, null)))
+        assertNull(nextLine(null))
+    }
 }

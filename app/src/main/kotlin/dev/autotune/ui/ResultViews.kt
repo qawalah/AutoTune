@@ -25,11 +25,12 @@ import dev.autotune.moveLabel
 
 /**
  * The summary layer of a test's result. With only the stock reading it is the stock review; with runs it is
- * stock → latest. [showNext] adds the recommended next move in words (the results page, where the button is
- * Continue tuning); the Tune screens show that move as their own button instead.
+ * stock → latest. The display holds the readings (the main one with its system score beside it), a one-line
+ * headline, and the notes as one warning icon in its corner. The next move is the pinned key, never a line here
+ * ([resultNext] gives the results page its words).
  */
 @Composable
-fun ResultSummary(s: UiState, showNext: Boolean, namesTest: Boolean = true) {
+fun ResultSummary(s: UiState, namesTest: Boolean = true) {
     val runs = s.runs
     val stock = runs.firstOrNull() ?: return
     val latest = runs.last()
@@ -37,20 +38,25 @@ fun ResultSummary(s: UiState, showNext: Boolean, namesTest: Boolean = true) {
     val targets = dev.autotune.dsp.Target.ALL
     val target = targets[s.targetIdx.coerceIn(0, targets.size - 1)].name + dev.autotune.dsp.Target.tasteSuffix(s.bassDb, s.trebleDb)
     val name = s.testName.ifBlank { "This test" }
-    val about = "The figures are the distance from the target, in dB (RMS over the audible range). Lower is better; 0 would match the target exactly.\n\nTarget: $target."
+    val about = "The figures are the distance from the target, in dB (RMS over the audible range). Lower is better; 0 would match the target exactly. " +
+        "The score beside it (0-100) rates the system itself, as on the report card.\n\nTarget: $target."
     fun db(v: Double) = "%.1f".format(v)
+    // the score already worked out for a run (the focus run's report, or the compared runs); never computed here
+    fun score(idx: Int) = dev.autotune.knownScore(idx, s.selectedRuns.maxOrNull(), s.report?.overall, s.compare?.colorIdx.orEmpty(), s.compare?.scores.orEmpty())
     if (runs.size == 1) {
         val a = s.stock
         val suspicious = a?.suspicious == true
+        // every warning and finding behind one icon in the display's corner
+        val notes = s.resultWarnings + (a?.findings?.filter { it.severity > 0 }?.map { "${it.title}: ${it.detail}" } ?: emptyList())
         // on a page already titled with the test, the sheet names the reading instead
         RunSheet(
             if (namesTest) name else "Stock reading",
             if (namesTest) "Stock reading · ${stock.whenText}" else stock.whenText,
-            trailing = { AtIcon(if (suspicious) Ic.ALERT else Ic.MEASURE, c.muted, size = 20.dp) },
+            trailing = { AlertsIcon(notes) },
         ) {
             ReadingCells(
                 listOfNotNull(
-                    Reading(db(stock.rmsDb), "dB", "stock · from target", if (suspicious) c.warn else null),
+                    Reading(db(stock.rmsDb), "dB", "stock · from target", if (suspicious) c.warn else null, score(stock.index)),
                     a?.predictedDb?.takeIf { !suspicious }?.let { Reading("≈" + db(it), "dB", "with the eq", c.signal) },
                 ),
             )
@@ -64,9 +70,6 @@ fun ResultSummary(s: UiState, showNext: Boolean, namesTest: Boolean = true) {
                 },
                 about + (a?.verdict?.let { "\n\n$it" } ?: ""),
             )
-            // every warning and finding in one folded line
-            Alerts(s.resultWarnings + (a?.findings?.filter { it.severity > 0 }?.map { "${it.title}: ${it.detail}" } ?: emptyList()))
-            if (showNext) NextLine(if (suspicious) "Measure the stock again" else "Review the suggested EQ", null)
         }
     } else {
         val better = latest.rmsDb < stock.rmsDb - 0.3
@@ -74,21 +77,26 @@ fun ResultSummary(s: UiState, showNext: Boolean, namesTest: Boolean = true) {
         RunSheet(
             if (namesTest) name else "${latest.label} vs stock",
             if (namesTest) "${latest.label} vs stock · ${latest.whenText}" else latest.whenText,
-            trailing = { AtIcon(if (better) Ic.DONE else Ic.ALERT, c.muted, size = 20.dp) },
+            trailing = { AlertsIcon(s.resultWarnings) },
         ) {
             ReadingCells(
                 listOfNotNull(
-                    Reading(db(latest.rmsDb), "dB", "${latest.label} · from target"),
+                    Reading(db(latest.rmsDb), "dB", "${latest.label} · from target", score = score(latest.index)),
                     Reading("%+.1f".format(latest.rmsDb - stock.rmsDb).replace('-', '−'), "dB", "vs stock ${db(stock.rmsDb)}", if (better) c.good else c.warn),
                     if (best != null && best != latest) Reading(db(best.rmsDb), "dB", "best · ${best.label}") else null,
                 ),
             )
             Headline(dev.autotune.resultHeadline(stock.rmsDb, latest.rmsDb, best?.rmsDb, best?.label), about)
-            Alerts(s.resultWarnings)
-            val rec = s.recommendation
-            if (showNext && rec != null) NextLine(moveLabel(rec.move, runs.getOrNull(rec.bestIdx)?.label), rec.why)
         }
     }
+}
+
+/** The next move in words for a test's results page, shown under its pinned key, with why in the hint. */
+fun resultNext(s: UiState): Pair<String?, String?> {
+    val runs = s.runs
+    if (runs.size == 1) return dev.autotune.nextLine(if (s.stock?.suspicious == true) "Measure the stock again" else "Review the suggested EQ") to null
+    val rec = s.recommendation ?: return null to null
+    return dev.autotune.nextLine(moveLabel(rec.move, runs.getOrNull(rec.bestIdx)?.label)) to rec.why
 }
 
 /** The first sentence of [t], so a verdict reads as one line; the rest goes in its bubble. */
@@ -100,15 +108,6 @@ private fun Headline(text: String, info: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         InfoButton("About this result", info, small = true)
-    }
-}
-
-@Composable
-private fun NextLine(move: String, why: String?) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        AtIcon(Ic.NEXT, At.c.signal, size = 18.dp)
-        Text("  Next: $move", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 2)
-        if (why != null) InfoButton("Why this next", why, small = true)
     }
 }
 

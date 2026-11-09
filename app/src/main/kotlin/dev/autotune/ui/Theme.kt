@@ -386,20 +386,63 @@ fun atScheme(at: AtColors): androidx.compose.material3.ColorScheme {
     }
 }
 
+/** The surfaces text sits on, as they will be with [p]: the body and the deck (or the plates of a look without decks). */
+private fun textGrounds(c: AtColors, p: Palette): List<Long> =
+    listOf(p[PaletteSlot.BODY] ?: c.bg.argb(), p[PaletteSlot.DECK] ?: (c.deck ?: c).panel.argb())
+
+/**
+ * Whether the palette's ink brings the look's day surfaces at night: a dark ink reads on none of the night surfaces,
+ * so without them it would be dropped everywhere and the choice would do nothing ([dev.autotune.inkNeedsDay]).
+ */
+fun usesDaySurfaces(look: Look, dark: Boolean, p: Palette): Boolean =
+    dark && dev.autotune.inkNeedsDay(p[PaletteSlot.INK], textGrounds(lookColors(look, true), p), textGrounds(lookColors(look, false), p))
+
+/** The look's surfaces for [dark], with the day decks (or the whole day look, without decks) when the ink needs them. */
+private fun surfaces(look: Look, dark: Boolean, p: Palette): AtColors {
+    val c = lookColors(look, dark)
+    if (!usesDaySurfaces(look, dark, p)) return c
+    val day = lookColors(look, false)
+    // a look with decks keeps its night body (titles stay light on it) and takes the light decks for the dark ink
+    return if (c.deck != null && day.deck != null) c.copy(deck = day.deck) else day
+}
+
 /** The colours the app draws with: the look in its day or night version, then the accent, then the user's palette. */
 fun themeColors(look: Look, dark: Boolean, accent: dev.autotune.Accent, palette: Palette): AtColors =
-    lookColors(look, dark).withAccent(accent).withPalette(palette)
+    surfaces(look, dark, palette).withAccent(accent).withPalette(palette)
+
+/** The status line under the palette's Ink field, if the ink needs one ([dev.autotune.inkNote]). */
+fun paletteInkNote(look: Look, dark: Boolean, p: Palette): String? {
+    val ink = p[PaletteSlot.INK] ?: return null
+    // used where it matters: on the plates that hold the content (a deck, or the plates of a look without decks)
+    val c = themeColors(look, dark, dev.autotune.Accent.LOOK, p)
+    val applied = (c.deck ?: c).text.argb() == ink
+    return dev.autotune.inkNote(ink, applied, usesDaySurfaces(look, dark, p))
+}
+
+/** Whether the app draws its night version for [mode]. */
+@Composable
+fun isNight(mode: ThemeMode): Boolean = when (mode) {
+    ThemeMode.SYSTEM -> isSystemInDarkTheme()
+    ThemeMode.LIGHT -> false
+    ThemeMode.DARK -> true
+}
+
+/**
+ * The Tune dial's face and dots for a set of colours: always a light face (the deck's when it is light, else a light
+ * grey) with dark dots, by day and by night, in every look and palette.
+ */
+fun dialColours(c: AtColors): Pair<Color, Color> {
+    val face = dev.autotune.dialFace(listOfNotNull(c.deck?.panel, c.panel, c.bg).map { it.argb() }, c.dark && (c.deck ?: c).dark)
+    val dots = dev.autotune.dialDots(face, listOfNotNull(c.deck?.text, c.text).map { it.argb() })
+    return Color(face) to Color(dots)
+}
 
 @Composable
 fun AutoTuneTheme(
     mode: ThemeMode, lookChoice: Look = Look.BRAUN, accent: dev.autotune.Accent = dev.autotune.Accent.LOOK,
     palette: Palette = Palette(), content: @Composable () -> Unit,
 ) {
-    val dark = when (mode) {
-        ThemeMode.SYSTEM -> isSystemInDarkTheme()
-        ThemeMode.LIGHT -> false
-        ThemeMode.DARK -> true
-    }
+    val dark = isNight(mode)
     val at = themeColors(lookChoice, dark, accent, palette)
     val scheme = atScheme(at)
     val view = LocalView.current
