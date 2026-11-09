@@ -983,6 +983,52 @@ fun mutedInk(ink: Long, grounds: List<Long>): Long {
 /** The text colour on an accent key: white or near-black, whichever reads better on [accent]. */
 fun onAccent(accent: Long): Long = if (contrast(0xFFFFFFFFL, accent) >= contrast(INK_DARK, accent)) 0xFFFFFFFFL else INK_DARK
 
+/** Where a palette ink reads (4.5:1): on every surface text sits on, on some of them, or on none. */
+enum class InkReach { ALL, SOME, NONE }
+
+fun inkReach(ink: Long, grounds: List<Long>): InkReach {
+    val ok = grounds.count { contrast(ink, it) >= 4.5 }
+    return when (ok) { grounds.size -> InkReach.ALL; 0 -> InkReach.NONE; else -> InkReach.SOME }
+}
+
+/**
+ * Whether a palette [ink] needs the look's day surfaces to be seen at all: it reads on none of the night surfaces
+ * ([night], the body and the deck as they would be) but on at least one of the day ones ([day]). A dark ink picked
+ * at night is otherwise dropped everywhere by [readableInk], so the choice would do nothing (reported after 2.8.1).
+ */
+fun inkNeedsDay(ink: Long?, night: List<Long>, day: List<Long>): Boolean =
+    ink != null && inkReach(ink, night) == InkReach.NONE && inkReach(ink, day) != InkReach.NONE
+
+/**
+ * The one status line under the palette's Ink field, or null when the ink simply applies: a note when it is not used
+ * on the plates at all ([applied] false, it would not read), or when it brought the light decks with it ([usesDay]).
+ */
+fun inkNote(ink: Long?, applied: Boolean, usesDay: Boolean): String? = when {
+    ink == null -> null
+    !applied -> "doesn't read on these colours"
+    usesDay -> "on light decks, so it reads"
+    else -> null
+}
+
+/** The Tune dial's face: the first light colour among [candidates] (dark ink reads 7:1 on it), else a light grey. */
+fun dialFace(candidates: List<Long>, night: Boolean): Long =
+    candidates.firstOrNull { contrast(it, INK_DARK) >= 7.0 } ?: if (night) 0xFFD5D5D2L else 0xFFF3F2EEL
+
+/** The dial's dots: the first of [inks] that is dark and reads 4.5:1 on [face], else near-black. */
+fun dialDots(face: Long, inks: List<Long>): Long =
+    inks.firstOrNull { contrast(it, face) >= 4.5 && contrast(it, 0xFFFFFFFFL) > contrast(it, 0xFF000000L) } ?: INK_DARK
+
+/**
+ * The system score (0-100) already worked out for run [runIdx]: the focus run's report ([focusIdx], [focusScore]) or
+ * one of the compared runs ([comparedIdx] with [comparedScores]). Null when none is known; nothing new is computed.
+ */
+fun knownScore(runIdx: Int, focusIdx: Int?, focusScore: Int?, comparedIdx: List<Int> = emptyList(), comparedScores: List<Int> = emptyList()): Int? =
+    if (focusIdx == runIdx && focusScore != null) focusScore
+    else comparedIdx.indexOf(runIdx).takeIf { it >= 0 }?.let { comparedScores.getOrNull(it) }
+
+/** The bottom key's second line on a test's results page: the move the Tune result will pin, in lower case. */
+fun nextLine(move: String?): String? = move?.let { "next: " + it.replaceFirstChar { c -> c.lowercase() } }
+
 // ---------------------------------------------------------------- deleting a run (2.1)
 
 /** Whether run [index] of [count] can be deleted on its own: any run but the stock reading (index 0). */

@@ -145,7 +145,7 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             DropSelect(ThemeMode.entries.map { it.title }, ThemeMode.entries.indexOf(s.themeMode), { vm.setThemeMode(ThemeMode.entries[it]) }, label = "Light or dark")
         }
 
-        if (isAdvanced()) PaletteEditor(s.palette, vm)
+        if (isAdvanced()) PaletteEditor(s.palette, vm, paletteInkNote(s.look, isNight(s.themeMode), s.palette))
 
         if (isAdvanced()) Group("Target curves", info = "A curve file is a text or CSV file with one “frequency, dB” pair per line, covering about 20 Hz to 20 kHz, for example a house curve you like. You can also tune a system until it sounds right and use “Keep this sound as a target” on the test's results.") {
             SecondaryButton("Import a curve file", pick.curve, icon = Ic.FILE)
@@ -171,13 +171,14 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
  * colour typed in. Changes show at once; Reset palette goes back to the look's own colours.
  */
 @Composable
-private fun PaletteEditor(p: dev.autotune.Palette, vm: TuneViewModel) {
+private fun PaletteEditor(p: dev.autotune.Palette, vm: TuneViewModel, inkNote: String? = null) {
     var custom by androidx.compose.runtime.remember { mutableStateOf<dev.autotune.PaletteSlot?>(null) }
     Group(
         "Palette",
         info = "Your own colours over the look. Body is the page, Deck the plates that hold each section, Ink the text, " +
             "Accent what is live or acted on, Hairline the edges and rules. “As the look” keeps the look's own. " +
-            "Text that would not read on your colours falls back to an ink that does. The accent set here wins over the Accent above.",
+            "Text that would not read on your colours falls back to an ink that does; a dark ink at night brings the light decks with it, so it shows. " +
+            "The accent set here wins over the Accent above.",
     ) {
         dev.autotune.PaletteSlot.entries.forEach { slot ->
             val choices = dev.autotune.paletteChoices(slot)
@@ -203,6 +204,8 @@ private fun PaletteEditor(p: dev.autotune.Palette, vm: TuneViewModel) {
                 },
                 label = slot.title, details = details, swatches = swatches,
             )
+            // a dark ink at night brings light decks with it; one that cannot read anywhere says so (a status, one line)
+            if (slot == dev.autotune.PaletteSlot.INK && inkNote != null) Muted(inkNote)
         }
         Actions { TextAction("Reset palette", vm::resetPalette, enabled = !p.isDefault, icon = Ic.UNDO) }
     }

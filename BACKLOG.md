@@ -28,10 +28,14 @@ From the flow maps in `FLOW.md`. Done: Set up is a draft, the EQ check decides t
 - **Route rules out of the screens.** `onEquipment` in EqTab and the `equipment` default in ApplyStep into one pure `applyRoute(...)` in TuningLogic with FlowTest cases; later split `TuneViewModel` (tune flow, measuring) into their own classes.
 - **Back up and restore tests.** Settings › Data (Advanced), reusing the diagnostics zip layout and TestStore's loader.
 
-## Palette, Tune screen, results and graphics (asked 2026-11-09): not built yet
-- **Palette: the dark colour is still not editable** (reported after 2.8.1, on the Ink menu). Check the Ink and other palette drop-downs on the phone, then fix.
-- **Tune screen: remove the top part** (the AUTOTUNE line, the Simple / Advanced key, the "Tune" title and the speaker graphic), so the screen starts with the dial.
-- **Tune dial: make the animation clearer** around the circle, and **the background should never be dark**: the dots on the dial should be dark, the background light.
-- **Test results: simplify and reduce text** for a clean look. The notes line becomes an icon only (no "1 note · Mic source…" text), and the actions go at the bottom (the "Next: Keep this EQ and finish" row moves into the bottom action area).
-- **Animate the graphics once when shown**: the reel graphic on the results page and the graphics on the other pages play one animation when they appear, then stay still.
-- **Show the score next to the dB score** on the results page and on the other pages (for example "4.6 dB" with the score beside it).
+## Palette, Tune screen, results and graphics (asked 2026-11-09): built, not released
+Done (unreleased, on the working branch; see HANDOVER "Palette fix, Tune screen…"):
+- **Palette: the dark colour is still not editable.** Cause: a dark ink read on no night surface, so it was dropped everywhere (and by day it was nearly the look's own ink). A dark ink at night now brings the light decks with it; the Ink field says so in one line.
+- **Tune screen: remove the top part.** The Tune screen starts with the dial; other tabs keep their header.
+- **Tune dial: clearer animation, never dark.** Light face and dark dots in every look; a sweep with a rim pointer goes round the circle; still with "Remove animations".
+- **Test results: simplify and reduce text.** Notes are a warning icon in the display's corner; the next move is the second line of the pinned key; the other choices sit at the bottom; verdict and resonance advice moved into bubbles.
+- **Animate the graphics once when shown.** The header graphics (the reels on the results page and the others) and the report card's meters move once, then stay still.
+- **Show the score next to the dB score** where it is already known: results display, Tune result, EQ step, tuned panel, runs list.
+Open follow-ups:
+- Check on the owner's phone: the dial's sweep, the arrival movements, the palette at night.
+- The Tests list rows show no score: it is not worked out for tests that are not open, and computing it there would be new work.

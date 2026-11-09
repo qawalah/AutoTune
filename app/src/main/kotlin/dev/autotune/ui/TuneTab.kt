@@ -88,11 +88,8 @@ private const val STEPS = 5
 
 @Composable
 private fun TuneHome(s: UiState, vm: TuneViewModel, pick: Pickers, go: (Tab) -> Unit) {
-    ScreenTitle(
-        "Tune", if (s.testName.isBlank()) null else dev.autotune.shortTestName(s.testName, "").first,
-        contextIcon = s.tests.firstOrNull { it.id == s.currentTestId }?.kind?.let { kindIcon(it) },
-    )
-    Column(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    // no header here: the screen starts with the dial (the wordmark, the mode key, the title and the speaker art went)
+    Column(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         PulsingButton("Tune", "new test", Ic.TUNE, enabled = !s.busy, onClick = vm::tuneStart)
         // the speaker says it all; Advanced adds controls, never a paragraph under it
     }
@@ -243,7 +240,7 @@ private fun ApplyStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> 
     val a = s.stock
     var useAnyway by rememberSaveable { mutableStateOf(false) }
     if (first && a != null && s.runs.isNotEmpty()) {
-        ResultSummary(s, showNext = false)
+        ResultSummary(s)
         if (a.suspicious && !useAnyway) {
             // a reading that looks wrong is measured again before any EQ is fitted to it
             PinAction("Measure the stock again", vm::tuneMeasureStock, icon = Ic.AGAIN)
@@ -261,7 +258,10 @@ private fun ApplyStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> 
                 first -> "Suggested EQ"
                 else -> "New suggested EQ after ${latest?.label}"
             },
-            if (first) null else latest?.let { "${it.label}: %.1f dB from target".format(it.rmsDb) },
+            if (first) null else latest?.let { r ->
+                val sc = dev.autotune.knownScore(r.index, s.selectedRuns.maxOrNull(), s.report?.overall, s.compare?.colorIdx.orEmpty(), s.compare?.scores.orEmpty())
+                "${r.label}: %.1f dB from target".format(r.rmsDb) + (sc?.let { " · score $it" } ?: "")
+            },
         )
         if (!isSuggestion) {
             Muted(s.eqSource)
@@ -349,7 +349,7 @@ private fun ResultStep(s: UiState, vm: TuneViewModel, pick: Pickers, openResults
         PinAction("Back to the EQ", { vm.tuneGo(TuneStep.APPLY) }, icon = Ic.BACK)
         return
     }
-    ResultSummary(s, showNext = false)
+    ResultSummary(s)
     s.chart?.let { Panel { ResponseChart(it, height = 200.dp) } }
 
     // one recommended move, worked out from the runs; everything else is listed under it
@@ -432,7 +432,9 @@ private fun TunedPanel(s: UiState, vm: TuneViewModel, pick: Pickers, go: (Tab) -
     val best = s.runs.drop(1).minByOrNull { it.rmsDb } ?: return
     Panel {
         CardTitle("Tuned")
-        ReadingCells(listOf(Reading("%.1f".format(best.rmsDb), "dB", "tuned"), Reading("%.1f".format(stock.rmsDb), "dB", "stock")))
+        // the score beside the dB where it is already known for that run
+        fun score(i: Int) = dev.autotune.knownScore(i, s.selectedRuns.maxOrNull(), s.report?.overall, s.compare?.colorIdx.orEmpty(), s.compare?.scores.orEmpty())
+        ReadingCells(listOf(Reading("%.1f".format(best.rmsDb), "dB", "tuned", score = score(best.index)), Reading("%.1f".format(stock.rmsDb), "dB", "stock")))
         Muted(
             when {
                 s.systemEqOn -> "AutoTune EQ is on with it."

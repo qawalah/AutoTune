@@ -176,10 +176,11 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
     ScreenTitle(dev.autotune.shortTestName(s.testName, dev.autotune.dsp.Target.ALL[s.targetIdx.coerceIn(0, dev.autotune.dsp.Target.ALL.size - 1)].name).first)
 
     if (s.runs.isNotEmpty()) {
-        // the same summary as the Tune result screens, then the one action; diagnostics follow, closed
-        // the page title names the test; the pinned button is the one next move
-        ResultSummary(s, showNext = true, namesTest = false)
-        PinAction("Continue tuning", { vm.tuneContinue(); go(Tab.MEASURE) }, icon = Ic.TUNE)
+        // the same summary as the Tune result screens; the page title names the test
+        ResultSummary(s, namesTest = false)
+        // the one action at the bottom, with the move it leads to on its second line and why in its hint
+        val (next, why) = resultNext(s)
+        PinAction("Continue tuning", { vm.tuneContinue(); go(Tab.MEASURE) }, icon = Ic.TUNE, hint = why, sub = next)
         // The response is the visual proof of the result; keep its legend directly with the plot.
         s.chart?.let { c ->
             Panel {
@@ -188,10 +189,6 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
         }
         // the runs to draw, right under the graph they change; any run but the stock can be deleted from here
         RunsDeck(s, vm)
-        Actions {
-            TextAction("Open the EQ", { go(Tab.EQ) }, icon = Ic.EQ)
-            TextAction("AI review", vm::aiOpen, icon = Ic.AI)
-        }
     }
 
     if (s.runs.isEmpty()) {
@@ -203,7 +200,12 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
         PinAction("Start tuning", { vm.tuneContinue(); go(Tab.MEASURE) }, icon = Ic.TUNE)
     } else {
         FollowAndChecks(s, vm)
-        // Simple stops here: the summary, the graph and the checks; the rest is in Advanced
+        // the other choices, under the result and above the details, one per row
+        Actions {
+            TextAction("Open the EQ", { go(Tab.EQ) }, icon = Ic.EQ)
+            TextAction("AI review", vm::aiOpen, icon = Ic.AI)
+        }
+        // Simple stops here: the summary, the graph, the checks and the other choices; the rest is in Advanced
         if (isAdvanced()) {
         TargetSoundFold(s, vm)
         DetailsHeading()
@@ -385,8 +387,13 @@ fun ReportCard(r: SystemReport, label: String) {
                 if (r.potential > r.overall + 2) Muted("about ${r.potential} after EQ")
             }
         }
-        Text(r.verdict, style = MaterialTheme.typography.bodyMedium)
-        Muted("Based on $label")
+        // the verdict is an explanation: in its bubble, with the run it is based on as the one fact line
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Muted("based on ${label.lowercase()}", Modifier.weight(1f))
+            InfoButton("Report card", r.verdict, small = true)
+        }
+        // the meters fill once when the card opens, then stay
+        val fill = rememberArrival("report", 700)
         r.categories.forEach { c ->
             // one meter per category, like the level meter of a Braun receiver: a lowercase label, the figure, a
             // square slot ruled at 50 and 75 with an ink bar; what the category means sits in its bubble
@@ -409,7 +416,7 @@ fun ReportCard(r: SystemReport, label: String) {
                 ) {
                     val hair = 1.dp.toPx()
                     drawRect(meter.bg)
-                    drawRect(meter.text.copy(alpha = 0.75f), size = androidx.compose.ui.geometry.Size(size.width * (c.score / 100f).coerceIn(0f, 1f), size.height))
+                    drawRect(meter.text.copy(alpha = 0.75f), size = androidx.compose.ui.geometry.Size(size.width * (c.score / 100f).coerceIn(0f, 1f) * fill.value, size.height))
                     listOf(0.5f, 0.75f).forEach { t -> drawLine(meter.line, androidx.compose.ui.geometry.Offset(size.width * t, 0f), androidx.compose.ui.geometry.Offset(size.width * t, size.height), hair) }
                     drawRect(meter.line, style = androidx.compose.ui.graphics.drawscope.Stroke(hair))
                 }
@@ -431,9 +438,10 @@ private fun ResonanceGroup(s: UiState) {
     ) {
         s.resonances.forEach { r ->
             val t60 = r.t60Ms?.let { "  rings ${if (r.t60IsLowerBound) ">" else "~"}%.0f ms".format(it) } ?: ""
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("%.0f Hz   +%.1f dB   Q %.1f%s".format(r.freqHz, r.prominenceDb, r.q, t60), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures)
-                Muted(r.suggestion)
+            // the figures on the page, what to do about it in the bubble
+            Row(Modifier.heightIn(min = 36.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("%.0f Hz   +%.1f dB   Q %.1f%s".format(r.freqHz, r.prominenceDb, r.q, t60), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures)
+                InfoButton("%.0f Hz".format(r.freqHz), r.suggestion, small = true)
             }
         }
     }
@@ -446,7 +454,8 @@ private fun RunsDeck(s: UiState, vm: TuneViewModel) {
     var confirm by remember { mutableStateOf<Int?>(null) }
     Group(
         "Runs", divider = false,
-        info = "Tick the runs to draw on the graph. The stock run (no EQ) is your permanent reference and stays.\n\nThe EQ and the export follow the latest ticked run.",
+        info = "Tick the runs to draw on the graph. The stock run (no EQ) is your permanent reference and stays.\n\nThe EQ and the export follow the latest ticked run. " +
+            "The score (0-100) beside a run's dB rates the system itself; it shows for the ticked runs.",
         trailing = {
             if (s.runs.size > 2 && isAdvanced()) {
                 val all = s.selectedRuns.size == s.runs.size
@@ -467,6 +476,9 @@ private fun RunsDeck(s: UiState, vm: TuneViewModel) {
                     Text(r.label, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                     Text(r.whenText, style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
                 }
+                // the score beside the dB where it is already known (the focus run, or the compared runs)
+                dev.autotune.knownScore(r.index, s.selectedRuns.maxOrNull(), s.report?.overall, s.compare?.colorIdx.orEmpty(), s.compare?.scores.orEmpty())
+                    ?.let { ScoreTag(it, Modifier.padding(end = 8.dp)) }
                 Text("%.1f".format(r.rmsDb), style = MaterialTheme.typography.titleMedium, fontFamily = AtFigures)
                 Text(" dB", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
                 if (dev.autotune.canDeleteRun(r.index, s.runs.size)) IconAction(Ic.TRASH, "Delete ${r.label}") { confirm = r.index }

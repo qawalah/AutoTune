@@ -111,7 +111,7 @@ Every look is a Braun look (`Look` in `ui/Theme.kt`), each with a day and a nigh
 - **Pilot green** (`good`): on states and improvements. **Warn** and **bad**: cautions, always beside an icon.
 - **Teak** (`teak`): the cheeks down both screen edges. Never elsewhere.
 - **Runs**: the stock is grey ink, drawn dashed; later runs are inks (blue, green, violet…), the same colour everywhere.
-- **Palette** (Settings, Advanced): the user can set body, deck, ink, accent and hairline over any look, each a drop-down of Braun colours, the look's own, or a typed hex colour (`Palette`, `withPalette`). Text that would not read on the chosen colours falls back to an ink that does (`readableInk`, 4.5:1). Reset palette returns to the look's own.
+- **Palette** (Settings, Advanced): the user can set body, deck, ink, accent and hairline over any look, each a drop-down of Braun colours, the look's own, or a typed hex colour (`Palette`, `withPalette`). Text that would not read on the chosen colours falls back to an ink that does (`readableInk`, 4.5:1). A dark ink picked at night brings the look's light decks with it (`usesDaySurfaces`; a look without decks takes its day version), because no night surface could carry it and the pick would otherwise do nothing; one status line under the Ink field says so. Reset palette returns to the look's own.
 
 ## Typography
 
@@ -119,7 +119,8 @@ Inter, one family, as Braun used one grotesk. Weight carries the hierarchy, and 
 
 - **Display** (Light 42): the main reading. **Headline** (Medium 21–26): step titles. **Title** (Medium 14–18). **Body** (14). **Label** (Medium 11, +0.6 tracking).
 - **The wordmark** is the name as a mark: **AUTOTUNE**, bold capitals, spaced (`Wordmark`), on the header, the measuring screen and the AI review.
-- **The header keeps one Samsung One UI feature, and only that one**: a tall space at the top (about a quarter of the screen) holds the screen's name in large type beside the face of a Braun hi-fi component (`HeaderArt`), so the content starts lower, nearer the thumb. The name is centred on the graphic's height, so the two read as one unit. Tests is a record player (platter, record, tonearm), EQ a fader strip, Tune the round speaker grille, Live a radio tuning scale with its needle over a slot grille of level bars, Settings a row of push keys and knobs, anything else a tape deck's reels. Flat, deck greys and aluminium, the accent only on one pilot light, needle or key.
+- **The header keeps one Samsung One UI feature, and only that one**: a tall space at the top (about a quarter of the screen) holds the screen's name in large type beside the face of a Braun hi-fi component (`HeaderArt`), so the content starts lower, nearer the thumb. The name is centred on the graphic's height, so the two read as one unit. Tests is a record player (platter, record, tonearm), EQ a fader strip, Tune the round speaker grille, Live a radio tuning scale with its needle over a slot grille of level bars, Settings a row of push keys and knobs, anything else a tape deck's reels. Flat, deck greys and aluminium, the accent only on one pilot light, needle or key. Each plays one short movement when it appears (the reels turn, the tonearm swings in, the faders rise, the needle glides, the knobs turn, the pilot lights last) and then stays still (`rememberArrival`).
+- **The Tune tab has no header** (since the 2026-11-09 review): its screen starts with the dial, and its steps with the step header. Every other tab and page keeps the header below.
 - **The top line** is the same in every form: the wordmark at the start (Back on a page), the Simple / Advanced key exactly in the middle (`CentreRow`), and nothing else. The key never moves when the header changes shape. There is no menu.
 - **It folds with the scroll** (`ScreenHeader`, `HeaderFace`): as the content moves up, the graphic shrinks and glides into the right corner of the slim bar as a small version of itself (28dp high, the key's height), and the large name moves and scales into the bar's start; the wordmark makes way before the name arrives. Scrolling back to the very top grows it all back out. Everything follows the scroll offset in the draw phase. With "Remove animations" the tall parts scroll away with the content and the slim name and small graphic switch on once they have gone.
 - **When it is tall**: the header's room is part of every screen's content, so the full header always comes back when the content is scrolled **all the way to the top**, and only then; part-way down the slim bar stays. A screen opens tall on a fresh open only (a cold start, or a return after 15 minutes or more in the background, `freshOpen`), every tab once. Jumping between tabs, Back to a tab, and pages open with the header folded and the content high (`compactOpenScroll`), or where they were left if that is further down.
@@ -132,7 +133,7 @@ One column, 16dp margins, 16dp between sections. Five tabs: Tests, EQ, **Tune** 
 
 **Words on the page.** Labels, readings and one-line facts only. Explanations live in info bubbles (`InfoButton`, `info =` on drop-downs, groups and folds). Cautions fold into one `Alerts` line.
 
-**Results open with the answer.** The display (big light reading, the change from stock, the best), one short headline, every warning and finding folded into one "N notes" line, and "Next: …". Test names made by the app show as their date; target names are not repeated on lists.
+**Results open with the answer.** The display (big light reading with its system score beside it, the change from stock, the best), one short headline, and every warning and finding behind one warning icon in the display's corner (`AlertsIcon`; a tap lists them). On a test's results page the next move is the second line of the pinned key ("next: keep this EQ and finish"), and the other choices sit at the bottom, above Details. Test names made by the app show as their date; target names are not repeated on lists.
 
 **Tuning is five steps**: Set up · Stock · EQ (the stock review on top) · Verify · Result.
 
@@ -147,7 +148,8 @@ Flat. A section is a **deck** (`Panel`, `Group`, `Fold`, `RunSheet`): a light pl
 - **Tab labels** are title case under each key ("EQ" in capitals). **EQ on** latches the EQ key down, shaded from the rim like a pressed push key; no text, no dot.
 - **Tune button**: the centre of the key row, a round push button in the accent with the Tune mark, the tuning knob. Chosen, it is pressed in (graphite, a step lower); a ring pulses round it while a measurement runs on another tab.
 - **Measuring screen**: the live level large and light with a pilot light, the sweep on a radio dial (20 Hz–20 kHz, needle follows the tone), the waveform in ink, the level on a needle meter, checks as pilot lights.
-- **The speaker** (`PulsingButton`, Tune home): a Braun speaker front, the T 3's perforated circle in an aluminium rim, with the round Tune key in the accent at its centre. While waiting, a soft wave runs out through the holes.
+- **The speaker** (`PulsingButton`, Tune home, the first thing on the screen): a Braun speaker front, the T 3's perforated circle in an aluminium rim, with the round Tune key in the accent at its centre. The face is always light and the holes dark, in every look by day and night (`dialColours`). While waiting, a sweep goes round the circle like a tuning pointer: a short dark arc rides the rim and the holes it passes darken and fade behind it. Still with "Remove animations".
+- **Score**: the system score (0-100, `ScoreTag`) sits beside a dB reading wherever it is already worked out (the focus run's report card, the compared runs); nothing new is computed for it.
 - **Display** (`RunSheet`, `ReadingCells`): the result's deck has a lettering line (test, run, date), then the readings: the main one large and light, the change from stock and the best beside it.
 - **Buttons**: `PrimaryButton` a graphite key; `SecondaryButton` a key-grey key with a hairline edge; `TextAction` in `Actions { }` a full-width key-grey row with icon and chevron.
 - **Drop-downs** (`DropSelect`, `PickField`, `GroupedPick`): key-grey fields with a chevron.
@@ -158,7 +160,7 @@ Flat. A section is a **deck** (`Panel`, `Group`, `Fold`, `RunSheet`): a light pl
 
 ## Icons
 
-**The mark is a tuning knob**: the round, ridged knob of a Braun radio with its pointer cut in, set towards the upper right, and a short scale of five ticks over its upper half (as on the T 3 and SK 4 dials). It is Tune's icon (`Ic.TUNE`) on the round Tune key, the Tune main keys and "Start / Continue tuning", the app icon (graphite knob with a lighter face and a **red pointer**, the one red element, graphite scale, on #E3E3E0), the themed icon and the status bar icon (white on transparent). The speaker grille on the Tune home screen keeps the word "Tune" on its key. **Settings is a gear** (`Ic.GEAR`): a round hub with its hole and eight square teeth, drawn as one outline. Knob and gear must never look alike: the knob is filled and nearly round, the gear an outline with deep square teeth.
+**The mark is a tuning knob**: the round, ridged knob of a Braun radio with its pointer cut in, set towards the upper right, and a short scale of five ticks over its upper half (as on the T 3 and SK 4 dials). It is Tune's icon (`Ic.TUNE`) on the round Tune key, the Tune main keys and "Start / Continue tuning", the app icon (graphite knob with a lighter face and a **red pointer**, the one red element, graphite scale, on #E3E3E0), the themed icon and the status bar icon (white on transparent). The speaker on the Tune screen keeps the word "Tune" on its key. **Settings is a gear** (`Ic.GEAR`): a round hub with its hole and eight square teeth, drawn as one outline. Knob and gear must never look alike: the knob is filled and nearly round, the gear an outline with deep square teeth.
 
 One family (`Ic`, drawn in `drawIc` in `ui/Kit.kt`), in the language of the launcher and notification icons:
 - A 24-unit grid, one stroke weight (1.8 units), readable at 20dp.
@@ -170,7 +172,7 @@ One family (`Ic`, drawn in `drawIc` in `ui/Kit.kt`), in the language of the laun
 
 ## Motion
 
-Short and mechanical. Arrivals ease out (`EaseArrive`), exits are quick (`EaseLeave`). Tabs slide from the side of the key you pressed; pages rise and drop; keys press in to 0.97; the wheel turns; the needle glides. No bounce, glow or gradient for show. `motionMs()` and `animationsOn()` follow "Remove animations".
+Short and mechanical. Arrivals ease out (`EaseArrive`), exits are quick (`EaseLeave`). Tabs slide from the side of the key you pressed; pages rise and drop; keys press in to 0.97; the wheel turns; the needle glides. No bounce, glow or gradient for show. Graphics move once when they appear and then stay still; only the Tune dial's sweep and live readings keep moving. `motionMs()` and `animationsOn()` follow "Remove animations".
 
 ## Do's and Don'ts
 

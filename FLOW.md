@@ -52,7 +52,7 @@ Every measurement starts the moment its key is pressed. Stock and Verify are mea
 | EQ, after stock | Use the phone's EQ and measure; Measure the stock again when the stock looks wrong; It's set, measure on equipment | Preview in the app, Set it on my equipment; Advanced: target, sliders, bands, files, AI |
 | Result | Apply the new suggested EQ, Keep this EQ and finish, Keep the EQ of run n, Check the EQ reaches the speakers, Measure again, Set it on my equipment, or Switch on the phone's EQ and measure | The other moves, Measure again, Ask AI, All results, Discard |
 | Tune screen after Keep | Use this EQ whenever <device> connects (phone EQ, Bluetooth route), else Open the EQ | Tune (new test), Continue |
-| Test results page | Continue tuning | Open the EQ, AI review |
+| Test results page | Continue tuning, with the move it leads to on its second line ("next: …") | Open the EQ, AI review (at the bottom, above Details) |
 
 ## Navigation map
 
