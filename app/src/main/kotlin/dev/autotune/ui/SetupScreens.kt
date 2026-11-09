@@ -2,7 +2,6 @@
 
 package dev.autotune.ui
 
-import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -126,7 +125,7 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             }
         }
 
-        Group("Appearance", info = "Keep the interface quiet and readable. The Braun look uses warm neutrals, graphite controls and a restrained signal accent.") {
+        Group("Appearance", info = "Keep the interface quiet and readable. Every look is after Braun: warm neutrals, graphite controls and one restrained accent.") {
             DropSelect(
                 Look.entries.map { it.title }, Look.entries.indexOf(s.look), { vm.setLook(Look.entries[it]) }, label = "Look",
                 details = Look.entries.map { it.detail }, icon = Ic.EQ,
@@ -144,10 +143,9 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
                 info = "The accent marks what is live or what you act on: the Tune record, the needle, the pilot light and the EQ.",
             )
             DropSelect(ThemeMode.entries.map { it.title }, ThemeMode.entries.indexOf(s.themeMode), { vm.setThemeMode(ThemeMode.entries[it]) }, label = "Light or dark")
-            if (Build.VERSION.SDK_INT >= 31) {
-                SwitchRow("Use my wallpaper colours", s.dynamicColor, vm::setDynamicColor)
-            }
         }
+
+        if (isAdvanced()) PaletteEditor(s.palette, vm)
 
         if (isAdvanced()) Group("Target curves", info = "A curve file is a text or CSV file with one “frequency, dB” pair per line, covering about 20 Hz to 20 kHz, for example a house curve you like. You can also tune a system until it sounds right and use “Keep this sound as a target” on the test's results.") {
             SecondaryButton("Import a curve file", pick.curve, icon = Ic.FILE)
@@ -166,4 +164,71 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             Muted("Type set in Inter, licensed under the SIL Open Font License 1.1.")
         }
     }
+}
+
+/**
+ * The palette: body, deck, ink, accent and hairline, each a drop-down of Braun's colours, the look's own, or a hex
+ * colour typed in. Changes show at once; Reset palette goes back to the look's own colours.
+ */
+@Composable
+private fun PaletteEditor(p: dev.autotune.Palette, vm: TuneViewModel) {
+    var custom by androidx.compose.runtime.remember { mutableStateOf<dev.autotune.PaletteSlot?>(null) }
+    Group(
+        "Palette",
+        info = "Your own colours over the look. Body is the page, Deck the plates that hold each section, Ink the text, " +
+            "Accent what is live or acted on, Hairline the edges and rules. “As the look” keeps the look's own. " +
+            "Text that would not read on your colours falls back to an ink that does. The accent set here wins over the Accent above.",
+    ) {
+        dev.autotune.PaletteSlot.entries.forEach { slot ->
+            val choices = dev.autotune.paletteChoices(slot)
+            val now = p[slot]
+            val own = now != null && choices.none { it.argb == now }
+            // the look's own, the presets, the typed colour when there is one, and a way to type one
+            val names = listOf("As the look") + choices.map { it.name } + (if (own) listOf(dev.autotune.hexColour(now!!)) else emptyList()) + "Custom…"
+            val details = listOf<String?>(null) + choices.map { dev.autotune.hexColour(it.argb) } + (if (own) listOf<String?>("your colour") else emptyList()) + "type a hex colour"
+            val swatches = listOf<androidx.compose.ui.graphics.Color?>(null) + choices.map { androidx.compose.ui.graphics.Color(it.argb) } +
+                (if (own) listOf(androidx.compose.ui.graphics.Color(now!!)) else emptyList()) + null
+            val selected = when {
+                now == null -> 0
+                own -> names.size - 2
+                else -> 1 + choices.indexOfFirst { it.argb == now }
+            }
+            DropSelect(
+                names, selected, { i ->
+                    when {
+                        i == 0 -> vm.setPaletteColour(slot, null)
+                        i == names.size - 1 -> custom = slot
+                        i <= choices.size -> vm.setPaletteColour(slot, choices[i - 1].argb)
+                    }
+                },
+                label = slot.title, details = details, swatches = swatches,
+            )
+        }
+        Actions { TextAction("Reset palette", vm::resetPalette, enabled = !p.isDefault, icon = Ic.UNDO) }
+    }
+    custom?.let { slot -> HexColourDialog(slot.title, p[slot], { vm.setPaletteColour(slot, it); custom = null }, { custom = null }) }
+}
+
+/** Type a colour as #RGB or #RRGGBB; Use only lights up for a colour that parses. */
+@Composable
+private fun HexColourDialog(title: String, start: Long?, onUse: (Long) -> Unit, onDismiss: () -> Unit) {
+    var text by androidx.compose.runtime.remember { mutableStateOf(start?.let { dev.autotune.hexColour(it) } ?: "#") }
+    val parsed = dev.autotune.parseHexColour(text)
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("$title colour") },
+        text = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = text, onValueChange = { text = it.take(9) }, singleLine = true, modifier = Modifier.weight(1f),
+                    isError = parsed == null && text.length > 1,
+                    supportingText = { Text(if (parsed == null) "#RGB or #RRGGBB" else dev.autotune.hexColour(parsed)) },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                )
+                Swatch(parsed?.let { androidx.compose.ui.graphics.Color(it) } ?: At.c.panelHigh, 40.dp)
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { parsed?.let(onUse) }, enabled = parsed != null) { Text("Use") } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }

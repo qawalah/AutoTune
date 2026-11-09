@@ -705,7 +705,6 @@ private fun VSlider(value: Double, onChange: (Double) -> Unit, label: String, en
     val fill = (if (value < 0) At.c.bad else At.c.signal).let { if (enabled) it else it.copy(alpha = 0.45f) }
     val zero = At.c.muted
     val thumb = if (enabled) At.c.text else At.c.muted
-    val style = At.c.slider
     val latest = androidx.compose.runtime.rememberUpdatedState(onChange)
     fun at(y: Float, h: Float): Double = (Math.round((range - 2 * range * (y / h).coerceIn(0f, 1f)) * 2) / 2.0)
     androidx.compose.foundation.Canvas(
@@ -719,58 +718,25 @@ private fun VSlider(value: Double, onChange: (Double) -> Unit, label: String, en
         val bottom = size.height - pad
         val yOf = { v: Double -> (top + (bottom - top) * ((range - v) / (2 * range))).toFloat() }
         fun o(x: Float, y: Float) = androidx.compose.ui.geometry.Offset(x, y)
-        when (style) {
-            SliderStyle.ROUND -> {
-                drawLine(track, o(cx, top), o(cx, bottom), strokeWidth = 4.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                drawLine(fill, o(cx, yOf(0.0)), o(cx, yOf(value)), strokeWidth = 4.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                drawLine(zero, o(cx - 12.dp.toPx(), yOf(0.0)), o(cx + 12.dp.toPx(), yOf(0.0)), strokeWidth = 1.5.dp.toPx())
-                drawCircle(thumb, 9.dp.toPx(), o(cx, yOf(value)))
-                drawCircle(fill, 5.dp.toPx(), o(cx, yOf(value)))
-            }
-            SliderStyle.FADER -> {
-                // a mixing-desk fader: a dark slot, scale ticks every 3 dB, and a flat cap with a centre line
-                for (d in -12..12 step 3) {
-                    val y = yOf(d.toDouble())
-                    val w = if (d == 0) 13.dp.toPx() else 8.dp.toPx()
-                    drawLine(if (d == 0) zero else track, o(cx - w - 7.dp.toPx(), y), o(cx - 7.dp.toPx(), y), strokeWidth = 1.dp.toPx())
-                    drawLine(if (d == 0) zero else track, o(cx + 7.dp.toPx(), y), o(cx + w + 7.dp.toPx(), y), strokeWidth = 1.dp.toPx())
-                }
-                drawRoundRect(
-                    androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f), o(cx - 3.dp.toPx(), top),
-                    androidx.compose.ui.geometry.Size(6.dp.toPx(), bottom - top), androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()),
-                )
-                drawLine(fill, o(cx, yOf(0.0)), o(cx, yOf(value)), strokeWidth = 2.dp.toPx())
-                val capW = 30.dp.toPx(); val capH = 18.dp.toPx(); val y = yOf(value)
-                drawRoundRect(thumb, o(cx - capW / 2, y - capH / 2), androidx.compose.ui.geometry.Size(capW, capH), androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()))
-                drawRoundRect(
-                    androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.18f), o(cx - capW / 2, y + capH / 2 - 4.dp.toPx()),
-                    androidx.compose.ui.geometry.Size(capW, 4.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
-                )
-                drawLine(fill, o(cx - capW / 2 + 3.dp.toPx(), y), o(cx + capW / 2 - 3.dp.toPx(), y), strokeWidth = 2.5.dp.toPx())
-            }
-            SliderStyle.LED -> {
-                // a column of LEDs: lit from 0 dB to the value, the top one at the value brightest
-                val n = 24
-                val segH = (bottom - top) / n
-                for (i in 0 until n) {
-                    val lo = range - 2 * range * (i + 1) / n
-                    val hi = range - 2 * range * i / n
-                    val mid = (lo + hi) / 2
-                    val lit = if (value >= 0) mid in 0.0..value else mid in value..0.0
-                    val atValue = value in lo..hi
-                    val col = when {
-                        atValue -> thumb
-                        lit -> fill
-                        else -> track.copy(alpha = 0.55f)
-                    }
-                    drawRoundRect(
-                        col, o(cx - 9.dp.toPx(), top + i * segH + 1.dp.toPx()),
-                        androidx.compose.ui.geometry.Size(18.dp.toPx(), segH - 2.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(1.5.dp.toPx()),
-                    )
-                }
-                drawLine(zero, o(cx - 14.dp.toPx(), yOf(0.0)), o(cx + 14.dp.toPx(), yOf(0.0)), strokeWidth = 1.dp.toPx())
-            }
+        // a mixing-desk fader: a dark slot, scale ticks every 3 dB, and a flat cap with a centre line
+        for (d in -12..12 step 3) {
+            val y = yOf(d.toDouble())
+            val w = if (d == 0) 13.dp.toPx() else 8.dp.toPx()
+            drawLine(if (d == 0) zero else track, o(cx - w - 7.dp.toPx(), y), o(cx - 7.dp.toPx(), y), strokeWidth = 1.dp.toPx())
+            drawLine(if (d == 0) zero else track, o(cx + 7.dp.toPx(), y), o(cx + w + 7.dp.toPx(), y), strokeWidth = 1.dp.toPx())
         }
+        drawRoundRect(
+            androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f), o(cx - 3.dp.toPx(), top),
+            androidx.compose.ui.geometry.Size(6.dp.toPx(), bottom - top), androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()),
+        )
+        drawLine(fill, o(cx, yOf(0.0)), o(cx, yOf(value)), strokeWidth = 2.dp.toPx())
+        val capW = 30.dp.toPx(); val capH = 18.dp.toPx(); val y = yOf(value)
+        drawRoundRect(thumb, o(cx - capW / 2, y - capH / 2), androidx.compose.ui.geometry.Size(capW, capH), androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()))
+        drawRoundRect(
+            androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.18f), o(cx - capW / 2, y + capH / 2 - 4.dp.toPx()),
+            androidx.compose.ui.geometry.Size(capW, 4.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
+        )
+        drawLine(fill, o(cx - capW / 2 + 3.dp.toPx(), y), o(cx + capW / 2 - 3.dp.toPx(), y), strokeWidth = 2.5.dp.toPx())
     }
 }
 

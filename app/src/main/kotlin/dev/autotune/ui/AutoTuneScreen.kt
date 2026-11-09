@@ -222,7 +222,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     BackHandler(s.measureView != null) { if (s.busy) vm.cancel() else vm.closeMeasureView() }
 
     val viewMode = androidx.compose.runtime.remember(s.advanced) { ViewMode(s.advanced, vm::setAdvanced) }
-    AutoTuneTheme(s.themeMode, s.dynamicColor, s.look, s.accent) {
+    AutoTuneTheme(s.themeMode, s.look, s.accent, s.palette) {
       androidx.compose.runtime.CompositionLocalProvider(
           LocalPin provides pin, LocalViewMode provides viewMode,
       ) {

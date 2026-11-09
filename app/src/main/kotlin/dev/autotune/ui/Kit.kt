@@ -611,11 +611,14 @@ val CardShape = RoundedCornerShape(8.dp)
 /** The colours a deck draws with: the look's deck colours where it has them (Braun's light decks on a dark body). */
 val deckColors: AtColors @Composable get() = At.c.deck ?: At.c
 
-/** The deck's plate: its colour and a hairline edge. */
+/** The deck's plate: its colour and a hairline edge, plain or, in the Gradient edge look, shaded dark to light. */
 @Composable
 fun Modifier.deckPlate(): Modifier {
     val d = deckColors
-    return this.clip(CardShape).background(d.panel).border(1.dp, d.line, CardShape)
+    val plate = this.clip(CardShape).background(d.panel)
+    val e = d.edge
+    return if (e != null) plate.border(1.dp, androidx.compose.ui.graphics.Brush.verticalGradient(e), CardShape)
+    else plate.border(1.dp, d.line, CardShape)
 }
 
 /** Everything in [content] takes the deck's colours, Material's included, so text and keys read on the plate. */
@@ -1321,6 +1324,7 @@ fun TextAction(text: String, onClick: () -> Unit, enabled: Boolean = true, dange
 fun DropSelect(
     options: List<String>, selected: Int, onSelect: (Int) -> Unit, enabled: Boolean = true,
     label: String? = null, details: List<String?>? = null, icon: Ic? = null, icons: List<Ic>? = null, info: String? = null,
+    swatches: List<Color?>? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
@@ -1333,6 +1337,7 @@ fun DropSelect(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val shown = icons?.getOrNull(selected) ?: icon
+                swatches?.getOrNull(selected)?.let { Swatch(it); androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp)) }
                 // the field's icon is lettering, in ink; the menu marks the chosen option in the accent
                 if (shown != null) { AtIcon(shown, if (enabled) At.c.text else At.c.muted, size = 20.dp); androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp)) }
                 Text(
@@ -1350,7 +1355,8 @@ fun DropSelect(
                                 details?.getOrNull(i)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = At.c.muted) }
                             }
                         },
-                        leadingIcon = icons?.getOrNull(i)?.let { ic -> { AtIcon(ic, if (i == selected) At.c.signal else At.c.muted, size = 20.dp) } },
+                        leadingIcon = icons?.getOrNull(i)?.let { ic -> { AtIcon(ic, if (i == selected) At.c.signal else At.c.muted, size = 20.dp) } }
+                            ?: swatches?.getOrNull(i)?.let { col -> { Swatch(col) } },
                         trailingIcon = { if (i == selected) AtIcon(Ic.CHECK, At.c.signal, size = 18.dp) },
                         onClick = { open = false; onSelect(i) },
                     )
@@ -1358,6 +1364,12 @@ fun DropSelect(
             }
         }
     }
+}
+
+/** A small square of a colour with a hairline edge, for the palette's drop-downs. */
+@Composable
+fun Swatch(c: Color, size: Dp = 20.dp) {
+    Box(Modifier.size(size).clip(MaterialTheme.shapes.extraSmall).background(c).border(1.dp, At.c.line, MaterialTheme.shapes.extraSmall))
 }
 
 /**

@@ -72,7 +72,7 @@ class ShotsTest {
     )
 
     @Composable private fun Frame(dark: Boolean, look: Look = Look.BRAUN, adv: Boolean = false, nav: Tab? = Tab.MEASURE, accent: Accent = Accent.LOOK, content: @Composable () -> Unit) {
-        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, look, accent) {
+        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, look, accent) {
             val slot = androidx.compose.runtime.remember { PinSlot() }
             androidx.compose.runtime.CompositionLocalProvider(LocalPin provides slot, LocalViewMode provides ViewMode(adv) {}) {
                 androidx.compose.material3.Surface(color = At.c.bg, contentColor = At.c.text) {
@@ -117,7 +117,7 @@ class ShotsTest {
         dev.autotune.audio.LiveCapture.level.value = -28f
         dev.autotune.audio.LiveCapture.wave.value = FloatArray(512) { i -> (Math.sin(i * 0.31) * 0.6 + Math.sin(i * 1.7) * 0.25 + Math.sin(i * 0.05) * 0.3).toFloat() }
         dev.autotune.audio.LiveCapture.playStartMs = System.currentTimeMillis() - 7300
-        paparazzi.snapshot(name) { AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false) { MeasureOverlay(mv, s.copy(busy = busy), vm) } }
+        paparazzi.snapshot(name) { AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT) { MeasureOverlay(mv, s.copy(busy = busy), vm) } }
     }
     @Test fun m1_measuring() = mshot("m1_measuring", MeasureView("Run 3", MeasureStage.MEASURING, "", checksWait, 1, 1, true), true)
     @Test fun m2_analysing() = mshot("m2_analysing", MeasureView("Run 3", MeasureStage.ANALYSING, "Checking the reading", checksDone.take(5) + checksWait.drop(5), 1, 1, true), true)
@@ -157,7 +157,7 @@ class ShotsTest {
         chat = listOf(dev.autotune.ai.AiTurn("user", "Should I change the crossover?"), dev.autotune.ai.AiTurn("assistant", "Not yet. The 50-63 Hz dip is below the sub's crossover, so phase is the first thing to try; if flipping it does not help, then try moving the crossover from 80 to 63 Hz.")),
     )
     private fun ashot(name: String, a: AiUi, dark: Boolean = true) = paparazzi.snapshot(name) {
-        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false) {
+        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT) {
             androidx.compose.material3.Surface(color = At.c.bg, contentColor = At.c.text) { AiScreen(a, s, vm) {} }
         }
     }
@@ -197,14 +197,14 @@ class ShotsTest {
         TargetSoundFold(s.copy(targetIdx = 3, bassDb = 4.0, trebleDb = -2.0), vm, startOpen = true)
     }
 
-    @Test fun w1_look_console() = shot("w1_look_console", look = Look.CONSOLE) { EqTab(s, vm, {}, pick) }
-    @Test fun w2_look_hifi() = shot("w2_look_hifi", look = Look.HIFI) { EqTab(s, vm, {}, pick) }
-    @Test fun w3_look_vu() = shot("w3_look_vu", dark = false, look = Look.VU) { EqTab(s, vm, {}, pick) }
-    @Test fun w4_look_synth() = shot("w4_look_synth", look = Look.SYNTH) { EqTab(s, vm, {}, pick) }
+    @Test fun w1_look_gradient() = shot("w1_look_gradient", look = Look.GRADIENT) { EqTab(s, vm, {}, pick) }
+    @Test fun w2_look_black() = shot("w2_look_black", look = Look.BRAUN_BLACK) { EqTab(s, vm, {}, pick) }
+    @Test fun w3_look_white() = shot("w3_look_white", dark = false, look = Look.WHITE) { EqTab(s, vm, {}, pick) }
+    @Test fun w4_look_graphite() = shot("w4_look_graphite", look = Look.BRAUN_GRAPHITE) { EqTab(s, vm, {}, pick) }
     @Test fun t6b_verify_advanced() = shot("t6b_verify_advanced", adv = true) { tune(s.copy(tuneStep = TuneStep.VERIFY, applyWay = ApplyWay.IN_APP, positions = 1))() }
-    @Test fun t6c_verify_phone_mic() = shot("t6c_verify_phone_mic", look = Look.HIFI) { tune(s.copy(tuneStep = TuneStep.VERIFY, applyWay = ApplyWay.IN_APP, positions = 1, phoneMic = true, micName = null, calibrationName = null, outputName = "Phone speaker"))() }
-    @Test fun w6_look_navy() = shot("w6_look_navy", look = Look.NAVY) { tune(s.copy(tuneStep = TuneStep.HOME))() }
-    @Test fun w8_navy_light_result() = shot("w8_navy_light_result", dark = false, look = Look.NAVY) { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns.take(2), false), runs = runs3.take(2)))() }
+    @Test fun t6c_verify_phone_mic() = shot("t6c_verify_phone_mic", look = Look.BRAUN_BLACK) { tune(s.copy(tuneStep = TuneStep.VERIFY, applyWay = ApplyWay.IN_APP, positions = 1, phoneMic = true, micName = null, calibrationName = null, outputName = "Phone speaker"))() }
+    @Test fun w6_look_white() = shot("w6_look_white", look = Look.WHITE) { tune(s.copy(tuneStep = TuneStep.HOME))() }
+    @Test fun w8_white_result() = shot("w8_white_result", dark = false, look = Look.WHITE) { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns.take(2), false), runs = runs3.take(2)))() }
     @Test fun n1_tests_tab() = shot("n1_tests_tab", nav = Tab.TESTS) { TestsTab(s, vm, {}) }
     @Test fun n2_live_tab() = shot("n2_live_tab", nav = Tab.LIVE) { LiveTab(s, null, null, vm, pick, {}) }
     @Test fun w9_accent_green_light() = shot("w9_accent_green_light", dark = false, accent = Accent.GREEN) { tune(s.copy(tuneStep = TuneStep.HOME))() }
@@ -218,7 +218,7 @@ class ShotsTest {
             androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(dev.autotune.R.drawable.ic_launcher_foreground), null, Modifier.size(216.dp))
         }
     }
-    @Test fun w5_result_pinned() = shot("w5_result_pinned", look = Look.CONSOLE) { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns.take(2), false), runs = runs3.take(2)))() }
+    @Test fun w5_result_pinned() = shot("w5_result_pinned", look = Look.GRADIENT) { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns.take(2), false), runs = runs3.take(2)))() }
     @Test fun w6_eq_check() = shot("w6_eq_check") {
         val g = grid
         val eqv = DoubleArray(g.size) { eqc.responseDb(g.freqs[it]) - eqc.preampDb }
@@ -227,7 +227,7 @@ class ShotsTest {
         EqCheckCard(EqCheckView(judgeEqCheck(g.freqs, DoubleArray(g.size), DoubleArray(g.size) { big[it] * 0.1 }, big), ch, "F-150 · Suggested EQ", "17 Oct 04:40"), vm)
     }
     @Test fun w7_settings_defaults() = paparazzi.snapshot("w7_settings_defaults") {
-        AutoTuneTheme(ThemeMode.DARK, false, Look.BRAUN) {
+        AutoTuneTheme(ThemeMode.DARK, Look.BRAUN) {
             androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
                 SettingsTab(s.copy(defTarget = Target.HARMAN_CAR.name, defBassDb = 2.0, exportFolder = "Documents/AutoTune"), AiUi(), vm, pick)
             }
@@ -245,7 +245,7 @@ class ShotsTest {
 
     // ---- 2.2.0: the icon family, the header, the latching key, the slider row's cue
     private fun iconSheet(name: String, dark: Boolean) = paparazzi.also { it.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenWidth = 2300, screenHeight = 1500)) }.snapshot(name) {
-        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, Look.BRAUN) {
+        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, Look.BRAUN) {
             androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
                 androidx.compose.foundation.layout.FlowRow(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Ic.entries.forEach { ic ->
@@ -278,7 +278,7 @@ class ShotsTest {
      */
     private fun phoneAt(name: String, dark: Boolean, look: Look = Look.BRAUN, nav: Tab?, scroll: Int, adv: Boolean = false, page: Boolean = false, w: Int = 1080, content: @Composable () -> Unit) =
         paparazzi.also { it.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenWidth = w)) }.snapshot(name) {
-            AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, look) {
+            AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, look) {
                 val pin = androidx.compose.runtime.remember { PinSlot() }
                 val title = androidx.compose.runtime.remember { TitleSlot() }
                 val sc = androidx.compose.runtime.remember { androidx.compose.foundation.ScrollState(scroll) }
@@ -360,7 +360,7 @@ class ShotsTest {
     @Test fun h22_bigfont_0() { paparazzi.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenWidth = 990, fontScale = 1.6f)); paparazzi.snapshot("h22_bigfont_0") { BigFontShell(0) } }
     @Test fun h23_bigfont_100() { paparazzi.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenWidth = 990, fontScale = 1.6f)); paparazzi.snapshot("h23_bigfont_100") { BigFontShell(fold) } }
     @Composable private fun BigFontShell(scroll: Int) {
-        AutoTuneTheme(ThemeMode.LIGHT, false, Look.BRAUN) {
+        AutoTuneTheme(ThemeMode.LIGHT, Look.BRAUN) {
             val title = androidx.compose.runtime.remember { TitleSlot() }
             val sc = androidx.compose.runtime.remember { androidx.compose.foundation.ScrollState(scroll) }
             androidx.compose.runtime.CompositionLocalProvider(LocalPin provides androidx.compose.runtime.remember { PinSlot() }, LocalViewMode provides ViewMode(true) {}) {

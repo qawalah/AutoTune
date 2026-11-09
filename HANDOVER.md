@@ -20,7 +20,7 @@ Main features:
 - **Outside the app.** Profiles, with automatic switching when a Bluetooth device connects. Home-screen widgets (panel, EQ toggle, auto toggle, profile) run in the background without opening the app. Notification actions: "Switch EQ off" and "Stop auto-detect". Shortcuts and intents work with Samsung Routines. The EQ is restored after a reboot.
 - **Export.** ParametricEQ.txt (Equalizer APO, Poweramp), GraphicEQ.txt (Wavelet), a report and a CSV, and test WAVs (sweep, pink noise, sweep plus pink, left only, right only) for head units. Files go to a chosen folder or to Downloads.
 - **Live spectrum.** A 1/3-octave RTA with an SPL reading.
-- **Looks.** Dyno sheet (the default since 1.19: chart paper, shop green, marker orange), Studio, Mixing console, Hi-fi blue meters, Analog VU and Synthwave, each with its own slider style. Light, dark and wallpaper colours are available.
+- **Looks.** Braun looks only (since 2.8): Classic (the default), Graphite, Black, White and Gradient edge, each with a day and a night version (White is always light), all with fader sliders. An accent, and in Advanced a palette (body, deck, ink, accent, hairline), can be set over any look.
 - **Send diagnostics.** A zip containing a JSONL log, the last 12 recordings, the tests and the settings.
 
 ## Platform and type
@@ -79,7 +79,7 @@ Everything stays on the phone, in app-private storage:
   - `eqWanted`, `eqChain`, `eqPick`, `activeProfile`, `automationOn`, `offOnDisconnect`
   - `flavour`, `preampMode`, `preampManual`, `eqFine`
   - `defTarget`, `defBass`, `defTreble`, `defSpots`, `defGate`
-  - `look`, `theme`, `dynamic`, `smoothing`, `fdwCycles`, `exportTree`, `aiProvider`, `aiModel_<PROVIDER>`, `calibrationName`, `btSeen_<address>`, and similar.
+  - `look`, `theme`, `accent`, `palBody`, `palDeck`, `palInk`, `palAccent`, `palRule` ("#RRGGBB", absent = the look's own), `smoothing`, `fdwCycles`, `exportTree`, `aiProvider`, `aiModel_<PROVIDER>`, `calibrationName`, `btSeen_<address>`, and similar.
 - SharedPreferences `ai_secret` holds the AI API keys, encrypted with AES-GCM under the Android Keystore key alias `autotune_ai_key`.
 - `cacheDir` is used for export and share files and the diagnostics zip. A chosen export folder is a persisted Storage Access Framework (SAF) tree permission; otherwise files go to Downloads.
 - The manifest has `allowBackup="true"`.
@@ -376,4 +376,11 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - VM: `UiState.measureFrom` (set by `startMeasuring`, used by `tuneSetup`, `tuneMeasureStock`, `tuneMeasure`); `leaveMeasuring()` from `closeMeasureView` and a cancelled `run {}` returns to `returnAfterMeasuring` and drops pending spots. STOCK and VERIFY stay as `TuneStep` values (they decide `measure()` and the step bar) but have no page: TuneTab draws the step they return to. A failure before the measuring screen opened opens it as FAILED. `micMissing()` + `askMic` (collected in AutoTuneScreen) replace the permission landing. `tuneKeep` sets `tunedTestId`/`tunedRuns`, clears `resumeStep`, goes to HOME. Pref `setup_<outputName>` via `rememberSetup`; `UiState.setupMemory` is read in `refreshMic`; `newTaste` carries the remembered taste into the stock fit and the saved test.
 - UI: `MeasureStep`, `DoneStep`, `Failure`, `Ring` are gone; `TunedPanel` (Tune screen), `RunNote` (EQ step and result, Advanced); `LevelResult` is internal and shown on the failed measuring screen with "Check the level". `TuneStep.DONE` renders the Tune screen.
 - Not verified on a phone: the measuring screen's Close and Back landing on the right step, and Set up's memory when the output name changes between sessions.
+
+### Braun looks only, palette (unreleased, after 2.7.1)
+- Theme.kt: `Look` keeps `BRAUN` (shown as "Classic"), `BRAUN_GRAPHITE` ("Graphite"), `BRAUN_BLACK` ("Black") and appends `WHITE` and `GRADIENT` ("Gradient edge"); the enum names are what pref `look` stores, so they did not change. Dyno, Studio, Console, Hi-fi, VU, Synth and Navy are gone with their palettes, `SliderStyle` (only the fader is left, in `VSlider`), the wallpaper colours (`dynamicColor`, pref `dynamic`) and `Look.allowsWallpaper`. `AtColors.edge` (a gradient for the deck outline, Gradient edge only; `deckPlate()` draws it) and `AtColors.copy`. `withPalette(p)` puts the user's colours in, `themeColors(look, dark, accent, palette)`, `AutoTuneTheme(mode, look, accent, palette)`.
+- TuningLogic (pure, tested): `RETIRED_LOOKS`, `resolveLookName` (a retired or unknown name opens `BRAUN`), `PaletteSlot`, `Palette`, `parseHexColour` (#RGB / #RRGGBB, else null), `hexColour`, `paletteFrom`, `PALETTE_NEUTRALS`, `PALETTE_ACCENTS`, `mixArgb`, `readableInk`, `mutedInk`, `onAccent`.
+- VM: `UiState.palette`, `setPaletteColour(slot, argb)`, `resetPalette()`; `migrateLooks()` on start rewrites a retired `look` to `BRAUN` and removes `dynamic`.
+- UI: Settings, Advanced: the Palette deck (`PaletteEditor`, a `DropSelect` per colour with swatches, "Custom…" opens `HexColourDialog`, "Reset palette"). `DropSelect(swatches = …)` and `Swatch` in Kit.kt.
+- Not verified on a phone: the looks and the palette editor were checked by unit tests and mockups only.
 

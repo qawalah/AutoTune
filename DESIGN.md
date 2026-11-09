@@ -2,27 +2,44 @@
 name: AutoTune
 description: A measurement-driven EQ for a car or a room, designed like a Braun device by Dieter Rams.
 colors:
-  body: "#F3F2EE"
-  deck: "#E2E0DA"
-  key: "#EDECE7"
-  rule: "#C8C6BF"
+  # Classic (Look.BRAUN), by day: a dark body with warm white decks
+  body: "#2B2B29"
+  body-ink: "#ECEAE4"
+  body-ink-muted: "#A3A19A"
+  body-red: "#F0663A"
+  deck: "#F3F2EE"
+  key: "#E4E2DC"
+  rule: "#C9C7C0"
   ink: "#232321"
-  ink-muted: "#66645E"
-  red: "#C8401A"
+  ink-muted: "#5E5C57"
+  red: "#BF3C18"
   pilot-green: "#3D7F3A"
-  warn: "#8A6200"
+  warn: "#805C00"
   bad: "#B3261E"
   teak: "#B07446"
   aluminium: "#B9BAB8"
   vinyl: "#1C1C1B"
-  night-body: "#1A1A19"
-  night-deck: "#262624"
-  night-key: "#30302D"
-  night-rule: "#3C3C38"
+  # Classic at night: a near-black body with graphite decks
+  night-body: "#121211"
+  night-deck: "#232321"
+  night-key: "#2E2E2B"
+  night-rule: "#45453F"
   night-ink: "#ECEAE4"
   night-ink-muted: "#A3A19A"
   night-red: "#F0663A"
   night-teak: "#8E5A33"
+  # White (Look.WHITE), the same by day and night
+  white-body: "#FFFFFF"
+  white-deck: "#F4F4F2"
+  white-key: "#E8E8E5"
+  white-rule: "#C4C4BF"
+  white-ink: "#1B1B1A"
+  white-ink-muted: "#575753"
+  # Gradient edge (Look.GRADIENT): Classic's colours, the deck outline shaded top to bottom
+  edge-top: "#5E5C57"
+  edge-bottom: "#E4E2DC"
+  night-edge-top: "#2E2E2B"
+  night-edge-bottom: "#A3A19A"
 typography:
   display:
     fontFamily: "Inter"
@@ -61,7 +78,7 @@ spacing:
   md: "16dp"
 components:
   main-key:
-    backgroundColor: "{colors.ink}"
+    backgroundColor: "{colors.body-ink}"
     textColor: "{colors.body}"
     pilot: "{colors.red}"
     rounded: "{rounded.field}"
@@ -85,7 +102,7 @@ components:
 
 The world lends material, type and a few signature objects. It never replaces Material 3 behaviour: drop-downs for choices, standard switches and dialogs, five tabs.
 
-Braun is the default look (`Look.BRAUN` in `ui/Theme.kt`), with two siblings: Braun graphite (greys, dark grey accent) and Braun black (black and aluminium, orange accent). Dyno sheet, Studio, Mixing console, Hi-fi blue meters, Analog VU, Synthwave and Navy remain selectable as colour variants of the same shapes.
+Every look is a Braun look (`Look` in `ui/Theme.kt`), each with a day and a night version: **Classic** (`Look.BRAUN`, the default: dark body, light decks, teak cheeks, one red), **Graphite** (greys, dark grey accent), **Black** (black and aluminium, orange accent), **White** (a true white body with pale grey decks, always light) and **Gradient edge** (Classic with each deck outline shaded from ink grey at the top to a light tone at the bottom, `AtColors.edge`). The enum names are what the setting stores and stay as they are. The older colour looks (Dyno sheet, Studio, Mixing console, Hi-fi, Analog VU, Synthwave, Navy) and the wallpaper colours were removed in 2.8; a saved setting that names one opens Classic.
 
 ## Colours
 
@@ -94,6 +111,7 @@ Braun is the default look (`Look.BRAUN` in `ui/Theme.kt`), with two siblings: Br
 - **Pilot green** (`good`): on states and improvements. **Warn** and **bad**: cautions, always beside an icon.
 - **Teak** (`teak`): the cheeks down both screen edges. Never elsewhere.
 - **Runs**: the stock is grey ink, drawn dashed; later runs are inks (blue, green, violet…), the same colour everywhere.
+- **Palette** (Settings, Advanced): the user can set body, deck, ink, accent and hairline over any look, each a drop-down of Braun colours, the look's own, or a typed hex colour (`Palette`, `withPalette`). Text that would not read on the chosen colours falls back to an ink that does (`readableInk`, 4.5:1). Reset palette returns to the look's own.
 
 ## Typography
 
@@ -120,7 +138,7 @@ One column, 16dp margins, 16dp between sections. Five tabs: Tests, EQ, **Tune** 
 
 ## Surfaces
 
-Flat. A section is a **deck** (`Panel`, `Group`, `Fold`, `RunSheet`): a light plate on the dark body, 8dp corners, a 1dp hairline edge in the deck's rule colour (`deckPlate`), no shadow. The header graphic is drawn in the deck's colours, a light device on the dark body. Inside a deck, a nested `Panel`/`Group`/`Fold` draws flat under a hairline (`LocalInCard`). The screen header and the key row are ruled off with 1dp hairlines. Nothing has a drop shadow.
+Flat. A section is a **deck** (`Panel`, `Group`, `Fold`, `RunSheet`): a light plate on the dark body, 8dp corners, a 1dp hairline edge in the deck's rule colour (`deckPlate`; in Gradient edge a vertical gradient from dark to light), no shadow. The header graphic is drawn in the deck's colours, a light device on the dark body. Inside a deck, a nested `Panel`/`Group`/`Fold` draws flat under a hairline (`LocalInCard`). The screen header and the key row are ruled off with 1dp hairlines. Nothing has a drop shadow.
 
 ## Components
 
@@ -134,7 +152,7 @@ Flat. A section is a **deck** (`Panel`, `Group`, `Fold`, `RunSheet`): a light pl
 - **Buttons**: `PrimaryButton` a graphite key; `SecondaryButton` a key-grey key with a hairline edge; `TextAction` in `Actions { }` a full-width key-grey row with icon and chevron.
 - **Drop-downs** (`DropSelect`, `PickField`, `GroupedPick`): key-grey fields with a chevron.
 - **Switch** (`LatchKey`, `PowerToggle`, `SwitchRow`): a Braun latching push key, 56×34dp in a 64×48dp target. Off it stands up, key grey with a hairline edge, the pilot unlit, lettered "off". On it latches 2dp down, its face shaded from the rim like the latched EQ key in the tab row, the pilot lit in the accent, lettered "on". Every on/off setting in the app uses it; there are no Material switches.
-- **EQ sliders**: faders (`SliderStyle.FADER`), a slot and a square cap. On the EQ tab they sit right under the AutoTune EQ key and the EQ in use, before the response graph. When the row has more bands than fit (15), the deck's grey fades over the edge where more wait, with a small chevron, and a thin position bar runs under the row (`scrollCue`); both go when everything is in view.
+- **EQ sliders**: faders, a slot and a square cap. On the EQ tab they sit right under the AutoTune EQ key and the EQ in use, before the response graph. When the row has more bands than fit (15), the deck's grey fades over the edge where more wait, with a small chevron, and a thin position bar runs under the row (`scrollCue`); both go when everything is in view.
 - **Step header** (`StepHeader`): Back, the step title on one line, Exit; "Step n of 7 · Next: …" with the mode switch; a slim bar (done grey, current red).
 - **Info bubbles**: a small (i) next to the thing it explains.
 

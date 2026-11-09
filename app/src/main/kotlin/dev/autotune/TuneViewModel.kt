@@ -446,7 +446,8 @@ data class UiState(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     /** The app's look (colours and slider style). */
     val look: dev.autotune.ui.Look = dev.autotune.ui.Look.BRAUN,
-    val dynamicColor: Boolean = false,
+    /** The user's own colours over the look (Settings, Advanced: Palette); empty keeps the look's own. */
+    val palette: Palette = Palette(),
     /** Advanced shows every explanation and extra control; Simple (the default) keeps the essentials. App-wide. */
     val advanced: Boolean = false,
     /** The accent colour; LOOK keeps the look's own. */
@@ -504,16 +505,17 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         watchOutside()
         refreshMic()
         refreshProfiles()
+        migrateLooks()
         state.update {
             it.copy(
                 targetNames = Target.ALL.map { t -> t.name },
                 customTargets = Target.ALL.drop(Target.BUILT_IN.size).map { t -> t.name },
                 splOffsetDb = prefs.getFloat("splOffset", 0f).toDouble(),
                 themeMode = runCatching { ThemeMode.valueOf(prefs.getString("theme", "SYSTEM")!!) }.getOrDefault(ThemeMode.SYSTEM),
-                dynamicColor = prefs.getBoolean("dynamic", false),
                 advanced = prefs.getBoolean("advanced", false),
                 accent = Accent.of(prefs.getString("accent", null)),
                 look = dev.autotune.ui.Look.of(prefs.getString("look", null)),
+                palette = paletteFrom { k -> prefs.getString(k, null) },
                 flavour = Flavour.of(prefs.getString("flavour", null)),
                 preampMode = PreampMode.of(prefs.getString("preampMode", null)),
                 manualPreampDb = prefs.getFloat("preampManual", -6f).toDouble(),
@@ -600,9 +602,28 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         state.update { it.copy(advanced = on) }
     }
 
-    fun setDynamicColor(on: Boolean) {
-        prefs.edit().putBoolean("dynamic", on).apply()
-        state.update { it.copy(dynamicColor = on) }
+    /**
+     * 2.8 kept only the Braun looks: a saved look that was removed is rewritten to the default (Classic), and the
+     * wallpaper colours, which only removed looks offered, are dropped.
+     */
+    private fun migrateLooks() {
+        val saved = prefs.getString("look", null)
+        prefs.edit().apply {
+            if (saved != null && saved in RETIRED_LOOKS) putString("look", dev.autotune.ui.Look.BRAUN.name)
+            remove("dynamic")
+        }.apply()
+    }
+
+    /** Sets one colour of the palette ([argb] null = back to the look's own); the theme follows at once. */
+    fun setPaletteColour(slot: PaletteSlot, argb: Long?) {
+        val p = state.value.palette.with(slot, argb)
+        prefs.edit().apply { p[slot]?.let { putString(slot.key, hexColour(it)) } ?: remove(slot.key) }.apply()
+        state.update { it.copy(palette = p) }
+    }
+
+    fun resetPalette() {
+        prefs.edit().apply { PaletteSlot.entries.forEach { remove(it.key) } }.apply()
+        state.update { it.copy(palette = Palette()) }
     }
 
     // ---------------------------------------------------------------- tests (named, saved)
@@ -1520,9 +1541,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     /** Settings: what a new test starts with. [target] by name (null = Car); spots and window 0 = automatic. */
     fun setLook(l: dev.autotune.ui.Look) {
         prefs.edit().putString("look", l.name).apply()
-        // a look's own colours only show with the wallpaper colours off
-        state.update { it.copy(look = l, dynamicColor = if (!l.allowsWallpaper) false else it.dynamicColor) }
-        if (!l.allowsWallpaper) prefs.edit().putBoolean("dynamic", false).apply()
+        state.update { it.copy(look = l) }
     }
 
     fun setDefaults(target: String?, bassDb: Double, trebleDb: Double, spots: Int, gateMs: Int) {
