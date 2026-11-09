@@ -4,6 +4,16 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.9.0] - 2026-11-09
+### Changed
+- **Tune screen starts with the dial.** The wordmark line, the Simple / Advanced key, the "Tune" title and the speaker art are gone from the Tune tab. Other tabs keep their header.
+- **Tune dial.** The face is always light with dark dots, in every look. The animation is a dark arc sweeping round the rim; it stays still with "Remove animations".
+- **Test results are simpler.** The notes are a warning icon (tap for the list). "Next" sits under the pinned key. "Open the EQ" and "AI review" are at the bottom.
+- **Graphics play once** when a page or result appears, then stay still. Report-card meters fill once.
+- **Score next to the dB figure** on the results, the Tune result, the EQ step, the Tune panel and the runs list.
+### Fixed
+- **Palette dark colours take effect at night.** A dark ink now brings the light decks with it, and the Ink field says whether the chosen colour reads. Slate is still too light for the grey plates; the field says so.
+
 ## [2.8.1] - 2026-11-09
 ### Fixed
 - **Drop-down menus scroll.** A long menu, such as the palette's colours, was cut off below the field, so the dark colours (Graphite to Black) could not be picked. Menus now scroll.
