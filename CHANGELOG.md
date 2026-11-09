@@ -4,6 +4,10 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.8.1] - 2026-11-09
+### Fixed
+- **Drop-down menus scroll.** A long menu, such as the palette's colours, was cut off below the field, so the dark colours (Graphite to Black) could not be picked. Menus now scroll.
+
 ## [2.8.0] - 2026-11-09
 ### Changed
 - **Design pass on the Braun look.** Action text and field icons are ink; red is kept for what is live or acted on. The notes line is a key-grey row with only its warning icon in amber. The "New test" key is flat. The test list is one deck with hairlines. Failed-measurement choices are one "Try again" key with the rest stacked below. Empty states have a title, one fact line and an info bubble, with no paragraphs on the page.

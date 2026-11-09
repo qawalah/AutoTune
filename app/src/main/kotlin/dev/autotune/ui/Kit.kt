@@ -1347,6 +1347,8 @@ fun DropSelect(
                 AtIcon(Ic.CHEVRON_DOWN, At.c.muted, size = 20.dp)
             }
             androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.widthIn(min = 240.dp, max = 360.dp)) {
+                // long lists (the palette's colours) scroll, so the last choices are never cut off below the field
+                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
                 options.forEachIndexed { i, o ->
                     androidx.compose.material3.DropdownMenuItem(
                         text = {
@@ -1360,6 +1362,7 @@ fun DropSelect(
                         trailingIcon = { if (i == selected) AtIcon(Ic.CHECK, At.c.signal, size = 18.dp) },
                         onClick = { open = false; onSelect(i) },
                     )
+                }
                 }
             }
         }
