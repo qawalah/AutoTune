@@ -4,6 +4,11 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.7.1] - 2026-11-09
+### Changed
+- **Design pass on the Braun look.** Action text and field icons are ink; red is kept for what is live or acted on. The "BEST" badge is a lowercase "best" in green. The EQ picker's top corners are 12dp. Report card categories are square ruled meters, with the explanation in an info bubble. Measuring needles follow "Remove animations".
+- Not yet tested on a real device: this build is for checking the design pass.
+
 ## [2.7.0] - 2026-11-09
 ### Changed
 - **No Stock or Verify page.** A measurement that fails, is stopped or is closed now goes back to where you started it (Set up, the EQ step or the result), so Tune is three screens plus the measuring screen. The step bar still names five steps. A failure stays on the measuring screen with "Try again", "Check the level", "Ask AI why" and "Close".
