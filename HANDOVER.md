@@ -167,6 +167,7 @@ Before publishing to Google Play:
 - `BACKLOG.md`: future work.
 - `AUDIT-RECHECK.md`: the 1.9.1 audit follow-up.
 - `CLAUDE.md`: short working rules for Claude Code.
+- `FLOW.md`: the process and navigation maps (Mermaid, drawn on GitHub). Also published as the "AutoTune Flow Maps" artifact.
 
 ---
 
@@ -234,7 +235,7 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - AI: `AiProvider` (CLAUDE, GOOGLE) and `AiModel.provider`; `AiClient` is abstract with `ClaudeClient` and `GeminiClient` (generateContent, `x-goog-api-key`, forced function call `toolConfig.functionCallingConfig` mode ANY on `report`, thought parts skipped, `maxOutputTokens` 12000 because thinking counts). `KeyVault` keeps one key per provider (Claude's under the old unsuffixed names). Prefs `aiProvider`, `aiModel_<PROVIDER>`. Gemini model ids from ai.google.dev/models on 2026-10-15: gemini-3.8-flash, gemini-4-argon, gemini-3.5-flash-lite.
 - Flow: `TuneStep.STOCK_RESULT` between STOCK and APPLY. `analyzeStock` (TuningLogic) → `UiState.stock`; `recommendNext` → `UiState.recommendation` (`NextMove`); `previousStep` + `vm.tuneBack()` for Back and the header arrow. All three are unit tested in FlowTest.
 - Outside controls: `EqActionReceiver` (not exported) handles widget taps and notification actions through `ProfileController.handle`; `ApplyProfileActivity` stays for shortcuts and other apps, now with an empty task affinity. `EqBus.changed` tells the open VM to `syncExternal()` (which now also reads `automationOn`). A wanted flat EQ is `eqWanted` + `eqFlat`.
-- Maps: the process and navigation maps were published as an artifact ("AutoTune Flow Maps", last updated for 1.17.0); regenerate them when steps or links change.
+- Maps: the process and navigation maps are in `FLOW.md` (since 2.5.0) and the "AutoTune Flow Maps" artifact; update them when steps or links change.
 
 ### UX audit changes (1.15.0)
 - `ui/ResultViews.kt`: `ResultSummary(s, showNext)` is the shared summary layer (Stock review, Result, Test results); `DetailsHeading()` starts the diagnostic layer. Test results sections are `Fold`s (Fold now takes `info`); `ReportCard` and the resonances list are Folds too.

@@ -20,3 +20,11 @@ The six held items were built together: AUTOTUNE wordmark and Braun audio header
 ## Header fold, mode key in the middle, no menu, Tune knob and Settings gear (asked 2026-11-07): done in 2.3.0
 The three held entries were built together: the name centred on the header graphic, the graphic shrinking and gliding into the slim bar's right corner with the scroll (and back at the very top, on every screen), the Simple / Advanced key fixed in the middle of the top line, the three-bar menu removed (Export EQ files in Settings for Simple and Advanced and on the EQ tab in Advanced; Send diagnostics stays in Advanced), Tune drawn as a Braun tuning knob everywhere including the app and notification icons, and Settings as a gear. The Tune speaker keeps "Tune" on its key. Open follow-ups:
 - Check on the owner's phone: the feel of the fold under a finger and with a fling, and the folded opening after a tab jump.
+
+## Flow review (9 Nov 2026): 1-3 done in 2.5.0, the rest open
+From the flow maps in `FLOW.md`. Done: Set up is a draft, the EQ check decides the next move, preview tunes are measured on the phone's EQ before keeping.
+- **Warn about bypass outputs in Set up.** When the output is Android Auto, car mode (`LoudEq.carMode`) or in `eqBypassOutputs`, one `Alerts` line and the EQ step pinned to equipment.
+- **Level check before the stock sweep.** A short level probe as the first check on the measuring screen (reuse `levelCheck`), stopping with "turn it up/down a step" and Try again. No extra screen.
+- **Done pins something useful.** With a Bluetooth device connected, pin "Use this EQ whenever <device> connects" (a `rules.txt` rule); otherwise "Open the EQ".
+- **Route rules out of the screens.** `onEquipment` in EqTab and the `equipment` default in ApplyStep into one pure `applyRoute(...)` in TuningLogic with FlowTest cases; later split `TuneViewModel` (tune flow, measuring) into their own classes.
+- **Back up and restore tests.** Settings › Data (Advanced), reusing the diagnostics zip layout and TestStore's loader.

@@ -10,6 +10,7 @@ Read `HANDOVER.md` first. It covers what the app is, how it's built, where data 
 1. Bump both `APP_VERSION_NAME` and `APP_VERSION_CODE` in `gradle.properties`. That file is the only version source.
 2. Add an entry at the top of `CHANGELOG.md`.
 3. Update the code notes in `HANDOVER.md` when the structure changes.
+   Update `FLOW.md` when a Tune step, a pinned action or a link between screens changes.
 4. Commit, then tag `vX.Y.Z`.
 
 ## DevStore release rules
