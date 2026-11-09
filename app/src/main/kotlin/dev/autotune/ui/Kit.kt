@@ -63,6 +63,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import dev.autotune.HeaderRect
+import dev.autotune.alertsCount
 import dev.autotune.artAt
 import dev.autotune.fitTitlePx
 import dev.autotune.headerBottomPx
@@ -529,15 +530,20 @@ fun InfoLabel(label: String, info: String? = null) {
 fun Alerts(items: List<String>, title: String = "Notes on this reading") {
     if (items.isEmpty()) return
     var open by remember { mutableStateOf(false) }
+    // a key-grey line with a hairline edge, like the other keys: no tinted fill; the warn colour stays on the icon
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(MaterialTheme.shapes.large).background(At.c.warn.copy(alpha = 0.10f))
-            .clickable(role = Role.Button, onClickLabel = "Read the notes") { open = true }.padding(horizontal = 12.dp),
+        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(MaterialTheme.shapes.medium).background(At.c.panelHigh)
+            .border(1.dp, At.c.line, MaterialTheme.shapes.medium)
+            .clickable(role = Role.Button, onClickLabel = "Read the notes") { open = true }.padding(start = 12.dp, end = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AtIcon(Ic.ALERT, At.c.warn, size = 18.dp)
         Text(
-            if (items.size == 1) " 1 note" else " ${items.size} notes",
-            Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = At.c.text, maxLines = 1,
+            alertsCount(items.size), Modifier.padding(start = 8.dp),
+            style = MaterialTheme.typography.labelMedium, color = At.c.text, maxLines = 1,
+        )
+        Text(
+            " · " + items.first(), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )
         AtIcon(Ic.CHEVRON, At.c.muted, size = 16.dp)

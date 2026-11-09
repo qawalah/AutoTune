@@ -829,6 +829,9 @@ fun resultHeadline(stockDb: Double, latestDb: Double, bestDb: Double? = null, be
     return head + tail
 }
 
+/** The count on the folded notes line ([dev.autotune.ui.Alerts]): "1 note", "3 notes". */
+fun alertsCount(n: Int): String = if (n == 1) "1 note" else "$n notes"
+
 // ---------------------------------------------------------------- tuning scale (1.27)
 
 /** The end of the tuning scale for these readings: the next of 4, 8, 12, 16, 24, 32 dB above the largest. */

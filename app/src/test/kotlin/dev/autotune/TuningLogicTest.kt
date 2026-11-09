@@ -223,6 +223,13 @@ class ConvergenceTest {
     }
 
     @Test
+    fun alertsCountReadsAsOneShortLabel() {
+        assertEquals("1 note", alertsCount(1))
+        assertEquals("2 notes", alertsCount(2))
+        assertEquals("12 notes", alertsCount(12))
+    }
+
+    @Test
     fun resultHeadlineSaysHowFarItCameInOneLine() {
         assertEquals("3.0 dB closer to the target than stock.", resultHeadline(23.1, 20.1))
         assertEquals("3.0 dB closer to the target than stock. Run 1 is still the best.", resultHeadline(23.1, 20.1, 17.9, "Run 1"))

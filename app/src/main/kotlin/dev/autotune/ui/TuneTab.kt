@@ -34,7 +34,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.animation.togetherWith
 import dev.autotune.ApplyWay
@@ -95,12 +94,7 @@ private fun TuneHome(s: UiState, vm: TuneViewModel, pick: Pickers, go: (Tab) -> 
     )
     Column(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         PulsingButton("Tune", "new test", Ic.TUNE, enabled = !s.busy, onClick = vm::tuneStart)
-        Adv {
-            Text(
-                "Measures your system, suggests an EQ, applies it and checks it, step by step.",
-                Modifier.fillMaxWidth().padding(top = 12.dp), style = MaterialTheme.typography.bodyMedium, color = At.c.muted, textAlign = TextAlign.Center,
-            )
-        }
+        // the speaker says it all; Advanced adds controls, never a paragraph under it
     }
     // Simple, with nothing to fix: the mic and the EQ as one quiet line under the speaker instead of a deck
     val micReady = s.hasPermission && !s.micAlsoOutput && (s.phoneMic || (s.micName != null && s.calibrationName != null))
@@ -301,7 +295,7 @@ private fun ApplyStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> 
                 s.systemEqMessage?.takeIf { !s.systemEqOn && it.isNotBlank() && it != "EQ off." }?.let { Warning(it) }
                 if (s.systemEqSuspect) TextAction("Use the phone's EQ anyway", { pick.notifications(); vm.tuneApply(ApplyWay.AUTOTUNE_EQ) }, icon = Ic.POWER)
             } else {
-                Text(say("Set these bands on your equipment.", "Set these bands on your head unit, DSP or EQ app, with the preamp first."), style = MaterialTheme.typography.bodyMedium)
+                InfoLabel("set these bands on your equipment", "Set these bands on your head unit, DSP or EQ app, with the preamp first.")
                 EqListView(chain, s, vm)
                 PinAction("It's set, measure", { vm.tuneApply(ApplyWay.EQUIPMENT) }, icon = Ic.NEXT)
                 if (s.source == Source.PHONE) TextAction("Use the phone's EQ instead", { equipment = false }, icon = Ic.POWER)
