@@ -27,3 +27,11 @@ From the flow maps in `FLOW.md`. Done: Set up is a draft, the EQ check decides t
 - **Level check before the stock sweep.** A short level probe as the first check on the measuring screen (reuse `levelCheck`), stopping with "turn it up/down a step" and Try again. No extra screen. (Since 2.7.0 "Check the level" is on the failed measuring screen.)
 - **Route rules out of the screens.** `onEquipment` in EqTab and the `equipment` default in ApplyStep into one pure `applyRoute(...)` in TuningLogic with FlowTest cases; later split `TuneViewModel` (tune flow, measuring) into their own classes.
 - **Back up and restore tests.** Settings › Data (Advanced), reusing the diagnostics zip layout and TestStore's loader.
+
+## Palette, Tune screen, results and graphics (asked 2026-11-09): not built yet
+- **Palette: the dark colour is still not editable** (reported after 2.8.1, on the Ink menu). Check the Ink and other palette drop-downs on the phone, then fix.
+- **Tune screen: remove the top part** (the AUTOTUNE line, the Simple / Advanced key, the "Tune" title and the speaker graphic), so the screen starts with the dial.
+- **Tune dial: make the animation clearer** around the circle, and **the background should never be dark**: the dots on the dial should be dark, the background light.
+- **Test results: simplify and reduce text** for a clean look. The notes line becomes an icon only (no "1 note · Mic source…" text), and the actions go at the bottom (the "Next: Keep this EQ and finish" row moves into the bottom action area).
+- **Animate the graphics once when shown**: the reel graphic on the results page and the graphics on the other pages play one animation when they appear, then stay still.
+- **Show the score next to the dB score** on the results page and on the other pages (for example "4.6 dB" with the score beside it).
