@@ -219,7 +219,7 @@ private fun Waveform(wave: FloatArray, active: Boolean) {
 private fun SignalMeter(level: Float, active: Boolean) {
     val c = At.c
     val col = when { level > -6f -> c.bad; level < -60f -> c.warn; else -> c.signal }
-    val shown by androidx.compose.animation.core.animateFloatAsState(if (active) level else -80f, androidx.compose.animation.core.tween(120), label = "vu")
+    val shown by androidx.compose.animation.core.animateFloatAsState(if (active) level else -80f, androidx.compose.animation.core.tween(motionMs(120), easing = EaseArrive), label = "vu")
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Canvas(Modifier.fillMaxWidth().height(36.dp).clip(MaterialTheme.shapes.small).background(c.bg)) {
             val pad = 10.dp.toPx(); val w = size.width - 2 * pad; val h = size.height
@@ -247,7 +247,7 @@ private fun SweepDial(progress: Float?, accent: androidx.compose.ui.graphics.Col
         val inf = androidx.compose.animation.core.rememberInfiniteTransition(label = "seek")
         inf.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1600, easing = androidx.compose.animation.core.FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse), label = "s").value
     } else null
-    val p by androidx.compose.animation.core.animateFloatAsState((progress ?: 0f).coerceIn(0f, 1f), androidx.compose.animation.core.tween(150), label = "dial")
+    val p by androidx.compose.animation.core.animateFloatAsState((progress ?: 0f).coerceIn(0f, 1f), androidx.compose.animation.core.tween(motionMs(150), easing = EaseArrive), label = "dial")
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Canvas(Modifier.fillMaxWidth().height(40.dp).clip(MaterialTheme.shapes.small).background(c.bg)) {
             val pad = 10.dp.toPx(); val w = size.width - 2 * pad; val h = size.height

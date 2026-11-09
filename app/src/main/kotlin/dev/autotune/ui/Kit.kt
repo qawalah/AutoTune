@@ -1284,7 +1284,8 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
 
 @Composable
 fun TextAction(text: String, onClick: () -> Unit, enabled: Boolean = true, danger: Boolean = false, icon: Ic? = null) {
-    val tint = if (!enabled) At.c.muted else if (danger) At.c.bad else At.c.signal
+    // lettered in ink like the keys of a Braun panel: red stays for what is live or acted on, never a plain action
+    val tint = if (!enabled) At.c.muted else if (danger) At.c.bad else At.c.text
     if (LocalStacked.current) {
         // in a stack: one full-width row per action, the label at the start and a chevron at the end
         val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
@@ -1302,7 +1303,7 @@ fun TextAction(text: String, onClick: () -> Unit, enabled: Boolean = true, dange
     }
     TextButton(
         onClick = onClick, enabled = enabled, modifier = Modifier.heightIn(min = 48.dp),
-        colors = ButtonDefaults.textButtonColors(contentColor = if (danger) At.c.bad else At.c.signal, disabledContentColor = At.c.muted),
+        colors = ButtonDefaults.textButtonColors(contentColor = if (danger) At.c.bad else At.c.text, disabledContentColor = At.c.muted),
     ) { ButtonContent(text, icon, tint) }
 }
 
@@ -1326,7 +1327,8 @@ fun DropSelect(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val shown = icons?.getOrNull(selected) ?: icon
-                if (shown != null) { AtIcon(shown, if (enabled) At.c.signal else At.c.muted, size = 20.dp); androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp)) }
+                // the field's icon is lettering, in ink; the menu marks the chosen option in the accent
+                if (shown != null) { AtIcon(shown, if (enabled) At.c.text else At.c.muted, size = 20.dp); androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp)) }
                 Text(
                     options.getOrNull(selected) ?: "Choose", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge,
                     color = if (enabled) At.c.text else At.c.muted, maxLines = 2,
@@ -1644,7 +1646,7 @@ fun GroupedPick(label: String, choices: List<dev.autotune.EqChoice>, selectedKey
                 .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AtIcon(sel?.let { kindIcon(it.kind) } ?: Ic.EQ, At.c.signal, size = 22.dp)
+            AtIcon(sel?.let { kindIcon(it.kind) } ?: Ic.EQ, At.c.text, size = 22.dp)
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(
                     sel?.let { c -> c.title + (c.db?.let { " · %.1f dB from target".format(it) } ?: "") } ?: emptyText,
@@ -1661,7 +1663,8 @@ fun GroupedPick(label: String, choices: List<dev.autotune.EqChoice>, selectedKey
         androidx.compose.material3.ModalBottomSheet(
             onDismissRequest = { open = false }, sheetState = sheet,
             containerColor = At.c.panel, contentColor = At.c.text,
-            shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
+            // the dialog radius of the shape scale (12dp), not Material's soft 28dp sheet
+            shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp),
         ) {
             EqSheet(choices, selectedKey) { key ->
                 onPick(key)
@@ -1718,7 +1721,7 @@ private fun EqSheet(choices: List<dev.autotune.EqChoice>, selectedKey: String, o
     }
 }
 
-/** One choice on one line: a check when it is in use, its name, BEST on the best run, the reading at the end. */
+/** One choice on one line: a check when it is in use, its name, "best" on the best run, the reading at the end. */
 @Composable
 private fun ChoiceRow(c: dev.autotune.EqChoice, selected: Boolean, onClick: () -> Unit) {
     Row(
@@ -1736,12 +1739,8 @@ private fun ChoiceRow(c: dev.autotune.EqChoice, selected: Boolean, onClick: () -
                 color = if (selected) At.c.signal else At.c.text, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
-            if (c.best) {
-                Text(
-                    "BEST", Modifier.padding(start = 8.dp).clip(RoundedCornerShape(4.dp)).background(At.c.good.copy(alpha = 0.15f)).padding(horizontal = 6.dp, vertical = 2.dp),
-                    style = MaterialTheme.typography.labelSmall, color = At.c.good,
-                )
-            }
+            // lettered on the panel, small and lowercase, not a badge
+            if (c.best) Text("best", Modifier.padding(start = 8.dp), style = MaterialTheme.typography.labelSmall, color = At.c.good, maxLines = 1)
         }
         if (c.db != null) {
             Text("%.1f".format(c.db), style = MaterialTheme.typography.headlineSmall, color = if (c.best) At.c.good else At.c.text)
