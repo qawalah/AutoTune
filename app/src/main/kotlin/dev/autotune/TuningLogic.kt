@@ -353,6 +353,44 @@ fun previousStep(step: TuneStep, runCount: Int): TuneStep = when (step) {
  */
 fun keepsResumePlace(step: TuneStep): Boolean = step == TuneStep.HOME || step == TuneStep.FRESH || step == TuneStep.SETUP
 
+/**
+ * Where a measurement that was closed, stopped or failed returns to (2.7.0: there is no Stock or Verify page any more):
+ * the step it was started from when that still fits the test, else Set up for a test with no reading and the EQ
+ * step otherwise.
+ */
+fun returnAfterMeasuring(from: TuneStep?, runCount: Int): TuneStep = when {
+    from == TuneStep.SETUP || from == TuneStep.FRESH -> TuneStep.SETUP
+    from == TuneStep.APPLY || from == TuneStep.STOCK_RESULT -> if (runCount >= 1) TuneStep.APPLY else TuneStep.SETUP
+    from == TuneStep.RESULT && runCount >= 2 -> TuneStep.RESULT
+    runCount == 0 -> TuneStep.SETUP
+    else -> TuneStep.APPLY
+}
+
+/** Set up's choices, remembered per output (pref `setup_<output>`), so re-tuning the same system starts from them. */
+data class SetupMemory(
+    val targetIdx: Int, val sourceIdx: Int, val spots: Int,
+    /** 0 = automatic. */
+    val gateMs: Int,
+    val bassDb: Double, val trebleDb: Double,
+) {
+    fun toText(): String = "1;$targetIdx;$sourceIdx;$spots;$gateMs;$bassDb;$trebleDb"
+
+    companion object {
+        /** Null for anything this version cannot read. */
+        fun fromText(text: String?): SetupMemory? {
+            val p = text?.split(';') ?: return null
+            if (p.size < 7 || p[0] != "1") return null
+            return runCatching {
+                SetupMemory(p[1].toInt(), p[2].toInt(), p[3].toInt(), p[4].toInt(), p[5].toDouble(), p[6].toDouble())
+            }.getOrNull()?.takeIf { it.targetIdx >= 0 && it.sourceIdx >= 0 && it.spots in 1..9 && it.gateMs >= 0 }
+        }
+    }
+}
+
+/** The Tune screen shows a finished tune while the test it finished is open and has no run after it. */
+fun showsTuned(tunedTestId: String?, tunedRuns: Int, openTestId: String?, runCount: Int): Boolean =
+    tunedTestId != null && tunedTestId == openTestId && tunedRuns == runCount
+
 /** Steps worth coming back to after Exit (Set up is asked again; Done is finished). */
 val RESUMABLE = setOf(TuneStep.STOCK, TuneStep.STOCK_RESULT, TuneStep.APPLY, TuneStep.VERIFY, TuneStep.RESULT)
 

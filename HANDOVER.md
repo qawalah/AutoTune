@@ -371,3 +371,9 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - UI: the warning joins the "Before measuring" `Alerts` in `OutputPicker`; `DoneStep` pins the automatic switch or "Open the EQ", with Back to start and See all results as `TextAction`s.
 - Not verified on a phone: that `AudioDeviceInfo.address` reports the car's Bluetooth address on One UI, and what output name wireless Android Auto shows.
 
+### 2.7.0: no Stock or Verify page, Done on the Tune screen, Set up remembered per output
+- TuningLogic (pure, FlowTest): `returnAfterMeasuring(from, runCount)`; `SetupMemory` (`toText`/`fromText`, format `1;target;source;spots;gate;bass;treble`); `showsTuned(tunedTestId, tunedRuns, openTestId, runCount)`.
+- VM: `UiState.measureFrom` (set by `startMeasuring`, used by `tuneSetup`, `tuneMeasureStock`, `tuneMeasure`); `leaveMeasuring()` from `closeMeasureView` and a cancelled `run {}` returns to `returnAfterMeasuring` and drops pending spots. STOCK and VERIFY stay as `TuneStep` values (they decide `measure()` and the step bar) but have no page: TuneTab draws the step they return to. A failure before the measuring screen opened opens it as FAILED. `micMissing()` + `askMic` (collected in AutoTuneScreen) replace the permission landing. `tuneKeep` sets `tunedTestId`/`tunedRuns`, clears `resumeStep`, goes to HOME. Pref `setup_<outputName>` via `rememberSetup`; `UiState.setupMemory` is read in `refreshMic`; `newTaste` carries the remembered taste into the stock fit and the saved test.
+- UI: `MeasureStep`, `DoneStep`, `Failure`, `Ring` are gone; `TunedPanel` (Tune screen), `RunNote` (EQ step and result, Advanced); `LevelResult` is internal and shown on the failed measuring screen with "Check the level". `TuneStep.DONE` renders the Tune screen.
+- Not verified on a phone: the measuring screen's Close and Back landing on the right step, and Set up's memory when the output name changes between sessions.
+

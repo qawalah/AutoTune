@@ -352,6 +352,13 @@ data class UiState(
     val trebleDb: Double = 0.0,
     /** Where Continue picks up the open test: the step it was left on (Exit keeps the place). */
     val resumeStep: TuneStep? = null,
+    /** The step a Tune measurement was started from: a closed, stopped or failed measurement returns there. */
+    val measureFrom: TuneStep? = null,
+    /** Set up's last choices on the current output (null: none yet, the defaults apply). */
+    val setupMemory: SetupMemory? = null,
+    /** The test the last Keep finished and its run count then: the Tune screen shows it as tuned (see [showsTuned]). */
+    val tunedTestId: String? = null,
+    val tunedRuns: Int = 0,
     /** How the EQ reaches the speakers for the next run (AutoTune EQ, equipment or inside the app). */
     val applyWay: ApplyWay = ApplyWay.EQUIPMENT,
     /** The next run repeats the previous one with nothing changed. */
@@ -463,6 +470,11 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Fires when a reading was measured and saved, so the screen can open Results. */
     val runDone = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /** A measuring key was pressed without microphone access: the screen asks for it. */
+    val askMic = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    /** Taste for the next new test, from Set up's memory of this output (null: the defaults). */
+    private var newTaste: Pair<Double, Double>? = null
 
     private val fs = 48000
     private val grid = FreqGrid()
@@ -1010,6 +1022,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 micName = d?.productName?.toString() ?: "Phone microphone", phoneMic = d == null,
                 outputs = list.map { o -> o.id to o.name }, outputChoice = choice, outputName = used?.let { o -> Outputs.nameOf(o) },
                 carMode = dev.autotune.audio.LoudEq.carMode(ctx), btRoute = btRouteOf(used),
+                setupMemory = used?.let { o -> SetupMemory.fromText(prefs.getString("setup_" + Outputs.nameOf(o), null)) },
                 outputToMic = Outputs.isTheMic(used, d),
                 audioCaptured = sys?.type == android.media.AudioDeviceInfo.TYPE_REMOTE_SUBMIX,
                 micAlsoOutput = Outputs.micIsAlsoOutput(list, d),
@@ -1114,6 +1127,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 block()
             } catch (e: CancellationException) {
                 state.update { it.copy(status = "Cancelled.", measureView = null) }
+                leaveMeasuring()
                 throw e
             } catch (e: Throwable) {
                 // an OutOfMemoryError must not take the app (and the recording) with it
@@ -1123,7 +1137,12 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 state.update {
                     it.copy(
                         status = msg, positionsDone = 0,
-                        measureView = it.measureView?.copy(stage = MeasureStage.FAILED, message = msg.removePrefix("Failed: ")),
+                        // a Tune measurement that failed before its screen opened still shows why, on the measuring screen
+                        measureView = it.measureView?.copy(stage = MeasureStage.FAILED, message = msg.removePrefix("Failed: "))
+                            ?: if (it.tuneStep == TuneStep.STOCK || it.tuneStep == TuneStep.VERIFY) MeasureView(
+                                if (it.tuneStep == TuneStep.STOCK) "Stock reading" else "Run", MeasureStage.FAILED, msg.removePrefix("Failed: "),
+                                emptyList(), 1, it.positions, it.source == Source.PHONE,
+                            ) else null,
                     )
                 }
                 Diag.log(ctx(), "failure", mapOf("message" to msg, "error" to e.javaClass.simpleName, "step" to state.value.tuneStep))
@@ -1587,7 +1606,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             runs = listOf(SavedRun(now, rms, mag, filters, TestStore.STOCK_LABEL, warnings = warnings, calibration = calName(), complete = true)),
             resonances = res.map { doubleArrayOf(it.freqHz, it.prominenceDb, it.q, it.t60Ms ?: Double.NaN, if (it.t60IsLowerBound) 1.0 else 0.0) },
             notes = state.value.testNotes,
-            bassDb = cur?.bassDb ?: state.value.defBassDb, trebleDb = cur?.trebleDb ?: state.value.defTrebleDb,
+            bassDb = cur?.bassDb ?: newTaste?.first ?: state.value.defBassDb, trebleDb = cur?.trebleDb ?: newTaste?.second ?: state.value.defTrebleDb,
         )
         withContext(Dispatchers.IO) { TestStore.save(ctx, t) }
         current = t
@@ -1602,7 +1621,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         m.fatal?.let { error(it) }
         // a stock reading measured again keeps the test's taste
         val target = current?.takeIf { it.targetIdx == targetIdx }?.let { targetFor(it) }
-            ?: targetAt(targetIdx).withTaste(state.value.defBassDb, state.value.defTrebleDb)
+            ?: targetAt(targetIdx).withTaste(newTaste?.first ?: state.value.defBassDb, newTaste?.second ?: state.value.defTrebleDb)
         val baselineRms = EqFitter.score(m.magDb, m.grid, target).first
         val res = withContext(Dispatchers.Default) { ResonanceDetector.detect(m) }
         val fit = EqFitter.fit(m.magDb, m.grid, target)
@@ -1756,7 +1775,36 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun closeMeasureView() = state.update { it.copy(measureView = null) }
+    fun closeMeasureView() {
+        state.update { it.copy(measureView = null) }
+        leaveMeasuring()
+    }
+
+    /**
+     * The measuring screen closed without a saved reading (closed, stopped or failed): back to the step the measurement
+     * was started from, with the spots measured so far dropped. A saved reading has already moved on to its result.
+     */
+    private fun leaveMeasuring() {
+        val st = state.value
+        if (st.tuneStep != TuneStep.STOCK && st.tuneStep != TuneStep.VERIFY) return
+        restartSpots()
+        tuneGo(returnAfterMeasuring(st.measureFrom, current?.runs?.size ?: 0))
+    }
+
+    /** No microphone access: ask for it instead of starting, and stay where we are. */
+    private fun micMissing(): Boolean {
+        if (state.value.hasPermission) return false
+        state.update { it.copy(status = "Allow microphone access first.") }
+        askMic.tryEmit(Unit)
+        return true
+    }
+
+    /** Remembers where a Tune measurement starts from, then shows its step (the measuring screen covers it). */
+    private fun startMeasuring(step: TuneStep) {
+        val from = state.value.tuneStep.takeIf { it != TuneStep.STOCK && it != TuneStep.VERIFY } ?: state.value.measureFrom
+        state.update { it.copy(measureFrom = from) }
+        tuneGo(step)
+    }
 
     /**
      * Does the EQ really reach the speakers? Measures once with AutoTune EQ off and once with the EQ in use on, then
@@ -1926,26 +1974,43 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
      * microphone access the Stock screen is shown instead, where the permission can be given.
      */
     fun tuneSetup(name: String, targetIdx: Int, source: Source, positions: Int, gateMs: Int?) {
+        if (micMissing()) return
         // the stock reference is measured with no EQ at all: AutoTune EQ off, the new test's suggestion in use
         if (state.value.systemEqOn) setSystemEq(false)
+        // the taste remembered for this output goes with its target
+        val mem = state.value.setupMemory
+        newTaste = mem?.takeIf { it.targetIdx == targetIdx }?.let { it.bassDb to it.trebleDb }
+        rememberSetup(SetupMemory(
+            targetIdx, source.ordinal, positions, gateMs ?: 0,
+            newTaste?.first ?: state.value.defBassDb, newTaste?.second ?: state.value.defTrebleDb,
+        ))
         startNewTest(name, targetIdx, source)
         resetToSuggestion()
         setPositions(positions)
         gateMs?.let { setGate(it) }
-        tuneGo(TuneStep.STOCK)
-        if (state.value.hasPermission) stockRun()
+        startMeasuring(TuneStep.STOCK)
+        stockRun()
+    }
+
+    /** Saves Set up's choices for the current output. */
+    private fun rememberSetup(m: SetupMemory) {
+        val out = state.value.outputName ?: return
+        prefs.edit().putString("setup_$out", m.toText()).apply()
+        state.update { it.copy(setupMemory = m) }
     }
 
     /** Measure the stock system again (replacing the stock reading), straight away. */
     fun tuneMeasureStock() {
-        tuneGo(TuneStep.STOCK)
-        if (state.value.hasPermission) stockRun()
+        if (micMissing()) return
+        startMeasuring(TuneStep.STOCK)
+        stockRun()
     }
 
-    /** Measure with the EQ as it is now, straight away. The Verify screen is only where a failed or closed run lands. */
+    /** Measure with the EQ as it is now, straight away; a closed or failed run returns to where it started. */
     fun tuneMeasure() {
-        tuneGo(TuneStep.VERIFY)
-        if (state.value.hasPermission) measure()
+        if (micMissing()) return
+        startMeasuring(TuneStep.VERIFY)
+        measure()
     }
 
     /** Apply the suggested EQ the chosen way, then measure it. */
@@ -2008,8 +2073,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         val idx = if (useBest) withEq.minByOrNull { t.runs[it].rmsDb } else withEq.lastOrNull()
         if (idx == null) {
             // no run was measured with an EQ: nothing to keep, the system stays as it is
-            state.update { it.copy(status = "No run had an EQ applied, so there is nothing to keep.", tunedProfileId = null) }
-            tuneGo(TuneStep.DONE)
+            state.update { it.copy(status = "No run had an EQ applied, so there is nothing to keep.", tunedProfileId = null, tunedTestId = null) }
+            tuneGo(TuneStep.HOME)
             return
         }
         val run = t.runs[idx]
@@ -2032,7 +2097,13 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             if (state.value.systemEqOn) refreshSystemEq() else setSystemEq(true)
         }
         Diag.log(ctx(), "tune_done", mapOf("test" to t.name, "run" to run.label, "rmsDb" to run.rmsDb, "profile" to p.name, "bands" to Diag.bands(bands)))
-        tuneGo(TuneStep.DONE)
+        // the next tune on this output starts from this test's target and taste
+        state.value.setupMemory?.let { m ->
+            if (t.sourceIdx == m.sourceIdx) rememberSetup(m.copy(targetIdx = t.targetIdx, bassDb = t.bassDb, trebleDb = t.trebleDb))
+        }
+        // Done is the Tune screen showing the finished tune
+        state.update { it.copy(tunedTestId = t.id, tunedRuns = t.runs.size, resumeStep = null) }
+        tuneGo(TuneStep.HOME)
     }
 
     /** Apply the EQ by switching on AutoTune's own EQ for this phone's audio, then measure. */

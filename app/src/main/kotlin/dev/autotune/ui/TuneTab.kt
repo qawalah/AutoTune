@@ -60,8 +60,11 @@ fun TuneTab(s: UiState, vm: TuneViewModel, sharer: Sharer, go: (Tab) -> Unit, op
     val exit = { vm.tuneExit() }
     val anim = animationsOn()
     // each step slides in from the side it comes from: forward from the end, Back from the start
+    // Stock and Verify are measuring phases with no page of their own: the step they started from stays under the
+    // measuring screen, and a closed or failed measurement returns to it
+    val shown = if (s.tuneStep == TuneStep.STOCK || s.tuneStep == TuneStep.VERIFY) dev.autotune.returnAfterMeasuring(s.measureFrom, s.runs.size) else s.tuneStep
     Transit(
-        s.tuneStep,
+        shown,
         spec = {
             if (!anim) androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
             else slideSideways(dev.autotune.stepSlide(initialState, targetState))
@@ -69,14 +72,12 @@ fun TuneTab(s: UiState, vm: TuneViewModel, sharer: Sharer, go: (Tab) -> Unit, op
     ) { step ->
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             when (step) {
-                TuneStep.HOME -> TuneHome(s, vm, pick)
+                // Done is the Tune screen showing the finished tune
+                TuneStep.HOME, TuneStep.DONE -> TuneHome(s, vm, pick, go)
                 // five steps: the fresh start is part of Tune itself, and the stock review heads the EQ step
                 TuneStep.FRESH, TuneStep.SETUP -> SetupStep(s, vm, sharer, pick, exit)
-                TuneStep.STOCK -> MeasureStep(s, vm, sharer, pick, stock = true, exit = exit)
-                TuneStep.STOCK_RESULT, TuneStep.APPLY -> ApplyStep(s, vm, pick, exit)
-                TuneStep.VERIFY -> MeasureStep(s, vm, sharer, pick, stock = false, exit = exit)
+                TuneStep.STOCK_RESULT, TuneStep.APPLY, TuneStep.STOCK, TuneStep.VERIFY -> ApplyStep(s, vm, pick, exit)
                 TuneStep.RESULT -> ResultStep(s, vm, pick, openResults, exit)
-                TuneStep.DONE -> DoneStep(s, vm, pick, go, openResults)
             }
         }
     }
@@ -87,7 +88,7 @@ private const val STEPS = 5
 // ------------------------------------------------------------------ home
 
 @Composable
-private fun TuneHome(s: UiState, vm: TuneViewModel, pick: Pickers) {
+private fun TuneHome(s: UiState, vm: TuneViewModel, pick: Pickers, go: (Tab) -> Unit) {
     ScreenTitle(
         "Tune", if (s.testName.isBlank()) null else dev.autotune.shortTestName(s.testName, "").first,
         contextIcon = s.tests.firstOrNull { it.id == s.currentTestId }?.kind?.let { kindIcon(it) },
@@ -118,6 +119,7 @@ private fun TuneHome(s: UiState, vm: TuneViewModel, pick: Pickers) {
             )
         }
     }
+    TunedPanel(s, vm, pick, go)
     if (s.runs.isNotEmpty()) {
         SecondaryButton("Continue “${dev.autotune.shortTestName(s.testName, "").first}”", vm::tuneContinue, Modifier.fillMaxWidth(), icon = Ic.NEXT)
     }
@@ -150,12 +152,18 @@ private val ROUTES = listOf(
 private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pickers, exit: () -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
     // starts from the defaults in Settings
-    val defIdx = Target.ALL.indexOfFirst { it.name == s.defTarget }.takeIf { it >= 0 } ?: s.targetIdx
-    var targetIdx by rememberSaveable { mutableIntStateOf(defIdx.coerceIn(0, (s.targetNames.size - 1).coerceAtLeast(0))) }
-    var routeIdx by rememberSaveable { mutableIntStateOf(ROUTES.indexOfFirst { it.first == s.source }.coerceAtLeast(0)) }
+    // or, on an output tuned before, the choices made there last time
+    val mem = s.setupMemory?.takeIf { it.targetIdx in s.targetNames.indices }
+    val defIdx = mem?.targetIdx ?: Target.ALL.indexOfFirst { it.name == s.defTarget }.takeIf { it >= 0 } ?: s.targetIdx
+    val out = s.outputName
+    var targetIdx by rememberSaveable(out) { mutableIntStateOf(defIdx.coerceIn(0, (s.targetNames.size - 1).coerceAtLeast(0))) }
+    val memSource = mem?.let { m -> Source.entries.getOrNull(m.sourceIdx) }
+    var routeIdx by rememberSaveable(out) { mutableIntStateOf(ROUTES.indexOfFirst { it.first == (memSource ?: s.source) }.coerceAtLeast(0)) }
     val car = dev.autotune.targetKind(Target.ALL.getOrNull(targetIdx)) == dev.autotune.TargetKind.CAR
-    var spotsIdx by rememberSaveable(car) { mutableIntStateOf(listOf(1, 3, 5).indexOf(s.defSpots).takeIf { it >= 0 } ?: if (car) 1 else 0) }
-    var gateIdx by rememberSaveable { mutableIntStateOf(listOf(0, 80, 200, 400, 600).indexOf(s.defGateMs).coerceAtLeast(0)) }
+    var spotsIdx by rememberSaveable(car, out) {
+        mutableIntStateOf(listOf(1, 3, 5).indexOf(mem?.spots ?: s.defSpots).takeIf { it >= 0 } ?: if (car) 1 else 0)
+    }
+    var gateIdx by rememberSaveable(out) { mutableIntStateOf(listOf(0, 80, 200, 400, 600).indexOf(mem?.gateMs ?: s.defGateMs).coerceAtLeast(0)) }
     val spots = listOf(1, 3, 5)
 
     StepHeader(0, STEPS, "Set up", exit, onBack = vm::tuneBack, names = dev.autotune.STEP_NAMES)
@@ -167,6 +175,7 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
                 "• Phone sound effects off: Samsung Adapt Sound, Dolby Atmos, the phone's own equaliser.\n" +
                 "• Mic at your head position, pointing up. Engine off, doors closed, normal listening volume.",
         )
+        if (mem != null && out != null) Muted("as last time on $out")
         OutlinedTextField(
             value = name, onValueChange = { name = it },
             label = { Text("Name (optional)") }, placeholder = { Text("e.g. F-150 driver seat") },
@@ -200,101 +209,11 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
     PinAction(
         "Measure the stock system",
         { vm.tuneSetup(name, targetIdx, ROUTES[routeIdx].first, spots[spotsIdx], listOf(null, 80, 200, 400, 600)[gateIdx]) },
-        icon = Ic.MEASURE, enabled = s.hasPermission,
-        hint = if (!s.hasPermission) "Allow microphone access first." else null,
+        icon = Ic.MEASURE,
     )
 }
 
 // ------------------------------------------------------------------ 3 / 5. measure
-
-@Composable
-private fun MeasureStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pickers, stock: Boolean, exit: () -> Unit) {
-    val ready = s.hasPermission
-    val n = s.runs.size
-    val title = when {
-        stock -> "Stock reading"
-        s.repeatNext -> "Run $n (repeat)"
-        else -> "Run $n"
-    }
-    val how = when {
-        stock && s.runs.isNotEmpty() -> "No EQ. This replaces the stock reading" + (if (s.runs.size > 1) " and the ${s.runs.size - 1} runs after it." else ".")
-        stock -> "No EQ: this is the reference every run is compared with."
-        s.repeatNext -> "Nothing changed since ${s.runs.lastOrNull()?.label ?: "the last run"}: shows how steady the reading is."
-        s.systemEqOn -> "With AutoTune EQ on."
-        s.applyWay == ApplyWay.IN_APP -> "The sweep plays through the EQ inside the app. Nothing else changes."
-        else -> "With the EQ set on your equipment."
-    }
-    val failed = !s.busy && s.status?.startsWith("Failed: ") == true
-
-    StepHeader(if (stock) 1 else 3, STEPS, if (stock) "Stock reading" else "Verify", exit, onBack = vm::tuneBack, names = dev.autotune.STEP_NAMES)
-    Panel {
-        CardTitle(
-            title, if (stock && s.runs.isNotEmpty()) "Replaces the stock reading" else null,
-            info = how + ((s.eqLevelDb ?: 0.0).takeIf { !stock && !s.repeatNext && it < -2.0 }?.let {
-                "\n\nThis EQ makes the sound about %.0f dB quieter overall. Turning the volume up a step for this reading is fine: AutoTune compares the shape of the response, not its loudness.".format(-it)
-            } ?: ""),
-        )
-        MicLine(s, pick)
-        if (s.source != Source.PHONE) OtherDeviceSignal(s.source, vm, sharer)
-        if (s.source == Source.PHONE) OutputPicker(s, vm)
-        // the measure button is pinned at the bottom; here only where the spots stand
-        if (s.positionsDone > 0) {
-            Text(say("Spot ${s.positionsDone} of ${s.positions} done. Move the mic a hand's width.", "Spot ${s.positionsDone} of ${s.positions} done. Move the mic a hand's width to the next spot, then measure again."), style = MaterialTheme.typography.bodyMedium)
-            Actions { TextAction("Start the spots over", vm::resetPositions, icon = Ic.UNDO) }
-        }
-        if (failed) Failure(s) else if (!s.busy) s.status?.let { Muted(it) }
-        LevelResult(s)
-    }
-    // Keep the primary action after the context and readiness checks: users should know what is about to happen.
-    PinAction(
-        when {
-            failed -> "Try again"
-            s.positions > 1 -> "Measure spot ${s.positionsDone + 1} of ${s.positions}"
-            stock -> "Measure the stock system"
-            else -> "Measure with the EQ"
-        },
-        vm::measure, icon = if (failed) Ic.AGAIN else Ic.MEASURE, enabled = ready && !s.busy,
-        hint = when {
-            !ready -> "Allow microphone access first."
-            stock -> "This becomes the reference for every comparison."
-            else -> "Keep the same mic position and playback volume as the stock reading."
-        },
-    )
-    // the other moves, one per row under each other; Back is the arrow in the header
-    if (!s.busy) Adv {
-        Actions {
-            if (s.source == Source.PHONE) {
-                if (s.playing) TextAction("Stop the test sound", vm::stopClip, icon = Ic.STOP)
-                else TextAction("Test sound", vm::testSound, enabled = !s.busy, icon = Ic.PLAY)
-            }
-            TextAction("Check the level", vm::levelCheck, enabled = ready, icon = Ic.LIVE)
-            TextAction(if (stock) "Back" else "Back to the EQ", vm::tuneBack, icon = Ic.BACK)
-        }
-    }
-    if (stock) {
-        Fold("Before you start", summary = "EQ off, mic, volume", startOpen = isAdvanced()) {
-            Bullet(say("Every EQ and sound effect off.", "Every EQ and sound effect off (head unit, Samsung Adapt Sound, Dolby, loudness)."))
-            Bullet(say("Mic at head height, pointing up.", "Mic at your head position, pointing up. Engine off, doors closed."))
-            Bullet("Your normal listening volume.")
-        }
-    } else {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AtIcon(Ic.MIC, At.c.muted, Modifier.padding(end = 10.dp), 20.dp)
-            Text("Same mic spot and volume as the stock.", style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-    if (!stock && !s.busy && isAdvanced()) {
-        var note by rememberSaveable { mutableStateOf(false) }
-        if (note || s.runNote.isNotBlank()) {
-            OutlinedTextField(
-                value = s.runNote, onValueChange = vm::setRunNote,
-                label = { Text("Note for this run") }, placeholder = { Text("e.g. tweeters down 2 dB") },
-                modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
-            )
-        } else TextAction("Add a note to this run", { note = true }, icon = Ic.EDIT)
-    }
-    Adv { Fold("Measurement settings", summary = "Spots, channel, window") { Settings(s, vm, ready) } }
-}
 
 /** One finding: an icon for how much it matters, a title and what it means. */
 @Composable
@@ -393,6 +312,7 @@ private fun ApplyStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> 
             TextAction("Measure the stock again", vm::tuneMeasureStock, icon = Ic.AGAIN)
             TextAction("Ask AI to review", vm::aiOpen, icon = Ic.AI)
         }
+        RunNote(s, vm)
         // everything else, in Advanced and closed until needed
         if (isAdvanced()) TargetSoundFold(s, vm)
         if (isAdvanced()) Fold("Adjust and files", summary = "Adjust by hand, exact bands, save or share files") {
@@ -461,6 +381,7 @@ private fun ResultStep(s: UiState, vm: TuneViewModel, pick: Pickers, openResults
     s.eqCheck?.let { EqCheckCard(it, vm) }
     FollowAndChecks(s, vm)
     val move = rec?.move ?: dev.autotune.NextMove.REFINE
+    RunNote(s, vm)
     Group("Other choices", divider = false) {
       Actions {
         if (move != dev.autotune.NextMove.REFINE && !latest.converged) TextAction("Another round with the new suggested EQ", vm::tuneRefine, icon = Ic.TUNE)
@@ -505,37 +426,47 @@ private fun ResultStep(s: UiState, vm: TuneViewModel, pick: Pickers, openResults
 
 // ------------------------------------------------------------------ done
 
+/**
+ * A finished tune on the Tune screen (what Done used to be): stock and tuned readings, where the EQ now plays, and the
+ * next useful step pinned: switch it on with the car it was tuned in, else open the EQ.
+ */
 @Composable
-private fun DoneStep(s: UiState, vm: TuneViewModel, pick: Pickers, go: (Tab) -> Unit, openResults: () -> Unit) {
-    val stock = s.runs.firstOrNull()
-    val last = s.runs.drop(1).minByOrNull { it.rmsDb }
-    Column(Modifier.fillMaxWidth().padding(top = 32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        AtIcon(Ic.DONE, At.c.good, size = 64.dp)
-        Text("Tuned", style = MaterialTheme.typography.headlineMedium)
-        if (stock != null && last != null) Text("%.1f dB → %.1f dB from the target".format(stock.rmsDb, last.rmsDb), style = MaterialTheme.typography.headlineSmall)
-        Text(
+private fun TunedPanel(s: UiState, vm: TuneViewModel, pick: Pickers, go: (Tab) -> Unit) {
+    s.status?.takeIf { it.startsWith("No run had") }?.let { Muted(it) }
+    if (!dev.autotune.showsTuned(s.tunedTestId, s.tunedRuns, s.currentTestId, s.runs.size)) return
+    val stock = s.runs.firstOrNull() ?: return
+    val best = s.runs.drop(1).minByOrNull { it.rmsDb } ?: return
+    Panel {
+        CardTitle("Tuned")
+        ReadingCells(listOf(Reading("%.1f".format(best.rmsDb), "dB", "tuned"), Reading("%.1f".format(stock.rmsDb), "dB", "stock")))
+        Muted(
             when {
-                s.systemEqOn -> "Saved. AutoTune EQ is on with it."
+                s.systemEqOn -> "AutoTune EQ is on with it."
                 s.source == Source.PHONE && s.applyWay != ApplyWay.EQUIPMENT -> "Saved. Switch on AutoTune EQ to use it."
                 else -> "Saved. Keep these bands on your equipment."
             },
-            style = MaterialTheme.typography.bodyMedium, color = At.c.muted, textAlign = TextAlign.Center,
         )
+        s.status?.takeIf { it.startsWith("Switches on whenever") }?.let { Muted(it) }
     }
-    // the next useful thing: tie the tune to the car it was made in, else open the EQ it now plays
     val playsOnPhone = s.source == Source.PHONE && s.applyWay != ApplyWay.EQUIPMENT
     val route = s.btRoute
     if (route != null && dev.autotune.offerAutoSwitch(route, playsOnPhone, s.tunedProfileId, s.rules, s.automationOn)) {
         PinAction("Use this EQ whenever ${route.name} connects", { pick.bluetooth(); vm.autoSwitchToTuned() }, icon = Ic.BLUETOOTH)
-        SecondaryButton("Open the EQ", { go(Tab.EQ) }, Modifier.fillMaxWidth(), icon = Ic.EQ)
-    } else {
-        s.status?.takeIf { it.startsWith("Switches on whenever") }?.let { Muted(it) }
-        PinAction("Open the EQ", { go(Tab.EQ) }, icon = Ic.EQ)
-    }
-    Actions {
-        TextAction("Back to start", { vm.tuneGo(TuneStep.HOME) }, icon = Ic.TUNE)
-        TextAction("See all results", openResults, icon = Ic.TESTS)
-    }
+    } else PinAction("Open the EQ", { go(Tab.EQ) }, icon = Ic.EQ)
+}
+
+/** Advanced: a note saved with the next run (what was changed for it). */
+@Composable
+private fun RunNote(s: UiState, vm: TuneViewModel) {
+    if (!isAdvanced()) return
+    var note by rememberSaveable { mutableStateOf(false) }
+    if (note || s.runNote.isNotBlank()) {
+        OutlinedTextField(
+            value = s.runNote, onValueChange = vm::setRunNote,
+            label = { Text("Note for the next run") }, placeholder = { Text("e.g. tweeters down 2 dB") },
+            singleLine = true, modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
+        )
+    } else Actions { TextAction("Add a note to the next run", { note = true }, icon = Ic.EDIT) }
 }
 
 // ------------------------------------------------------------------ pieces
@@ -591,40 +522,6 @@ private fun Bullet(text: String) {
     }
 }
 
-@Composable
-private fun Failure(s: UiState) {
-    val st = s.status ?: return
-    if (s.busy) return
-    if (st.startsWith("Failed: ")) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AtIcon(Ic.ALERT, At.c.bad, Modifier.padding(top = 1.dp), 18.dp)
-            Text(st.removePrefix("Failed: "), style = MaterialTheme.typography.bodyMedium, color = At.c.text)
-        }
-    } else {
-        Text(st, style = MaterialTheme.typography.bodyMedium)
-    }
-}
-
-@Composable
-private fun Ring(s: UiState, vm: TuneViewModel, ready: Boolean, label: String, hint: String) {
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        MeasureControl(
-            if (s.positions > 1) "Spot ${s.positionsDone + 1}" else label,
-            if (s.positions > 1) "of ${s.positions}" else hint,
-            s.busy, s.progress, enabled = ready, onClick = vm::measure, onStop = vm::cancel,
-        )
-        if (s.busy) Text(s.status ?: "Measuring…", style = MaterialTheme.typography.bodyMedium, color = At.c.muted, textAlign = TextAlign.Center)
-        else if (!ready) Text("Allow microphone access first.", style = MaterialTheme.typography.bodyMedium, color = At.c.muted, textAlign = TextAlign.Center)
-        else if (s.positionsDone > 0) {
-            Text(
-                "Spot ${s.positionsDone} of ${s.positions} done. Move the mic a hand's width to the next spot, then tap again.",
-                style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center,
-            )
-            TextAction("Start the spots over", vm::resetPositions, icon = Ic.UNDO)
-        }
-    }
-}
-
 /** Where the test sound plays, as a drop-down, so a wrong route (into the mic, or the phone speaker) is obvious. */
 @Composable
 private fun OutputPicker(s: UiState, vm: TuneViewModel) {
@@ -646,7 +543,7 @@ private fun OutputPicker(s: UiState, vm: TuneViewModel) {
 }
 
 @Composable
-private fun LevelResult(s: UiState) {
+internal fun LevelResult(s: UiState) {
     val r = s.levelResult ?: return
     val good = r.startsWith("Good")
     if (good) StatusLine(true, r) else Warning(r)

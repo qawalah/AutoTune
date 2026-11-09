@@ -4,6 +4,14 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.7.0] - 2026-11-09
+### Changed
+- **No Stock or Verify page.** A measurement that fails, is stopped or is closed now goes back to where you started it (Set up, the EQ step or the result), so Tune is three screens plus the measuring screen. The step bar still names five steps. A failure stays on the measuring screen with "Try again", "Check the level", "Ask AI why" and "Close".
+- **Done is the Tune screen.** Keeping an EQ returns to the Tune screen, which shows the tuned and stock readings and where the EQ plays, with "Use this EQ whenever <device> connects" (or "Open the EQ") as the main key. One screen and one tap fewer.
+- **Set up remembers each output.** The target, taste, route, mic spots and window you chose last time on the same output (your car, the soundbar) come back, with one line saying so. Keeping a tune updates the remembered target and taste.
+- The microphone is asked for by the measuring key itself when access is missing.
+- The note for a run (Advanced) is on the EQ step and the result, "Note for the next run". Since 2.1.1 it could only be typed after a failed measurement.
+
 ## [2.6.0] - 2026-11-09
 ### Changed
 - **Set up warns when the phone's EQ may not reach the speakers.** With Android Auto on, or on an output where an EQ check already found the phone's EQ missing, one line under "Plays through" says so before the stock reading. On a proven output the EQ step starts with your equipment; with Android Auto it only warns, because wired Android Auto has carried the EQ since 2.3.1.

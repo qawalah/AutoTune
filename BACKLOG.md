@@ -21,8 +21,9 @@ The six held items were built together: AUTOTUNE wordmark and Braun audio header
 The three held entries were built together: the name centred on the header graphic, the graphic shrinking and gliding into the slim bar's right corner with the scroll (and back at the very top, on every screen), the Simple / Advanced key fixed in the middle of the top line, the three-bar menu removed (Export EQ files in Settings for Simple and Advanced and on the EQ tab in Advanced; Send diagnostics stays in Advanced), Tune drawn as a Braun tuning knob everywhere including the app and notification icons, and Settings as a gear. The Tune speaker keeps "Tune" on its key. Open follow-ups:
 - Check on the owner's phone: the feel of the fold under a finger and with a fling, and the folded opening after a tab jump.
 
-## Flow review (9 Nov 2026): 1-3 done in 2.5.0, 4 and 6 in 2.6.0, the rest open
+## Flow review (9 Nov 2026): 1-3 done in 2.5.0, 4 and 6 in 2.6.0, leaner flow in 2.7.0, the rest open
+- **Next mic spot starts by itself** (held, asked 9 Nov): a countdown after each spot instead of "Measure spot n"; would halve the taps in a session.
 From the flow maps in `FLOW.md`. Done: Set up is a draft, the EQ check decides the next move, preview tunes are measured on the phone's EQ before keeping.
-- **Level check before the stock sweep.** A short level probe as the first check on the measuring screen (reuse `levelCheck`), stopping with "turn it up/down a step" and Try again. No extra screen.
+- **Level check before the stock sweep.** A short level probe as the first check on the measuring screen (reuse `levelCheck`), stopping with "turn it up/down a step" and Try again. No extra screen. (Since 2.7.0 "Check the level" is on the failed measuring screen.)
 - **Route rules out of the screens.** `onEquipment` in EqTab and the `equipment` default in ApplyStep into one pure `applyRoute(...)` in TuningLogic with FlowTest cases; later split `TuneViewModel` (tune flow, measuring) into their own classes.
 - **Back up and restore tests.** Settings › Data (Advanced), reusing the diagnostics zip layout and TestStore's loader.

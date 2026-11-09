@@ -1,4 +1,4 @@
-# AutoTune flow maps (2.6.0)
+# AutoTune flow maps (2.7.0)
 
 How a tuning session flows and how you move around the app, drawn from the code. Update this file whenever a Tune step, a pinned action or a link between screens changes (see CLAUDE.md). Code names in brackets point at where each decision lives.
 
@@ -8,14 +8,15 @@ How a tuning session flows and how you move around the app, drawn from the code.
 flowchart TD
   K(["Tune key, or New test on Tests"]) --> S["1 Set up (a draft)<br/>name, target, route, output<br/>warns when the phone EQ may not reach it<br/>open test and EQ untouched"]
   S -->|"Back"| H(["Tune screen: Continue still there"])
+  MEM["remembered per output:<br/>target, taste, route, spots"] -.-> S
   CT(["Continue: Tune screen, results, Tests ⋮"]) --> RA{"Saved place still valid?<br/>(resumeAt)"}
   RA -->|"yes"| E
   RA -->|"no: by run count"| E
   S -->|"key: Measure the stock system<br/>EQ off, new test (tuneSetup)"| M0[["Measuring screen<br/>checks, spots 1..n"]]
-  M0 -->|"failed: Try again"| M0
-  M0 -->|"failed: Close"| SP["Stock page<br/>check level, test sound"]
-  SP -->|"Measure"| M0
+  M0 -->|"failed: Try again, Check the level"| M0
+  M0 -->|"closed, stopped or failed: Close<br/>(returnAfterMeasuring)"| S
   M0 -->|"failed: Ask AI why"| AI[["AI review"]]
+  M1 -->|"closed, stopped or failed: back where it started"| E
   M0 -->|"saved"| Q{"Stock reading suspicious?<br/>(analyzeStock)"}
   Q -->|"yes: Measure the stock again"| M0
   Q -->|"no, or Use this reading anyway"| E["3 EQ<br/>stock summary, suggested EQ<br/>How do you want to apply it?<br/>(equipment first on a known bypass output)"]
@@ -35,22 +36,22 @@ flowchart TD
   N -->|"CHECK_EQ, other device: Apply again"| E
   N -->|"KEEP, preview tune: MEASURE_ON_PHONE_EQ<br/>(needsPhoneEqRun)"| M1
   N -->|"KEEP_LATEST or KEEP_BEST"| KP["Keep: save profile,<br/>phone EQ on unless equipment"]
-  KP --> D(["Done: Use this EQ whenever the car connects<br/>(offerAutoSwitch), else Open the EQ"])
+  KP --> D(["Tune screen shows the tuned reading<br/>key: Use this EQ whenever the car connects<br/>(offerAutoSwitch), else Open the EQ"])
   R -.->|"Measure again, nothing changed"| M1
   R -.->|"Discard this run"| E
   R -.->|"Ask AI to review, Measure it"| E
 ```
 
-Every measurement starts the moment its key is pressed. The Stock and Verify pages are only where a failed or closed measurement lands. Back follows `previousStep`; Exit remembers the step for Continue.
+Every measurement starts the moment its key is pressed. Stock and Verify are measuring phases with no page: a closed, stopped or failed measurement returns to the step it started from. Tune is three screens (Set up, EQ, Result) plus the measuring screen. Back follows `previousStep`; Exit remembers the step for Continue.
 
 ## After every reading
 
 | Screen | The one key | Other choices |
 |---|---|---|
-| Measuring | See the result (closes itself when all checks pass), or Try again | Measure next spot, Ask AI why, Close |
+| Measuring | See the result (closes itself when all checks pass), or Try again | Measure next spot, Check the level, Ask AI why, Close |
 | EQ, after stock | Use the phone's EQ and measure; Measure the stock again when the stock looks wrong; It's set, measure on equipment | Preview in the app, Set it on my equipment; Advanced: target, sliders, bands, files, AI |
 | Result | Apply the new suggested EQ, Keep this EQ and finish, Keep the EQ of run n, Check the EQ reaches the speakers, Measure again, Set it on my equipment, or Switch on the phone's EQ and measure | The other moves, Measure again, Ask AI, All results, Discard |
-| Done | Use this EQ whenever <device> connects (phone EQ, Bluetooth route), else Open the EQ | Open the EQ, Back to start, See all results |
+| Tune screen after Keep | Use this EQ whenever <device> connects (phone EQ, Bluetooth route), else Open the EQ | Tune (new test), Continue |
 | Test results page | Continue tuning | Open the EQ, AI review |
 
 ## Navigation map

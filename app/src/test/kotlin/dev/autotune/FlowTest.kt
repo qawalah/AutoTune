@@ -218,4 +218,38 @@ class FlowTest {
         // a rule for another EQ is replaced by the new tune
         assertTrue(offerAutoSwitch(car, true, "p2", rule, true))
     }
+
+    // ---------------------------------------------------------------- 2.7.0: no Stock or Verify page, Done on the Tune screen, Set up remembered
+
+    @Test
+    fun aClosedMeasurementGoesBackWhereItStarted() {
+        assertEquals(TuneStep.SETUP, returnAfterMeasuring(TuneStep.SETUP, 0))
+        assertEquals(TuneStep.APPLY, returnAfterMeasuring(TuneStep.APPLY, 1))
+        assertEquals(TuneStep.RESULT, returnAfterMeasuring(TuneStep.RESULT, 3))
+        // the stock measured again from the EQ step, which no longer fits after it failed with no reading
+        assertEquals(TuneStep.SETUP, returnAfterMeasuring(TuneStep.APPLY, 0))
+        // started from elsewhere (the EQ tab, the AI review): the EQ step, or Set up without a reading
+        assertEquals(TuneStep.APPLY, returnAfterMeasuring(TuneStep.HOME, 2))
+        assertEquals(TuneStep.APPLY, returnAfterMeasuring(null, 1))
+        assertEquals(TuneStep.SETUP, returnAfterMeasuring(null, 0))
+        assertEquals(TuneStep.APPLY, returnAfterMeasuring(TuneStep.RESULT, 1))
+    }
+
+    @Test
+    fun setUpRemembersEachOutputsChoices() {
+        val m = SetupMemory(5, 0, 3, 0, 2.0, -1.5)
+        assertEquals(m, SetupMemory.fromText(m.toText()))
+        assertEquals(null, SetupMemory.fromText(null))
+        assertEquals(null, SetupMemory.fromText("2;5;0;3;0;2.0;-1.5")) // a later format
+        assertEquals(null, SetupMemory.fromText("1;5;0;x;0;2.0;-1.5"))
+        assertEquals(null, SetupMemory.fromText("1;5;0;0;0;2.0;-1.5")) // no spots
+    }
+
+    @Test
+    fun theTuneScreenShowsTheFinishedTuneUntilSomethingChanges() {
+        assertTrue(showsTuned("t1", 3, "t1", 3))
+        assertFalse(showsTuned("t1", 3, "t1", 4)) // measured again since
+        assertFalse(showsTuned("t1", 3, "t2", 3)) // another test open
+        assertFalse(showsTuned(null, 0, null, 0))
+    }
 }

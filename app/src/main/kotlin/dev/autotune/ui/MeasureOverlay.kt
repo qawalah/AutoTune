@@ -175,7 +175,10 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
                 SecondaryButton("Close", vm::closeMeasureView, Modifier.fillMaxWidth())
             }
             v.stage == MeasureStage.FAILED -> {
-                PrimaryButton("Try again", { vm.measure() }, Modifier.fillMaxWidth(), icon = Ic.AGAIN)
+                // what the Stock and Verify pages used to offer after a failure lives here now
+                LevelResult(s)
+                PrimaryButton("Try again", { vm.measure() }, Modifier.fillMaxWidth(), icon = Ic.AGAIN, enabled = !s.busy)
+                SecondaryButton("Check the level", vm::levelCheck, Modifier.fillMaxWidth(), icon = Ic.LIVE, enabled = !s.busy)
                 SecondaryButton("Ask AI why", vm::aiExplainFailure, Modifier.fillMaxWidth(), icon = Ic.AI)
                 SecondaryButton("Close", vm::closeMeasureView, Modifier.fillMaxWidth())
             }

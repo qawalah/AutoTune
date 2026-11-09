@@ -202,6 +202,8 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
             else -> { tabIdx = t.ordinal; pages = emptyList() }
         }
     }
+    // a measuring key pressed without microphone access asks for it
+    LaunchedEffect(Unit) { vm.askMic.collect { pick.permission() } }
     // a new step of the Tune workflow opens at its top
     LaunchedEffect(s.tuneStep) { scrolls[Tab.MEASURE.name]?.let { if (it.value > 0) it.animateScrollTo(0) } }
     // the results of the open test, over the tab you are on
