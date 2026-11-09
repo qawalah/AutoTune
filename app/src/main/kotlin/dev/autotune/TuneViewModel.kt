@@ -195,8 +195,11 @@ fun targetKind(t: Target?): TargetKind = when {
     else -> TargetKind.CUSTOM
 }
 
-/** The EQ check on screen: the verdict and a graph of the measured change against what the EQ should do. */
-data class EqCheckView(val check: EqCheck, val chart: ChartData, val eqName: String, val whenText: String)
+/**
+ * The EQ check on screen: the verdict and a graph of the measured change against what the EQ should do. [testId] and
+ * [runCount] say which test and run the check followed, so the verdict only steers that run's result.
+ */
+data class EqCheckView(val check: EqCheck, val chart: ChartData, val eqName: String, val whenText: String, val testId: String? = null, val runCount: Int = -1)
 
 /** One EQ the user can put in use: a test's next suggestion, the EQ of one of its runs, or a saved EQ. */
 data class EqChoice(
@@ -336,6 +339,8 @@ data class UiState(
     val checkSuggestions: List<CheckSuggestion> = emptyList(),
     /** The last EQ check: did the EQ reach the speakers (with the measured change against the EQ). */
     val eqCheck: EqCheckView? = null,
+    /** Outputs an EQ check found the phone's EQ does not reach (pref `eqBypassOutputs`): the EQ step offers equipment first. */
+    val eqBypassOutputs: Set<String> = emptySet(),
     /** Taste on top of the open test's target: bass and treble shelves in dB. */
     val bassDb: Double = 0.0,
     val trebleDb: Double = 0.0,
@@ -502,6 +507,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 loudSource = prefs.getString("loudSource", null),
                 systemEqFine = prefs.getBoolean("eqFine", false).also { SystemEqConfig.fine = it },
                 systemEqSuspect = prefs.getBoolean("systemEqSuspect", false),
+                eqBypassOutputs = prefs.getStringSet("eqBypassOutputs", null)?.toSet().orEmpty(),
                 automationOn = prefs.getBoolean("automationOn", false),
                 offOnDisconnect = prefs.getBoolean("offOnDisconnect", true),
                 showTargetEq = prefs.getBoolean("showTargetEq", false),
@@ -853,7 +859,12 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             EqFitter.score(DoubleArray(grid.size) { i -> t.runs[0].magDb[i] + lastRun.applied.sumOf { it.magnitudeDb(grid.freqs[i]) } }, grid, target).first
         }.getOrNull() else null
         val checks = suggestChecks(t.runs, targetKind(targetAt(t.targetIdx)) == TargetKind.CAR, state.value.positions, follow, predicted)
-        val rec = if (t.runs.size > 1) recommendNext(t.runs, compare?.eqMayNotBeApplied == true && sel.last() == t.runs.lastIndex) else null
+        // an EQ check made after the latest run answers whether the EQ arrives
+        val checked = state.value.eqCheck?.takeIf { it.testId == t.id && it.runCount == t.runs.size }?.check?.severity
+        val rec = if (t.runs.size > 1) recommendNext(
+            t.runs, compare?.eqMayNotBeApplied == true && sel.last() == t.runs.lastIndex, checked,
+            t.sourceIdx == Source.PHONE.ordinal, state.value.applyWay,
+        ) else null
         state.update {
             it.copy(
                 stock = stock, recommendation = rec, bassDb = t.bassDb, trebleDb = t.trebleDb, eqFollow = follow, checkSuggestions = checks,
@@ -1632,7 +1643,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             if (repeat) EqChain.withSafePreamp(prev.eq) else shown
         } else null
         // measure the EQ itself: no flavour, safe preamp (a limiter at work would flatten the sweep)
-        if (viaSystemEq) SystemEq.apply(EqChain.withSafePreamp(shown.filters))
+        // a repeat measures the previous run's EQ again; otherwise the EQ on screen
+        if (viaSystemEq) SystemEq.apply(EqChain.withSafePreamp(if (repeat) prev.eq else shown.filters))
         val systemBands = if (viaSystemEq) SystemEq.applied.ifEmpty { shown.filters } else null
         openMeasureView(if (repeat) "Run ${cur.runs.size} (repeat)" else "Run ${cur.runs.size}", src)
         val m = acquire(src, cur.gateMs, st.channel, appChain) ?: return@run
@@ -1665,7 +1677,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             EqFitter.fitFromStock(cur.runs[0].magDb, applied, m.magDb, m.grid, target, cfg)
         }
         // with AutoTune EQ on, keep the parametric EQ behind the 31 fixed bands (that is what the user chose and keeps)
-        val param = if (systemBands != null) (SystemEq.chain?.filters ?: shown.filters) else null
+        val param = if (systemBands != null) (SystemEq.chain?.filters ?: if (repeat) prev.eq else shown.filters) else null
         val next = nextSuggestion(cur.runs, rms, label, loop.fit.filters, {
             EqFitter.fit(cur.runs[0].magDb, m.grid, target, cfg, stepScale = 0.5).filters
         }, newEq = param ?: applied)
@@ -1751,16 +1763,20 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             val shift = idx.sumOf { sn[it] - so[it] - expected[it] } / idx.size
             val change = DoubleArray(grid.size) { sn[it] - so[it] - shift }
             val chart = ChartData(grid.freqs, listOf(Curve("Measured change", change, 1)), DoubleArray(grid.size), expected, "What the EQ asks for")
-            val view = EqCheckView(result, chart, state.value.eqSource, fmtDate(System.currentTimeMillis()))
+            val view = EqCheckView(result, chart, state.value.eqSource, fmtDate(System.currentTimeMillis()), current?.id, current?.runs?.size ?: -1)
+            // remember outputs the phone's EQ does not reach, so the EQ step offers equipment first there
+            val bypass = bypassAfterCheck(state.value.eqBypassOutputs, state.value.outputName, result.severity)
+            if (bypass != state.value.eqBypassOutputs) prefs.edit().putStringSet("eqBypassOutputs", bypass).apply()
             state.update {
                 it.copy(
-                    eqCheck = view,
+                    eqCheck = view, eqBypassOutputs = bypass,
                     measureView = it.measureView?.copy(
                         stage = MeasureStage.SAVED, message = "EQ check done",
                         result = when (result.severity) { 0 -> "The EQ reaches the speakers"; 1 -> "Only part of the EQ arrives"; 2 -> "The EQ does not arrive"; else -> "EQ too flat to check" },
                     ),
                 )
             }
+            refreshView() // the verdict decides the next move on the result
             Diag.log(ctx(), "eq_check", mapOf("effect" to result.effect, "residualDb" to result.residualDb, "severity" to result.severity, "output" to state.value.outputName, "chain" to Diag.chain(chain)))
         } finally {
             // back to how it was: on with the EQ in use, or off
@@ -1842,7 +1858,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         state.update {
             it.copy(
                 tuneStep = step, status = it.status?.takeIf { s -> s.startsWith("Failed: ") && step == it.tuneStep },
-                resumeStep = if (step == TuneStep.HOME) it.resumeStep else null,
+                resumeStep = if (keepsResumePlace(step)) it.resumeStep else null,
             )
         }
         Diag.log(ctx(), "tune_step", mapOf("step" to step))
@@ -1854,16 +1870,14 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         if (to == TuneStep.HOME) tuneExit() else tuneGo(to)
     }
 
-    /** The big Tune button: a fresh start straight into Set up (every EQ off, a new test); Continue is beside it. */
+    /** The big Tune button: a fresh start straight into Set up; Continue is beside it. */
     fun tuneStart() = tuneFresh()
 
-    /** Fresh start: every EQ off (AutoTune's here, the user's on their equipment), then a new test is set up. */
-    fun tuneFresh() {
-        if (state.value.systemEqOn) setSystemEq(false)
-        newTest()
-        resetToSuggestion()
-        tuneGo(TuneStep.SETUP)
-    }
+    /**
+     * Fresh start: Set up for a new test. It is a draft: the open test and AutoTune EQ stay as they are until Set up's
+     * key starts the stock reading ([tuneSetup]), so Back from Set up changes nothing.
+     */
+    fun tuneFresh() = tuneGo(TuneStep.SETUP)
 
     /** Carry on with the open test where it stopped. */
     fun tuneContinue() {
@@ -1887,7 +1901,10 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
      * microphone access the Stock screen is shown instead, where the permission can be given.
      */
     fun tuneSetup(name: String, targetIdx: Int, source: Source, positions: Int, gateMs: Int?) {
+        // the stock reference is measured with no EQ at all: AutoTune EQ off, the new test's suggestion in use
+        if (state.value.systemEqOn) setSystemEq(false)
         startNewTest(name, targetIdx, source)
+        resetToSuggestion()
         setPositions(positions)
         gateMs?.let { setGate(it) }
         tuneGo(TuneStep.STOCK)
@@ -1927,6 +1944,28 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
 
     /** From the result: measure again with nothing changed. */
     fun tuneRepeat() { measureUnchanged(); tuneMeasure() }
+
+    /** From the result, when the phone's EQ does not reach the speakers: set the EQ on the user's equipment instead. */
+    fun tuneOnEquipment() {
+        appliedOnEquipment()
+        tuneGo(TuneStep.APPLY)
+    }
+
+    /**
+     * From the result, before keeping a tune measured only through the app's preview: put run [idx]'s EQ on the
+     * phone's EQ and measure it there, so what is kept is what was measured.
+     */
+    fun tuneOnPhoneEq(idx: Int) {
+        val t = current ?: return
+        val run = t.runs.getOrNull(idx)?.takeIf { it.eq.isNotEmpty() } ?: return
+        // the run's EQ already holds any slider changes it was measured with
+        state.update { it.copy(sliderLayer = emptyList()) }
+        saveSliderLayer(emptyList())
+        setEdit(run.eq, "run:${t.id}:$idx")
+        tuneApply(ApplyWay.AUTOTUNE_EQ)
+        // the phone's EQ did not come on: the EQ step shows why and the other ways
+        if (!state.value.systemEqOn) tuneGo(TuneStep.APPLY)
+    }
 
     fun tuneDiscard() {
         discardLastRun()

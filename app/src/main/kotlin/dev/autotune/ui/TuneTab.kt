@@ -75,7 +75,7 @@ fun TuneTab(s: UiState, vm: TuneViewModel, sharer: Sharer, go: (Tab) -> Unit, op
                 TuneStep.STOCK -> MeasureStep(s, vm, sharer, pick, stock = true, exit = exit)
                 TuneStep.STOCK_RESULT, TuneStep.APPLY -> ApplyStep(s, vm, pick, exit)
                 TuneStep.VERIFY -> MeasureStep(s, vm, sharer, pick, stock = false, exit = exit)
-                TuneStep.RESULT -> ResultStep(s, vm, openResults, exit)
+                TuneStep.RESULT -> ResultStep(s, vm, pick, openResults, exit)
                 TuneStep.DONE -> DoneStep(s, vm, go, openResults)
             }
         }
@@ -319,7 +319,9 @@ private fun ApplyStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> 
     val chain = s.exportChain
     val first = s.runs.size <= 1
     val latest = s.runs.lastOrNull()
-    var equipment by rememberSaveable { mutableStateOf(s.source != Source.PHONE || (s.applyWay == ApplyWay.EQUIPMENT && s.runs.size > 1)) }
+    // equipment first when this test is applied there, or when an EQ check found the phone's EQ does not reach this output
+    val bypassed = s.outputName?.let { it in s.eqBypassOutputs } == true
+    var equipment by rememberSaveable { mutableStateOf(s.source != Source.PHONE || (s.applyWay == ApplyWay.EQUIPMENT && s.runs.size > 1) || bypassed) }
     var bandSet by rememberSaveable { mutableIntStateOf(1) }
     // "Suggested EQ" is AutoTune's proposal; anything else picked on the EQ tab is "the EQ currently in use"
     val isSuggestion = s.eqPick.startsWith("suggest:")
@@ -420,7 +422,7 @@ private fun ApplyStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> 
 // ------------------------------------------------------------------ 6. result
 
 @Composable
-private fun ResultStep(s: UiState, vm: TuneViewModel, openResults: () -> Unit, exit: () -> Unit) {
+private fun ResultStep(s: UiState, vm: TuneViewModel, pick: Pickers, openResults: () -> Unit, exit: () -> Unit) {
     var discard by remember { mutableStateOf(false) }
     val runs = s.runs
     val stock = runs.firstOrNull()
@@ -448,6 +450,13 @@ private fun ResultStep(s: UiState, vm: TuneViewModel, openResults: () -> Unit, e
         dev.autotune.NextMove.KEEP_LATEST -> PinAction("Keep this EQ and finish", { vm.tuneKeep(false) }, icon = Ic.DONE, hint = rec?.why)
         dev.autotune.NextMove.KEEP_BEST -> PinAction("Keep the EQ of ${bestRun?.label ?: "the best run"} and finish", { vm.tuneKeep(true) }, icon = Ic.UNDO, hint = rec?.why)
         dev.autotune.NextMove.REFINE -> PinAction("Apply the new suggested EQ", vm::tuneRefine, icon = Ic.TUNE, hint = rec?.why)
+        // the EQ check settled it: the EQ arrives (the run missed it) or this output bypasses the phone's EQ
+        dev.autotune.NextMove.REPEAT -> PinAction("Measure again", vm::tuneRepeat, icon = Ic.AGAIN, hint = rec?.why)
+        dev.autotune.NextMove.SET_ON_EQUIPMENT -> PinAction("Set it on my equipment", vm::tuneOnEquipment, icon = Ic.EDIT, hint = rec?.why)
+        // a tune measured in the app's preview is measured once on the phone's EQ before it is kept there
+        dev.autotune.NextMove.MEASURE_ON_PHONE_EQ -> PinAction(
+            "Switch on the phone's EQ and measure", { pick.notifications(); vm.tuneOnPhoneEq(rec?.keepIdx ?: runs.lastIndex) }, icon = Ic.POWER, hint = rec?.why,
+        )
     }
     s.eqCheck?.let { EqCheckCard(it, vm) }
     FollowAndChecks(s, vm)
@@ -457,9 +466,10 @@ private fun ResultStep(s: UiState, vm: TuneViewModel, openResults: () -> Unit, e
         if (move != dev.autotune.NextMove.REFINE && !latest.converged) TextAction("Another round with the new suggested EQ", vm::tuneRefine, icon = Ic.TUNE)
         if (move != dev.autotune.NextMove.KEEP_LATEST) TextAction("Keep this EQ and finish", { vm.tuneKeep(false) }, icon = Ic.DONE)
         if (move != dev.autotune.NextMove.KEEP_BEST && bestRun != null && bestRun != latest) TextAction("Keep the EQ of ${bestRun.label} and finish", { vm.tuneKeep(true) }, icon = Ic.UNDO)
+        if (move == dev.autotune.NextMove.SET_ON_EQUIPMENT && phoneEq) TextAction("Measure again with the phone's EQ", vm::tuneRepeat, icon = Ic.AGAIN)
         // Simple keeps the moves that finish or continue; the checks and tools are in Advanced
         if (isAdvanced()) {
-            TextAction("Measure again, nothing changed", vm::tuneRepeat, icon = Ic.AGAIN)
+            if (move != dev.autotune.NextMove.REPEAT && move != dev.autotune.NextMove.SET_ON_EQUIPMENT) TextAction("Measure again, nothing changed", vm::tuneRepeat, icon = Ic.AGAIN)
             if (move == dev.autotune.NextMove.CHECK_EQ && phoneEq) TextAction("Apply the EQ again", { vm.tuneGo(TuneStep.APPLY) }, icon = Ic.POWER)
             if (move != dev.autotune.NextMove.CHECK_EQ && phoneEq) TextAction("Check the EQ reaches the speakers", vm::eqCheck, icon = Ic.CHECK)
             TextAction("Ask AI to review", vm::aiOpen, icon = Ic.AI)

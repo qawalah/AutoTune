@@ -211,12 +211,60 @@ fun analyzeStock(
     return StockAnalysis(rmsDb, predictedDb, bands, verdict, suspicious, out.sortedByDescending { it.severity })
 }
 
-/** What to do after a run with the EQ: the one recommended move and why. */
-enum class NextMove { CHECK_EQ, KEEP_LATEST, KEEP_BEST, REFINE }
+/**
+ * What to do after a run with the EQ: the one recommended move and why. New moves are appended (2.5.0): REPEAT after
+ * an EQ check heard the EQ arrive, SET_ON_EQUIPMENT after one heard nothing, MEASURE_ON_PHONE_EQ before finishing a
+ * tune that was only measured through the app's preview.
+ */
+enum class NextMove { CHECK_EQ, KEEP_LATEST, KEEP_BEST, REFINE, REPEAT, SET_ON_EQUIPMENT, MEASURE_ON_PHONE_EQ }
 
-class Recommendation(val move: NextMove, val why: String, val bestIdx: Int)
+/** [keepIdx] is the run whose EQ a keep (or MEASURE_ON_PHONE_EQ) is about; null for the other moves. */
+class Recommendation(val move: NextMove, val why: String, val bestIdx: Int, val keepIdx: Int? = null)
 
-fun recommendNext(runs: List<SavedRun>, eqMayNotBeApplied: Boolean): Recommendation {
+/**
+ * The one move after a run. [eqCheckSeverity] is the verdict of an EQ check made after the latest run (see [EqCheck]),
+ * or null when there was none. [phoneRoute] and [way] say how this test's EQ reaches the speakers, so a tune measured
+ * only through the app's preview is measured once on the phone's EQ before it is kept there.
+ */
+fun recommendNext(
+    runs: List<SavedRun>, eqMayNotBeApplied: Boolean, eqCheckSeverity: Int? = null,
+    phoneRoute: Boolean = false, way: ApplyWay = ApplyWay.NONE,
+): Recommendation {
+    val base = baseRecommendation(runs, eqMayNotBeApplied, eqCheckSeverity)
+    val keepIdx = when (base.move) {
+        NextMove.KEEP_LATEST -> runs.lastIndex
+        NextMove.KEEP_BEST -> base.bestIdx
+        else -> return base
+    }
+    if (!needsPhoneEqRun(runs, keepIdx, phoneRoute, way)) return Recommendation(base.move, base.why, base.bestIdx, keepIdx)
+    return Recommendation(
+        NextMove.MEASURE_ON_PHONE_EQ,
+        "${runs[keepIdx].label} was measured through the app's preview, which the phone's EQ plays differently. Measure it once on the phone's EQ before keeping it.",
+        base.bestIdx, keepIdx,
+    )
+}
+
+/**
+ * Whether keeping run [keepIdx] needs one more run first: on the phone route with the app's preview as the way, the
+ * kept EQ goes onto the phone's EQ (fixed bands, a different curve), so it is measured there unless a run on the
+ * phone's EQ with the same EQ already exists.
+ */
+fun needsPhoneEqRun(runs: List<SavedRun>, keepIdx: Int, phoneRoute: Boolean, way: ApplyWay): Boolean {
+    if (!phoneRoute || way != ApplyWay.IN_APP) return false
+    val kept = runs.getOrNull(keepIdx) ?: return false
+    if (kept.eq.isEmpty() || kept.appliedParam != null) return false
+    return runs.none { it.appliedParam != null && eqDistanceDb(it.eq, kept.eq) < 0.5 }
+}
+
+/** The outputs the phone's EQ is known not to reach, after an EQ check on [output] with [severity] (see [EqCheck]). */
+fun bypassAfterCheck(known: Set<String>, output: String?, severity: Int): Set<String> = when {
+    output.isNullOrBlank() -> known
+    severity == 2 -> known + output
+    severity == 0 -> known - output
+    else -> known
+}
+
+private fun baseRecommendation(runs: List<SavedRun>, eqMayNotBeApplied: Boolean, eqCheckSeverity: Int?): Recommendation {
     val latestIdx = runs.lastIndex
     val withEq = (1..latestIdx).toList()
     val bestIdx = withEq.minByOrNull { runs[it].rmsDb } ?: latestIdx
@@ -225,7 +273,19 @@ fun recommendNext(runs: List<SavedRun>, eqMayNotBeApplied: Boolean): Recommendat
     val prev = runs[latestIdx - 1]
     val gain = prev.rmsDb - latest.rmsDb
     return when {
-        eqMayNotBeApplied -> Recommendation(
+        // the EQ check answered the question: the EQ does not reach the speakers this way
+        eqMayNotBeApplied && eqCheckSeverity == 2 -> Recommendation(
+            NextMove.SET_ON_EQUIPMENT,
+            "The EQ check heard no change with the phone's EQ on, so this output takes the sound past it. Set the EQ on your equipment instead.",
+            bestIdx,
+        )
+        // it does reach them now: the run missed it, so measure again before fitting anything to that run
+        eqMayNotBeApplied && (eqCheckSeverity == 0 || eqCheckSeverity == 1) -> Recommendation(
+            NextMove.REPEAT,
+            "The EQ check heard the EQ arrive, so ${latest.label} probably missed it. Measure again with nothing changed.",
+            bestIdx,
+        )
+        eqMayNotBeApplied && eqCheckSeverity == null -> Recommendation(
             NextMove.CHECK_EQ,
             "${latest.label} is about the same as the stock reading, so the EQ probably never reached the speakers. Check it is on (or set on your equipment), then apply it again.",
             bestIdx,
@@ -261,6 +321,12 @@ fun previousStep(step: TuneStep, runCount: Int): TuneStep = when (step) {
     TuneStep.VERIFY -> TuneStep.APPLY
     TuneStep.RESULT, TuneStep.DONE -> TuneStep.HOME
 }
+
+/**
+ * Whether moving to [step] keeps the place Continue remembers. Set up is a draft (2.5.0): the open test and the EQ stay
+ * as they are until its key starts the stock reading, so Back from it still continues where the test was left.
+ */
+fun keepsResumePlace(step: TuneStep): Boolean = step == TuneStep.HOME || step == TuneStep.FRESH || step == TuneStep.SETUP
 
 /** Steps worth coming back to after Exit (Set up is asked again; Done is finished). */
 val RESUMABLE = setOf(TuneStep.STOCK, TuneStep.STOCK_RESULT, TuneStep.APPLY, TuneStep.VERIFY, TuneStep.RESULT)
@@ -308,6 +374,9 @@ fun moveLabel(move: NextMove, bestLabel: String?): String = when (move) {
     NextMove.KEEP_LATEST -> "Keep this EQ and finish"
     NextMove.KEEP_BEST -> "Keep the EQ of ${bestLabel ?: "the best run"} and finish"
     NextMove.REFINE -> "Apply the new suggested EQ"
+    NextMove.REPEAT -> "Measure again"
+    NextMove.SET_ON_EQUIPMENT -> "Set it on my equipment"
+    NextMove.MEASURE_ON_PHONE_EQ -> "Switch on the phone's EQ and measure"
 }
 
 /** The result of measuring with the EQ off and then on: how much of the EQ really reached the speakers. */

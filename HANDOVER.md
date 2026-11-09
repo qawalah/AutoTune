@@ -357,3 +357,10 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - `FitConfig.protectDips` (default on): where the 1/6-octave error is negative, the 1/3-octave boost error is capped at 0, so a narrow dip reads as "leave alone" instead of "too loud".
 - Test: `RefineTest.aDipBetweenCutsIsNotDugOutAfterMerging` (fails on 2.3.1: 120-250 Hz -3.3 dB; passes: -0.7 dB).
 - The same diagnostics showed the EQ check measuring no effect three times (output over a wireless link, 2.6 s latency): the phone's EQ did not reach the truck during the tests, so the closed loop never saw it.
+
+### 2.5.0: draft Set up, the EQ check decides, preview tunes measured on the phone's EQ
+- TuningLogic (pure, FlowTest): `keepsResumePlace(step)` (HOME, FRESH, SETUP keep `resumeStep`); `NextMove` gained `REPEAT`, `SET_ON_EQUIPMENT`, `MEASURE_ON_PHONE_EQ` (appended); `Recommendation.keepIdx`; `recommendNext(runs, eqMayNotBeApplied, eqCheckSeverity, phoneRoute, way)`: with the doubt, a check verdict of 2 gives SET_ON_EQUIPMENT, 0 or 1 REPEAT, 3 the usual move, none CHECK_EQ; a KEEP move on the phone route with `ApplyWay.IN_APP` becomes MEASURE_ON_PHONE_EQ unless `needsPhoneEqRun` finds a run on the phone's EQ (`appliedParam != null`) with the same EQ (`eqDistanceDb` < 0.5 dB). `bypassAfterCheck(set, output, severity)`.
+- VM: `tuneFresh()` only goes to SETUP; `tuneSetup` switches AutoTune EQ off, calls `startNewTest` and `resetToSuggestion`. `EqCheckView` carries `testId`/`runCount`; `refreshView` passes the verdict to `recommendNext` only for the run it followed, and `eqCheck()` calls `refreshView()`. `UiState.eqBypassOutputs` (pref string set `eqBypassOutputs`, keyed by `outputName`) makes the EQ step open on equipment. `tuneOnEquipment()`, `tuneOnPhoneEq(idx)` (the run's EQ in use, sliders cleared, `tuneApply(AUTOTUNE_EQ)`, APPLY when the phone's EQ did not come on).
+- Fix: `measureRun` on the phone's EQ with `repeatNext` applies `prev.eq` (it applied the new suggestion before), and records it as `appliedParam`.
+- Not verified on a phone: the new keys after a real EQ check, and the output name Android Auto reports staying the same between sessions.
+

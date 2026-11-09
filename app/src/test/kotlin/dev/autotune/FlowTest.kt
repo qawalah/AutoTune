@@ -117,4 +117,75 @@ class FlowTest {
         assertEquals(2, judgeEqCheck(g.freqs, off, with(0.0, 2.0), expected).severity)
         assertEquals(3, judgeEqCheck(g.freqs, off, off, DoubleArray(g.size)).severity)
     }
+
+    // ---------------------------------------------------------------- 2.5.0: draft Set up, EQ check verdict, preview tunes
+
+    private val eq1 = listOf(dev.autotune.dsp.EqFilter(100.0, -3.0, 2.0))
+
+    /** A run measured on the phone's EQ: [applied] is what its fixed bands did, [appliedParam] the EQ behind them. */
+    private fun onPhoneEq(label: String, rms: Double, eq: List<dev.autotune.dsp.EqFilter> = eq1) =
+        SavedRun(1L, rms, DoubleArray(4), emptyList(), label, applied = listOf(dev.autotune.dsp.EqFilter(100.0, -2.6, 1.4)), complete = true, appliedParam = eq)
+
+    @Test
+    fun setUpIsADraftThatKeepsTheContinuePlace() {
+        assertTrue(keepsResumePlace(TuneStep.SETUP))
+        assertTrue(keepsResumePlace(TuneStep.HOME))
+        assertTrue(keepsResumePlace(TuneStep.FRESH))
+        listOf(TuneStep.STOCK, TuneStep.APPLY, TuneStep.VERIFY, TuneStep.RESULT, TuneStep.DONE).forEach { assertFalse(it.name, keepsResumePlace(it)) }
+        // Back from Set up leaves the workflow, and Continue still finds the open test's place
+        assertEquals(TuneStep.HOME, previousStep(TuneStep.SETUP, 3))
+        assertEquals(TuneStep.APPLY, resumeAt(TuneStep.APPLY, 3))
+    }
+
+    @Test
+    fun theEqCheckVerdictDecidesTheNextMove() {
+        val runs = listOf(r("Stock", 6.0), r("Run 1", 5.9))
+        // no check yet: check first
+        assertEquals(NextMove.CHECK_EQ, recommendNext(runs, true, null).move)
+        // nothing arrives on this output: equipment
+        assertEquals(NextMove.SET_ON_EQUIPMENT, recommendNext(runs, true, 2).move)
+        // the EQ arrives (all or part of it): the run missed it, measure again before fitting to it
+        assertEquals(NextMove.REPEAT, recommendNext(runs, true, 0).move)
+        assertEquals(NextMove.REPEAT, recommendNext(runs, true, 1).move)
+        // too flat to tell: the usual recommendation, never the check again
+        assertEquals(NextMove.REFINE, recommendNext(runs, true, 3).move)
+        // a verdict without the doubt changes nothing
+        assertEquals(NextMove.KEEP_LATEST, recommendNext(listOf(r("Stock", 6.0), r("Run 1", 1.4)), false, 2).move)
+        assertEquals("Set it on my equipment", moveLabel(NextMove.SET_ON_EQUIPMENT, null))
+        assertEquals("Measure again", moveLabel(NextMove.REPEAT, null))
+    }
+
+    @Test
+    fun outputsThePhonesEqMissesAreRemembered() {
+        val known = bypassAfterCheck(emptySet(), "Car (Android Auto)", 2)
+        assertEquals(setOf("Car (Android Auto)"), known)
+        assertEquals(known, bypassAfterCheck(known, "Car (Android Auto)", 1)) // partly: no change
+        assertEquals(known, bypassAfterCheck(known, null, 2))
+        assertEquals(emptySet<String>(), bypassAfterCheck(known, "Car (Android Auto)", 0)) // it arrives now
+        assertEquals(setOf("Car (Android Auto)", "F-150"), bypassAfterCheck(known, "F-150", 2))
+    }
+
+    @Test
+    fun aPreviewTuneIsMeasuredOnThePhonesEqBeforeItIsKept() {
+        // Run 1 is close enough to keep, but it was measured through the app's preview
+        val preview = listOf(r("Stock", 6.0), r("Run 1", 1.4))
+        val rec = recommendNext(preview, false, null, phoneRoute = true, way = ApplyWay.IN_APP)
+        assertEquals(NextMove.MEASURE_ON_PHONE_EQ, rec.move)
+        assertEquals(1, rec.keepIdx)
+        assertEquals("Switch on the phone's EQ and measure", moveLabel(rec.move, null))
+        // set on equipment, or another device: keep as before
+        assertEquals(NextMove.KEEP_LATEST, recommendNext(preview, false, null, phoneRoute = true, way = ApplyWay.EQUIPMENT).move)
+        assertEquals(NextMove.KEEP_LATEST, recommendNext(preview, false, null, phoneRoute = false, way = ApplyWay.IN_APP).move)
+        assertEquals(1, recommendNext(preview, false).keepIdx)
+        // measured on the phone's EQ already: keep it
+        assertEquals(NextMove.KEEP_LATEST, recommendNext(listOf(r("Stock", 6.0), onPhoneEq("Run 1", 1.4)), false, null, true, ApplyWay.IN_APP).move)
+        // the preview run measured best, and its EQ has since been measured on the phone's EQ: keeping it finishes
+        val verified = recommendNext(listOf(r("Stock", 6.0), r("Run 1", 1.4), onPhoneEq("Run 2", 1.9)), false, null, true, ApplyWay.IN_APP)
+        assertEquals(NextMove.KEEP_BEST, verified.move)
+        assertEquals(1, verified.keepIdx)
+        // a phone run with a different EQ does not count
+        val other = listOf(dev.autotune.dsp.EqFilter(2000.0, 4.0, 1.0))
+        assertEquals(NextMove.MEASURE_ON_PHONE_EQ, recommendNext(listOf(r("Stock", 6.0), r("Run 1", 1.4), onPhoneEq("Run 2", 1.9, other)), false, null, true, ApplyWay.IN_APP).move)
+        assertFalse(needsPhoneEqRun(preview, 0, true, ApplyWay.IN_APP)) // the stock run has no EQ to keep
+    }
 }

@@ -4,6 +4,14 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.5.0] - 2026-11-09
+### Changed
+- **The Tune key no longer undoes anything.** Set up is a draft now: the test you have open and AutoTune EQ stay as they are until "Measure the stock system" starts the reading. Back from Set up leaves the EQ playing and Continue still picks up the open test where you left it. Before, one tap on Tune switched the EQ off and closed the test.
+- **The EQ check decides the next step.** After a run that sounds like the stock, the result still asks for the EQ check, but the check's verdict now changes the main key: if the EQ arrives, "Measure again" (the run missed it); if nothing arrives, "Set it on my equipment". The output is remembered, so the next tune on it starts with your equipment. Running the check again no longer leads back to the same key.
+- **A tune measured in the app's preview is measured on the phone's EQ before it is kept.** The preview plays the app's exact filters, while the phone's EQ uses fixed bands and plays a slightly different curve. Where the result used to say "Keep this EQ and finish", it now says "Switch on the phone's EQ and measure" for such a tune; finishing is still one of the other choices.
+### Fixed
+- **"Measure again, nothing changed" on the phone's EQ measured the new suggested EQ** instead of the one being repeated. It now plays the previous run's EQ again, as on the other routes.
+
 ## [2.4.0] - 2026-11-08
 ### Changed
 - **Dark body, light decks.** The Braun look now has a dark graphite background with warm white sections, each with a thin outline. Titles, the main key and the tab keys sit on the dark body in light ink; the header graphic is a light device on it. At night the background goes near-black and the sections graphite, outlined, so nothing glares in the car. Every look's sections now have the outline.
