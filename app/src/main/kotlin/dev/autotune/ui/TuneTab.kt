@@ -259,7 +259,7 @@ private fun ApplyStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> 
                 else -> "New suggested EQ after ${latest?.label}"
             },
             if (first) null else latest?.let { r ->
-                val sc = dev.autotune.knownScore(r.index, s.selectedRuns.maxOrNull(), s.report?.overall, s.compare?.colorIdx.orEmpty(), s.compare?.scores.orEmpty())
+                val sc = dev.autotune.knownScore(r.index, s.selectedRuns.maxOrNull(), s.report?.overall, s.compare?.colorIdx.orEmpty(), s.compare?.scores.orEmpty(), s.stock?.score)
                 "${r.label}: %.1f dB from target".format(r.rmsDb) + (sc?.let { " · score $it" } ?: "")
             },
         )
@@ -433,8 +433,8 @@ private fun TunedPanel(s: UiState, vm: TuneViewModel, pick: Pickers, go: (Tab) -
     Panel {
         CardTitle("Tuned")
         // the score beside the dB where it is already known for that run
-        fun score(i: Int) = dev.autotune.knownScore(i, s.selectedRuns.maxOrNull(), s.report?.overall, s.compare?.colorIdx.orEmpty(), s.compare?.scores.orEmpty())
-        ReadingCells(listOf(Reading("%.1f".format(best.rmsDb), "dB", "tuned", score = score(best.index)), Reading("%.1f".format(stock.rmsDb), "dB", "stock")))
+        fun score(i: Int) = dev.autotune.knownScore(i, s.selectedRuns.maxOrNull(), s.report?.overall, s.compare?.colorIdx.orEmpty(), s.compare?.scores.orEmpty(), s.stock?.score)
+        ReadingCells(listOf(Reading("%.1f".format(best.rmsDb), "dB", "tuned", score = score(best.index)), Reading("%.1f".format(stock.rmsDb), "dB", "stock", score = score(stock.index))))
         Muted(
             when {
                 s.systemEqOn -> "AutoTune EQ is on with it."

@@ -392,8 +392,9 @@ fun ReportCard(r: SystemReport, label: String) {
             Muted("based on ${label.lowercase()}", Modifier.weight(1f))
             InfoButton("Report card", r.verdict, small = true)
         }
-        // the meters fill once when the card opens, then stay
+        // the meters fill when they come into view, twice, then stay (a pull at the page's top fills them again)
         val fill = rememberArrival("report", 700)
+        Column(Modifier.fillMaxWidth().arrival(fill), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         r.categories.forEach { c ->
             // one meter per category, like the level meter of a Braun receiver: a lowercase label, the figure, a
             // square slot ruled at 50 and 75 with an ink bar; what the category means sits in its bubble
@@ -422,6 +423,7 @@ fun ReportCard(r: SystemReport, label: String) {
                 }
             }
         }
+        }
     }
 }
 
@@ -448,6 +450,22 @@ private fun ResonanceGroup(s: UiState) {
 }
 
 
+/** The widths of the runs list's score and dB columns: the widest box ("100/100") and figure ("99.9 dB") at this font scale. */
+private class RunColumns(val score: androidx.compose.ui.unit.Dp, val db: androidx.compose.ui.unit.Dp)
+
+@Composable
+private fun runColumns(): RunColumns {
+    val tm = androidx.compose.ui.text.rememberTextMeasurer()
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val t = MaterialTheme.typography
+    return with(density) {
+        // ScoreTag: the number, "/100", 1dp between, 5dp padding each side, a 1dp edge each side; and a gap before the dB
+        val score = tm.measure("100", t.titleSmall).size.width.toDp() + tm.measure("/100", t.labelSmall).size.width.toDp() + 13.dp + 8.dp
+        val db = tm.measure("99.9", t.titleMedium.copy(fontFamily = AtFigures)).size.width.toDp() + tm.measure(" dB", t.labelSmall).size.width.toDp() + 6.dp
+        RunColumns(score, db)
+    }
+}
+
 /** The runs of the test: tick one to draw it on the graph; delete any run but the stock reading. */
 @Composable
 private fun RunsDeck(s: UiState, vm: TuneViewModel) {
@@ -455,7 +473,7 @@ private fun RunsDeck(s: UiState, vm: TuneViewModel) {
     Group(
         "Runs", divider = false,
         info = "Tick the runs to draw on the graph. The stock run (no EQ) is your permanent reference and stays.\n\nThe EQ and the export follow the latest ticked run. " +
-            "The score (0-100) beside a run's dB rates the system itself; it shows for the ticked runs.",
+            "The score (0-100) beside a run's dB rates the system itself; it shows where it is already worked out: the stock and the ticked runs.",
         trailing = {
             if (s.runs.size > 2 && isAdvanced()) {
                 val all = s.selectedRuns.size == s.runs.size
@@ -463,6 +481,8 @@ private fun RunsDeck(s: UiState, vm: TuneViewModel) {
             }
         },
     ) {
+        // fixed columns, so the boxes and the figures line up down the list: tick | name and date | score | dB | delete
+        val cols = runColumns()
         s.runs.forEach { r ->
             Row(
                 Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClickLabel = "Show or hide ${r.label}") { vm.toggleRun(r.index) },
@@ -473,14 +493,18 @@ private fun RunsDeck(s: UiState, vm: TuneViewModel) {
                     colors = CheckboxDefaults.colors(checkedColor = runColor(r.index), checkmarkColor = At.c.bg, uncheckedColor = At.c.muted),
                 )
                 Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                    Text(r.label, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                    Text(r.label, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     Text(r.whenText, style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
                 }
-                // the score beside the dB where it is already known (the focus run, or the compared runs)
-                dev.autotune.knownScore(r.index, s.selectedRuns.maxOrNull(), s.report?.overall, s.compare?.colorIdx.orEmpty(), s.compare?.scores.orEmpty())
-                    ?.let { ScoreTag(it, Modifier.padding(end = 8.dp)) }
-                Text("%.1f".format(r.rmsDb), style = MaterialTheme.typography.titleMedium, fontFamily = AtFigures)
-                Text(" dB", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
+                // the score where it is already known (the focus run, the compared runs, the stock review); empty otherwise
+                Box(Modifier.width(cols.score).padding(end = 6.dp), contentAlignment = Alignment.CenterEnd) {
+                    dev.autotune.knownScore(r.index, s.selectedRuns.maxOrNull(), s.report?.overall, s.compare?.colorIdx.orEmpty(), s.compare?.scores.orEmpty(), s.stock?.score)
+                        ?.let { ScoreTag(it) }
+                }
+                Row(Modifier.width(cols.db), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.Bottom) {
+                    Text("%.1f".format(r.rmsDb), style = MaterialTheme.typography.titleMedium, fontFamily = AtFigures, maxLines = 1, softWrap = false)
+                    Text(" dB", Modifier.padding(bottom = 2.dp), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1, softWrap = false)
+                }
                 if (dev.autotune.canDeleteRun(r.index, s.runs.size)) IconAction(Ic.TRASH, "Delete ${r.label}") { confirm = r.index }
                 else Box(Modifier.size(48.dp))
             }

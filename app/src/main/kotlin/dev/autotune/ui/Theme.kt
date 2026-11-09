@@ -386,37 +386,81 @@ fun atScheme(at: AtColors): androidx.compose.material3.ColorScheme {
     }
 }
 
-/** The surfaces text sits on, as they will be with [p]: the body and the deck (or the plates of a look without decks). */
-private fun textGrounds(c: AtColors, p: Palette): List<Long> =
-    listOf(p[PaletteSlot.BODY] ?: c.bg.argb(), p[PaletteSlot.DECK] ?: (c.deck ?: c).panel.argb())
-
 /**
- * Whether the palette's ink brings the look's day surfaces at night: a dark ink reads on none of the night surfaces,
- * so without them it would be dropped everywhere and the choice would do nothing ([dev.autotune.inkNeedsDay]).
+ * Where a palette's ink is drawn, surface by surface ([dev.autotune.inkSurface]): the look's own surfaces where the
+ * ink reads, else their light versions for a dark ink (a dark body turns light, night decks take the day decks) or
+ * their dark versions for a light ink (day decks take the night decks), by day and by night. A surface the user set
+ * in the palette stays as set. [body] and [deck] are the changes for the body and the decks (for a look without decks
+ * [body] is the whole look and [deck] is OWN).
  */
-fun usesDaySurfaces(look: Look, dark: Boolean, p: Palette): Boolean =
-    dark && dev.autotune.inkNeedsDay(p[PaletteSlot.INK], textGrounds(lookColors(look, true), p), textGrounds(lookColors(look, false), p))
+class InkMove(val body: dev.autotune.InkSurface, val deck: dev.autotune.InkSurface) {
+    /** The change that happened, if any: LIGHT, DARK, or OWN when every surface stayed the look's own. */
+    val any: dev.autotune.InkSurface get() = if (body != dev.autotune.InkSurface.OWN) body else deck
+}
 
-/** The look's surfaces for [dark], with the day decks (or the whole day look, without decks) when the ink needs them. */
+fun inkMove(look: Look, dark: Boolean, p: Palette): InkMove {
+    val own = dev.autotune.InkSurface.OWN
+    val ink = p[PaletteSlot.INK] ?: return InkMove(own, own)
+    val c = lookColors(look, dark)
+    val day = lookColors(look, false)
+    val night = lookColors(look, true)
+    val body = p[PaletteSlot.BODY]
+    val plate = p[PaletteSlot.DECK]
+    val d = c.deck
+    if (d == null) {
+        // no decks: text sits on the plates and on the body together, so the whole look moves to its day or night version
+        fun grounds(x: AtColors) = listOf(plate ?: x.panel.argb(), body ?: x.bg.argb())
+        val move = dev.autotune.inkSurface(ink, grounds(c), grounds(day), grounds(night), fixed = body != null && plate != null)
+        return InkMove(move, own)
+    }
+    val lightDeck = day.deck ?: day
+    val darkDeck = night.deck ?: night
+    // the body's light version is the day deck's colours (Classic has a dark body by day and by night)
+    val bodyMove = dev.autotune.inkSurface(ink, listOf(body ?: c.bg.argb()), listOf(lightDeck.bg.argb()), listOf(night.bg.argb()), fixed = body != null)
+    val deckMove = dev.autotune.inkSurface(ink, listOf(plate ?: d.panel.argb()), listOf(lightDeck.panel.argb()), listOf(darkDeck.panel.argb()), fixed = plate != null)
+    return InkMove(bodyMove, deckMove)
+}
+
+/** The look's surfaces for [dark], with the light or dark versions the palette's ink needs ([inkMove]). */
 private fun surfaces(look: Look, dark: Boolean, p: Palette): AtColors {
     val c = lookColors(look, dark)
-    if (!usesDaySurfaces(look, dark, p)) return c
+    val m = inkMove(look, dark, p)
+    if (m.body == dev.autotune.InkSurface.OWN && m.deck == dev.autotune.InkSurface.OWN) return c
     val day = lookColors(look, false)
-    // a look with decks keeps its night body (titles stay light on it) and takes the light decks for the dark ink
-    return if (c.deck != null && day.deck != null) c.copy(deck = day.deck) else day
+    val night = lookColors(look, true)
+    val d = c.deck ?: return if (m.body == dev.autotune.InkSurface.LIGHT) day else night
+    val lightDeck = day.deck ?: day
+    val darkDeck = night.deck ?: night
+    val deck = when (m.deck) {
+        dev.autotune.InkSurface.LIGHT -> lightDeck
+        dev.autotune.InkSurface.DARK -> darkDeck
+        dev.autotune.InkSurface.OWN -> d
+    }
+    val body = when (m.body) {
+        // a light body: the day deck's colours carry the page, the key row and the main key
+        dev.autotune.InkSurface.LIGHT -> lightDeck
+        dev.autotune.InkSurface.DARK -> night
+        dev.autotune.InkSurface.OWN -> c
+    }
+    return body.copy(deck = deck)
 }
 
 /** The colours the app draws with: the look in its day or night version, then the accent, then the user's palette. */
 fun themeColors(look: Look, dark: Boolean, accent: dev.autotune.Accent, palette: Palette): AtColors =
     surfaces(look, dark, palette).withAccent(accent).withPalette(palette)
 
-/** The status line under the palette's Ink field, if the ink needs one ([dev.autotune.inkNote]). */
+/** The text colour on each surface text sits on: the body and the decks, or the plates of a look without decks. */
+private fun textInks(c: AtColors): List<Long> = listOfNotNull(c.text.argb(), c.deck?.text?.argb())
+
+/**
+ * The status line under the palette's Ink field ([dev.autotune.inkNote]): whether the ink is used everywhere, only
+ * where it reads or nowhere, whether it brought light or dark surfaces, and whether it looks the same as before.
+ */
 fun paletteInkNote(look: Look, dark: Boolean, p: Palette): String? {
     val ink = p[PaletteSlot.INK] ?: return null
-    // used where it matters: on the plates that hold the content (a deck, or the plates of a look without decks)
-    val c = themeColors(look, dark, dev.autotune.Accent.LOOK, p)
-    val applied = (c.deck ?: c).text.argb() == ink
-    return dev.autotune.inkNote(ink, applied, usesDaySurfaces(look, dark, p))
+    val shown = textInks(themeColors(look, dark, dev.autotune.Accent.LOOK, p))
+    val before = textInks(themeColors(look, dark, dev.autotune.Accent.LOOK, p.with(PaletteSlot.INK, null)))
+    return dev.autotune.inkNote(ink, shown, before, inkMove(look, dark, p).any)
 }
 
 /** Whether the app draws its night version for [mode]. */
