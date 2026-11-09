@@ -1,4 +1,4 @@
-# AutoTune flow maps (2.5.0)
+# AutoTune flow maps (2.6.0)
 
 How a tuning session flows and how you move around the app, drawn from the code. Update this file whenever a Tune step, a pinned action or a link between screens changes (see CLAUDE.md). Code names in brackets point at where each decision lives.
 
@@ -6,7 +6,7 @@ How a tuning session flows and how you move around the app, drawn from the code.
 
 ```mermaid
 flowchart TD
-  K(["Tune key, or New test on Tests"]) --> S["1 Set up (a draft)<br/>name, target, route, output<br/>open test and EQ untouched"]
+  K(["Tune key, or New test on Tests"]) --> S["1 Set up (a draft)<br/>name, target, route, output<br/>warns when the phone EQ may not reach it<br/>open test and EQ untouched"]
   S -->|"Back"| H(["Tune screen: Continue still there"])
   CT(["Continue: Tune screen, results, Tests ⋮"]) --> RA{"Saved place still valid?<br/>(resumeAt)"}
   RA -->|"yes"| E
@@ -35,7 +35,7 @@ flowchart TD
   N -->|"CHECK_EQ, other device: Apply again"| E
   N -->|"KEEP, preview tune: MEASURE_ON_PHONE_EQ<br/>(needsPhoneEqRun)"| M1
   N -->|"KEEP_LATEST or KEEP_BEST"| KP["Keep: save profile,<br/>phone EQ on unless equipment"]
-  KP --> D(["Done: Back to start"])
+  KP --> D(["Done: Use this EQ whenever the car connects<br/>(offerAutoSwitch), else Open the EQ"])
   R -.->|"Measure again, nothing changed"| M1
   R -.->|"Discard this run"| E
   R -.->|"Ask AI to review, Measure it"| E
@@ -50,7 +50,7 @@ Every measurement starts the moment its key is pressed. The Stock and Verify pag
 | Measuring | See the result (closes itself when all checks pass), or Try again | Measure next spot, Ask AI why, Close |
 | EQ, after stock | Use the phone's EQ and measure; Measure the stock again when the stock looks wrong; It's set, measure on equipment | Preview in the app, Set it on my equipment; Advanced: target, sliders, bands, files, AI |
 | Result | Apply the new suggested EQ, Keep this EQ and finish, Keep the EQ of run n, Check the EQ reaches the speakers, Measure again, Set it on my equipment, or Switch on the phone's EQ and measure | The other moves, Measure again, Ask AI, All results, Discard |
-| Done | Back to start | Open the EQ, See all results |
+| Done | Use this EQ whenever <device> connects (phone EQ, Bluetooth route), else Open the EQ | Open the EQ, Back to start, See all results |
 | Test results page | Continue tuning | Open the EQ, AI review |
 
 ## Navigation map

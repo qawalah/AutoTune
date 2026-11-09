@@ -341,6 +341,12 @@ data class UiState(
     val eqCheck: EqCheckView? = null,
     /** Outputs an EQ check found the phone's EQ does not reach (pref `eqBypassOutputs`): the EQ step offers equipment first. */
     val eqBypassOutputs: Set<String> = emptySet(),
+    /** The phone is in car mode (Android Auto): the phone's EQ may be bypassed. */
+    val carMode: Boolean = false,
+    /** The Bluetooth device media plays through now, if any. */
+    val btRoute: BtRoute? = null,
+    /** The profile the last finished tune saved (Done offers to switch it on with the car). */
+    val tunedProfileId: String? = null,
     /** Taste on top of the open test's target: bass and treble shelves in dB. */
     val bassDb: Double = 0.0,
     val trebleDb: Double = 0.0,
@@ -1003,11 +1009,30 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             it.copy(
                 micName = d?.productName?.toString() ?: "Phone microphone", phoneMic = d == null,
                 outputs = list.map { o -> o.id to o.name }, outputChoice = choice, outputName = used?.let { o -> Outputs.nameOf(o) },
+                carMode = dev.autotune.audio.LoudEq.carMode(ctx), btRoute = btRouteOf(used),
                 outputToMic = Outputs.isTheMic(used, d),
                 audioCaptured = sys?.type == android.media.AudioDeviceInfo.TYPE_REMOTE_SUBMIX,
                 micAlsoOutput = Outputs.micIsAlsoOutput(list, d),
             )
         }
+    }
+
+    /** The Bluetooth device behind a media output (its address is what automatic switching matches). */
+    private fun btRouteOf(d: android.media.AudioDeviceInfo?): BtRoute? {
+        if (d == null || d.type != android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || android.os.Build.VERSION.SDK_INT < 28) return null
+        val address = d.address?.takeIf { it.isNotBlank() } ?: return null
+        val name = d.productName?.toString()?.takeIf { it.isNotBlank() } ?: state.value.btDevices.firstOrNull { it.address.equals(address, true) }?.name ?: address
+        return BtRoute(address, name)
+    }
+
+    /** Done: switch the tuned EQ on whenever the Bluetooth device it was tuned on connects. */
+    fun autoSwitchToTuned() {
+        val route = state.value.btRoute ?: return
+        val id = state.value.tunedProfileId ?: return
+        setRule(route.address, route.name, id)
+        if (!state.value.automationOn) setAutomation(true)
+        state.update { it.copy(status = "Switches on whenever ${route.name} connects.") }
+        Diag.log(ctx(), "auto_rule_from_done", mapOf("device" to route.name, "profile" to id))
     }
 
     /** Where the test sound plays; null = automatic (Bluetooth first, never the mic itself). */
@@ -1983,7 +2008,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         val idx = if (useBest) withEq.minByOrNull { t.runs[it].rmsDb } else withEq.lastOrNull()
         if (idx == null) {
             // no run was measured with an EQ: nothing to keep, the system stays as it is
-            state.update { it.copy(status = "No run had an EQ applied, so there is nothing to keep.") }
+            state.update { it.copy(status = "No run had an EQ applied, so there is nothing to keep.", tunedProfileId = null) }
             tuneGo(TuneStep.DONE)
             return
         }
@@ -1999,7 +2024,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         )
         storeProfiles(state.value.profiles.filter { it.id != p.id } + p)
         prefs.edit().putString("activeProfile", p.id).apply()
-        state.update { it.copy(activeProfileId = p.id, sliderLayer = emptyList()) }
+        state.update { it.copy(activeProfileId = p.id, sliderLayer = emptyList(), tunedProfileId = p.id) }
         saveSliderLayer(emptyList())
         setEdit(bands, "run:${t.id}:$idx")
         val way = state.value.applyWay

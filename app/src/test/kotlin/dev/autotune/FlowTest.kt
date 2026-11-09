@@ -188,4 +188,34 @@ class FlowTest {
         assertEquals(NextMove.MEASURE_ON_PHONE_EQ, recommendNext(listOf(r("Stock", 6.0), r("Run 1", 1.4), onPhoneEq("Run 2", 1.9, other)), false, null, true, ApplyWay.IN_APP).move)
         assertFalse(needsPhoneEqRun(preview, 0, true, ApplyWay.IN_APP)) // the stock run has no EQ to keep
     }
+
+    // ---------------------------------------------------------------- 2.6.0: Set up warns, Done offers automatic switching
+
+    @Test
+    fun setUpWarnsWhenThePhonesEqMayNotReachTheOutput() {
+        val known = setOf("Bluetooth: F-150")
+        assertTrue(phoneEqReachWarning("Bluetooth: F-150", false, known)!!.startsWith("An EQ check found"))
+        assertTrue(phoneEqReachWarning("Car (Android Auto)", false, emptySet())!!.startsWith("Android Auto"))
+        assertTrue(phoneEqReachWarning("Bluetooth: F-150", true, emptySet())!!.startsWith("Android Auto"))
+        // a proven bypass says more than a guess
+        assertTrue(phoneEqReachWarning("Car (Android Auto)", true, setOf("Car (Android Auto)"))!!.startsWith("An EQ check found"))
+        assertEquals(null, phoneEqReachWarning("Bluetooth: LG soundbar", false, known))
+        assertEquals(null, phoneEqReachWarning(null, false, known))
+    }
+
+    @Test
+    fun doneOffersToSwitchTheTunedEqOnWithTheCar() {
+        val car = BtRoute("AA:BB:CC:DD:EE:FF", "F-150")
+        assertTrue(offerAutoSwitch(car, true, "p1", emptyList(), false))
+        // nothing to offer: no Bluetooth route, the EQ is on the head unit, or nothing was kept
+        assertFalse(offerAutoSwitch(null, true, "p1", emptyList(), true))
+        assertFalse(offerAutoSwitch(car, false, "p1", emptyList(), true))
+        assertFalse(offerAutoSwitch(car, true, null, emptyList(), true))
+        // already set up (address case does not matter), but only while automatic switching is on
+        val rule = listOf(AutoRule("aa:bb:cc:dd:ee:ff", "F-150", "p1"))
+        assertFalse(offerAutoSwitch(car, true, "p1", rule, true))
+        assertTrue(offerAutoSwitch(car, true, "p1", rule, false))
+        // a rule for another EQ is replaced by the new tune
+        assertTrue(offerAutoSwitch(car, true, "p2", rule, true))
+    }
 }

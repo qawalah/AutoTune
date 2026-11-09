@@ -365,3 +365,9 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - Fix: `measureRun` on the phone's EQ with `repeatNext` applies `prev.eq` (it applied the new suggestion before), and records it as `appliedParam`.
 - Not verified on a phone: the new keys after a real EQ check, and the output name Android Auto reports staying the same between sessions.
 
+### 2.6.0: Set up warns about the EQ's reach, Done offers automatic switching
+- TuningLogic (pure, FlowTest): `phoneEqReachWarning(output, carMode, knownBypass)` (a proven bypass wins over the Android Auto guess); `BtRoute(address, name)`; `offerAutoSwitch(route, playsOnPhone, profileId, rules, automationOn)`.
+- VM: `UiState.carMode` (`LoudEq.carMode`), `btRoute` (the media route when it is Bluetooth A2DP, API 28+ for the address) and `tunedProfileId` (set by `tuneKeep`), all refreshed with the outputs in `refreshMic`. `autoSwitchToTuned()` calls `setRule` and turns on `automationOn`.
+- UI: the warning joins the "Before measuring" `Alerts` in `OutputPicker`; `DoneStep` pins the automatic switch or "Open the EQ", with Back to start and See all results as `TextAction`s.
+- Not verified on a phone: that `AudioDeviceInfo.address` reports the car's Bluetooth address on One UI, and what output name wireless Android Auto shows.
+

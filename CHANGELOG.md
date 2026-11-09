@@ -4,6 +4,11 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.6.0] - 2026-11-09
+### Changed
+- **Set up warns when the phone's EQ may not reach the speakers.** With Android Auto on, or on an output where an EQ check already found the phone's EQ missing, one line under "Plays through" says so before the stock reading. On a proven output the EQ step starts with your equipment; with Android Auto it only warns, because wired Android Auto has carried the EQ since 2.3.1.
+- **Done offers the next useful step.** When the phone is playing through a Bluetooth device and the EQ plays on the phone, the main key is "Use this EQ whenever <device> connects": one tap saves the automatic switch and turns automatic switching on. Otherwise the main key is "Open the EQ". "Back to start" and "See all results" are among the other choices.
+
 ## [2.5.0] - 2026-11-09
 ### Changed
 - **The Tune key no longer undoes anything.** Set up is a draft now: the test you have open and AutoTune EQ stay as they are until "Measure the stock system" starts the reading. Back from Set up leaves the EQ playing and Continue still picks up the open test where you left it. Before, one tap on Tune switched the EQ off and closed the test.

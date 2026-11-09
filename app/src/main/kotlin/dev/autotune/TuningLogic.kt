@@ -264,6 +264,31 @@ fun bypassAfterCheck(known: Set<String>, output: String?, severity: Int): Set<St
     else -> known
 }
 
+/**
+ * The one line Set up adds before the stock reading when the phone's EQ may not reach [output]: an output an EQ check
+ * already proved it misses ([knownBypass]), or Android Auto (by its name or the phone's car mode). Null otherwise.
+ */
+fun phoneEqReachWarning(output: String?, carMode: Boolean, knownBypass: Set<String>): String? = when {
+    output != null && output in knownBypass ->
+        "An EQ check found the phone's EQ does not reach $output. The EQ step starts with your equipment."
+    carMode || output?.contains("Android Auto", ignoreCase = true) == true ->
+        "Android Auto can take the sound past the phone's EQ. If the first run comes out like the stock, the EQ check will tell."
+    else -> null
+}
+
+/** The Bluetooth device the phone is playing through now (from the media route). */
+data class BtRoute(val address: String, val name: String)
+
+/**
+ * Whether Done offers to switch the tuned EQ on whenever [route] connects: the EQ plays on this phone ([playsOnPhone]),
+ * a tuned profile was saved, and no rule already does exactly that with automatic switching on.
+ */
+fun offerAutoSwitch(route: BtRoute?, playsOnPhone: Boolean, profileId: String?, rules: List<AutoRule>, automationOn: Boolean): Boolean {
+    if (route == null || !playsOnPhone || profileId == null) return false
+    val done = automationOn && rules.any { it.address.equals(route.address, ignoreCase = true) && it.profileId == profileId }
+    return !done
+}
+
 private fun baseRecommendation(runs: List<SavedRun>, eqMayNotBeApplied: Boolean, eqCheckSeverity: Int?): Recommendation {
     val latestIdx = runs.lastIndex
     val withEq = (1..latestIdx).toList()

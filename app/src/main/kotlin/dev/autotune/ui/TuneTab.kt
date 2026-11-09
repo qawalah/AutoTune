@@ -76,7 +76,7 @@ fun TuneTab(s: UiState, vm: TuneViewModel, sharer: Sharer, go: (Tab) -> Unit, op
                 TuneStep.STOCK_RESULT, TuneStep.APPLY -> ApplyStep(s, vm, pick, exit)
                 TuneStep.VERIFY -> MeasureStep(s, vm, sharer, pick, stock = false, exit = exit)
                 TuneStep.RESULT -> ResultStep(s, vm, pick, openResults, exit)
-                TuneStep.DONE -> DoneStep(s, vm, go, openResults)
+                TuneStep.DONE -> DoneStep(s, vm, pick, go, openResults)
             }
         }
     }
@@ -506,7 +506,7 @@ private fun ResultStep(s: UiState, vm: TuneViewModel, pick: Pickers, openResults
 // ------------------------------------------------------------------ done
 
 @Composable
-private fun DoneStep(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, openResults: () -> Unit) {
+private fun DoneStep(s: UiState, vm: TuneViewModel, pick: Pickers, go: (Tab) -> Unit, openResults: () -> Unit) {
     val stock = s.runs.firstOrNull()
     val last = s.runs.drop(1).minByOrNull { it.rmsDb }
     Column(Modifier.fillMaxWidth().padding(top = 32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -522,9 +522,20 @@ private fun DoneStep(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, openResul
             style = MaterialTheme.typography.bodyMedium, color = At.c.muted, textAlign = TextAlign.Center,
         )
     }
-    PinAction("Back to start", { vm.tuneGo(TuneStep.HOME) }, icon = Ic.TUNE)
-    SecondaryButton("Open the EQ", { go(Tab.EQ) }, Modifier.fillMaxWidth(), icon = Ic.EQ)
-    SecondaryButton("See all results", openResults, Modifier.fillMaxWidth(), icon = Ic.TESTS)
+    // the next useful thing: tie the tune to the car it was made in, else open the EQ it now plays
+    val playsOnPhone = s.source == Source.PHONE && s.applyWay != ApplyWay.EQUIPMENT
+    val route = s.btRoute
+    if (route != null && dev.autotune.offerAutoSwitch(route, playsOnPhone, s.tunedProfileId, s.rules, s.automationOn)) {
+        PinAction("Use this EQ whenever ${route.name} connects", { pick.bluetooth(); vm.autoSwitchToTuned() }, icon = Ic.BLUETOOTH)
+        SecondaryButton("Open the EQ", { go(Tab.EQ) }, Modifier.fillMaxWidth(), icon = Ic.EQ)
+    } else {
+        s.status?.takeIf { it.startsWith("Switches on whenever") }?.let { Muted(it) }
+        PinAction("Open the EQ", { go(Tab.EQ) }, icon = Ic.EQ)
+    }
+    Actions {
+        TextAction("Back to start", { vm.tuneGo(TuneStep.HOME) }, icon = Ic.TUNE)
+        TextAction("See all results", openResults, icon = Ic.TESTS)
+    }
 }
 
 // ------------------------------------------------------------------ pieces
@@ -628,6 +639,7 @@ private fun OutputPicker(s: UiState, vm: TuneViewModel) {
         listOfNotNull(
             if (s.outputToMic) "That is the USB mic, not your speakers. Pick your car in the list above." else null,
             if (s.audioCaptured) "Another app is capturing the phone's sound (screen recorder or casting). Stop it before measuring: it can change what reaches the speakers." else null,
+            dev.autotune.phoneEqReachWarning(s.outputName, s.carMode, s.eqBypassOutputs),
         ),
         "Before measuring",
     )
