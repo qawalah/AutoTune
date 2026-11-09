@@ -4,6 +4,10 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.11.0] - 2026-11-09
+### Added
+- **First-start tutorial.** Five cards you swipe through on the first start: what AutoTune does, then the four steps of a tune (measure the stock sound, get a suggested EQ, verify it, keep it). Each card has a small picture that plays when the card comes up: the knob tunes in, the sweep draws the stock response, the faders settle, the reading counts down to the target, the EQ key latches on when the car connects. As you swipe, the picture moves further than the words. Skip is on every card but the last; the key reads Next, then Get started; Back goes to the previous card. It shows once (existing installs see it once after this update), and Settings › About › "Replay the tutorial" shows it again. With "Remove animations" each picture shows its finished state.
+
 ## [2.10.0] - 2026-11-09
 ### Changed
 - **Graphics play twice, then stop.** Header art, the Tune dial, report meters and charts play two passes. They replay when you pull a page down from the top. The Tune dial pulses from the centre outward.

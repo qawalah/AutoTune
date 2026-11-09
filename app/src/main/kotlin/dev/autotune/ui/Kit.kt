@@ -2012,42 +2012,52 @@ fun BigActionBar(a: PinnedAction) {
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         a.hint?.takeIf { isAdvanced() || !a.enabled }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 2) }
-        // the main key: graphite, the action centred in clear type; a pilot light in the accent at the start says this
-        // is the suggested move, lit while it is ready
-        val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-        val keyColor = if (a.enabled) At.c.text else At.c.panelHigh
-        val onKey = if (a.enabled) At.c.bg else At.c.muted
-        Box(
-            Modifier.fillMaxWidth().heightIn(min = 64.dp).pressScale(src).clip(MaterialTheme.shapes.medium).background(keyColor)
-                .clickable(interactionSource = src, indication = androidx.compose.material3.ripple(), enabled = a.enabled, role = Role.Button, onClick = a.onClick)
-                .semantics { contentDescription = "Suggested: ${a.text}" + (a.sub?.let { ", $it" } ?: "") }
-                .padding(horizontal = 18.dp, vertical = 8.dp),
+        MainKey(
+            a.text, a.onClick, sub = a.sub ?: "suggested", enabled = a.enabled,
+            description = "Suggested: ${a.text}" + (a.sub?.let { ", $it" } ?: ""),
+        )
+    }
+}
+
+/**
+ * The main key: graphite, full width, the action centred in clear type over a small second line ([sub]: "suggested",
+ * or what comes after the key), and a pilot light in the accent at the start, lit while it is ready. A new label
+ * slides in, so the change is noticed. The pinned action ([BigActionBar]) and the tutorial's Next / Get started use it.
+ */
+@Composable
+fun MainKey(text: String, onClick: () -> Unit, sub: String? = null, enabled: Boolean = true, description: String = text) {
+    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val keyColor = if (enabled) At.c.text else At.c.panelHigh
+    val onKey = if (enabled) At.c.bg else At.c.muted
+    Box(
+        Modifier.fillMaxWidth().heightIn(min = 64.dp).pressScale(src).clip(MaterialTheme.shapes.medium).background(keyColor)
+            .clickable(interactionSource = src, indication = androidx.compose.material3.ripple(), enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description }
+            .padding(horizontal = 18.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(Modifier.align(Alignment.CenterStart).size(12.dp).clip(CircleShape).background(if (enabled) At.c.signal else At.c.line))
+        // a new label slides in, so the change is noticed
+        val inMs = motionMs(300)
+        val outMs = motionMs(90)
+        androidx.compose.animation.AnimatedContent(
+            targetState = text to sub, modifier = Modifier.padding(horizontal = 28.dp),
+            transitionSpec = {
+                (androidx.compose.animation.fadeIn(tween(inMs, easing = EaseArrive)) + androidx.compose.animation.slideInVertically(tween(inMs, easing = EaseArrive)) { it / 3 }) togetherWith
+                    androidx.compose.animation.fadeOut(tween(outMs, easing = EaseLeave))
+            },
             contentAlignment = Alignment.Center,
-        ) {
-            Box(Modifier.align(Alignment.CenterStart).size(12.dp).clip(CircleShape).background(if (a.enabled) At.c.signal else At.c.line))
-            // a new recommendation slides in, so the change is noticed
-            val inMs = motionMs(300)
-            val outMs = motionMs(90)
-            androidx.compose.animation.AnimatedContent(
-                targetState = a.text to a.sub, modifier = Modifier.padding(horizontal = 28.dp),
-                transitionSpec = {
-                    (androidx.compose.animation.fadeIn(tween(inMs, easing = EaseArrive)) + androidx.compose.animation.slideInVertically(tween(inMs, easing = EaseArrive)) { it / 3 }) togetherWith
-                        androidx.compose.animation.fadeOut(tween(outMs, easing = EaseLeave))
-                },
-                contentAlignment = Alignment.Center,
-                label = "pin",
-            ) { (text, sub) ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold), color = onKey, maxLines = 2,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    )
-                    // the second line: "suggested", or what comes after this key (a test's results page)
-                    Text(
-                        sub ?: "suggested", style = MaterialTheme.typography.labelSmall, color = onKey.copy(alpha = 0.6f), maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    )
-                }
+            label = "pin",
+        ) { (shown, second) ->
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    shown, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold), color = onKey, maxLines = 2,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+                if (second != null) Text(
+                    second, style = MaterialTheme.typography.labelSmall, color = onKey.copy(alpha = 0.6f), maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
             }
         }
     }

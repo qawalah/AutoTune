@@ -82,6 +82,9 @@ flowchart LR
   W["Widgets, notification actions,<br/>Quick Settings tile"] -->|"EqActionReceiver"| BG(("background:<br/>app stays closed"))
   SH["Shortcuts, routines,<br/>autotune://profile/name"] -->|"ApplyProfileActivity"| BG
   BT["Bluetooth device connects"] -->|"rules.txt"| BG
+  FS(["First start"]) -->|"once (tutorialSeen)"| TUT["Tutorial over every screen<br/>5 cards: Skip, Next, Get started"]
+  TUT -->|"Skip, Get started, Back on the first card"| T
+  ST -->|"About: Replay the tutorial"| TUT
 ```
 
 Back closes the newest page first, then returns a tab to Tests. Inside Tune, Back walks the steps instead.

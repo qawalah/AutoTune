@@ -79,6 +79,7 @@ Everything stays on the phone, in app-private storage:
   - `eqWanted`, `eqChain`, `eqPick`, `activeProfile`, `automationOn`, `offOnDisconnect`
   - `flavour`, `preampMode`, `preampManual`, `eqFine`
   - `defTarget`, `defBass`, `defTreble`, `defSpots`, `defGate`
+  - `tutorialSeen` (the first-start tutorial was finished or skipped)
   - `look`, `theme`, `accent`, `palBody`, `palDeck`, `palInk`, `palAccent`, `palRule` ("#RRGGBB", absent = the look's own), `smoothing`, `fdwCycles`, `exportTree`, `aiProvider`, `aiModel_<PROVIDER>`, `calibrationName`, `btSeen_<address>`, and similar.
 - SharedPreferences `ai_secret` holds the AI API keys, encrypted with AES-GCM under the Android Keystore key alias `autotune_ai_key`.
 - `cacheDir` is used for export and share files and the diagnostics zip. A chosen export folder is a persisted Storage Access Framework (SAF) tree permission; otherwise files go to Downloads.
@@ -402,3 +403,12 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - Runs list: `runColumns()` measures the widest score box ("100/100") and figure ("99.9 dB") at the font scale; the row is tick | name and date | score (fixed, end-aligned, empty without one) | dB (fixed, end-aligned) | delete (48dp, empty for the stock).
 - Test results page: `Page.RESULTS` opens tall (header art at its size, where it plays). Charts: `ResponseChart` curves rise from the target line on arrival; the full-screen view is `ChartZoomLayer` (a sheet over the app in the same window, `ChartZoom`/`LocalChartZoom`, Back closes it), with the old `Dialog` kept only outside the shell (screenshot sheets).
 - Not verified on a phone: the pull gesture with One UI's stretch overscroll, the arrival timing on a real scroll, the full-screen chart, the palette by day and night.
+
+### First-start tutorial (2.11.0)
+- After the CrossPaths tutorial (its `WelcomeScreen` and the "first-start tutorial" rule in its DESIGN.md): full-screen cards you swipe, each with a small picture that restarts when its card becomes current, the picture moving further than the words, Skip always there (but on the last card), shown once and replayable.
+- TuningLogic (pure, `TutorialTest`): `TutorialCard`, `TUTORIAL_CARDS` (hello, measure, eq, verify, keep), `TUTORIAL_STEPS`, `tutorialStepLabel`, `tutorialKeyLabel`, `tutorialShowsSkip`, `tutorialBack`, `tutorialPos` (a card's place from the pager's page and offset), `CardMotion` and `tutorialMotion(pos)` (picture 0.45 and words 0.18 page widths on top of the swipe, fade, picture scale down to 0.85; the page lights use its alpha), `playPhase`, `tutorialPlayMs`, the demo system `tutorialCurveDb(x, tuned)`, `tutorialReadingDb` (4.1 to 1.2 dB), `TUTORIAL_FADERS`, `tutorialFaderX`, `tutorialFaderDb`.
+- ui/Tutorial.kt: `Tutorial(onDone, start)` is a `HorizontalPager`; every movement reads the pager in `graphicsLayer`/`drawBehind`, so a swipe only redraws. `PageLights` are the dots (tap to jump). `CardArt` runs an `Animatable` from 0 to `tutorialPlayMs` when its card becomes current and drops it back to 0 once the pager settles elsewhere; with "Remove animations" or in `LocalInspectionMode` it holds the last frame. `TutorialArt(key, ms, width, height)` (internal, stateless) draws the five pictures in the deck's colours (`HelloArt`, `MeasureArt`, `EqArt`, `VerifyArt`, `KeepArt`).
+- Kit.kt: `MainKey(text, onClick, sub, enabled, description)` is the main key, taken out of `BigActionBar` (which passes `a.sub ?: "suggested"`); the tutorial's Next / Get started is the same key.
+- VM: `UiState.showTutorial` (`!tutorialSeen` on start), `tutorialDone()` (sets the pref), `replayTutorial()` (Settings › About, "Replay the tutorial"). AutoTuneScreen draws the tutorial over every screen but the teak cheeks; it fades in, and fades out with a 1.04 scale.
+- Screenshots: `g1`-`g6` in tools/screenshots/ShotsTest.kt.
+- Not verified on a phone: the swipe and its layering under a real finger, Back on the first card, the fade into the app.
