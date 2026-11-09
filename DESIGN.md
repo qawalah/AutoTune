@@ -143,7 +143,7 @@ Flat. A section is a **deck** (`Panel`, `Group`, `Fold`, `RunSheet`): a light pl
 
 ## Components
 
-- **Main key** (`BigActionBar` via `PinAction`): one per screen, full width, graphite, the action centred in large type with "suggested" under it, a pilot light in the accent at the start. Disabled: grey key, unlit pilot. The reason shows only in Advanced or when it is disabled.
+- **Main key** (`MainKey`; pinned by `BigActionBar` via `PinAction`): one per screen, full width, graphite, the action centred in large type with "suggested" under it, a pilot light in the accent at the start. Disabled: grey key, unlit pilot. The reason shows only in Advanced or when it is disabled.
 - **Push keys** (`AtNavBar`): the tabs. Rectangular keys (62×42dp) with the tab's line icon, the pressed one graphite; a lowercase label under each. The key moves down 1dp when chosen.
 - **Tab labels** are title case under each key ("EQ" in capitals). **EQ on** latches the EQ key down, shaded from the rim like a pressed push key; no text, no dot.
 - **Tune button**: the centre of the key row, a round push button in the accent with the Tune mark, the tuning knob. Chosen, it is pressed in (graphite, a step lower); a ring pulses round it while a measurement runs on another tab.
@@ -157,6 +157,7 @@ Flat. A section is a **deck** (`Panel`, `Group`, `Fold`, `RunSheet`): a light pl
 - **EQ sliders**: faders, a slot and a square cap. On the EQ tab they sit right under the AutoTune EQ key and the EQ in use, before the response graph. When the row has more bands than fit (15), the deck's grey fades over the edge where more wait, with a small chevron, and a thin position bar runs under the row (`scrollCue`); both go when everything is in view.
 - **Step header** (`StepHeader`): Back, the step title on one line, Exit; "Step n of 7 · Next: …" with the mode switch; a slim bar (done grey, current red).
 - **Info bubbles**: a small (i) next to the thing it explains.
+- **First-start tutorial** (`Tutorial`, after CrossPaths): full-screen cards on the dark body you swipe through: the opening card, then the four steps of a tune. Each has a picture on a deck (the knob tuning in, the sweep on the dial, the faders settling, the reading counting down, the EQ key latching on) that plays when its card comes up; the picture moves further than the words as you swipe. The wordmark and Skip on the top line, a row of pilot lights for the cards (the current one lit and long), and the main key: Next, then Get started. Shown once; Settings › About replays it.
 
 ## Icons
 
@@ -172,7 +173,7 @@ One family (`Ic`, drawn in `drawIc` in `ui/Kit.kt`), in the language of the laun
 
 ## Motion
 
-Short and mechanical. Arrivals ease out (`EaseArrive`), exits are quick (`EaseLeave`). Tabs slide from the side of the key you pressed; pages rise and drop; keys press in to 0.97; the wheel turns; the needle glides. No bounce, glow or gradient for show. Graphics move once when they appear and then stay still; only the Tune dial's sweep and live readings keep moving. `motionMs()` and `animationsOn()` follow "Remove animations".
+Short and mechanical. Arrivals ease out (`EaseArrive`), exits are quick (`EaseLeave`). Tabs slide from the side of the key you pressed; pages rise and drop; keys press in to 0.97; the wheel turns; the needle glides. No bounce, glow or gradient for show. Graphics move once when they appear and then stay still; only the Tune dial's sweep and live readings keep moving, and a tutorial card's picture plays again each time its card comes back. `motionMs()` and `animationsOn()` follow "Remove animations".
 
 ## Do's and Don'ts
 
