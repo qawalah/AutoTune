@@ -170,17 +170,20 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
 
         when {
             busy -> SecondaryButton("Stop", vm::cancel, Modifier.fillMaxWidth(), icon = Ic.STOP)
+            // one graphite key for the move; the other choices stacked under it, one per row, as everywhere else
             v.stage == MeasureStage.SPOT_DONE -> {
                 PrimaryButton("Measure spot ${v.spot + 1}", { vm.measure() }, Modifier.fillMaxWidth(), icon = Ic.MEASURE)
-                SecondaryButton("Close", vm::closeMeasureView, Modifier.fillMaxWidth())
+                Actions { TextAction("Close", vm::closeMeasureView, icon = Ic.CLOSE) }
             }
             v.stage == MeasureStage.FAILED -> {
                 // what the Stock and Verify pages used to offer after a failure lives here now
                 LevelResult(s)
                 PrimaryButton("Try again", { vm.measure() }, Modifier.fillMaxWidth(), icon = Ic.AGAIN, enabled = !s.busy)
-                SecondaryButton("Check the level", vm::levelCheck, Modifier.fillMaxWidth(), icon = Ic.LIVE, enabled = !s.busy)
-                SecondaryButton("Ask AI why", vm::aiExplainFailure, Modifier.fillMaxWidth(), icon = Ic.AI)
-                SecondaryButton("Close", vm::closeMeasureView, Modifier.fillMaxWidth())
+                Actions {
+                    TextAction("Check the level", vm::levelCheck, enabled = !s.busy, icon = Ic.LIVE)
+                    TextAction("Ask AI why", vm::aiExplainFailure, icon = Ic.AI)
+                    TextAction("Close", vm::closeMeasureView, icon = Ic.CLOSE)
+                }
             }
             else -> PrimaryButton("See the result", vm::closeMeasureView, Modifier.fillMaxWidth(), icon = Ic.NEXT)
         }

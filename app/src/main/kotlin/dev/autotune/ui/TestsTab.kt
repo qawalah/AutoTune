@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.autotune.TestSummary
 import dev.autotune.TuneViewModel
 import dev.autotune.UiState
@@ -51,25 +52,25 @@ fun TestsTab(s: UiState, vm: TuneViewModel, openResults: (String) -> Unit, conti
     var deleteId by remember { mutableStateOf<String?>(null) }
     ScreenTitle("Tests", context = if (s.tests.isEmpty()) null else "${s.tests.size} systems · $readingCount readings")
     if (s.tests.isEmpty()) {
-        Panel {
-            Text("No tests yet", style = MaterialTheme.typography.titleLarge)
-            Text(
-                "A test is one car or one room. It keeps a stock reading of the system as it is now, then every run after you add EQ.",
-                style = MaterialTheme.typography.bodyMedium, color = At.c.muted,
-            )
-            Text("Tap New test to start one.", style = MaterialTheme.typography.bodyMedium)
-        }
+        // the title and one fact; what a test is lives in the bubble, the key below starts one
+        Group(
+            "No tests yet", divider = false,
+            info = "A test is one car or one room. It keeps a stock reading of the system as it is now, then every run after you add EQ.",
+        ) { Muted("New test starts one") }
         return
     }
-    Column {
-        s.tests.forEachIndexed { i, t ->
-            if (i > 0) HorizontalDivider(color = At.c.line)
-            TestRow(
-                t, t.id == s.currentTestId, onOpen = { openResults(t.id) },
-                onContinue = { continueTest(t.id) },
-                onRename = { renameId = t.id; renameText = t.name },
-                onDelete = { deleteId = t.id },
-            )
+    // the list is one deck, ruled between its rows like the tracks on a record sleeve
+    Column(Modifier.fillMaxWidth().deckPlate()) {
+        DeckColors {
+            s.tests.forEachIndexed { i, t ->
+                if (i > 0) HorizontalDivider(color = At.c.line, modifier = Modifier.padding(start = 52.dp))
+                TestRow(
+                    t, t.id == s.currentTestId, onOpen = { openResults(t.id) },
+                    onContinue = { continueTest(t.id) },
+                    onRename = { renameId = t.id; renameText = t.name },
+                    onDelete = { deleteId = t.id },
+                )
+            }
         }
     }
     renameId?.let { id ->
@@ -98,10 +99,12 @@ fun TestsTab(s: UiState, vm: TuneViewModel, openResults: (String) -> Unit, conti
 @Composable
 private fun TestRow(t: TestSummary, isOpen: Boolean, onOpen: () -> Unit, onContinue: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 76.dp).clickable(onClickLabel = "Open the results of ${t.name}", onClick = onOpen).padding(vertical = 12.dp),
+        Modifier.fillMaxWidth().heightIn(min = 76.dp).clickable(onClickLabel = "Open the results of ${t.name}", onClick = onOpen)
+            .padding(start = 14.dp, end = 2.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.padding(end = 12.dp)) { AtIcon(kindIcon(t.kind), if (isOpen) At.c.signal else At.c.muted, size = 26.dp) }
+        // the kind is lettering, in ink; the open test is marked once, by its pilot light
+        Box(Modifier.padding(end = 12.dp)) { AtIcon(kindIcon(t.kind), At.c.text, size = 26.dp) }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // an automatic name reads as its date; the target is not repeated on every row
@@ -118,13 +121,14 @@ private fun TestRow(t: TestSummary, isOpen: Boolean, onOpen: () -> Unit, onConti
             val better = t.runCount > 1 && t.latestRms < t.stockRms - 0.05
             Column(horizontalAlignment = Alignment.End) {
                 Row(verticalAlignment = Alignment.Bottom) {
-                    if (t.runCount > 1) Text("%.1f → ".format(t.stockRms), style = MaterialTheme.typography.titleMedium, fontFamily = AtFigures, color = At.c.muted)
+                    // readings large and light, like the display; the stock it came from small beside it
+                    if (t.runCount > 1) Text("%.1f → ".format(t.stockRms), Modifier.padding(bottom = 3.dp), style = MaterialTheme.typography.labelMedium, fontFamily = AtFigures, color = At.c.muted)
                     Text(
                         "%.1f".format(if (t.runCount > 1) t.latestRms else t.stockRms),
-                        style = MaterialTheme.typography.headlineSmall, color = if (better) At.c.good else At.c.text,
+                        style = MaterialTheme.typography.displaySmall.copy(fontSize = 28.sp, lineHeight = 32.sp), color = if (better) At.c.good else At.c.text,
                     )
                 }
-                Text("dB from target", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
+                Text("db from target", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
                 if (t.runCount > 1) {
                     val change = t.stockRms - t.latestRms
                     Text(
@@ -191,11 +195,12 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
     }
 
     if (s.runs.isEmpty()) {
-        Panel {
-            Text("No readings yet", style = MaterialTheme.typography.titleLarge)
-            Text("Measure the stock system first. It becomes the reference every later run is compared with.", style = MaterialTheme.typography.bodyMedium, color = At.c.muted)
-            PrimaryButton("Start tuning", { vm.tuneContinue(); go(Tab.MEASURE) }, icon = Ic.TUNE)
-        }
+        // the title, its why in the bubble; the one move is the main key, as after every reading
+        Group(
+            "No readings yet", divider = false,
+            info = "Measure the stock system first. It becomes the reference every later run is compared with.",
+        ) { Muted("stock reading first") }
+        PinAction("Start tuning", { vm.tuneContinue(); go(Tab.MEASURE) }, icon = Ic.TUNE)
     } else {
         FollowAndChecks(s, vm)
         // Simple stops here: the summary, the graph and the checks; the rest is in Advanced

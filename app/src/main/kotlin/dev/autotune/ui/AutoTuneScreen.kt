@@ -222,7 +222,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     BackHandler(s.measureView != null) { if (s.busy) vm.cancel() else vm.closeMeasureView() }
 
     val viewMode = androidx.compose.runtime.remember(s.advanced) { ViewMode(s.advanced, vm::setAdvanced) }
-    AutoTuneTheme(s.themeMode, s.dynamicColor, s.look, s.accent) {
+    AutoTuneTheme(s.themeMode, s.look, s.accent, s.palette) {
       androidx.compose.runtime.CompositionLocalProvider(
           LocalPin provides pin, LocalViewMode provides viewMode,
       ) {
@@ -265,9 +265,13 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                 },
                 floatingActionButton = {
                     if (tab == Tab.TESTS && page == null && overlay == OVERLAY_NONE && !keyboardOpen) {
+                        // a flat graphite key like the main key: device corners, a hairline edge, no shadow at rest or pressed
                         ExtendedFloatingActionButton(
                             onClick = { vm.tuneStart(); go(Tab.MEASURE) },
                             containerColor = At.c.text, contentColor = At.c.bg,
+                            shape = MaterialTheme.shapes.medium,
+                            elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp),
+                            modifier = Modifier.border(1.dp, At.c.line, MaterialTheme.shapes.medium),
                             icon = { AtIcon(Ic.PLUS, At.c.signal) },
                             text = { Text("New test", style = MaterialTheme.typography.labelLarge) },
                         )

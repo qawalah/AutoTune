@@ -223,6 +223,13 @@ class ConvergenceTest {
     }
 
     @Test
+    fun alertsCountReadsAsOneShortLabel() {
+        assertEquals("1 note", alertsCount(1))
+        assertEquals("2 notes", alertsCount(2))
+        assertEquals("12 notes", alertsCount(12))
+    }
+
+    @Test
     fun resultHeadlineSaysHowFarItCameInOneLine() {
         assertEquals("3.0 dB closer to the target than stock.", resultHeadline(23.1, 20.1))
         assertEquals("3.0 dB closer to the target than stock. Run 1 is still the best.", resultHeadline(23.1, 20.1, 17.9, "Run 1"))
@@ -252,6 +259,78 @@ class ConvergenceTest {
             assertTrue("${a.name} on the light body", contrast(a.light, bodyLight) >= 3.0)
             assertTrue("${a.name} on the dark body", contrast(a.dark, bodyDark) >= 3.0)
         }
+    }
+
+    @Test
+    fun aRemovedLookOpensTheDefault() {
+        val kept = listOf("BRAUN", "BRAUN_GRAPHITE", "BRAUN_BLACK", "WHITE", "GRADIENT")
+        RETIRED_LOOKS.forEach { assertEquals(it, "BRAUN", resolveLookName(it, kept, "BRAUN")) }
+        assertEquals("BRAUN", resolveLookName(null, kept, "BRAUN"))
+        assertEquals("BRAUN", resolveLookName("", kept, "BRAUN"))
+        assertEquals("BRAUN", resolveLookName("braun_black", kept, "BRAUN"))
+        kept.forEach { assertEquals(it, resolveLookName(it, kept, "BRAUN")) }
+        // a retired name is never a kept one
+        assertTrue(RETIRED_LOOKS.none { it in kept })
+    }
+
+    @Test
+    fun hexColoursParseOnlyWhenValid() {
+        assertEquals(0xFFBF3C18L, parseHexColour("#BF3C18"))
+        assertEquals(0xFFBF3C18L, parseHexColour("bf3c18"))
+        assertEquals(0xFFBF3C18L, parseHexColour("  #bF3c18 "))
+        assertEquals(0xFFFFAA00L, parseHexColour("#fa0"))
+        assertEquals(0xFF000000L, parseHexColour("000"))
+        listOf(null, "", "#", "#12", "#1234", "#12345", "#1234567", "#GG0000", "red", "#12 345", "0x123456").forEach {
+            assertNull("'$it'", parseHexColour(it))
+        }
+        assertEquals("#BF3C18", hexColour(0xFFBF3C18L))
+        assertEquals("#00000A", hexColour(0x0AL))
+        // round trip
+        PALETTE_NEUTRALS.plus(PALETTE_ACCENTS).forEach { assertEquals(it.argb, parseHexColour(hexColour(it.argb))) }
+    }
+
+    @Test
+    fun paletteKeepsOnlyValidOpaqueColours() {
+        val stored = mapOf("palBody" to "#FFFFFF", "palInk" to "nope", "palAccent" to "#f60", "palRule" to "")
+        val p = paletteFrom { stored[it] }
+        assertEquals(0xFFFFFFFFL, p[PaletteSlot.BODY])
+        assertNull(p[PaletteSlot.INK])
+        assertNull(p[PaletteSlot.DECK])
+        assertNull(p[PaletteSlot.RULE])
+        assertEquals(0xFFFF6600L, p[PaletteSlot.ACCENT])
+        assertTrue(paletteFrom { null }.isDefault)
+        // set, replace, clear; alpha is always opaque
+        val q = Palette().with(PaletteSlot.DECK, 0x00123456L)
+        assertEquals(0xFF123456L, q[PaletteSlot.DECK])
+        assertTrue(q.with(PaletteSlot.DECK, null).isDefault)
+        // every slot has its own key
+        assertEquals(PaletteSlot.entries.size, PaletteSlot.entries.map { it.key }.toSet().size)
+        // presets are distinct per list
+        assertEquals(PALETTE_NEUTRALS.size, PALETTE_NEUTRALS.map { it.argb }.toSet().size)
+        assertEquals(PALETTE_ACCENTS.size, PALETTE_ACCENTS.map { it.argb }.toSet().size)
+    }
+
+    @Test
+    fun paletteInkAlwaysReads() {
+        val white = 0xFFFFFFFFL; val black = 0xFF121211L
+        // a wanted ink that reads is used
+        assertEquals(black, readableInk(black, white, listOf(white)))
+        // one that does not falls back to the look's ink, then to near-black or near-white
+        assertEquals(0xFF232321L, readableInk(0xFFF3F2EEL, 0xFF232321L, listOf(white)))
+        val fallback = readableInk(0xFFF3F2EEL, 0xFFECEAE4L, listOf(white))
+        assertTrue(contrast(fallback, white) >= 4.5)
+        val onBlack = readableInk(0xFF1C1C1BL, 0xFF232321L, listOf(black))
+        assertTrue(contrast(onBlack, black) >= 4.5)
+        // muted labels read too, on every ground
+        listOf(white, 0xFFE9E7E1L, 0xFF2B2B29L, black, 0xFF85857FL).forEach { g ->
+            val ink = readableInk(null, 0xFF777777L, listOf(g))
+            assertTrue(contrast(mutedInk(ink, listOf(g)), g) >= 4.5)
+        }
+        // text on an accent key
+        PALETTE_ACCENTS.forEach { assertTrue(it.name, contrast(onAccent(it.argb), it.argb) >= 4.5) }
+        assertEquals(0xFF808080L, mixArgb(0xFF000000L, 0xFFFFFFFFL, 0.5))
+        assertEquals(0xFF000000L, mixArgb(0xFF000000L, 0xFFFFFFFFL, 0.0))
+        assertEquals(0xFFFFFFFFL, mixArgb(0xFF000000L, 0xFFFFFFFFL, 1.0))
     }
 
     @Test

@@ -67,8 +67,8 @@ class StoreShots {
         ),
     )
 
-    @Composable private fun Frame(dark: Boolean, look: Look = Look.DYNO, content: @Composable () -> Unit) {
-        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, look) {
+    @Composable private fun Frame(dark: Boolean, look: Look = Look.BRAUN, content: @Composable () -> Unit) {
+        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, look) {
             val slot = androidx.compose.runtime.remember { PinSlot() }
             androidx.compose.runtime.CompositionLocalProvider(LocalPin provides slot) {
                 androidx.compose.material3.Surface(color = At.c.bg, contentColor = At.c.text) {
@@ -80,7 +80,7 @@ class StoreShots {
             }
         }
     }
-    private fun shot(name: String, dark: Boolean = true, look: Look = Look.DYNO, content: @Composable () -> Unit) {
+    private fun shot(name: String, dark: Boolean = true, look: Look = Look.BRAUN, content: @Composable () -> Unit) {
         paparazzi.snapshot(name) { Frame(dark, look, content) }
     }
     private fun tune(st: UiState) = @Composable { TuneTab(st, vm, sharer, {}, {}, pick) }
@@ -108,7 +108,7 @@ class StoreShots {
         dev.autotune.audio.LiveCapture.level.value = -28f
         dev.autotune.audio.LiveCapture.wave.value = FloatArray(512) { i -> (Math.sin(i * 0.31) * 0.6 + Math.sin(i * 1.7) * 0.25 + Math.sin(i * 0.05) * 0.3).toFloat() }
         dev.autotune.audio.LiveCapture.playStartMs = System.currentTimeMillis() - 7300
-        paparazzi.snapshot(name) { AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false) { MeasureOverlay(mv, s.copy(busy = busy), vm) } }
+        paparazzi.snapshot(name) { AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT) { MeasureOverlay(mv, s.copy(busy = busy), vm) } }
     }
     @Test fun m1_measuring() = mshot("m1_measuring", MeasureView("Run 3", MeasureStage.MEASURING, "", checksWait, 1, 1, true), true)
     @Test fun m2_analysing() = mshot("m2_analysing", MeasureView("Run 3", MeasureStage.ANALYSING, "Checking the reading", checksDone.take(5) + checksWait.drop(5), 1, 1, true), true)
@@ -120,7 +120,7 @@ class StoreShots {
         // long page: a taller canvas so Appearance and About are in the picture
         it.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5.copy(screenHeight = 6400))
     }.snapshot(name) {
-        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, Look.DYNO) {
+        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, Look.BRAUN) {
             androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
                 SettingsTab(s, AiUi(hasKey = true, keyMasked = "sk-ant-…a1F9", keyMessage = "The key works with Claude Sonnet."), vm, pick)
             }
@@ -152,7 +152,7 @@ class StoreShots {
         chat = listOf(dev.autotune.ai.AiTurn("user", "Should I change the crossover?"), dev.autotune.ai.AiTurn("assistant", "Not yet. The 50-63 Hz dip is below the sub's crossover, so phase is the first thing to try; if flipping it does not help, then try moving the crossover from 80 to 63 Hz.")),
     )
     private fun ashot(name: String, a: AiUi, dark: Boolean = true) = paparazzi.snapshot(name) {
-        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false) {
+        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT) {
             androidx.compose.material3.Surface(color = At.c.bg, contentColor = At.c.text) { AiScreen(a, s, vm) {} }
         }
     }
@@ -192,11 +192,11 @@ class StoreShots {
         TargetSoundFold(s.copy(targetIdx = 3, bassDb = 4.0, trebleDb = -2.0), vm, startOpen = true)
     }
 
-    @Test fun w1_look_console() = shot("w1_look_console", look = Look.CONSOLE) { EqTab(s, vm, {}, pick) }
-    @Test fun w2_look_hifi() = shot("w2_look_hifi", look = Look.HIFI) { EqTab(s, vm, {}, pick) }
-    @Test fun w3_look_vu() = shot("w3_look_vu", dark = false, look = Look.VU) { EqTab(s, vm, {}, pick) }
-    @Test fun w4_look_synth() = shot("w4_look_synth", look = Look.SYNTH) { EqTab(s, vm, {}, pick) }
-    @Test fun w5_result_pinned() = shot("w5_result_pinned", look = Look.CONSOLE) { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns.take(2), false), runs = runs3.take(2)))() }
+    @Test fun w1_look_gradient() = shot("w1_look_gradient", look = Look.GRADIENT) { EqTab(s, vm, {}, pick) }
+    @Test fun w2_look_black() = shot("w2_look_black", look = Look.BRAUN_BLACK) { EqTab(s, vm, {}, pick) }
+    @Test fun w3_look_white() = shot("w3_look_white", dark = false, look = Look.WHITE) { EqTab(s, vm, {}, pick) }
+    @Test fun w4_look_graphite() = shot("w4_look_graphite", look = Look.BRAUN_GRAPHITE) { EqTab(s, vm, {}, pick) }
+    @Test fun w5_result_pinned() = shot("w5_result_pinned", look = Look.GRADIENT) { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns.take(2), false), runs = runs3.take(2)))() }
     @Test fun w6_eq_check() = shot("w6_eq_check") {
         val g = grid
         val eqv = DoubleArray(g.size) { eqc.responseDb(g.freqs[it]) - eqc.preampDb }
@@ -205,7 +205,7 @@ class StoreShots {
         EqCheckCard(EqCheckView(judgeEqCheck(g.freqs, DoubleArray(g.size), DoubleArray(g.size) { big[it] * 0.1 }, big), ch, "F-150 · Suggested EQ", "17 Oct 04:40"), vm)
     }
     @Test fun w7_settings_defaults() = paparazzi.snapshot("w7_settings_defaults") {
-        AutoTuneTheme(ThemeMode.DARK, false, Look.DYNO) {
+        AutoTuneTheme(ThemeMode.DARK, Look.BRAUN) {
             androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
                 SettingsTab(s.copy(defTarget = Target.HARMAN_CAR.name, defBassDb = 2.0, exportFolder = "Documents/AutoTune"), AiUi(), vm, pick)
             }
@@ -222,8 +222,8 @@ class StoreShots {
     }
 
     // ---- store screenshots: the real app chrome (bottom tabs, pinned action) around each screen ----
-    @Composable private fun App(tab: Tab, dark: Boolean = true, look: Look = Look.DYNO, content: @Composable () -> Unit) {
-        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, false, look) {
+    @Composable private fun App(tab: Tab, dark: Boolean = true, look: Look = Look.BRAUN, content: @Composable () -> Unit) {
+        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, look) {
             val slot = androidx.compose.runtime.remember { PinSlot() }
             androidx.compose.runtime.CompositionLocalProvider(LocalPin provides slot) {
                 androidx.compose.material3.Surface(color = At.c.bg, contentColor = At.c.text) {
@@ -236,7 +236,7 @@ class StoreShots {
             }
         }
     }
-    private fun store(name: String, tab: Tab, dark: Boolean = true, look: Look = Look.DYNO, content: @Composable () -> Unit) =
+    private fun store(name: String, tab: Tab, dark: Boolean = true, look: Look = Look.BRAUN, content: @Composable () -> Unit) =
         paparazzi.snapshot(name) { App(tab, dark, look, content) }
 
     @Test fun s1_stock() = store("s1_stock", Tab.MEASURE) { tune(s.copy(tuneStep = TuneStep.STOCK_RESULT, runs = runs3.take(1), selectedRuns = setOf(0), stock = stockA))() }
@@ -244,7 +244,7 @@ class StoreShots {
         dev.autotune.audio.LiveCapture.level.value = -24f
         dev.autotune.audio.LiveCapture.wave.value = FloatArray(512) { i -> (Math.sin(i * 0.31) * 0.6 + Math.sin(i * 1.7) * 0.25 + Math.sin(i * 0.05) * 0.3).toFloat() }
         dev.autotune.audio.LiveCapture.playStartMs = System.currentTimeMillis() - 7300
-        paparazzi.snapshot("s2_measuring") { AutoTuneTheme(ThemeMode.DARK, false) { MeasureOverlay(MeasureView("Run 2", MeasureStage.MEASURING, "", checksDone.take(4) + checksWait.drop(4), 1, 1, true), s.copy(busy = true), vm) } }
+        paparazzi.snapshot("s2_measuring") { AutoTuneTheme(ThemeMode.DARK) { MeasureOverlay(MeasureView("Run 2", MeasureStage.MEASURING, "", checksDone.take(4) + checksWait.drop(4), 1, 1, true), s.copy(busy = true), vm) } }
     }
     @Test fun s3_result() = store("s3_result", Tab.MEASURE) { tune(s.copy(tuneStep = TuneStep.RESULT, recommendation = recommendNext(savedRuns, false)))() }
     @Test fun s4_target() = store("s4_target", Tab.MEASURE) {
@@ -258,8 +258,8 @@ class StoreShots {
         FollowAndChecks(s.copy(eqFollow = f, checkSuggestions = suggestChecks(savedRuns, true, 1, f, 1.2)), vm)
     }
     @Test fun s7_ai() = paparazzi.snapshot("s7_ai") {
-        AutoTuneTheme(ThemeMode.DARK, false) { androidx.compose.material3.Surface(color = At.c.bg, contentColor = At.c.text) { Column(Modifier.padding(top = 12.dp)) { AiScreen(aiState, s, vm) {} } } }
+        AutoTuneTheme(ThemeMode.DARK) { androidx.compose.material3.Surface(color = At.c.bg, contentColor = At.c.text) { Column(Modifier.padding(top = 12.dp)) { AiScreen(aiState, s, vm) {} } } }
     }
-    @Test fun s8_looks() = store("s8_looks", Tab.EQ, look = Look.CONSOLE) { EqTab(s.copy(eqPick = "run:a:2", systemEqOn = true, eqSource = "F-150 driver seat · tuned (Run 2)"), vm, {}, pick) }
-    @Test fun s9_synth() = store("s9_synth", Tab.EQ, look = Look.SYNTH) { EqTab(s.copy(eqPick = "run:a:2", systemEqOn = true, flavour = Flavour.ELECTRONIC), vm, {}, pick) }
+    @Test fun s8_looks() = store("s8_looks", Tab.EQ, look = Look.GRADIENT) { EqTab(s.copy(eqPick = "run:a:2", systemEqOn = true, eqSource = "F-150 driver seat · tuned (Run 2)"), vm, {}, pick) }
+    @Test fun s9_synth() = store("s9_synth", Tab.EQ, look = Look.BRAUN_GRAPHITE) { EqTab(s.copy(eqPick = "run:a:2", systemEqOn = true, flavour = Flavour.ELECTRONIC), vm, {}, pick) }
 }

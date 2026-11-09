@@ -829,6 +829,9 @@ fun resultHeadline(stockDb: Double, latestDb: Double, bestDb: Double? = null, be
     return head + tail
 }
 
+/** The count on the folded notes line ([dev.autotune.ui.Alerts]): "1 note", "3 notes". */
+fun alertsCount(n: Int): String = if (n == 1) "1 note" else "$n notes"
+
 // ---------------------------------------------------------------- tuning scale (1.27)
 
 /** The end of the tuning scale for these readings: the next of 4, 8, 12, 16, 24, 32 dB above the largest. */
@@ -866,6 +869,119 @@ fun contrast(a: Long, b: Long): Double {
     val (x, y) = lum(a) to lum(b)
     return (maxOf(x, y) + 0.05) / (minOf(x, y) + 0.05)
 }
+
+// ---------------------------------------------------------------- looks and the palette (2.8)
+
+/** Looks removed in 2.8 (only the Braun looks stay). A saved setting that names one opens the default look. */
+val RETIRED_LOOKS = setOf("DYNO", "STUDIO", "CONSOLE", "HIFI", "VU", "SYNTH", "NAVY")
+
+/** The look to open for the saved name [saved]: the kept look of that name, else [fallback] (retired, unknown or none). */
+fun resolveLookName(saved: String?, kept: List<String>, fallback: String): String =
+    saved?.takeIf { it in kept } ?: fallback
+
+/** The colours of the palette the user can set. [key] is the preference that stores it as "#RRGGBB". */
+enum class PaletteSlot(val title: String, val key: String) {
+    BODY("Body", "palBody"),
+    DECK("Deck", "palDeck"),
+    INK("Ink", "palInk"),
+    ACCENT("Accent", "palAccent"),
+    RULE("Hairline", "palRule"),
+}
+
+/** The user's own colours, opaque ARGB per slot; a slot that is not set keeps the look's own colour. */
+data class Palette(val colours: Map<PaletteSlot, Long> = emptyMap()) {
+    operator fun get(slot: PaletteSlot): Long? = colours[slot]
+    fun with(slot: PaletteSlot, argb: Long?): Palette =
+        Palette(if (argb == null) colours - slot else colours + (slot to (0xFF000000L or (argb and 0xFFFFFFL))))
+    val isDefault: Boolean get() = colours.isEmpty()
+}
+
+/**
+ * A colour typed by hand: "#RGB" or "#RRGGBB", the # optional, any case, spaces around ignored. Returns opaque ARGB,
+ * or null for anything else (so a bad entry never reaches the theme).
+ */
+fun parseHexColour(text: String?): Long? {
+    val t = text?.trim()?.removePrefix("#") ?: return null
+    if (t.length != 3 && t.length != 6) return null
+    if (!t.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) return null
+    val six = if (t.length == 3) t.map { "$it$it" }.joinToString("") else t
+    return 0xFF000000L or six.toLong(16)
+}
+
+/** "#RRGGBB" for an ARGB colour (alpha dropped). */
+fun hexColour(argb: Long): String = "#%06X".format(argb and 0xFFFFFFL)
+
+/** The saved palette, read slot by slot through [read] (the preference for a key); a missing or bad value is not set. */
+fun paletteFrom(read: (String) -> String?): Palette =
+    Palette(PaletteSlot.entries.mapNotNull { s -> parseHexColour(read(s.key))?.let { s to it } }.toMap())
+
+/** A named colour offered in the palette's drop-downs. */
+data class PaletteColour(val name: String, val argb: Long)
+
+/** Body, deck, ink and hairline choices: Braun's whites, greys and graphites. */
+val PALETTE_NEUTRALS = listOf(
+    PaletteColour("White", 0xFFFFFFFFL),
+    PaletteColour("Warm white", 0xFFF3F2EEL),
+    PaletteColour("Paper", 0xFFE9E7E1L),
+    PaletteColour("Light grey", 0xFFD5D5D2L),
+    PaletteColour("Aluminium", 0xFFB9BAB8L),
+    PaletteColour("Stone", 0xFF85857FL),
+    PaletteColour("Slate", 0xFF5E5C57L),
+    PaletteColour("Graphite", 0xFF353533L),
+    PaletteColour("Charcoal", 0xFF2B2B29L),
+    PaletteColour("Near black", 0xFF1C1C1BL),
+    PaletteColour("Black", 0xFF121211L),
+)
+
+/** Accent choices, after Braun's colour keys. */
+val PALETTE_ACCENTS = listOf(
+    PaletteColour("Braun red", 0xFFBF3C18L),
+    PaletteColour("Light red", 0xFFF0663AL),
+    PaletteColour("Orange", 0xFFC2410CL),
+    PaletteColour("Yellow", 0xFFF2C12EL),
+    PaletteColour("Green", 0xFF3D7F3AL),
+    PaletteColour("Blue", 0xFF2456A6L),
+    PaletteColour("Graphite", 0xFF353534L),
+)
+
+fun paletteChoices(slot: PaletteSlot): List<PaletteColour> = if (slot == PaletteSlot.ACCENT) PALETTE_ACCENTS else PALETTE_NEUTRALS
+
+/** [a] mixed towards [b] by [t] (0 = a, 1 = b), per channel, opaque. */
+fun mixArgb(a: Long, b: Long, t: Double): Long {
+    fun ch(c: Long, sh: Int) = (c shr sh) and 0xFF
+    fun m(sh: Int) = Math.round(ch(a, sh) + (ch(b, sh) - ch(a, sh)) * t.coerceIn(0.0, 1.0)) shl sh
+    return 0xFF000000L or m(16) or m(8) or m(0)
+}
+
+private const val INK_DARK = 0xFF1B1B1AL
+private const val INK_LIGHT = 0xFFF2F1ECL
+
+/** The lowest contrast of [c] against each of [grounds]. */
+fun minContrast(c: Long, grounds: List<Long>): Double = grounds.minOf { contrast(c, it) }
+
+/**
+ * The ink for text on [grounds]: the [wanted] ink when it reads (4.5:1 on every ground), else the look's [current]
+ * ink when that reads, else near-black or near-white, whichever reads better. A palette can never make text vanish.
+ */
+fun readableInk(wanted: Long?, current: Long, grounds: List<Long>): Long = when {
+    wanted != null && minContrast(wanted, grounds) >= 4.5 -> wanted
+    minContrast(current, grounds) >= 4.5 -> current
+    else -> if (minContrast(INK_DARK, grounds) >= minContrast(INK_LIGHT, grounds)) INK_DARK else INK_LIGHT
+}
+
+/** The muted ink for labels: [ink] mixed as far towards the first ground as still reads 4.5:1 on every ground. */
+fun mutedInk(ink: Long, grounds: List<Long>): Long {
+    var t = 0.40
+    while (t > 0.0) {
+        val m = mixArgb(ink, grounds.first(), t)
+        if (minContrast(m, grounds) >= 4.5) return m
+        t -= 0.05
+    }
+    return ink
+}
+
+/** The text colour on an accent key: white or near-black, whichever reads better on [accent]. */
+fun onAccent(accent: Long): Long = if (contrast(0xFFFFFFFFL, accent) >= contrast(INK_DARK, accent)) 0xFFFFFFFFL else INK_DARK
 
 // ---------------------------------------------------------------- deleting a run (2.1)
 
