@@ -1171,3 +1171,120 @@ fun fitTitlePx(basePx: Float, longestWordPx: Float, availablePx: Float, minPx: F
     else (basePx * availablePx / longestWordPx).coerceIn(minPx.coerceAtMost(basePx), basePx)
 /** True when more players are active than before: audio just started (or came back after a route change). */
 fun playbackStarted(before: Int, now: Int): Boolean = now > before
+
+
+// ---------------------------------------------------------------- the first-start tutorial (2.9.0)
+
+/** One card of the first-start tutorial: the opening card ([step] 0), then the four steps of a tune. */
+data class TutorialCard(val key: String, val step: Int, val title: String, val text: String)
+
+/** The tutorial, in order. [TutorialCard.key] picks the card's picture in ui/Tutorial.kt. */
+val TUTORIAL_CARDS: List<TutorialCard> = listOf(
+    TutorialCard("hello", 0, "Tune your speakers", "AutoTune measures your car or room with a microphone and fits an EQ that brings it to a target sound."),
+    TutorialCard("measure", 1, "Measure the stock sound", "Put the mic where you sit. AutoTune plays a sweep and listens to your speakers."),
+    TutorialCard("eq", 2, "Get a suggested EQ", "It compares the reading with a target curve and fits an EQ to close the gap."),
+    TutorialCard("verify", 3, "Verify it", "Measure again with the EQ on. The reading shows how close you are to the target."),
+    TutorialCard("keep", 4, "Keep it", "Save the EQ. It plays on the whole phone and can switch on when your car connects."),
+)
+
+/** How many of the cards are steps (all but the opening card). */
+val TUTORIAL_STEPS: Int = TUTORIAL_CARDS.count { it.step > 0 }
+
+/** The small label over a step's title ("step 1 of 4"); none on the opening card. */
+fun tutorialStepLabel(card: TutorialCard): String? = if (card.step > 0) "step ${card.step} of $TUTORIAL_STEPS" else null
+
+/** The main key under card [page]: Next, and Get started on the last card. */
+fun tutorialKeyLabel(page: Int): String = if (page >= TUTORIAL_CARDS.lastIndex) "Get started" else "Next"
+
+/** Skip is offered on every card but the last, where the main key already finishes. */
+fun tutorialShowsSkip(page: Int): Boolean = page < TUTORIAL_CARDS.lastIndex
+
+/** Where Back goes from card [page]: the card before it, or null to close the tutorial from the first card. */
+fun tutorialBack(page: Int): Int? = if (page > 0) page - 1 else null
+
+/**
+ * Where card [page] is relative to the swipe, in pages: 0 when it fills the screen, +1 one page to the end, -1 one page
+ * to the start. [currentPage] and [offsetFraction] are the pager's (the fraction runs towards the next page).
+ */
+fun tutorialPos(page: Int, currentPage: Int, offsetFraction: Float): Float = page - (currentPage + offsetFraction)
+
+/**
+ * How a card draws at [tutorialPos]: its picture and its words shift by [artShift] and [textShift] page widths on top
+ * of the swipe, so the picture travels further than the words; both fade out by [alpha], and the picture shrinks to
+ * [artScale]. The lit share of a card's page light is [alpha] too.
+ */
+data class CardMotion(val artShift: Float, val textShift: Float, val alpha: Float, val artScale: Float)
+
+const val TUTORIAL_ART_SHIFT = 0.45f
+const val TUTORIAL_TEXT_SHIFT = 0.18f
+const val TUTORIAL_ART_MIN_SCALE = 0.85f
+
+fun tutorialMotion(pos: Float): CardMotion {
+    val p = pos.coerceIn(-1f, 1f)
+    val away = kotlin.math.abs(p)
+    return CardMotion(
+        artShift = p * TUTORIAL_ART_SHIFT,
+        textShift = p * TUTORIAL_TEXT_SHIFT,
+        alpha = 1f - away,
+        artScale = 1f - (1f - TUTORIAL_ART_MIN_SCALE) * away,
+    )
+}
+
+/** How far a part of a picture has played at [tMs]: 0 before [delayMs], 1 after [durationMs] more, linear between. */
+fun playPhase(tMs: Float, delayMs: Int, durationMs: Int): Float =
+    if (durationMs <= 0) (if (tMs >= delayMs) 1f else 0f)
+    else ((tMs - delayMs) / durationMs).coerceIn(0f, 1f)
+
+/** How long each card's picture plays, in ms (its last part ends then). */
+fun tutorialPlayMs(key: String): Int = when (key) {
+    "hello" -> 1600
+    "measure" -> 1900
+    "eq" -> 1500
+    "verify" -> 1700
+    else -> 1200
+}
+
+/** The reading the Verify card shows: the stock's distance from the target, and the tuned one's. */
+private const val TUTORIAL_STOCK_DB = 4.1
+private const val TUTORIAL_TUNED_DB = 1.2
+
+/** The Verify card's reading at [p] of the way from the stock to the tuned run, to a tenth of a dB. */
+fun tutorialReadingDb(p: Float): Double {
+    val v = TUTORIAL_STOCK_DB + (TUTORIAL_TUNED_DB - TUTORIAL_STOCK_DB) * p.coerceIn(0f, 1f)
+    return Math.round(v * 10) / 10.0
+}
+
+private fun bump(x: Float, centre: Float, width: Float): Float {
+    val d = (x - centre) / width
+    return kotlin.math.exp(-0.5f * d * d)
+}
+
+private fun smoothstep(from: Float, to: Float, x: Float): Float {
+    val t = ((x - from) / (to - from)).coerceIn(0f, 1f)
+    return t * t * (3 - 2 * t)
+}
+
+/**
+ * The demo system the tutorial's pictures draw, in dB from the target at [x] (0 to 1 across 20 Hz to 20 kHz on a log
+ * scale): a car's usual stock response, with the deep bass falling away, a hump near 80 Hz, a dip near 360 Hz, some
+ * harshness near 2 kHz and the top rolling off. [tuned] 1 is the same system with the EQ, closer at every point by
+ * the ratio of the two readings.
+ */
+fun tutorialCurveDb(x: Float, tuned: Float): Float {
+    val stock = -7f * (1f - smoothstep(0f, 0.1f, x)) +
+        6.5f * bump(x, 0.2f, 0.07f) -
+        5.5f * bump(x, 0.42f, 0.06f) +
+        3.5f * bump(x, 0.68f, 0.05f) -
+        4.5f * smoothstep(0.85f, 1f, x)
+    val keep = 1f - tuned.coerceIn(0f, 1f) * (1f - (TUTORIAL_TUNED_DB / TUTORIAL_STOCK_DB).toFloat())
+    return stock * keep
+}
+
+/** The EQ card's graphic EQ: this many faders. */
+const val TUTORIAL_FADERS = 7
+
+/** Where fader [k] sits, 0 to 1 across the same log scale as [tutorialCurveDb]. */
+fun tutorialFaderX(k: Int): Float = 0.08f + 0.84f * k / (TUTORIAL_FADERS - 1)
+
+/** Fader [k]'s gain: the stock's error at its centre turned round, cuts to -6 dB and boosts kept gentle (+3 dB). */
+fun tutorialFaderDb(k: Int): Float = (-tutorialCurveDb(tutorialFaderX(k), 0f)).coerceIn(-6f, 3f)

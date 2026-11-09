@@ -452,6 +452,8 @@ data class UiState(
     val advanced: Boolean = false,
     /** The accent colour; LOOK keeps the look's own. */
     val accent: Accent = Accent.LOOK,
+    /** The first-start tutorial is on screen: on the first start (until it is finished or skipped), or replayed. */
+    val showTutorial: Boolean = false,
 )
 
 class TuneViewModel(app: Application) : AndroidViewModel(app) {
@@ -513,6 +515,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 splOffsetDb = prefs.getFloat("splOffset", 0f).toDouble(),
                 themeMode = runCatching { ThemeMode.valueOf(prefs.getString("theme", "SYSTEM")!!) }.getOrDefault(ThemeMode.SYSTEM),
                 advanced = prefs.getBoolean("advanced", false),
+                showTutorial = !prefs.getBoolean("tutorialSeen", false),
                 accent = Accent.of(prefs.getString("accent", null)),
                 look = dev.autotune.ui.Look.of(prefs.getString("look", null)),
                 palette = paletteFrom { k -> prefs.getString(k, null) },
@@ -601,6 +604,15 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         prefs.edit().putBoolean("advanced", on).apply()
         state.update { it.copy(advanced = on) }
     }
+
+    /** The tutorial was finished or skipped: it is not shown on start again (pref `tutorialSeen`). */
+    fun tutorialDone() {
+        prefs.edit().putBoolean("tutorialSeen", true).apply()
+        state.update { it.copy(showTutorial = false) }
+    }
+
+    /** Settings › About: show the tutorial again. */
+    fun replayTutorial() = state.update { it.copy(showTutorial = true) }
 
     /**
      * 2.8 kept only the Braun looks: a saved look that was removed is rewritten to the default (Classic), and the

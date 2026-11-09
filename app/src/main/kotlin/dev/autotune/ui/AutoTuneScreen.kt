@@ -355,6 +355,16 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                 }
             }
 
+            // the first-start tutorial, over everything until it is finished or skipped; it fades away into the app
+            androidx.compose.animation.AnimatedVisibility(
+                s.showTutorial,
+                enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(motionMs(300), easing = EaseArrive)),
+                exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(motionMs(260), easing = EaseLeave)) +
+                    androidx.compose.animation.scaleOut(androidx.compose.animation.core.tween(motionMs(260), easing = EaseLeave), targetScale = 1.04f),
+            ) {
+                androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) { Tutorial(vm::tutorialDone) }
+            }
+
             // the teak cheeks of a Braun SK 4, down both edges, over every screen
             At.c.teak?.let { teak ->
                 Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().width(6.dp).background(teak))

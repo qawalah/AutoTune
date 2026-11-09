@@ -131,6 +131,24 @@ class ShotsTest {
     }.snapshot(name) {
         Frame(dark, nav = Tab.SETTINGS) { SettingsTab(s, AiUi(hasKey = true, keyMasked = "sk-ant-…a1F9", keyMessage = "The key works with Claude Sonnet."), vm, pick) }
     }
+
+    // g: the first-start tutorial (guide), each card at a phone's size, its picture on the last frame (as in any preview)
+    private fun ushot(name: String, card: Int, dark: Boolean = true, look: Look = Look.BRAUN) = paparazzi.also {
+        it.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_5)
+    }.snapshot(name) {
+        AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, look) {
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalInspectionMode provides true) {
+                androidx.compose.material3.Surface(color = At.c.bg, contentColor = At.c.text) { Tutorial({}, start = card) }
+            }
+        }
+    }
+    @Test fun g1_tutorial_hello() = ushot("g1_tutorial_hello", 0)
+    @Test fun g2_tutorial_measure() = ushot("g2_tutorial_measure", 1)
+    @Test fun g3_tutorial_eq() = ushot("g3_tutorial_eq", 2)
+    @Test fun g4_tutorial_verify() = ushot("g4_tutorial_verify", 3)
+    @Test fun g5_tutorial_keep() = ushot("g5_tutorial_keep", 4)
+    @Test fun g6_tutorial_white() = ushot("g6_tutorial_white", 1, dark = false, look = Look.WHITE)
+
     @Test fun x1_settings() = settingsShot("x1_settings", dark = true)
     @Test fun x2_settings_light() = settingsShot("x2_settings_light", dark = false)
 
