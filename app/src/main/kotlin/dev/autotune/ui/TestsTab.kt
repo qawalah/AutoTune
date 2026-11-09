@@ -383,18 +383,31 @@ fun ReportCard(r: SystemReport, label: String) {
         Text(r.verdict, style = MaterialTheme.typography.bodyMedium)
         Muted("Based on $label")
         r.categories.forEach { c ->
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Row(Modifier.fillMaxWidth()) {
-                    Text(c.name + if (c.eqFixable) "" else "  (hardware or room)", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
-                    Text("${c.score}", style = MaterialTheme.typography.labelLarge, fontFamily = AtFigures)
+            // one meter per category, like the level meter of a Braun receiver: a lowercase label, the figure, a
+            // square slot ruled at 50 and 75 with an ink bar; what the category means sits in its bubble
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                        if (c.score < 50) AtIcon(Ic.ALERT, At.c.warn, Modifier.padding(end = 6.dp), size = 16.dp)
+                        Text(
+                            c.name.lowercase() + if (c.eqFixable) "" else " · hardware or room", Modifier.weight(1f, fill = false),
+                            style = MaterialTheme.typography.labelMedium, color = At.c.muted, maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        )
+                        InfoButton(c.name, c.detail, small = true)
+                    }
+                    Text("${c.score}", style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Light), fontFamily = AtFigures)
                 }
-                Box(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape).background(At.c.panelHigh)) {
-                    Box(
-                        Modifier.fillMaxWidth(c.score / 100f).height(6.dp).clip(CircleShape)
-                            .background(if (c.score >= 75) At.c.good else if (c.score >= 50) At.c.warn else At.c.bad),
-                    )
+                val meter = At.c
+                androidx.compose.foundation.Canvas(
+                    Modifier.fillMaxWidth().height(8.dp).semantics { contentDescription = "${c.name}: ${c.score} of 100" },
+                ) {
+                    val hair = 1.dp.toPx()
+                    drawRect(meter.bg)
+                    drawRect(meter.text.copy(alpha = 0.75f), size = androidx.compose.ui.geometry.Size(size.width * (c.score / 100f).coerceIn(0f, 1f), size.height))
+                    listOf(0.5f, 0.75f).forEach { t -> drawLine(meter.line, androidx.compose.ui.geometry.Offset(size.width * t, 0f), androidx.compose.ui.geometry.Offset(size.width * t, size.height), hair) }
+                    drawRect(meter.line, style = androidx.compose.ui.graphics.drawscope.Stroke(hair))
                 }
-                Muted(c.detail)
             }
         }
     }
