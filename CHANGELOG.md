@@ -4,6 +4,15 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.8.0] - 2026-11-09
+### Changed
+- **Design pass on the Braun look.** Action text and field icons are ink; red is kept for what is live or acted on. The notes line is a key-grey row with only its warning icon in amber. The "New test" key is flat. The test list is one deck with hairlines. Failed-measurement choices are one "Try again" key with the rest stacked below. Empty states have a title, one fact line and an info bubble, with no paragraphs on the page.
+- **Looks are Braun only.** Classic (was "Braun", still the default), Graphite (was "Braun graphite") and Black (was "Braun black"). Dyno sheet, Studio, Mixing console, Hi-fi blue meters, Analog VU, Synthwave and Navy are removed, along with the round and LED slider styles and the wallpaper-colour switch. A saved look that no longer exists opens Classic.
+### Added
+- **White look**: a white body with plates that still read as plates.
+- **Gradient edge look**: Classic's colours, with each deck's outline shading from dark to light (darker by day or night as the look suggests).
+- **Palette in Settings (Advanced)**: pick the body, deck, ink, accent and hairline colours from presets or type a hex value (#RGB or #RRGGBB). Ink adjusts itself when a palette would make text unreadable. "Reset palette" returns to the look's colours.
+
 ## [2.7.1] - 2026-11-09
 ### Changed
 - **Design pass on the Braun look.** Action text and field icons are ink; red is kept for what is live or acted on. The "BEST" badge is a lowercase "best" in green. The EQ picker's top corners are 12dp. Report card categories are square ruled meters, with the explanation in an info bubble. Measuring needles follow "Remove animations".
