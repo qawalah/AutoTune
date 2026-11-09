@@ -147,42 +147,109 @@ class ThemeTest {
         readsEverywhere(themeColors(Look.BRAUN, false, dev.autotune.Accent.LOOK, r), "white body under Classic")
     }
 
-    /** The bug reported after 2.8.1: a dark ink picked at night changed nothing, because no night surface could carry it. */
+    /** The text on every surface text sits on: the body and the decks, or the plates of a look without decks. */
+    private fun inks(c: AtColors): List<Color> = listOfNotNull(c.text, c.deck?.text)
+
+    private val darkInks = dev.autotune.PALETTE_NEUTRALS.filter { it.name in setOf("Slate", "Graphite", "Charcoal", "Near black", "Black") }
+
+    /**
+     * The palette's Ink, end to end, as reported again after 2.9.0: the drop-down's choice, the value written to the
+     * preferences, the palette read back, and the colours the app draws with, for every look by day and by night.
+     * The chosen ink must be the text everywhere it can read, and the field must say when that changes nothing visible.
+     */
     @Test
-    fun darkInkTakesEffectAtNight() {
-        val darkInks = dev.autotune.PALETTE_NEUTRALS.filter { it.name in setOf("Slate", "Graphite", "Charcoal", "Near black", "Black") }
-        for (l in Look.entries) for (ink in darkInks) {
-            val p = dev.autotune.Palette().with(dev.autotune.PaletteSlot.INK, ink.argb)
-            val night = themeColors(l, true, dev.autotune.Accent.LOOK, p)
-            val plate = night.deck ?: night
-            // the ink is used where text sits on a plate, so the pick is seen; everything still reads. Slate is too
-            // light for the grey plates of Graphite and Black (as by day), and the field says so
-            val reads = (if (night.deck != null) listOf(plate.panel) else listOf(night.panel, night.bg)).all { contrast(Color(ink.argb), it) >= 4.5 }
-            if (ink.name != "Slate") assertTrue("${l.name} ${ink.name} reads", reads)
-            if (reads) assertEquals("${l.name} ${ink.name}", Color(ink.argb), plate.text)
-            else assertEquals("doesn't read on these colours", paletteInkNote(l, true, p))
-            readsEverywhere(night, "${l.name} night, ${ink.name} ink")
-            // a look with decks keeps its night body, so titles stay light on it
-            if (lookColors(l, true).deck != null) assertEquals(lookColors(l, true).bg, night.bg)
+    fun chosenInkIsTheTextOnScreenByDayAndByNight() {
+        val ink = dev.autotune.PaletteSlot.INK
+        for (choice in darkInks) {
+            // the menu's option -> setPaletteColour's stored "#RRGGBB" -> paletteFrom on the next start
+            val menu = dev.autotune.paletteMenu(ink, null)
+            val i = menu.names.indexOf(choice.name)
+            val stored = dev.autotune.hexColour(dev.autotune.Palette().with(ink, menu.colourAt(i))[ink]!!)
+            val p = dev.autotune.paletteFrom { k -> if (k == ink.key) stored else null }
+            assertEquals(choice.argb, p[ink])
+            assertEquals(i, dev.autotune.paletteMenu(ink, p[ink]).selected)
+            for (l in Look.entries) for (dark in listOf(false, true)) {
+                val what = "${l.name} dark=$dark ${choice.name}"
+                val own = themeColors(l, dark, dev.autotune.Accent.LOOK, dev.autotune.Palette())
+                val c = themeColors(l, dark, dev.autotune.Accent.LOOK, p)
+                val want = Color(choice.argb)
+                val note = paletteInkNote(l, dark, p)
+                // Slate is too light for the grey plates of Graphite and Black by day, and the field says so
+                val canRead = !(choice.name == "Slate" && (l == Look.BRAUN_GRAPHITE || l == Look.BRAUN_BLACK))
+                if (canRead) {
+                    // the chosen ink is the text on the body and on the decks, and it reads on each
+                    assertEquals("$what body", want, c.text)
+                    assertTrue("$what body reads", contrast(c.text, c.bg) >= 4.5)
+                    c.deck?.let { d ->
+                        assertEquals("$what deck", want, d.text)
+                        assertTrue("$what deck reads", contrast(d.text, d.panel) >= 4.5)
+                    }
+                    // either the screen visibly changes, or the field says it looks the same as before
+                    val visible = inks(own).zip(inks(c)).any { (a, b) -> contrast(a, b) >= dev.autotune.SAME_INK_CONTRAST }
+                    if (!visible) assertEquals(what, "about the same as the look's ink", note)
+                } else assertEquals(what, "doesn't read on these colours", note)
+                readsEverywhere(c, what)
+            }
         }
-        // by day nothing changes about the surfaces
-        val p = dev.autotune.Palette().with(dev.autotune.PaletteSlot.INK, 0xFF121211L)
-        for (l in Look.entries) assertTrue(!usesDaySurfaces(l, false, p))
+    }
+
+    /** Where the owner saw nothing change: Classic by day, its dark body under light text, and the main key in that text. */
+    @Test
+    fun darkInkChangesClassicByDay() {
+        val black = dev.autotune.Palette().with(dev.autotune.PaletteSlot.INK, 0xFF121211L)
+        val before = lookColors(Look.BRAUN, false)
+        val after = themeColors(Look.BRAUN, false, dev.autotune.Accent.LOOK, black)
+        // the body (titles, tab labels, the main key) was light text on the dark body; now it is the black ink on a light body
+        assertEquals(Color(0xFFECEAE4), before.text)
+        assertEquals(Color(0xFF121211), after.text)
+        assertTrue(after.bg.luminance() > 0.5f)
+        assertTrue(contrast(before.text, after.text) > 10.0)
+        assertEquals("on light surfaces, so it reads", paletteInkNote(Look.BRAUN, false, black))
+        // the same by night: the decks and the body both turn light
+        val night = themeColors(Look.BRAUN, true, dev.autotune.Accent.LOOK, black)
+        assertEquals(Color(0xFF121211), night.text)
+        assertEquals(Color(0xFF121211), night.deck!!.text)
+        assertTrue(night.deck!!.panel.luminance() > 0.5f && night.bg.luminance() > 0.5f)
+        // the owner's own palette (warm white body, white decks): black is as dark as the ink there, and the field says so
+        val owners = black.with(dev.autotune.PaletteSlot.BODY, 0xFFF3F2EEL).with(dev.autotune.PaletteSlot.DECK, 0xFFFFFFFFL)
+        val o = themeColors(Look.BRAUN, false, dev.autotune.Accent.LOOK, owners)
+        assertEquals(Color(0xFF121211), o.text)
+        assertEquals(Color(0xFF121211), o.deck!!.text)
+        assertEquals("about the same as the look's ink", paletteInkNote(Look.BRAUN, false, owners))
+        // Slate there is a visible change, with nothing to explain
+        val slate = owners.with(dev.autotune.PaletteSlot.INK, 0xFF5E5C57L)
+        assertEquals(Color(0xFF5E5C57), themeColors(Look.BRAUN, false, dev.autotune.Accent.LOOK, slate).text)
+        assertNull(paletteInkNote(Look.BRAUN, false, slate))
+    }
+
+    @Test
+    fun lightInkBringsDarkDecks() {
+        // white ink by day: Classic's light decks take the night decks, so the ink is used there too
+        val white = dev.autotune.Palette().with(dev.autotune.PaletteSlot.INK, 0xFFFFFFFFL)
+        val c = themeColors(Look.BRAUN, false, dev.autotune.Accent.LOOK, white)
+        assertEquals(Color.White, c.text)
+        assertEquals(Color.White, c.deck!!.text)
+        assertTrue(c.deck!!.panel.luminance() < 0.1f)
+        assertEquals("on dark surfaces, so it reads", paletteInkNote(Look.BRAUN, false, white))
+        readsEverywhere(c, "white ink by day")
         // a light ink at night keeps the night look
-        val light = dev.autotune.Palette().with(dev.autotune.PaletteSlot.INK, 0xFFFFFFFFL)
-        assertEquals(lookColors(Look.BRAUN, true).deck!!.panel, themeColors(Look.BRAUN, true, dev.autotune.Accent.LOOK, light).deck!!.panel)
+        assertEquals(lookColors(Look.BRAUN, true).deck!!.panel, themeColors(Look.BRAUN, true, dev.autotune.Accent.LOOK, white).deck!!.panel)
+        // the White look has no dark version: the ink falls back and the field says so
+        assertEquals("doesn't read on these colours", paletteInkNote(Look.WHITE, false, white))
     }
 
     @Test
     fun inkNoteShowsWhenTheInkNeedsIt() {
         val dark = dev.autotune.Palette().with(dev.autotune.PaletteSlot.INK, 0xFF121211L)
-        assertEquals("on light decks, so it reads", paletteInkNote(Look.BRAUN, true, dark))
-        assertNull(paletteInkNote(Look.BRAUN, false, dark))
+        assertEquals("on light surfaces, so it reads", paletteInkNote(Look.BRAUN, true, dark))
         assertNull(paletteInkNote(Look.BRAUN, true, dev.autotune.Palette()))
-        // with a dark deck of the user's own the ink cannot read anywhere, and the field says so
+        // with dark surfaces of the user's own the ink cannot read anywhere, and the field says so
         val both = dark.with(dev.autotune.PaletteSlot.DECK, 0xFF1C1C1BL).with(dev.autotune.PaletteSlot.BODY, 0xFF121211L)
         assertEquals("doesn't read on these colours", paletteInkNote(Look.BRAUN, true, both))
         readsEverywhere(themeColors(Look.BRAUN, true, dev.autotune.Accent.LOOK, both), "dark ink on dark own surfaces")
+        // with only the deck set dark, the ink reaches the body only
+        val deckOnly = dark.with(dev.autotune.PaletteSlot.DECK, 0xFF1C1C1BL)
+        assertEquals("only where it reads", paletteInkNote(Look.BRAUN, false, deckOnly))
     }
 
     @Test

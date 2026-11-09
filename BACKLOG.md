@@ -39,3 +39,17 @@ Done (unreleased, on the working branch; see HANDOVER "Palette fix, Tune screenâ
 Open follow-ups:
 - Check on the owner's phone: the dial's sweep, the arrival movements, the palette at night.
 - The Tests list rows show no score: it is not worked out for tests that are not open, and computing it there would be new work.
+
+## Results, runs, palette and animation fixes (asked 2026-11-09, round 2): built, not released
+Done on the working branch (see HANDOVER "Results, runs, palette and graphics, round 2"):
+- **Graphics play twice.** Done. The header graphics, the Tune dial, the report card's meters and the charts play their movement twice (a quick return between), then stay still; still with "Remove animations".
+- **Replay on pull.** Done. Pulling a screen down past its top plays its graphics again, twice.
+- **Tune dial pulses inside out.** Done. A pulse from the centre out to the rim replaces the sweep round the rim; twice, and again on a pull.
+- **Palette: the dark colour.** Done. Cause: by day a dark ink never reached Classic's dark body and was as dark as the decks' own ink, so nothing changed and nothing said why (2.9.0 only acted at night). The ink is now the text everywhere: a surface it cannot read on takes its light (or dark) version by day and night, and the Ink field says when the pick looks the same as the look's ink.
+- **Score beside every reading.** Done. The latest, the stock and the best each show their score box where it is already worked out (the stock's from the stock review's report card); no box where none is known. The display takes two lines when the boxes would not fit.
+- **Remove the redundant line.** Done. The "x dB closer to the target than stockâ€¦" line is gone from the results display; its words are in the bubble beside the warning icon.
+- **Runs list alignment.** Done. Fixed columns: tick, name and date, score, dB, delete.
+- **Test details: graphics at their size, expand, animate.** Done. The results page opens with its header tall; graphics play when they come into view (they used to play on composition, before they were scrolled to); charts rise into place; the full-screen chart is a sheet over the app in the same window instead of a dialog window.
+Open follow-ups:
+- Check on the owner's phone: the pull gesture with One UI's overscroll, the full-screen chart, the dark ink by day and at night.
+- CLAUDE.md still says every result opens with a one-line headline; the owner asked for it to go. Update CLAUDE.md if the owner agrees.
