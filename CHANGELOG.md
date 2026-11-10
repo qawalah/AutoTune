@@ -6,6 +6,7 @@ Everything below is untested on a real device and microphone unless stated.
 
 ## [2.14.1] - 2026-11-10
 ### Fixed
+- **The TV's EQ comes back after the TV restarts or AutoTune updates.** Before, it stayed off until AutoTune was opened on the TV. The phone's EQ now also comes back after an update, as it already did after a restart.
 - **The TV screen closed after the first speaker played** (on a TV, and on a phone or tablet used as the TV). It told the phone "done" from Android's main thread, which Android does not allow for network use. The TV now uses the same link as the PC, which sends every message on its own thread; a phone that pairs replaces the one before, and a wrong code no longer drops the paired phone.
 
 ## [2.14.0] - 2026-11-10
