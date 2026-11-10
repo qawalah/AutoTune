@@ -111,3 +111,4 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 - **Bug: a PC showed the TV's results.** Connecting to the Windows PC opened the home theatre last used with the Android TV, so its levels, distances and EQ showed as the PC's. Each TV or PC must open its own home theatre (by the device it ran on), never another device's results.
 - **EQ on/off as a big, pronounced key.** The small "tv eq on / off" line with a dot under the room is too weak; make the TV's or PC's EQ state a big on/off button you can't miss.
 - **Edit the EQ on the Windows app.** The PC can only switch the phone's EQ on or off today; let it change the EQ itself (bands, gains, preamp) on the PC.
+- **Speaker layout on the Windows app.** The PC offers no way to choose the speaker type or count (2.0, 2.1, 5.1, 7.1); it is stereo only today. Let it pick the layout (and its output's channels, e.g. HDMI to a receiver).
