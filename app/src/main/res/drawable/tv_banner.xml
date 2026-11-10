@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The TV launcher's banner (320x180): the AutoTune knob on the launcher grey, with a red rule under it. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle"><solid android:color="@color/ic_launcher_background" /></shape>
+    </item>
+    <item android:width="170dp" android:height="170dp" android:gravity="center" android:drawable="@drawable/ic_launcher_foreground" />
+    <item android:height="6dp" android:gravity="bottom" android:bottom="22dp" android:left="120dp" android:right="120dp">
+        <shape android:shape="rectangle"><solid android:color="#C8401A" /></shape>
+    </item>
+</layer-list>

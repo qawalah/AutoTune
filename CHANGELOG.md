@@ -4,6 +4,18 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.13.0] - 2026-11-10
+### Added
+- **Home theatre with the TV.** The same app now installs on Android TV and Google TV (it appears in the TV's app row with its own banner). On the TV it plays a test sound on one speaker at a time; the phone listens at your seat. Start it from Tune › "Home theatre with the TV".
+  - **Pairing:** phone and TV on the same Wi-Fi. The phone finds the TV and you type the four-digit code the TV shows, once. Nothing leaves your network.
+  - **Each speaker on its own over HDMI ARC:** ARC can't carry raw 5.1, so the TV sends each test as Dolby Digital 5.1 and the home theatre routes it to one speaker. With eARC, or a box plugged into the receiver, it sends raw 5.1 or 7.1. The TV picks the method from what its output reports.
+  - **Room map on both screens:** the speaker that is playing lights red with rings going out from it. On the phone the rings grow with what the mic hears. The TV also shows the sweep's frequency as it plays. After a test, every speaker shows its level change and distance change.
+  - **Result:** level per speaker (in 0.5 dB steps, the sub against the target's bass), distance per speaker (from when its sound arrives against front left), a response chart for all speakers, and an EQ per speaker fitted from the first full test so EQs never stack. A missing speaker, or one the home theatre folds into the fronts, is named.
+  - **Pinned key:** test that speaker again, test again after setting levels or distances, or use the EQ on the TV.
+  - **EQ on the TV:** the TV can hold the EQ on its own sound, one per output channel, with one shared preamp so the levels stay matched. Sound the TV passes straight through as Dolby or DTS skips it, and the info bubble says so.
+  - **On the TV:** "Play each speaker" from the remote, to check every speaker is wired to the right place, and "EQ off".
+- Advanced: test one speaker, connect to a TV by address, start over with a new reference, delays in ms.
+
 ## [2.12.0] - 2026-11-10
 ### Changed
 - **Gradient edge is the default look.** A fresh install opens it, and so does any saved look that is missing or no longer exists. Looks you chose by name (Classic, Graphite, Black, White) are kept.

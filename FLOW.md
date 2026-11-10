@@ -52,6 +52,7 @@ Every measurement starts the moment its key is pressed. Stock and Verify are mea
 | EQ, after stock | Use the phone's EQ and measure; Measure the stock again when the stock looks wrong; It's set, measure on equipment | Preview in the app, Set it on my equipment; Advanced: target, sliders, bands, files, AI |
 | Result | Apply the new suggested EQ, Keep this EQ and finish, Keep the EQ of run n, Check the EQ reaches the speakers, Measure again, Set it on my equipment, or Switch on the phone's EQ and measure | The other moves, Measure again, Ask AI, All results, Discard |
 | Tune screen after Keep | Use this EQ whenever <device> connects (phone EQ, Bluetooth route), else Open the EQ | Tune (new test), Continue |
+| Home theatre page | Connect; then Test every speaker; after a test: Test that speaker again, Test again (after setting levels or distances), or Use the EQ on the TV | Test every speaker, Use the EQ on the TV, Switch the TV's EQ off, Disconnect; Advanced: one speaker, start over |
 | Test results page | Continue tuning, with the move it leads to on its second line ("next: …") | Open the EQ, AI review (at the bottom, above Details) |
 
 ## Navigation map
@@ -79,6 +80,8 @@ flowchart LR
   TU -->|"Ask AI"| AI
   AI -->|"Measure it"| TU
   L -->|"Advanced: Open EQ"| EQ
+  TU -->|"Home theatre with the TV"| HT["Home theatre page<br/>over the current tab"]
+  HT -->|"Test every speaker: the TV plays each,<br/>the phone listens (link)"| TV(("AutoTune on the TV"))
   W["Widgets, notification actions,<br/>Quick Settings tile"] -->|"EqActionReceiver"| BG(("background:<br/>app stays closed"))
   SH["Shortcuts, routines,<br/>autotune://profile/name"] -->|"ApplyProfileActivity"| BG
   BT["Bluetooth device connects"] -->|"rules.txt"| BG

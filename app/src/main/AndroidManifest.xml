@@ -13,13 +13,22 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-feature android:name="android.hardware.microphone" android:required="true" />
+    <!-- the TV link: the phone finds the TV on the Wi-Fi; the TV reads its own address to show it -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- the phone listens; on a TV (no microphone, no touch screen) the same app plays each speaker instead -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+    <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
+    <uses-feature android:name="android.hardware.screen.landscape" android:required="false" />
 
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="AutoTune"
+        android:banner="@drawable/tv_banner"
         android:theme="@style/Theme.AutoTune">
         <activity
             android:name=".MainActivity"
@@ -30,6 +39,19 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- Android TV and Google TV: AutoTune plays each speaker of the home theatre for the phone -->
+        <activity
+            android:name=".tv.TvActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="landscape"
+            android:banner="@drawable/tv_banner"
+            android:label="AutoTune">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
@@ -88,6 +110,15 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps the user's equaliser audio effect active while the user has it switched on" />
+        </service>
+        <!-- the TV's own EQ, kept on while the TV app is closed -->
+        <service
+            android:name=".tv.TvEqService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the user's equaliser audio effect active on the TV while the user has it switched on" />
         </service>
         <!-- Quick Settings tile: the dynamic EQ on or off (class and id keep the old "loud" name) -->
         <service
