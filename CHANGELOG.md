@@ -4,6 +4,18 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.14.0] - 2026-11-10
+### Added
+- **AutoTune for Windows.** A small PC app (an MSI installer, released next to the APK as a GitHub pre-release `windows-v2.14.0`) that works like the TV: the phone measures, the PC plays the test sounds and applies the EQ. Start it from Tune › "Speakers on a TV or PC".
+  - **Pairing:** the PC shows a four-digit code and its address; the phone finds it on the same Wi-Fi and you type the code once. Nothing leaves your network.
+  - **Each speaker on its own:** the PC plays front left, then front right, on the output you pick, with the same clips the TV uses. You get level, distance and an EQ per speaker.
+  - **EQ through Equalizer APO** (free, installed once): "Use the EQ on the PC" writes one EQ per channel into Equalizer APO for that output only. It reaches everything the PC plays, with no delay, and stays on when the app is closed. While a test plays it is held off, so readings are of the speakers as they are and EQs never stack.
+  - **Setup in the window:** the output drop-down, a status line for Equalizer APO, and one key for what is missing: Get Equalizer APO, Open its Configurator, or Allow AutoTune (one Windows administrator prompt, so later EQs need none).
+  - **On the PC:** the two speakers are drawn with the playing one lit red and the sweep's frequency; after a test each shows its level and distance change. The EQ has its latching key and a curve per speaker. Closing the window keeps it in the tray, so the phone can still reach it.
+### Changed
+- The Tune key "Home theatre with the TV" is now "Speakers on a TV or PC". The page says TV or PC to match what is connected, and shows the PC's warnings (for example Equalizer APO not installed) in one line.
+- The phone, TV and PC link moved to its own module (`:link`), shared by the phone app and the PC app. A TV from 2.13 still pairs.
+
 ## [2.13.0] - 2026-11-10
 ### Added
 - **Home theatre with the TV.** The same app now installs on Android TV and Google TV (it appears in the TV's app row with its own banner). On the TV it plays a test sound on one speaker at a time; the phone listens at your seat. Start it from Tune › "Home theatre with the TV".

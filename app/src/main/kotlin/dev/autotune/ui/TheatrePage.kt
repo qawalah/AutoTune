@@ -41,7 +41,8 @@ private const val ABOUT_TV =
     "Open AutoTune on the TV (Android TV or Google TV, on the same Wi-Fi). It shows a four-digit code: enter it here once.\n\n" +
         "The TV plays a test sound on one speaker at a time and the phone listens at your seat. Over HDMI ARC the sound goes as " +
         "Dolby Digital 5.1, which every home theatre splits into its speakers; with eARC, or a box plugged into the receiver, " +
-        "it can go as raw 7.1."
+        "it can go as raw 7.1.\n\nOr open AutoTune on a Windows PC: it shows its own code and plays front left and right on the " +
+        "output you pick there. Its EQ runs in Equalizer APO, so it reaches everything the PC plays."
 
 private const val ABOUT_RESULT =
     "Each change is what to add to the home theatre's current setting: raise or lower a speaker's level, or set its distance " +
@@ -52,9 +53,11 @@ private const val ABOUT_RESULT =
 private const val ABOUT_EQ =
     "An EQ for each speaker, fitted from the first full test so EQs never stack. \"Use the EQ on the TV\" sets it on the " +
         "TV's own sound. It only reaches sound the TV turns into PCM itself: Dolby or DTS passed straight to the home theatre " +
-        "(most streaming apps) skips it, so for those, enter the bands in the home theatre's EQ if it has one."
+        "(most streaming apps) skips it, so for those, enter the bands in the home theatre's EQ if it has one.\n\n" +
+        "\"Use the EQ on the PC\" sets it in Equalizer APO on the PC, one EQ per channel: it reaches everything the PC plays " +
+        "on that output, and stays on when AutoTune there is closed."
 
-/** Tune a home theatre with the TV playing each speaker and the phone listening. A page over the current tab. */
+/** Tune a home theatre (or a PC's speakers) with the TV or PC playing each speaker and the phone listening. A page over the current tab. */
 @Composable
 fun TheatrePage(pick: Pickers) {
     val vm: TheatreViewModel = viewModel()
@@ -72,21 +75,21 @@ private fun Connect(u: TheatreUi, vm: TheatreViewModel) {
     val tvName = u.found.getOrNull(tvIdx.coerceAtMost((u.found.size - 1).coerceAtLeast(0)))
     var code by rememberSaveable(tvName) { mutableStateOf(tvName?.let { u.codes[it] }.orEmpty()) }
     var address by rememberSaveable { mutableStateOf("") }
-    RunSheet("Find the TV", if (u.found.isEmpty()) "looking on this wi-fi" else "${u.found.size} found") {
+    RunSheet("Find the TV or PC", if (u.found.isEmpty()) "looking on this wi-fi" else "${u.found.size} found") {
         if (u.found.isEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("No TV yet", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-            InfoButton("Find the TV", ABOUT_TV, small = true)
-        } else DropSelect(u.found, tvIdx.coerceAtMost(u.found.size - 1), { tvIdx = it }, label = "TV", icon = Ic.HOME, info = ABOUT_TV)
+            Text("Nothing found yet", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+            InfoButton("Find the TV or PC", ABOUT_TV, small = true)
+        } else DropSelect(u.found, tvIdx.coerceAtMost(u.found.size - 1), { tvIdx = it }, label = "TV or PC", icon = Ic.HOME, info = ABOUT_TV)
         OutlinedTextField(
             value = code, onValueChange = { v -> code = v.filter { it.isDigit() }.take(4) },
-            label = { Text("Code on the TV") }, singleLine = true,
+            label = { Text("Code on its screen") }, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
             modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
         )
         Adv {
             OutlinedTextField(
                 value = address, onValueChange = { address = it.trim() },
-                label = { Text("TV address (when it is not found)") }, placeholder = { Text("192.168.1.20") }, singleLine = true,
+                label = { Text("Address (when it is not found)") }, placeholder = { Text("192.168.1.20") }, singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
             )
@@ -98,7 +101,7 @@ private fun Connect(u: TheatreUi, vm: TheatreViewModel) {
         if (u.connecting) "Connecting" else "Connect", icon = Ic.SEND,
         enabled = !u.connecting && code.length == 4 && (byAddress || tvName != null),
         onClick = { if (byAddress) vm.connectAddress(address, code) else vm.connect(tvIdx, code) },
-        sub = tvName?.lowercase() ?: "the tv",
+        sub = tvName?.lowercase() ?: "the tv or pc",
     )
 }
 
@@ -120,6 +123,9 @@ private fun Connected(u: TheatreUi, vm: TheatreViewModel) {
         )
     }
 
+    // what the TV or PC reports about its EQ (on a PC: Equalizer APO missing, or not on the output)
+    u.error?.let { Alerts(listOf(it), title = "The ${u.device}") }
+
     if (r != null && !u.busy) Summary(r, u)
 
     val method = u.method
@@ -127,7 +133,7 @@ private fun Connected(u: TheatreUi, vm: TheatreViewModel) {
         DropSelect(
             method.layouts.map { it.title }, method.layouts.indexOf(u.layout).coerceAtLeast(0), { vm.setLayout(method.layouts[it]) },
             enabled = !u.busy, label = "Speakers", icon = Ic.SPEAKER,
-            info = "The speakers your home theatre has. ${method.title} from this TV reaches up to ${method.layouts.first().title}.",
+            info = "The speakers your home theatre has. ${method.title} from this ${u.device} reaches up to ${method.layouts.first().title}.",
         )
     }
 
@@ -135,13 +141,13 @@ private fun Connected(u: TheatreUi, vm: TheatreViewModel) {
     when {
         u.busy -> PinAction("Stop", vm::stop, icon = Ic.STOP, sub = u.playing?.title?.lowercase())
         r == null -> PinAction("Test every speaker", vm::testAll, icon = Ic.MEASURE, sub = "${u.layout.speakers.size} speakers, about ${u.layout.speakers.size * 15} s")
-        else -> { val (k, sub) = theatreKey(r); PinAction(k, vm::next, icon = if (k.startsWith("Use")) Ic.EQ else Ic.MEASURE, sub = sub) }
+        else -> { val (k, sub) = theatreKey(r, u.device); PinAction(k, vm::next, icon = if (k.startsWith("Use")) Ic.EQ else Ic.MEASURE, sub = sub) }
     }
 
     if (!u.busy) Actions {
         if (r != null && !theatreKey(r).first.startsWith("Test every") && theatreKey(r).first != "Test again") TextAction("Test every speaker", vm::testAll, icon = Ic.MEASURE)
-        if (r != null && r.move != dev.autotune.dsp.TheatreMove.USE_EQ) TextAction("Use the EQ on the TV", vm::useEq, icon = Ic.EQ)
-        if (u.tvEqOn) TextAction("Switch the TV's EQ off", vm::tvEqOff, icon = Ic.POWER)
+        if (r != null && r.move != dev.autotune.dsp.TheatreMove.USE_EQ) TextAction("Use the EQ on the ${u.device}", vm::useEq, icon = Ic.EQ)
+        if (u.tvEqOn) TextAction("Switch the ${u.device}'s EQ off", vm::tvEqOff, icon = Ic.POWER)
         if (isAdvanced()) {
             if (u.hasStock) TextAction("Start over (new reference)", vm::startOver, icon = Ic.AGAIN)
         }
@@ -204,7 +210,7 @@ private fun Details(r: TheatreReport, u: TheatreUi) {
             }
         }
     }
-    Fold("EQ per speaker", summary = "for the home theatre or the TV", info = ABOUT_EQ) {
+    Fold("EQ per speaker", summary = "for the home theatre, the tv or the pc", info = ABOUT_EQ) {
         r.speakers.filter { it.heard }.forEach { s ->
             Text(s.speaker.title, style = MaterialTheme.typography.titleSmall)
             if (s.eq.isEmpty()) Muted("no change")

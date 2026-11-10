@@ -103,12 +103,12 @@ object TheatreStore {
     private fun dec(s: String) = runCatching { URLDecoder.decode(s, "UTF-8") }.getOrDefault(s)
 }
 
-/** The pinned key after a home-theatre test, and its second line. */
-fun theatreKey(r: TheatreReport): Pair<String, String> = when (r.move) {
+/** The pinned key after a home-theatre test, and its second line. [device] is what plays: "TV" or "PC". */
+fun theatreKey(r: TheatreReport, device: String = "TV"): Pair<String, String> = when (r.move) {
     TheatreMove.CHECK_SPEAKER -> "Test ${r.moveSpeaker?.title?.lowercase() ?: "it"} again" to "after checking its wiring and setting"
     TheatreMove.SET_LEVELS -> "Test again" to "after setting the levels"
     TheatreMove.SET_DISTANCES -> "Test again" to "after setting the distances"
-    TheatreMove.USE_EQ -> "Use the EQ on the TV" to "fitted per speaker"
+    TheatreMove.USE_EQ -> "Use the EQ on the $device" to "fitted per speaker"
     TheatreMove.DONE -> "Test again" to "every speaker is set"
 }
 

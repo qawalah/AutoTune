@@ -25,10 +25,10 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import kotlin.coroutines.resume
 
-/** A TV found on the Wi-Fi. */
+/** A TV or PC found on the Wi-Fi. */
 class FoundTv(val name: String, internal val info: NsdServiceInfo)
 
-/** The phone's end of the link: finds TVs running AutoTune, connects with the TV's code, sends and receives lines. */
+/** The phone's end of the link: finds TVs and PCs running AutoTune, connects with the code on their screen, sends and receives lines. */
 class LinkClient(private val ctx: Context, private val scope: CoroutineScope) {
     private val nsd: NsdManager? = ctx.getSystemService(NsdManager::class.java)
     private val _found = MutableStateFlow<List<FoundTv>>(emptyList())
@@ -78,10 +78,10 @@ class LinkClient(private val ctx: Context, private val scope: CoroutineScope) {
         }
     }
 
-    /** Connects to [tv] and pairs with [code]. Returns the TV's welcome; throws with the reason in words. */
+    /** Connects to [tv] and pairs with [code]. Returns its welcome; throws with the reason in words. */
     suspend fun connect(tv: FoundTv, code: String, phone: String): LinkMsg {
         val (host, port) = resolve(tv)
-        if (host.isEmpty()) error("The TV did not answer. Check it is on the same Wi-Fi.")
+        if (host.isEmpty()) error("It did not answer. Check it is on the same Wi-Fi.")
         return connect(host, port, code, phone)
     }
 
@@ -95,10 +95,10 @@ class LinkClient(private val ctx: Context, private val scope: CoroutineScope) {
             val r = BufferedReader(InputStreamReader(s.getInputStream()))
             w.println(Msg.hello(code, phone).encode())
             s.soTimeout = 6000
-            val first = LinkMsg.parse(r.readLine() ?: error("The TV closed the connection.")) ?: error("The TV sent something unexpected.")
+            val first = LinkMsg.parse(r.readLine() ?: error("It closed the connection.")) ?: error("It sent something unexpected.")
             s.soTimeout = 0
-            if (first.type == Msg.DENIED) error(first["reason"] ?: "The TV refused the code.")
-            if (first.type != Msg.WELCOME) error("The TV sent something unexpected.")
+            if (first.type == Msg.DENIED) error(first["reason"] ?: "It refused the code.")
+            if (first.type != Msg.WELCOME) error("It sent something unexpected.")
             socket = s; out = w
             _open.value = true
             scope.launch(Dispatchers.IO) {
@@ -116,8 +116,8 @@ class LinkClient(private val ctx: Context, private val scope: CoroutineScope) {
             first
         } catch (e: Exception) {
             runCatching { s.close() }
-            if (e is java.net.SocketTimeoutException) error("The TV did not answer.")
-            if (e is java.io.IOException) error("Could not reach the TV (${e.message ?: "no answer"}).")
+            if (e is java.net.SocketTimeoutException) error("It did not answer.")
+            if (e is java.io.IOException) error("Could not reach it (${e.message ?: "no answer"}).")
             throw e
         }
     }

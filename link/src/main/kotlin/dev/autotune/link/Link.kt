@@ -8,9 +8,10 @@ import java.net.URLEncoder
 import java.util.Locale
 
 /**
- * The phone and the TV talk over the home Wi-Fi: one TCP connection, one line of text per message,
- * `type key=value key=value`, values URL-encoded. The TV announces itself with DNS-SD ([NSD_TYPE]) and shows a
+ * The phone and a TV or PC talk over the home Wi-Fi: one TCP connection, one line of text per message,
+ * `type key=value key=value`, values URL-encoded. The TV or PC announces itself with DNS-SD ([NSD_TYPE]) and shows a
  * four-digit code; the phone must send it in [Msg.hello] before anything else is accepted. Nothing leaves the network.
+ * Unknown keys are ignored, so a newer side can add keys without breaking an older one.
  */
 const val LINK_VERSION = 1
 const val LINK_PORT = 47810
@@ -44,7 +45,7 @@ class LinkMsg(val type: String, val args: Map<String, String> = emptyMap()) {
 /** A row of the result as the TV shows it under each speaker. */
 class ShownRow(val speaker: Speaker, val trim: String, val distance: String, val heard: Boolean)
 
-/** Every message, phone to TV and TV to phone. */
+/** Every message, phone to TV or PC and back. */
 object Msg {
     // phone to TV
     const val HELLO = "hello"
@@ -62,8 +63,12 @@ object Msg {
     const val EQ_STATE = "eqstate"
 
     fun hello(code: String, phone: String) = LinkMsg(HELLO, mapOf("code" to code, "name" to phone, "v" to "$LINK_VERSION"))
-    fun welcome(tv: String, method: String, eqOn: Boolean, output: String) =
-        LinkMsg(WELCOME, mapOf("name" to tv, "method" to method, "eq" to if (eqOn) "1" else "0", "out" to output, "v" to "$LINK_VERSION"))
+    /** What answers the phone: a TV ([KIND_TV]) or a Windows PC ([KIND_PC]). A welcome without a kind is from a TV. */
+    const val KIND_TV = "tv"
+    const val KIND_PC = "pc"
+
+    fun welcome(tv: String, method: String, eqOn: Boolean, output: String, kind: String = KIND_TV) =
+        LinkMsg(WELCOME, mapOf("name" to tv, "method" to method, "eq" to if (eqOn) "1" else "0", "out" to output, "v" to "$LINK_VERSION", "kind" to kind))
     fun denied(reason: String) = LinkMsg(DENIED, mapOf("reason" to reason))
     fun play(id: Int, s: Speaker, layout: String) = LinkMsg(PLAY, mapOf("id" to "$id", "speaker" to s.code, "layout" to layout))
     fun playing(id: Int, s: Speaker) = LinkMsg(PLAYING, mapOf("id" to "$id", "speaker" to s.code))

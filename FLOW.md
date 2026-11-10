@@ -80,8 +80,9 @@ flowchart LR
   TU -->|"Ask AI"| AI
   AI -->|"Measure it"| TU
   L -->|"Advanced: Open EQ"| EQ
-  TU -->|"Home theatre with the TV"| HT["Home theatre page<br/>over the current tab"]
+  TU -->|"Speakers on a TV or PC"| HT["Home theatre page<br/>over the current tab"]
   HT -->|"Test every speaker: the TV plays each,<br/>the phone listens (link)"| TV(("AutoTune on the TV"))
+  HT -->|"Test every speaker: the PC plays left and right;<br/>Use the EQ on the PC: Equalizer APO"| PC(("AutoTune on Windows"))
   W["Widgets, notification actions,<br/>Quick Settings tile"] -->|"EqActionReceiver"| BG(("background:<br/>app stays closed"))
   SH["Shortcuts, routines,<br/>autotune://profile/name"] -->|"ApplyProfileActivity"| BG
   BT["Bluetooth device connects"] -->|"rules.txt"| BG
