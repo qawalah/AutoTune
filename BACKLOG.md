@@ -125,3 +125,7 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
   - Repeated and contradicting text: "5.1" twice in one line and again on a key; "eq on" in a line while the key reads "EQ off" (the key names the action, not the state). Use one big EQ state key as on the phone and PC.
   - No emphasis: pick what matters at a glance (the connected phone, the test running, the EQ state) and make it the large element; the rest small.
   - The room and the chart on the left are fine (the photo was cropped); the clean-up is the right side.
+- **The room drawing: labels and look (TV and phone).** On the TV the speaker names and their changes ("+7.0 dB", "level") are not aligned to their speakers and overlap other things (C's "+7.0 dB" runs into the sofa). The phone's is slightly better; fix both. Enhance the TV's room look, and replace the floor's dark grey rug, which the owner finds ugly.
+- **The connected device, shown properly, with its Disconnect.** On the phone, Disconnect sits as a loose row between the EQ card and the chart. Show the connected TV or PC in its own deck (its name, output, a lit pilot) with Disconnect in it.
+- **Animate the EQ (response) chart.** The phone's home-theatre chart never plays its arrival animation, unlike the other charts.
+- **Accent colour on the TV.** The TV screen is all grey and depressing; bring in the accent colour (as the phone does: live, playing, EQ on).
