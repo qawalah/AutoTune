@@ -68,10 +68,10 @@ A test mode for a phone or tablet used as the TV (Settings › Advanced › "Use
 - Always show what the system really is, on both screens: for example "pretend 5.1 · really this tablet's speakers, 2.0". The phone's result carries the same line, and such a session is never kept as a stock reference.
 - Readings from a pretend layout are for trying the flow only: levels and distances will all come out the same.
 
-## Levels and EQ as two completely separate tests (asked 2026-11-10): roadmap
-2.15.0 split the home theatre into "Set the levels" and "Test the system", but they are still tied: the system test re-reports levels and distances, and a level spread sends the key back to the level test. Make them two independent tests:
+## Levels, distances and EQ as three separate tests (asked 2026-11-10): roadmap
+2.15.0 split the home theatre into "Set the levels" and "Test the system", but they are still tied: the system test re-reports levels and distances, and a level spread sends the key back to the level test. Make them three independent tests:
 - **Levels** (its own entry, its own saved result): pink noise per speaker with the live meter, as now. Its result is the trims per speaker, kept on its own and shown on its own page or deck.
 - **EQ** (its own entry, its own saved result): only the whole system playing together (no per-speaker sweeps), several seats averaged, fitted to one EQ for every speaker from its own stock, then verified with the EQ on. It never judges or mentions levels.
 - Neither test sends the user to the other; each can be run alone, in any order, as often as wanted.
-- Open: where distances go (they need a timed signal, so they fit neither pink noise nor the all-together sweep). Options: a short third "Distances" test with one sweep per speaker, or an Advanced part of the level test. Decide before building.
+- **Distances** (decided 2026-11-10: a third test of its own, so it is not repeated with every level or EQ run): one short sweep per speaker after one set of start beeps, giving each speaker's distance against front left, the sub's measured delay included. Its own entry and saved result; run once at setup and again only when a speaker moves. The EQ does not need distances, but wrong ones make the sub and mains cancel, so the order at setup is levels, distances, then EQ.
 - Keep the TV/PC link messages (`noise`, `pass`) or add a lighter `system` clip with just the all-together sweep; the Dolby assets follow.
