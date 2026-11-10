@@ -117,7 +117,7 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 - **No nagging about levels.** The page keeps pushing the level test ("Set the levels again" as the pinned key, level notes). Just show the three tests and let the owner choose; no suggested order, no pushing back to levels.
 - **TV and Windows show the phone's measuring screen.** While a test runs, the TV and the PC must show the same visuals and movement as the phone's measuring screen (owner's screenshot, stock reading): the large dBFS mic level, the sweep's frequency slider running 20 Hz to 20 kHz with the red needle and "Sweeping 734 Hz", the waveform, the too quiet / good / clipping level slider, and the checks list. Today the TV's live screen does not match, and the PC has none. (2.17.0: all but the checks list, which the phone keeps for its own car measurements.)
 
-## Owner's notes, round 2 (2026-11-11): roadmap
+## Owner's notes, round 2 (2026-11-11): done in 2.18.0
 - **Runs list: EQ runs only.** Details › Runs lists Levels and Distances runs next to the EQ runs; remove them from that list (it is for the EQ runs drawn on the chart). Levels and distances keep their own cards.
 - **TV screen: clean it up (owner: "like text was vomited").** No frames or grouping on the right side, nothing emphasised, repeated text. Seen on the owner's TV (2.17.0, light look):
   - The code stays up after the phone connects; hide it once a phone is connected and show the connected phone in a proper, designed way (a deck with the phone's name and a lit pilot).

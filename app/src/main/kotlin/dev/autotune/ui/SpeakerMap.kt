@@ -47,8 +47,9 @@ fun SpeakerMap(
     val name = TextStyle(fontFamily = label.fontFamily, fontSize = if (large) 18.sp else 12.sp, fontWeight = FontWeight.Medium, fontFeatureSettings = "tnum")
     val note = TextStyle(fontFamily = label.fontFamily, fontSize = if (large) 15.sp else 11.sp, fontFeatureSettings = "tnum")
     val colors = RoomColors(
-        floor = lerp(c.panel, c.bg, 0.6f), floorLine = c.line, ink = c.text, muted = c.muted,
-        face = c.panel, side = c.panelHigh, live = c.signal, onLive = c.onSignal, screen = c.text,
+        // a light, warm rug: the deck's own colour with a touch of the accent, never a dark slab
+        floor = lerp(c.panelHigh, c.signal, if (c.dark) 0.10f else 0.07f), floorLine = lerp(c.line, c.signal, 0.25f), ink = c.text, muted = c.muted,
+        face = c.panel, side = c.panelHigh, live = c.signal, onLive = c.onSignal, screen = c.text, tag = c.panel,
     )
     val speakers = layout.speakers.associateWith { s -> RoomSpeaker(s, notes[s], s in silent) }
     val describe = buildString {

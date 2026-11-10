@@ -76,7 +76,8 @@ fun ResponseChart(
     val zoom = LocalChartZoom.current
     val me = androidx.compose.runtime.remember { Any() }
     var big by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    val grow = rememberArrival("chart")
+    // new curves (another run, a new reading) play the movement again
+    val grow = rememberArrival("chart:" + data.curves.joinToString { it.label + it.values.size })
     Column(modifier) {
         Box {
             ChartCanvas(data, Modifier.fillMaxWidth().height(height).arrival(grow), showTarget, hidden) { grow.value }

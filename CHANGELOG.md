@@ -4,6 +4,15 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.18.0] - 2026-11-11
+### Changed
+- **The TV screen, cleaned up.** The right side is now decks with one job each: the phone (the code until one pairs, then the phone's name with a lit pilot), what is playing or the last result, one big EQ key ("EQ on" lit, "EQ off"), and the speakers' keys under one line on the output. No more loose lines or repeated "5.1"; the accent colours what is live.
+- **The room's labels sit on small plates** by their speakers, never over the sofa or each other (a far speaker's goes above it when the floor in front is taken), on the phone, the TV and the PC.
+- **A light, warm rug** in place of the dark floor, drawn in each deck's own colours.
+- **The phone shows the connected TV or PC** in a deck at the top: its name and output with a lit pilot, and Disconnect in it.
+- **Details › EQ runs** lists only the EQ runs (levels and distances keep their own cards).
+- **Charts play their arrival again when their curves change** (another run ticked, a new test), on the home-theatre page as on the others.
+
 ## [2.17.0] - 2026-11-11
 ### Changed
 - **The home theatre page shows the three tests and lets you choose.** Levels, Distances and EQ each carry their own key inside their card; nothing is pinned or suggested between tests, and no "set the levels again". A key is pinned only while a test runs (Next speaker, Measure seat, Stop).
