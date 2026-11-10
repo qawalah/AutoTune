@@ -35,8 +35,8 @@ interface ApoControl {
 /** The PC's sound outputs, so tests can stand in for the sound card. */
 interface AudioOut {
     fun outputs(): List<String>
-    /** Plays interleaved 16-bit [pcm] on [output] until it ends; [onTime] gets the seconds played. */
-    suspend fun play(output: String?, pcm: ShortArray, channels: Int, fs: Int, onTime: (Double) -> Unit)
+    /** Plays interleaved 16-bit [pcm] on [output] until it ends (round and round until cancelled when [loop]); [onTime] gets the seconds played. */
+    suspend fun play(output: String?, pcm: ShortArray, channels: Int, fs: Int, loop: Boolean = false, onTime: (Double) -> Unit)
 }
 
 /** Runs a command and returns its output, or null when it fails or takes too long. */
@@ -125,7 +125,7 @@ class JavaSoundOut : AudioOut {
         }.map { it.name }.distinct()
     }.getOrDefault(emptyList())
 
-    override suspend fun play(output: String?, pcm: ShortArray, channels: Int, fs: Int, onTime: (Double) -> Unit) {
+    override suspend fun play(output: String?, pcm: ShortArray, channels: Int, fs: Int, loop: Boolean, onTime: (Double) -> Unit) {
         val fmt = AudioFormat(fs.toFloat(), 16, channels, true, false)
         val info = DataLine.Info(SourceDataLine::class.java, fmt)
         val mixer = AudioSystem.getMixerInfo().firstOrNull { it.name == output }?.let { AudioSystem.getMixer(it) }
@@ -136,19 +136,21 @@ class JavaSoundOut : AudioOut {
             line.start()
             val chunk = 2048 * channels
             val buf = ByteArray(chunk * 2)
-            var i = 0
-            while (i < pcm.size) {
-                coroutineContext.ensureActive()
-                val n = minOf(chunk, pcm.size - i)
-                for (k in 0 until n) {
-                    val v = pcm[i + k].toInt()
-                    buf[2 * k] = v.toByte()
-                    buf[2 * k + 1] = (v shr 8).toByte()
+            do {
+                var i = 0
+                while (i < pcm.size) {
+                    coroutineContext.ensureActive()
+                    val n = minOf(chunk, pcm.size - i)
+                    for (k in 0 until n) {
+                        val v = pcm[i + k].toInt()
+                        buf[2 * k] = v.toByte()
+                        buf[2 * k + 1] = (v shr 8).toByte()
+                    }
+                    line.write(buf, 0, n * 2)
+                    i += n
+                    onTime(line.longFramePosition.toDouble() / fs)
                 }
-                line.write(buf, 0, n * 2)
-                i += n
-                onTime(line.longFramePosition.toDouble() / fs)
-            }
+            } while (loop)
             line.drain()
             onTime(pcm.size.toDouble() / channels / fs)
         } finally {

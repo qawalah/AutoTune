@@ -76,9 +76,10 @@ object Room3d {
         return Box(s, w, d, h, a)
     }
 
+    /** [all]: every speaker plays at once (the last sweep of the system test): all lit, the rings from the seat. */
     fun DrawScope.drawRoom(
         layout: Layout, playing: Speaker?, speakers: Map<Speaker, RoomSpeaker>, colors: RoomColors,
-        text: TextMeasurer, nameStyle: TextStyle, noteStyle: TextStyle, phase: Float, level: Float?,
+        text: TextMeasurer, nameStyle: TextStyle, noteStyle: TextStyle, phase: Float, level: Float?, all: Boolean = false,
     ) {
         val w = size.width
         val h = size.height
@@ -105,12 +106,13 @@ object Room3d {
             colors.muted, style = Stroke(hair * 1.4f),
         )
         // sound spreading over the floor from the speaker that plays
-        if (playing != null && playing in layout.speakers) {
+        val source = if (all) SEAT_X to SEAT_Y else playing?.takeIf { it in layout.speakers }?.let { it.x to it.y }
+        if (source != null) {
             val reach = 0.14 + 0.26 * (level ?: 0.7f).coerceIn(0f, 1f)
             for (k in 0 until 3) {
                 val t = (phase + k / 3f) % 1f
                 val r = 0.08 + t * reach
-                val ring = (0..48).map { i -> val a = i / 48.0 * 2 * PI; at(playing.x + r * cos(a), playing.y + r * sin(a) / DEPTH, 0.0) }
+                val ring = (0..48).map { i -> val a = i / 48.0 * 2 * PI; at(source.first + r * cos(a), source.second + r * sin(a) / DEPTH, 0.0) }
                 drawPath(poly(ring), colors.live.copy(alpha = (1f - t) * 0.75f), style = Stroke(hair * 1.8f))
             }
         }
@@ -118,7 +120,7 @@ object Room3d {
         // the cabinets, far ones first
         val boxes = layout.speakers.map(::boxOf).sortedByDescending { project(it.s.x.toDouble(), it.s.y.toDouble(), 0.0).d }
         for (b in boxes) {
-            val live = b.s == playing
+            val live = all || b.s == playing
             val faint = speakers[b.s]?.silent == true
             val ca = cos(b.angle); val sa = sin(b.angle)
             fun corner(u: Double, v: Double, z: Double) = at(b.s.x + u * ca + v * sa, b.s.y + (-u * sa + v * ca) / DEPTH, z)

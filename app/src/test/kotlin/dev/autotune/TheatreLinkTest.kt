@@ -69,6 +69,45 @@ class TheatreLinkTest {
     }
 
     @Test
+    fun theTwoTestsLeadFromLevelsToTheSystemToTheEq() {
+        fun pass(move: TheatreMove, spread: Double = 0.0) = dev.autotune.dsp.PassReport(
+            TheatreReport(Layout.L51, listOf(dev.autotune.dsp.SpeakerResult(Speaker.C, true, 70.0, spread, 0.0, 0.0, 1.0, emptyList())), emptyList(), "", move, null),
+            null, 3.0, null, listOf(EqFilter(60.0, -4.0, 2.0)), "", move,
+        )
+        // nothing yet: set the levels; once set, test the system
+        assertEquals(dev.autotune.theatre.SystemStep.LEVELS, dev.autotune.theatre.systemNext(null, levelsDone = false))
+        assertEquals(dev.autotune.theatre.SystemStep.SYSTEM, dev.autotune.theatre.systemNext(null, levelsDone = true))
+        assertEquals("Set the levels", dev.autotune.theatre.systemKey(null, false, Layout.L51).first)
+        assertTrue(dev.autotune.theatre.systemKey(null, true, Layout.L51).second.startsWith("one pass, about"))
+        // a system result decides: levels off, use the one EQ, or test again
+        assertEquals(dev.autotune.theatre.SystemStep.LEVELS, dev.autotune.theatre.systemNext(pass(TheatreMove.SET_LEVELS, 2.0), true))
+        assertEquals("they differ by up to 2.0 dB", dev.autotune.theatre.systemKey(pass(TheatreMove.SET_LEVELS, 2.0), true, Layout.L51).second)
+        assertEquals("Use the EQ on the PC", dev.autotune.theatre.systemKey(pass(TheatreMove.USE_EQ), true, Layout.L51, "PC").first)
+        assertEquals(dev.autotune.theatre.SystemStep.SYSTEM, dev.autotune.theatre.systemNext(pass(TheatreMove.DONE), true))
+    }
+
+    @Test
+    fun systemSessionsKeepTheWholeSystemAndThePretend() {
+        val grid = FreqGrid()
+        val mag = DoubleArray(grid.size) { -1.0 + it * 0.02 }
+        val s = TheatreSession(
+            7L, Layout.L51, PlayMethod.PCM_71, "Tab S9", listOf(SpeakerReading(Speaker.FL, mag, 0.01, 50.0)),
+            system = SpeakerReading(Speaker.FL, mag, 0.0, 55.0), pretend = true, real = "tablet speakers · stereo only",
+        )
+        val back = TheatreStore.decode(TheatreStore.encode(s))!!
+        assertArrayEquals(mag, back.system!!.magDb, 0.006)
+        assertTrue(back.pretend)
+        assertEquals("tablet speakers · stereo only", back.real)
+        assertEquals(1, back.readings.size)
+        // a file from 2.13 or 2.14 (version 1) still loads, with no system reading
+        val old = TheatreStore.encode(TheatreSession(5L, Layout.L31, PlayMethod.DOLBY_51, "TV", listOf(SpeakerReading(Speaker.C, mag, 0.0, 40.0))))
+            .replaceFirst("autotune-theatre 2", "autotune-theatre 1")
+        val v1 = TheatreStore.decode(old)!!
+        assertNull(v1.system)
+        assertFalse(v1.pretend)
+    }
+
+    @Test
     fun pairingCodes() {
         val code = Pairing.newCode(java.util.Random(1))
         assertEquals(4, code.length)

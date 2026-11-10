@@ -92,16 +92,27 @@ private fun PhoneDeck(u: PcUi) {
                 }
             }
         } else {
-            SpeakerPair(u.playing, u.rows)
-            val now = u.playing?.let { sp ->
-                val hz = ChannelClip.nowPlaying(u.playT)
-                "${sp.title} · " + when {
-                    hz != null -> if (hz >= 1000) "sweep %.1f khz".format(hz / 1000) else "sweep %.0f hz".format(hz)
-                    u.playT < ChannelClip.LEAD_SECONDS -> "starting"
-                    else -> "start beeps"
+            SpeakerPair(u.playing, u.rows, all = u.allPlaying)
+            val who = if (u.allPlaying) "both speakers" else u.playing?.title
+            val now = when {
+                u.what == "level noise" && who != null -> "$who · level noise"
+                u.what == "sweep" && who != null -> {
+                    val into = dev.autotune.dsp.PassClip.nowPlaying(u.layout, u.playT)?.second
+                    val hz = into?.let { 20.0 * Math.pow(1000.0, it / ChannelClip.SWEEP_SECONDS) }
+                    "$who · " + (hz?.let { if (it >= 1000) "sweep %.1f khz".format(it / 1000) else "sweep %.0f hz".format(it) } ?: "sweep")
                 }
+                u.what == "starting" -> "system test · starting"
+                who != null -> {
+                    val hz = ChannelClip.nowPlaying(u.playT)
+                    "$who · " + when {
+                        hz != null -> if (hz >= 1000) "sweep %.1f khz".format(hz / 1000) else "sweep %.0f hz".format(hz)
+                        u.playT < ChannelClip.LEAD_SECONDS -> "starting"
+                        else -> "start beeps"
+                    }
+                }
+                else -> null
             }
-            StatusLine(now ?: phone, dot = if (u.playing != null) Pc.red else null)
+            StatusLine(now ?: phone, dot = if (now != null) Pc.red else null)
             u.headline?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = Pc.ink, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
     }
@@ -109,10 +120,10 @@ private fun PhoneDeck(u: PcUi) {
 
 /** Front left and right as two cabinets; the one playing is lit red, each with what the phone found under it. */
 @Composable
-private fun SpeakerPair(playing: Speaker?, rows: List<ShownRow>) {
+private fun SpeakerPair(playing: Speaker?, rows: List<ShownRow>, all: Boolean = false) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
         for (s in listOf(Speaker.FL, Speaker.FR)) {
-            val lit = s == playing
+            val lit = all || s == playing
             val row = rows.firstOrNull { it.speaker == s }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.size(64.dp, 84.dp)) {

@@ -8,6 +8,10 @@ import android.media.AudioManager
 import android.media.AudioTrack
 import android.os.Build
 import dev.autotune.dsp.ChannelClip
+import dev.autotune.dsp.Channels
+import dev.autotune.dsp.Layout
+import dev.autotune.dsp.LevelNoise
+import dev.autotune.dsp.PassClip
 import dev.autotune.dsp.PlayMethod
 import dev.autotune.dsp.Speaker
 import kotlinx.coroutines.Dispatchers
@@ -63,13 +67,41 @@ object TvAudio {
         }.getOrDefault(false)
     }
 
+    /** What the TV plays: a clip made here for [PlayMethod]'s channels, or a Dolby Digital clip from the assets. */
+    sealed class Clip(val seconds: Double) {
+        class Pcm(val pcm: ShortArray, seconds: Double) : Clip(seconds)
+        class Ac3(val asset: String, seconds: Double) : Clip(seconds)
+    }
+
+    /**
+     * One speaker's clip. [pretend]: a phone or tablet standing in for a bigger system; a speaker its two channels do
+     * not have plays from both.
+     */
+    fun speakerClip(method: PlayMethod, speaker: Speaker, pretend: Boolean = false): Clip =
+        if (method == PlayMethod.DOLBY_51) Clip.Ac3("theatre/${speaker.code}.ac3", ChannelClip.seconds)
+        else Clip.Pcm(Channels.interleave16(ChannelClip.planes(speaker), method, mixDown = pretend), ChannelClip.seconds)
+
+    /** The whole system test in one clip ([PassClip]). */
+    fun passClip(method: PlayMethod, layout: Layout, pretend: Boolean = false): Clip =
+        if (method == PlayMethod.DOLBY_51) Clip.Ac3("theatre/pass-${layout.name}.ac3", PassClip.seconds(layout))
+        else Clip.Pcm(Channels.interleave16(PassClip.planes(layout), method, mixDown = pretend), PassClip.seconds(layout))
+
+    /** [speaker]'s level noise, one loop of it ([LevelNoise]); play it with loop = true. */
+    fun noiseClip(method: PlayMethod, speaker: Speaker, pretend: Boolean = false): Clip =
+        if (method == PlayMethod.DOLBY_51) Clip.Ac3("theatre/noise-${speaker.code}.ac3", 3.0 * LevelNoise.LOOP / LevelNoise.FS)
+        else Clip.Pcm(Channels.interleave16(LevelNoise.planes(speaker), method, mixDown = pretend), LevelNoise.LOOP.toDouble() / LevelNoise.FS)
+
     /** Plays [speaker]'s clip with [method]. [onTime] gets the seconds played so far, about ten times a second. */
-    suspend fun play(ctx: Context, method: PlayMethod, speaker: Speaker, onTime: (Double) -> Unit) = withContext(Dispatchers.IO) {
+    suspend fun play(ctx: Context, method: PlayMethod, speaker: Speaker, onTime: (Double) -> Unit) =
+        play(ctx, method, speakerClip(method, speaker), loop = false, onTime = onTime)
+
+    /** Plays [clip] once, or round and round until cancelled when [loop]. [onTime] gets the seconds into the clip. */
+    suspend fun play(ctx: Context, method: PlayMethod, clip: Clip, loop: Boolean, onTime: (Double) -> Unit) = withContext(Dispatchers.IO) {
         val track: AudioTrack
         val write: suspend () -> Unit
-        when (method) {
-            PlayMethod.DOLBY_51 -> {
-                val bytes = ctx.assets.open("theatre/${speaker.code}.ac3").use { it.readBytes() }
+        when (clip) {
+            is Clip.Ac3 -> {
+                val bytes = ctx.assets.open(clip.asset).use { it.readBytes() }
                 track = build(AudioFormat.ENCODING_AC3, AudioFormat.CHANNEL_OUT_5POINT1, 64 * 1024)
                 write = {
                     var off = 0
@@ -80,13 +112,13 @@ object TvAudio {
                     }
                 }
             }
-            else -> {
+            is Clip.Pcm -> {
                 val mask = when (method) {
                     PlayMethod.PCM_71 -> AudioFormat.CHANNEL_OUT_7POINT1_SURROUND
                     PlayMethod.PCM_51 -> AudioFormat.CHANNEL_OUT_5POINT1
                     else -> AudioFormat.CHANNEL_OUT_STEREO
                 }
-                val pcm = ChannelClip.interleaved16(speaker, method)
+                val pcm = clip.pcm
                 track = build(AudioFormat.ENCODING_PCM_16BIT, mask, ChannelClip.FS * method.slots.size * 2 / 4)
                 write = {
                     var off = 0
@@ -102,11 +134,11 @@ object TvAudio {
         try {
             track.play()
             kotlinx.coroutines.coroutineScope {
-                val clock = launch { while (isActive) { onTime((System.nanoTime() - start) / 1e9); delay(100) } }
-                write()
+                val clock = launch { while (isActive) { onTime(((System.nanoTime() - start) / 1e9) % clip.seconds); delay(100) } }
+                do write() while (loop && isActive)
                 // the last part still sits in the buffer: wait until the clip's length has passed
-                val left = ChannelClip.seconds - (System.nanoTime() - start) / 1e9 + 0.4
-                if (left > 0) delay((left * 1000).toLong())
+                val left = clip.seconds - (System.nanoTime() - start) / 1e9 + 0.4
+                if (!loop && left > 0) delay((left * 1000).toLong())
                 clock.cancel()
             }
         } finally {

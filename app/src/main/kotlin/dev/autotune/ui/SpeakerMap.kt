@@ -35,12 +35,12 @@ import dev.autotune.ui.room.RoomSpeaker
 @Composable
 fun SpeakerMap(
     layout: Layout, playing: Speaker?, modifier: Modifier = Modifier, notes: Map<Speaker, String> = emptyMap(),
-    silent: Set<Speaker> = emptySet(), level: Float? = null, large: Boolean = false,
+    silent: Set<Speaker> = emptySet(), level: Float? = null, large: Boolean = false, all: Boolean = false,
 ) {
     val c = At.c
     val tm = rememberTextMeasurer()
     val moving = animationsOn()
-    val phase = if (moving && playing != null) {
+    val phase = if (moving && (playing != null || all)) {
         rememberInfiniteTransition(label = "rings").animateFloat(0f, 1f, infiniteRepeatable(tween(1400, easing = LinearEasing), RepeatMode.Restart), label = "ring").value
     } else 0.35f
     val label = MaterialTheme.typography.labelSmall
@@ -53,9 +53,9 @@ fun SpeakerMap(
     val speakers = layout.speakers.associateWith { s -> RoomSpeaker(s, notes[s], s in silent) }
     val describe = buildString {
         append("Room, ${layout.title}")
-        playing?.let { append(", ${it.title.lowercase()} playing") }
+        if (all) append(", every speaker playing") else playing?.let { append(", ${it.title.lowercase()} playing") }
     }
     Canvas(modifier.fillMaxWidth().aspectRatio(ROOM_ASPECT).semantics { contentDescription = describe }) {
-        with(Room3d) { drawRoom(layout, playing, speakers, colors, tm, name, note, phase, level) }
+        with(Room3d) { drawRoom(layout, playing, speakers, colors, tm, name, note, phase, level, all) }
     }
 }
