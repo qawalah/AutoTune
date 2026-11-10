@@ -43,9 +43,7 @@ import dev.autotune.dsp.TheatreReport
 import dev.autotune.theatre.TheatreUi
 import dev.autotune.theatre.TheatreViewModel
 import dev.autotune.theatre.RunKind
-import dev.autotune.theatre.ThreeStep
 import dev.autotune.theatre.threeKey
-import dev.autotune.theatre.threeNext
 import dev.autotune.theatre.theatreKey
 
 private const val ABOUT_TV =
@@ -296,10 +294,27 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel) {
         u.waitingSeat -> RunSheet("EQ test", "seat ${u.seat} of ${u.seats}", trailing = { InfoButton("The EQ test", ABOUT_EQTEST, small = true) }) {
             ReadingCells(listOf(Reading("${u.seat}", null, "move the phone to the next seat, at ear height")))
         }
+        // each test with its own keys right under it
         !u.busy -> {
+            val t = u.test
             LevelsResult(u)
+            Actions { TextAction(if (t?.last(RunKind.LEVELS) == null) "Set the levels" else "Set the levels again", vm::levelTest, icon = Ic.SPEAKER) }
             DistancesResult(u)
+            Actions { TextAction(if (t?.last(RunKind.DISTANCES) == null) "Test the distances" else "Test the distances again", vm::distancesTest, icon = Ic.MEASURE) }
             EqResult(u)
+            Actions {
+                TextAction(if (t?.last(RunKind.EQ) == null) "Test the EQ" else "Test the EQ again", vm::eqTest, icon = Ic.MEASURE)
+                if (u.eq?.eq?.isNotEmpty() == true && !u.tvEqOn) TextAction("Use the EQ on the ${u.device}", vm::useEq, icon = Ic.EQ)
+                if (u.tvEqOn && u.eq?.eq?.isNotEmpty() == true) TextAction("Check the EQ reaches the speakers", vm::eqCheck, icon = Ic.CHECK)
+                if (u.tvEqOn) TextAction("Switch the ${u.device}'s EQ off", vm::tvEqOff, icon = Ic.POWER)
+            }
+            if (isAdvanced()) {
+                DropSelect(
+                    listOf("1 seat", "3 seats", "5 seats"), listOf(1, 3, 5).indexOf(u.seats).coerceAtLeast(0), { vm.setSeats(listOf(1, 3, 5)[it]) },
+                    label = "EQ test seats", icon = Ic.MIC,
+                    info = "The EQ test can average the system over several seats, so the EQ suits the whole sofa rather than one spot. The phone waits at each seat for Next seat.",
+                )
+            }
         }
     }
 
@@ -309,13 +324,6 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel) {
             method.layouts.map { it.title }, method.layouts.indexOf(u.layout).coerceAtLeast(0), { vm.setLayout(method.layouts[it]) },
             label = "Speakers", icon = Ic.SPEAKER,
             info = "The speakers your home theatre has. ${method.title} from this ${u.device} reaches up to ${method.layouts.first().title}.",
-        )
-    }
-    if (isAdvanced() && !u.busy) {
-        DropSelect(
-            listOf("1 seat", "3 seats", "5 seats"), listOf(1, 3, 5).indexOf(u.seats).coerceAtLeast(0), { vm.setSeats(listOf(1, 3, 5)[it]) },
-            label = "EQ test seats", icon = Ic.MIC,
-            info = "The EQ test can average the system over several seats, so the EQ suits the whole sofa rather than one spot. The phone waits at each seat for Next seat.",
         )
     }
 
@@ -330,16 +338,7 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel) {
         else -> { val (k, sub) = threeKey(u); PinAction(k, vm::next, icon = when { k.startsWith("Set") -> Ic.SPEAKER; k.startsWith("Use") -> Ic.EQ; else -> Ic.MEASURE }, sub = sub) }
     }
     if (lv != null || u.waitingSeat) Actions { TextAction("Stop", vm::stop, icon = Ic.STOP) }
-    if (!u.busy) Actions {
-        val next = threeNext(u)
-        if (next != ThreeStep.LEVELS) TextAction("Set the levels", vm::levelTest, icon = Ic.SPEAKER)
-        if (next != ThreeStep.DISTANCES) TextAction("Test the distances", vm::distancesTest, icon = Ic.MEASURE)
-        if (next != ThreeStep.EQ) TextAction("Test the EQ", vm::eqTest, icon = Ic.EQ)
-        if (next != ThreeStep.USE_EQ && u.eq?.eq?.isNotEmpty() == true) TextAction("Use the EQ on the ${u.device}", vm::useEq, icon = Ic.EQ)
-        if (u.tvEqOn && u.eq?.eq?.isNotEmpty() == true) TextAction("Check the EQ reaches the speakers", vm::eqCheck, icon = Ic.CHECK)
-        if (u.tvEqOn) TextAction("Switch the ${u.device}'s EQ off", vm::tvEqOff, icon = Ic.POWER)
-        TextAction("Disconnect", vm::disconnect, icon = Ic.CLOSE)
-    }
+    if (!u.busy) Actions { TextAction("Disconnect", vm::disconnect, icon = Ic.CLOSE) }
     if (!u.busy) RunsDetails(u, vm)
 }
 

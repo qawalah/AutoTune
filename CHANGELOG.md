@@ -9,6 +9,8 @@ Everything below is untested on a real device and microphone unless stated.
 - **A second home-theatre test heard nothing** on an Android box with Dolby Digital (the first was fine). The first test plays with the TV's EQ switched off; later ones played with it on, and on that box an EQ on the TV's sound silenced the Dolby clip. Dolby passes by the TV's EQ anyway, so every Dolby test now plays with the EQ off for the moment it plays.
 - **"Check the EQ reaches the speakers" on a Dolby TV** now plays plain stereo through the TV's own sound, where its EQ acts, once with the EQ off and once on. Before, it played Dolby, which the EQ never touches.
 - **Nothing heard showed green zeros** ("±0.0 dB", "0.00 m"). The distance now reads "—", and the headline says "Nothing heard: is the volume up, and the TV playing?".
+### Changed
+- **Each test's keys sit right under its result**: Set the levels under Levels, Test the distances under Distances, and Test the EQ, Use the EQ, Check the EQ reaches the speakers and Switch the TV's EQ off under EQ (with the seats, in Advanced). The suggested one stays pinned at the bottom.
 ### Added
 - **Whether the TV's EQ is on**, always in view under the room: "tv eq on" with a lit red pilot dot, or "tv eq off". On a Dolby TV with its EQ on, the EQ result notes that the test plays Dolby, which passes by the EQ.
 
