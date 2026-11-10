@@ -104,3 +104,6 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 - The same arrival movements and "plays twice" animations as the phone (header graphics, meters, charts rising), respecting "Remove animations".
 - Link: the phone sends a light `live` message (level, a short downsampled waveform, the status) about 10 times a second while recording, and a fuller `show` (readings, chart points at third-octave, notes, next step) after each test. Keep it small enough for a slow Wi-Fi.
 - Lay it out for 16:9 at a distance: big readings, the room on the left, meters and the chart on the right, nothing smaller than the TV's body text.
+
+## Home theatre page: owner's notes (2026-11-10): roadmap
+- **Each test's key inside its own card.** "Set the levels" sits under the Levels card as a separate row; put it inside the card (Levels, Distances, EQ each with its own keys in the same section).
