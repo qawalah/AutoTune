@@ -96,3 +96,11 @@ The phone waits for the subwoofer's own sweep and it does not come through (or i
 - Whether it is played but read as "too quiet" (the sub's sweep is 10 dB down on the LFE channel, and the 25 dB rule against the mains may drop it), or arrives late (wireless subs add tens of milliseconds) past the window read.
 - Whether the LFE channel needs content below 120 Hz only, with the sweep starting lower (20 Hz) and running longer in that range.
 Then fix: a sub-specific clip (low sweep or band noise on LFE and, as a fallback, bass on the fronts for soundbars that route it to the sub), a clear "No sound from the subwoofer: …" note with what to check on the soundbar, and never a wait with no end on the phone.
+
+## TV screen: the phone's graphics while testing, and the result in full (asked 2026-11-10): roadmap
+Seen on the owner's Android box: during and after a test the TV shows the room, one headline ("no sound from subwoofer"), the phone's name and lots of empty space.
+- **While testing**, the same graphics as the phone's measuring screen, filling the screen: the live level meter (the mic's level, sent from the phone a few times a second), the waveform as it is recorded, the sweep's frequency running along a scale, and for the level test the large "+1.5 dB, turn it up" reading with its meter needle. The room stays, the speaker playing lit with its rings.
+- **After a test**, the result summary as the phone shows it: the readings (levels spread, distances, from target, heard), the headline, each speaker's change under it in the room, the system response chart against the target, and the next step. Notes (a speaker not heard, the EQ refused) as one line each.
+- The same arrival movements and "plays twice" animations as the phone (header graphics, meters, charts rising), respecting "Remove animations".
+- Link: the phone sends a light `live` message (level, a short downsampled waveform, the status) about 10 times a second while recording, and a fuller `show` (readings, chart points at third-octave, notes, next step) after each test. Keep it small enough for a slow Wi-Fi.
+- Lay it out for 16:9 at a distance: big readings, the room on the left, meters and the chart on the right, nothing smaller than the TV's body text.
