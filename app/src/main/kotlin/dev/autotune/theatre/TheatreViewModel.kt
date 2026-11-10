@@ -149,7 +149,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
                         twoTests = w["caps"].orEmpty().split(',').containsAll(listOf("noise", "pass")),
                         pretend = w["pretend"] == "1", real = w["real"])
                 }
-                _ui.value.report?.let(::show)
+                _ui.value.system?.let(::showSystem) ?: _ui.value.report?.let(::show)
                 Diag.log(ctx, "theatre_connected", mapOf("method" to method.name, "output" to w["out"], "kind" to (w["kind"] ?: Msg.KIND_TV)))
             } catch (e: Exception) {
                 _ui.update { it.copy(connecting = false, error = e.message ?: "Could not connect.") }
@@ -162,7 +162,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
     fun setLayout(l: Layout) {
         if (_ui.value.busy) return
         _ui.update { it.copy(layout = l) }
-        _ui.value.latest?.let { judge(it) }
+        _ui.value.latest?.let(::rejudge)
     }
 
     fun micGranted(ok: Boolean) = _ui.update { it.copy(needsMic = !ok) }
@@ -321,6 +321,9 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Judges [session] the way it was measured: a system pass, or speaker by speaker. */
+    private fun rejudge(session: TheatreSession) { if (session.system != null) judgeSystem(session) else judge(session) }
+
     private fun judgeSystem(session: TheatreSession): PassReport? {
         if (session.system == null || session.layout != _ui.value.layout) return null
         val stockPass = stock?.takeIf { it.layout == session.layout && it.system?.heard == true }?.pass
@@ -367,7 +370,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         job = viewModelScope.launch {
             val cal = loadCalibration()
             val base = _ui.value.latest?.takeIf { it.layout == layout && speakers.size < layout.speakers.size }
-            var session = base ?: TheatreSession(System.currentTimeMillis(), layout, method, u.tv, emptyList())
+            var session = base ?: TheatreSession(System.currentTimeMillis(), layout, method, u.tv, emptyList(), pretend = u.pretend, real = u.real)
             try {
                 for (s in speakers) {
                     val r = measure(s, layout, cal)
@@ -380,12 +383,12 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
             if (session.readings.isNotEmpty()) {
                 TheatreStore.save(dir, "latest", session)
                 // the first full test of a layout is the stock reference every EQ is fitted from
-                if (session.complete && (stock == null || stock?.layout != layout)) {
+                if (session.complete && !u.pretend && session.system == null && (stock == null || stock?.layout != layout)) {
                     stock = session
                     TheatreStore.save(dir, "stock", session)
                 }
                 _ui.update { it.copy(latest = session, hasStock = stock != null) }
-                judge(session)?.let(::show)
+                if (session.system != null) judgeSystem(session)?.let(::showSystem) else judge(session)?.let(::show)
             }
         }
     }
@@ -473,7 +476,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         stock = null
         TheatreStore.delete(dir, "stock")
         _ui.update { it.copy(hasStock = false) }
-        _ui.value.latest?.let { judge(it) }
+        _ui.value.latest?.let(::rejudge)
     }
 
     override fun onCleared() {

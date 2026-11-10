@@ -4,6 +4,18 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.15.0] - 2026-11-10
+### Added
+- **The home theatre in two tests**, the way calibration is done (levels, then distances, then the EQ):
+  - **Set the levels.** Each speaker plays pink noise between 500 Hz and 2 kHz (the sub its own, lower noise), and the phone reads it at your seat once a second: "+1.5 dB, turn it up". Front left sets the level; turn each other speaker's level on the home theatre until it reads level, and after three seconds there the next one starts by itself (or press Next). No beeps.
+  - **Test the system.** One pass: the start beeps once (not once per speaker), each speaker's sweep in turn, then every speaker together. It gives each speaker's level and distance (the sub's measured delay included), and **one EQ for every speaker** from the system as you hear it, fitted from the first full pass so EQs never stack. Run it again with the EQ on to see it work.
+  - The key leads: set the levels, test the system, then what the result asks for. TVs and PCs still on 2.14 keep the old speaker-by-speaker test.
+- **Pretend 5.1 or 7.1 on a tablet.** On a phone or tablet used as the TV, the TV screen has a Pretend key (off, 2.1, 3.1, 5.1, 7.1): it plays every speaker through its own two, so the whole flow can be tried without a TV. Both screens always say what it really is ("pretend 5.1 · really tablet speakers, stereo only"), and such a test is never kept as the reference.
+- **The room in 3D.** The speaker map is now the room seen from just behind the seat, low and straight on: the floor running to the screen, each speaker a small cabinet with rounded edges turned to the seat, the playing one in red with rings spreading over the floor (every speaker lit for the last sweep of the system test). On the phone and the TV.
+### Changed
+- The Windows app plays the level noise and the system test too (front left and right).
+- The TV's Dolby Digital clips include the system test for 2.0, 2.1, 3.1 and 5.1 and each speaker's level noise; the app is about 8 MB larger.
+
 ## [2.14.1] - 2026-11-10
 ### Fixed
 - **The TV's EQ comes back after the TV restarts or AutoTune updates.** Before, it stayed off until AutoTune was opened on the TV. The phone's EQ now also comes back after an update, as it already did after a restart.
