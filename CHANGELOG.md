@@ -6,7 +6,7 @@ Everything below is untested on a real device and microphone unless stated.
 
 ## [2.14.0] - 2026-11-10
 ### Added
-- **AutoTune for Windows.** A small PC app (an MSI installer, released next to the APK as a GitHub pre-release `windows-v2.14.0`) that works like the TV: the phone measures, the PC plays the test sounds and applies the EQ. Start it from Tune › "Speakers on a TV or PC".
+- **AutoTune for Windows.** A small PC app (an MSI installer, `AutoTune-2.14.0-windows.msi`, attached to the Android 2.14.0 release next to the APK) that works like the TV: the phone measures, the PC plays the test sounds and applies the EQ. Start it from Tune › "Speakers on a TV or PC".
   - **Pairing:** the PC shows a four-digit code and its address; the phone finds it on the same Wi-Fi and you type the code once. Nothing leaves your network.
   - **Each speaker on its own:** the PC plays front left, then front right, on the output you pick, with the same clips the TV uses. You get level, distance and an EQ per speaker.
   - **EQ through Equalizer APO** (free, installed once): "Use the EQ on the PC" writes one EQ per channel into Equalizer APO for that output only. It reaches everything the PC plays, with no delay, and stays on when the app is closed. While a test plays it is held off, so readings are of the speakers as they are and EQs never stack.

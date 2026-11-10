@@ -4,7 +4,7 @@ Read `HANDOVER.md` first. It covers what the app is, how it's built, where data 
 
 ## Build and test
 - `./gradlew :dsp:test :link:test :desktop:test :app:testDebugUnitTest :app:assembleDebug`. This needs `ANDROID_HOME` or a `local.properties` with `sdk.dir`; without either, `:app` is left out (`:dsp`, `:link` and `:desktop` build anywhere).
-- The Windows app is `desktop/` (Compose for Desktop). `./gradlew :desktop:shots` renders its window to PNG without a screen; its MSI is built and released by `.github/workflows/windows.yml` (a `windows-vX.Y.Z` pre-release, same version as the APK).
+- The Windows app is `desktop/` (Compose for Desktop). `./gradlew :desktop:shots` renders its window to PNG without a screen; its MSI is built by `.github/workflows/windows.yml` and added to the same version's Android release (`AutoTune-X.Y.Z-windows.msi`). Never give it a release of its own: Obtainium looks at the newest release only, so every release must carry the APK.
 - Pure logic lives in `dsp/`, `link/`, `desktop/` (`Apo.kt`, `PcEndpoint.kt`) and in `app/src/main/kotlin/dev/autotune/TuningLogic.kt`. Add or extend unit tests there with every change.
 
 ## Releasing a version
