@@ -119,3 +119,9 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 
 ## Owner's notes, round 2 (2026-11-11): roadmap
 - **Runs list: EQ runs only.** Details › Runs lists Levels and Distances runs next to the EQ runs; remove them from that list (it is for the EQ runs drawn on the chart). Levels and distances keep their own cards.
+- **TV screen: clean it up (owner: "like text was vomited").** No frames or grouping on the right side, nothing emphasised, repeated text. Seen on the owner's TV (2.17.0, light look):
+  - The code stays up after the phone connects; hide it once a phone is connected and show the connected phone in a proper, designed way (a deck with the phone's name and a lit pilot).
+  - Loose status lines with no frame: "home theatre", "eq on · stereo · dolby from apps passes by it", "hdmi · dolby digital 5.1 · 5.1". Group them into decks (device and output; EQ) like the phone's.
+  - Repeated and contradicting text: "5.1" twice in one line and again on a key; "eq on" in a line while the key reads "EQ off" (the key names the action, not the state). Use one big EQ state key as on the phone and PC.
+  - No emphasis: pick what matters at a glance (the connected phone, the test running, the EQ state) and make it the large element; the rest small.
+  - The room and the chart on the left are cut off at the screen's edge; fit them to the screen.
