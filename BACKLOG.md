@@ -113,3 +113,4 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 - **Edit the EQ on the Windows app.** The PC can only switch the phone's EQ on or off today; let it change the EQ itself (bands, gains, preamp) on the PC.
 - **Speaker layout on the Windows app.** The PC offers no way to choose the speaker type or count (2.0, 2.1, 5.1, 7.1); it is stereo only today. Let it pick the layout (and its output's channels, e.g. HDMI to a receiver).
 - **Bug: "Open APO configuration" did nothing**, and the PC said Equalizer APO is "not on this output". Find why the button opens nothing (Configurator path, elevation) and why the chosen output reads as not set up in APO (device matching against APO's registry), and make the fix one step from the PC app.
+- **Windows app in landscape.** The PC window is laid out tall like a phone; make it a landscape desktop window that uses the width (columns side by side).
