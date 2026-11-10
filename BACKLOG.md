@@ -89,3 +89,10 @@ The home-theatre page keeps only the stock and the latest pass in `filesDir/thea
 - **Every run saved** (levels, distances, EQ) with its date, what was applied (levels set, distances, the EQ in use and where: TV, PC, or entered on the receiver) and a note, like a car test's runs. Nothing measured is silently lost.
 - **Compare runs**: overlay the system response of any runs against the stock, the score beside each, as the results page does.
 - Reuse `TestStore`'s ideas (a versioned text file per test) or extend it with a home-theatre kind; keep loading the current `stock.txt` / `latest.txt` as the first test's runs.
+
+## Home theatre: the subwoofer on its own is never heard (seen 2026-11-10, owner's Android box, Dolby Digital 5.1, 2.1 layout): roadmap
+The phone waits for the subwoofer's own sweep and it does not come through (or is not recognised). To find out first, from a diagnostics zip of that test (Settings › Advanced › Send diagnostics: the `theatre_speaker` / `theatre_pass` events and the recordings):
+- Whether the soundbar plays the Dolby LFE channel at all when nothing else plays (some soundbars mute or bass-manage the sub, or wake it only on programme bass).
+- Whether it is played but read as "too quiet" (the sub's sweep is 10 dB down on the LFE channel, and the 25 dB rule against the mains may drop it), or arrives late (wireless subs add tens of milliseconds) past the window read.
+- Whether the LFE channel needs content below 120 Hz only, with the sweep starting lower (20 Hz) and running longer in that range.
+Then fix: a sub-specific clip (low sweep or band noise on LFE and, as a fallback, bass on the fronts for soundbars that route it to the sub), a clear "No sound from the subwoofer: …" note with what to check on the soundbar, and never a wait with no end on the phone.
