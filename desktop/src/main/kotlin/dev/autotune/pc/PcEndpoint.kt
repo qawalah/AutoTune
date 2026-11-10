@@ -31,6 +31,15 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/** What the phone hears, as it sends it about seven times a second while it records. */
+class PcLive(val levelDb: Float, val samples: FloatArray, val status: String?, val change: Double?, val atMillis: Long)
+
+/** A test's result as the phone sends it: readings (value, unit, name), notes and the next step. */
+class PcResult(val headline: String, val readings: List<Triple<String, String, String>>, val notes: List<String>, val next: String?)
+
+/** The speaker layouts the PC offers, as the play method each needs. */
+val PC_METHODS = listOf(PlayMethod.STEREO, PlayMethod.PCM_51, PlayMethod.PCM_71)
+
 /** What the PC window shows. */
 data class PcUi(
     val code: String = "",
@@ -58,6 +67,14 @@ data class PcUi(
     val headline: String? = null,
     val rows: List<ShownRow> = emptyList(),
     val error: String? = null,
+    /** How the PC plays: stereo, or 5.1 / 7.1 on an output with that many channels (HDMI to a receiver). */
+    val method: PlayMethod = PlayMethod.STEREO,
+    /** The most channels the output takes, when Windows says; null when it cannot be told. */
+    val outputChannels: Int? = null,
+    /** What the phone hears while it records, for the measuring display. */
+    val live: PcLive? = null,
+    /** The last result the phone sent. */
+    val result: PcResult? = null,
 ) {
     val hasEq: Boolean get() = chains.isNotEmpty()
 }
@@ -76,8 +93,8 @@ class PcEndpoint(
     address: String? = Net.addresses().firstOrNull()?.hostAddress,
     private val holdMs: Long = 400,
 ) {
-    /** The PC plays two channels for now; multichannel (5.1, 7.1 over HDMI) needs WASAPI and comes later. */
-    val method = PlayMethod.STEREO
+    /** Stereo, or 5.1 / 7.1 when the output takes that many channels (chosen on the PC). */
+    val method: PlayMethod get() = _ui.value.method
 
     private val _ui = MutableStateFlow(PcUi(pcName = pcName, address = address))
     val ui: StateFlow<PcUi> = _ui
@@ -98,7 +115,10 @@ class PcEndpoint(
         val code = s.code ?: Pairing.newCode()
         val outputs = audio.outputs()
         val output = s.output?.takeIf { it in outputs } ?: outputs.firstOrNull()
-        _ui.update { it.copy(code = code, outputs = outputs, output = output, chains = s.chains, eqOn = s.eqOn && s.chains.isNotEmpty(), eqFrom = s.from, eqWhen = s.whenMillis) }
+        _ui.update {
+            it.copy(code = code, outputs = outputs, output = output, chains = s.chains, eqOn = s.eqOn && s.chains.isNotEmpty(), eqFrom = s.from, eqWhen = s.whenMillis,
+                method = s.method ?: PlayMethod.STEREO)
+        }
         save()
         val port = server.start(preferredPort)
         _ui.update { it.copy(port = port) }
@@ -117,7 +137,8 @@ class PcEndpoint(
         val outputs = audio.outputs().ifEmpty { _ui.value.outputs }
         val output = _ui.value.output?.takeIf { it in outputs } ?: outputs.firstOrNull()
         val st = apo.status(output)
-        _ui.update { it.copy(outputs = outputs, output = output, apo = st, checking = false) }
+        val ch = audio.maxChannels(output)
+        _ui.update { it.copy(outputs = outputs, output = output, apo = st, checking = false, outputChannels = ch) }
         // what is saved goes back in, so the file always matches what the PC shows
         if (st.state == ApoState.READY || st.state == ApoState.UNKNOWN || st.state == ApoState.NOT_ON_OUTPUT) applyEq()
     }
@@ -130,12 +151,43 @@ class PcEndpoint(
         recheck()
     }
 
+    /** Opens Equalizer APO's Configurator, to tick this output; any problem shows under the output. */
+    fun openConfigurator(): Job = scope.launch(Dispatchers.IO) {
+        _ui.update { it.copy(error = null) }
+        val err = apo.openConfigurator(_ui.value.apo)
+        _ui.update { it.copy(error = err) }
+    }
+
+    /** Switches to an output Equalizer APO is already on ([name] as Windows names it). */
+    fun useApoOutput(name: String) {
+        val i = _ui.value.outputs.indexOfFirst { o -> ApoRegistry.match(o, listOf(RenderDevice("", name, true, true))) != null }
+        if (i >= 0) pickOutput(i)
+    }
+
     /** The one-time administrator step that lets AutoTune write into Equalizer APO's folder. */
     fun allow(): Job = scope.launch(Dispatchers.IO) {
         _ui.update { it.copy(checking = true, error = null) }
         val err = apo.setup(_ui.value.apo)
         _ui.update { it.copy(error = err) }
         recheck().join()
+    }
+
+    /** Plays stereo, 5.1 or 7.1 from now on; the phone is told at once, so its layouts follow. */
+    fun setMethod(m: PlayMethod) {
+        if (m == _ui.value.method || _ui.value.playing != null) return
+        _ui.update { it.copy(method = m, layout = if (it.layout in m.layouts) it.layout else m.layouts.first()) }
+        save()
+        scope.launch(Dispatchers.IO) {
+            applyEq()
+            _ui.value.phone?.let { server.send(welcome(it)) }
+        }
+    }
+
+    /** The EQ as edited on the PC: it replaces the phone's, is kept, and goes into Equalizer APO at once. */
+    fun setChains(chains: Map<Speaker, EqChain>) {
+        _ui.update { it.copy(chains = chains, eqOn = chains.isNotEmpty(), eqFrom = "this PC", eqWhen = System.currentTimeMillis()) }
+        save()
+        scope.launch(Dispatchers.IO) { applyEq(); tellEqState() }
     }
 
     fun setEqOn(on: Boolean) {
@@ -161,10 +213,16 @@ class PcEndpoint(
                 }
                 Layout.of(m["layout"])?.let { l -> _ui.update { it.copy(layout = l) } }
                 if (ApoText.channelOf(sp, method) == null) {
-                    server.send(Msg.failed(id, "This PC plays stereo: front left and front right only."))
+                    server.send(Msg.failed(id, if (method == PlayMethod.STEREO) "This PC plays stereo: front left and front right only. Choose 5.1 or 7.1 on the PC for more." else "This PC has no ${sp.title.lowercase()} in ${method.title}."))
                     return
                 }
                 play(id, sp)
+            }
+            Msg.LIVE -> _ui.update {
+                it.copy(live = PcLive(m["lv"]?.toFloatOrNull() ?: -90f, Msg.samples(m["ws"]), m["st"], m["ch"]?.toDoubleOrNull(), System.currentTimeMillis()))
+            }
+            Msg.RESULT -> _ui.update {
+                it.copy(live = null, result = PcResult(m["headline"].orEmpty(), Msg.readings(m["readings"]), m["notes"]?.split('|')?.filter { n -> n.isNotBlank() }.orEmpty(), m["next"]))
             }
             Msg.SHOW -> _ui.update { it.copy(layout = Layout.of(m["layout"]) ?: it.layout, headline = m["headline"], rows = Msg.rows(m["rows"])) }
             Msg.EQ -> {
@@ -286,7 +344,7 @@ class PcEndpoint(
 
     private fun save() {
         val u = _ui.value
-        store.save(PcStore.Saved(u.code, u.output, u.chains, u.eqOn, u.eqFrom, u.eqWhen))
+        store.save(PcStore.Saved(u.code, u.output, u.chains, u.eqOn, u.eqFrom, u.eqWhen, u.method))
     }
 
     companion object {

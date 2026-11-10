@@ -28,6 +28,12 @@ fun main(args: Array<String>) {
         "pc-2-setup" to base.copy(apo = ApoStatus(ApoState.NEEDS_SETUP, configDir = "C:\\Program Files\\EqualizerAPO\\config")),
         "pc-3-playing" to base.copy(
             phone = "samsung SM-S918B", apo = ApoStatus(ApoState.READY), playing = Speaker.FR, playT = 6.2,
+            live = PcLive(-31f, FloatArray(96) { kotlin.math.sin(it * 0.55).toFloat() * (0.8f + 0.2f * kotlin.math.sin(it * 0.13).toFloat()) }, "front right · sweep", null, Long.MAX_VALUE / 2),
+        ),
+        "pc-5-notonoutput" to base.copy(
+            phone = "samsung SM-S918B", output = "Headphones (Soundcore Life Q30)",
+            apo = ApoStatus(ApoState.NOT_ON_OUTPUT, configDir = "C:\\Program Files\\EqualizerAPO\\config", withApo = listOf("Speakers (Realtek(R) Audio)")),
+            method = dev.autotune.dsp.PlayMethod.PCM_51, layout = dev.autotune.dsp.Layout.L51, result = PcResult("Every speaker is in time", listOf(Triple("0.04", "m", "off by"), Triple("6/6", "", "heard")), emptyList(), "test the eq"),
         ),
         "pc-4-eq" to base.copy(
             phone = "samsung SM-S918B", apo = ApoStatus(ApoState.READY), chains = chains, eqOn = true, eqFrom = "samsung SM-S918B",
@@ -37,7 +43,7 @@ fun main(args: Array<String>) {
     )
     roomShots(out)
     for ((name, u) in shots) {
-        ImageComposeScene(width = 840, height = 1600, density = Density(2f)) { PcTheme { PcScreen(u, null) } }.use { scene ->
+        ImageComposeScene(width = 2360, height = 1520, density = Density(2f)) { PcTheme { PcScreen(u, null) } }.use { scene ->
             val img = scene.render()
             File(out, "$name.png").writeBytes(img.encodeToData()!!.bytes)
         }

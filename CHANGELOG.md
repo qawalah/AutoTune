@@ -4,6 +4,21 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.17.0] - 2026-11-11
+### Changed
+- **The home theatre page shows the three tests and lets you choose.** Levels, Distances and EQ each carry their own key inside their card; nothing is pinned or suggested between tests, and no "set the levels again". A key is pinned only while a test runs (Next speaker, Measure seat, Stop).
+- **The TV's or PC's EQ as one big key** under the room: "EQ on" with the red pilot lit, or "EQ off". Pressing it sends the EQ from the last EQ test, or switches it off.
+- **Home theatres on their own page.** The page opens with one line naming the home theatre; tapping it opens Home theatres (pick one, New, Rename, Delete), and Back returns.
+- **The TV shows the phone's measuring display** while a test runs: the mic level large, the 20 Hz to 20 kHz sweep dial with its red needle and "Sweeping 734 Hz", the waveform itself (the phone now sends it), and the too quiet / good / clipping meter. The phone, the TV and the PC draw it from the same code.
+- **AutoTune for Windows, rebuilt wide:** the room and the test on the left (the phone's room drawing and its measuring display, the same as on the phone and TV), the phone, the output and the EQ on the right.
+### Added
+- **Windows: speakers 2.0, 5.1 or 7.1.** For a PC wired to a receiver or soundbar over HDMI: each speaker plays on its own channel, the EQ is set per channel, and the phone's layouts follow at once. The PC says when the output takes fewer channels.
+- **Windows: edit the EQ.** Each band's frequency, gain and Q, for every speaker at once or one at a time, with the preamp set so it never clips. Saved straight into Equalizer APO.
+- **Windows: a big EQ on/off key**, as on the phone.
+### Fixed
+- **Connecting to the PC showed the TV's results.** Each TV or PC now opens its own home theatre (the one its runs were made on, or a new one named after it).
+- **Windows: "Open Equalizer APO's Configurator" did nothing.** It now starts the Configurator from Equalizer APO's install folder with an administrator prompt, and says why when it cannot. When Equalizer APO is not on the chosen output, the PC names the outputs it is on, with a key to switch to one.
+
 ## [2.16.1] - 2026-11-10
 ### Added (after release)
 - **AutoTune for Windows in DevStore.** The PC app is also released the way DevStore installs and updates Windows apps (`windows-v2.16.1`, with its icon and screenshots), so DevStore on the PC lists it as Android and Windows and keeps it up to date. Obtainium on the phone and TV must filter AutoTune's releases by `^android-` (source settings), as DevStore's phone setup says for a repo with a Windows part.

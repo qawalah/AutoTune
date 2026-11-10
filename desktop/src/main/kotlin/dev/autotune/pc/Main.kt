@@ -59,9 +59,9 @@ fun main() {
             visible = shown,
             title = "AutoTune",
             icon = KnobPainter,
-            state = rememberWindowState(size = DpSize(420.dp, 800.dp)),
+            state = rememberWindowState(size = DpSize(1180.dp, 760.dp)),
         ) {
-            window.minimumSize = java.awt.Dimension(380, 520)
+            window.minimumSize = java.awt.Dimension(900, 560)
             PcTheme { PcScreen(u, pc) }
         }
     }

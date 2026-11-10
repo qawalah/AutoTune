@@ -231,6 +231,27 @@ fun LatchKey(on: Boolean, onChange: (Boolean) -> Unit, enabled: Boolean = true) 
     }
 }
 
+/** The EQ's on/off as a big latching key across the deck: pressed in with the red pilot lit while on. */
+@Composable
+fun BigLatch(on: Boolean, onChange: (Boolean) -> Unit, label: String, enabled: Boolean = true) {
+    Box(Modifier.fillMaxWidth().heightIn(min = 72.dp).clickable(enabled = enabled, role = Role.Switch) { onChange(!on) }) {
+        Row(
+            Modifier.fillMaxWidth().offset(y = if (on) 2.dp else 0.dp).heightIn(min = 68.dp).clip(KeyShape)
+                .background(if (on) androidx.compose.ui.graphics.lerp(Pc.key, Pc.line, 0.55f) else Pc.key).border(1.dp, if (on) Pc.ink else Pc.line, KeyShape)
+                .padding(horizontal = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.size(14.dp).clip(CircleShape).background(if (on && enabled) Pc.red else Pc.muted.copy(alpha = 0.4f)))
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(if (on) "EQ on" else "EQ off", style = MaterialTheme.typography.displaySmall, color = if (enabled) Pc.ink else Pc.muted)
+                Text(label.lowercase(), style = MaterialTheme.typography.labelSmall, color = Pc.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text(if (on) "press for off" else "press for on", style = MaterialTheme.typography.labelSmall, color = Pc.muted)
+        }
+    }
+}
+
 /** An action, one per row, the full width; [main] is the recommended one, drawn dark. */
 @Composable
 fun ActionKey(text: String, icon: Ic, onClick: () -> Unit, main: Boolean = false, enabled: Boolean = true) {
@@ -249,7 +270,7 @@ fun ActionKey(text: String, icon: Ic, onClick: () -> Unit, main: Boolean = false
 }
 
 /** The line icons, drawn as the phone's are: plain geometry on a 24-unit grid with a 1.6-unit stroke. */
-enum class Ic { INFO, ALERT, DOWN, SPEAKER, EQ, PHONE, LINK, DOWNLOAD, AGAIN, SHIELD, OPEN }
+enum class Ic { INFO, ALERT, DOWN, SPEAKER, EQ, PHONE, LINK, DOWNLOAD, AGAIN, SHIELD, OPEN, PLUS, CLOSE, EDIT, CHECK }
 
 @Composable
 fun PcIcon(kind: Ic, tint: Color, size: Dp = 20.dp) {
@@ -284,6 +305,10 @@ fun DrawScope.drawIc(kind: Ic, tint: Color) {
         Ic.AGAIN -> { drawArc(tint, -60f, 300f, false, p(4.5f, 4.5f), Size(15f * u, 15f * u), style = flat); poly(18.5f, 2.5f, 18f, 6.5f, 14f, 6f) }
         Ic.SHIELD -> { poly(12f, 2.5f, 20f, 5.5f, 20f, 11f, 12f, 21.5f, 4f, 11f, 4f, 5.5f, closed = true); poly(8.5f, 12f, 11f, 14.5f, 15.5f, 9.5f) }
         Ic.OPEN -> { box(3.5f, 6.5f, 14f, 14f); poly(13f, 3.5f, 20.5f, 3.5f, 20.5f, 11f); seg(20.5f, 3.5f, 11f, 13f) }
+        Ic.PLUS -> { seg(12f, 5f, 12f, 19f); seg(5f, 12f, 19f, 12f) }
+        Ic.CLOSE -> { seg(6f, 6f, 18f, 18f); seg(18f, 6f, 6f, 18f) }
+        Ic.EDIT -> { poly(4f, 20f, 4.5f, 15.5f, 15.5f, 4.5f, 19.5f, 8.5f, 8.5f, 19.5f, closed = true); seg(13f, 7f, 17f, 11f) }
+        Ic.CHECK -> poly(5f, 12.5f, 10f, 17.5f, 19f, 7f)
     }
 }
 

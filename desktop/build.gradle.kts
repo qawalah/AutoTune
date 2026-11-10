@@ -27,8 +27,9 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 
-// the phone's room drawing is plain Compose: the screenshot tool renders it here too, without Android
-kotlin.sourceSets["test"].kotlin.srcDir("../app/src/main/kotlin/dev/autotune/ui/room")
+// the phone's room drawing and its measuring display are plain Compose, with no Android: the PC draws the same
+kotlin.sourceSets["main"].kotlin.srcDir("../app/src/main/kotlin/dev/autotune/ui/room")
+kotlin.sourceSets["main"].kotlin.srcDir("../app/src/main/kotlin/dev/autotune/ui/gauge")
 
 tasks.test {
     useJUnitPlatform()
