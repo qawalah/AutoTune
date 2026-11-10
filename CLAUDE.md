@@ -27,9 +27,10 @@ phone through Obtainium.
 - **Don't add a release `signingConfig`** and don't commit keystores. CI signs
   every release with the shared DevStore key.
 - Keep `gradlew`, `gradlew.bat` and `gradle/wrapper/*` committed.
-- **Obtainium must filter AutoTune's releases by `^android-`** (on the phone and
-  on the TV, set by the owner 2026-11-10, as DevStore's phone-setup asks for a repo
-  with a Windows part). Without it Obtainium looks at the newest release only, and
+- **Obtainium must filter AutoTune's releases by `^Android`** (on the phone and
+  on the TV). Obtainium's "Filter release titles by regex" reads the release
+  *title*, which is "Android X.Y.Z" (and "Windows X.Y.Z"), not the tag; `^android-`
+  matches nothing and says "Could not find a suitable release" (seen 2026-11-11). Without it Obtainium looks at the newest release only, and
   a release without an APK stops every update with "Could not find a suitable
   release" (it happened with `windows-v2.14.0`). Only `android-v…` and
   `windows-v…` releases, nothing else.
