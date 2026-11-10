@@ -17,9 +17,13 @@ import dev.autotune.dsp.ChannelClip
 import dev.autotune.dsp.EqChain
 import dev.autotune.dsp.Layout
 import dev.autotune.dsp.Marker
-import dev.autotune.dsp.PassReport
+import dev.autotune.audio.LiveCapture
+import dev.autotune.dsp.EqReport
+import dev.autotune.dsp.EqJudge
+import dev.autotune.dsp.DistanceReport
+import dev.autotune.dsp.DistanceJudge
+import dev.autotune.dsp.PassKind
 import dev.autotune.dsp.PassReading
-import dev.autotune.dsp.PassJudge
 import dev.autotune.dsp.PassClip
 import dev.autotune.dsp.PassAnalysis
 import dev.autotune.dsp.LevelNoise
@@ -69,22 +73,37 @@ data class TheatreUi(
     /** The code last used, per TV name, so a TV is paired once. */
     val codes: Map<String, String> = emptyMap(),
     val needsMic: Boolean = false,
-    /** It plays the two tests of 2.15 (levels with noise, the system in one pass); older ones test speaker by speaker. */
-    val twoTests: Boolean = false,
+    /** It plays the three tests of 2.16 (levels, distances, EQ); older ones test speaker by speaker. */
+    val threeTests: Boolean = false,
+    /** The home theatres measured on this phone (id, name), and the one open. */
+    val tests: List<Pair<String, String>> = emptyList(),
+    val test: TheatreTest? = null,
+    /** The last distances and EQ results of the open test. */
+    val distances: DistanceReport? = null,
+    val eq: EqReport? = null,
+    /** How many seats the EQ test averages, and while it runs, the seat (1-based) and whether it waits for the next. */
+    val seats: Int = 1,
+    val seat: Int? = null,
+    val waitingSeat: Boolean = false,
+    /** The share of the EQ's shape the EQ check heard arrive (1 = all), null before one ran. */
+    val eqReached: Double? = null,
+    /** The test whose result shows first. */
+    val focus: RunKind = RunKind.EQ,
+    /** The EQ runs (by time) drawn together on the chart. */
+    val compare: Set<Long> = emptySet(),
     /** A phone or tablet standing in for a bigger system; [real] is what it really is. */
     val pretend: Boolean = false,
     val real: String? = null,
     /** The level test, while it runs: the speaker playing noise, its change to make (+ = up), seconds held level. */
     val level: LevelState? = null,
-    /** The changes the last level test ended with, per speaker. */
-    val levelsDone: Map<Speaker, Double> = emptyMap(),
-    /** The last system test: levels, distances and one EQ for the whole system. */
-    val system: PassReport? = null,
     /** Every speaker is playing at once (the system test's last sweep). */
     val allPlaying: Boolean = false,
 ) {
     /** The word for what plays, in keys and messages: "TV" or "PC". */
     val device: String get() = if (kind == Msg.KIND_PC) "PC" else "TV"
+
+    /** The changes the last level test of the open test ended with, per speaker. */
+    val levelsDone: Map<Speaker, Double> get() = test?.last(RunKind.LEVELS)?.levels.orEmpty()
 }
 
 /**
@@ -112,7 +131,14 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         val latest = TheatreStore.load(dir, "latest")
         val codes = prefs.all.filterKeys { it.startsWith("tvCode_") }.mapNotNull { (k, v) -> (v as? String)?.let { k.removePrefix("tvCode_") to it } }.toMap()
         _ui.update { it.copy(latest = latest, layout = latest?.layout ?: Layout.L51, hasStock = stock != null, codes = codes) }
-        latest?.let { if (it.system != null) judgeSystem(it) else judge(it) }
+        latest?.let(::judge)
+        // the named tests: 2.13-2.15 results become the first one's runs
+        runCatching { TheatreTests.migrate(ctx.filesDir) }
+        val pick = prefs.getString("theatreTest", null)
+        val all = TheatreTests.list(ctx.filesDir)
+        val open = all.firstOrNull { it.id == pick } ?: all.firstOrNull()
+        _ui.update { it.copy(tests = all.map { t -> t.id to t.name }, seats = prefs.getInt("theatreSeats", 1)) }
+        open?.let { openTest(it) }
         viewModelScope.launch { link.found.collect { f -> _ui.update { it.copy(found = f.map { t -> t.name }) } } }
         viewModelScope.launch { link.open.collect { open -> if (!open) _ui.update { it.copy(tv = null, playing = null) } } }
         viewModelScope.launch { link.incoming.collect(::onMessage) }
@@ -146,10 +172,10 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
                     val layout = if (it.layout in method.layouts) it.layout else method.layouts.first()
                     it.copy(connecting = false, tv = tvName, kind = w["kind"] ?: Msg.KIND_TV, method = method, output = w["out"], tvEqOn = w["eq"] == "1", layout = layout,
                         codes = it.codes + (tvName to code) + (name to code),
-                        twoTests = w["caps"].orEmpty().split(',').containsAll(listOf("noise", "pass")),
+                        threeTests = w["caps"].orEmpty().split(',').containsAll(listOf("noise", "distances", "eqtest")),
                         pretend = w["pretend"] == "1", real = w["real"])
                 }
-                _ui.value.system?.let(::showSystem) ?: _ui.value.report?.let(::show)
+                if (_ui.value.threeTests) sendResult(_ui.value.focus) else _ui.value.report?.let(::show)
                 Diag.log(ctx, "theatre_connected", mapOf("method" to method.name, "output" to w["out"], "kind" to (w["kind"] ?: Msg.KIND_TV)))
             } catch (e: Exception) {
                 _ui.update { it.copy(connecting = false, error = e.message ?: "Could not connect.") }
@@ -162,7 +188,8 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
     fun setLayout(l: Layout) {
         if (_ui.value.busy) return
         _ui.update { it.copy(layout = l) }
-        _ui.value.latest?.let(::rejudge)
+        _ui.value.latest?.let(::judge)
+        judgeTest()
     }
 
     fun micGranted(ok: Boolean) = _ui.update { it.copy(needsMic = !ok) }
@@ -203,10 +230,11 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun levelTest() {
         val u = _ui.value
-        if (u.busy || u.tv == null || !u.twoTests || !micOk()) return
+        if (u.busy || u.tv == null || !u.threeTests || !micOk()) return
         val layout = u.layout
         val speakers = layout.speakers
-        _ui.update { it.copy(busy = true, error = null, status = null, levelsDone = emptyMap()) }
+        _ui.update { it.copy(busy = true, error = null, status = null, focus = RunKind.LEVELS) }
+        startLive()
         job = viewModelScope.launch {
             val cal = loadCalibration()
             var ref: Double? = null
@@ -242,14 +270,16 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
                         ref = 10 * kotlin.math.log10(readings.map { Math.pow(10.0, it / 10) }.average())
                         done[s] = 0.0
                     } else done[s] = last ?: 0.0
-                    _ui.update { it.copy(levelsDone = done.toMap()) }
                 }
+                addRun(TheatreRun(RunKind.LEVELS, System.currentTimeMillis(), layout, u.tv, u.pretend, u.real, levels = done.toMap()))
                 Diag.log(ctx, "theatre_levels", done.mapKeys { it.key.code })
+                sendResult(RunKind.LEVELS)
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 _ui.update { it.copy(error = e.message ?: "The level test stopped.") }
             } finally {
                 link.send(Msg.quiet())
+                stopLive()
                 _ui.update { it.copy(busy = false, playing = null, level = null, status = null) }
             }
         }
@@ -258,61 +288,130 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
     /** The level test moves on to the next speaker now. */
     fun nextLevel() { advance = true }
 
-    /**
-     * The system test: one clip with the start beeps once, each speaker's sweep, then every speaker together. It gives
-     * the levels and distances again and one EQ for the whole system. The first complete pass of a layout is the stock
-     * every EQ is fitted from, and plays with AutoTune's own EQ held off.
-     */
-    fun systemTest() {
+    // ---- distances and EQ: one set of start beeps, then the sweeps of the test
+
+    /** The distances test: each speaker's sweep in turn after one set of beeps; run at setup, and when a speaker moves. */
+    fun distancesTest() {
         val u = _ui.value
-        if (u.busy || u.tv == null || !u.twoTests || !micOk()) return
+        if (u.busy || u.tv == null || !u.threeTests || !micOk()) return
         val layout = u.layout
-        val stockPass = stock?.takeIf { it.layout == layout && it.system?.heard == true }
-        _ui.update { it.copy(busy = true, error = null, status = null) }
+        _ui.update { it.copy(busy = true, error = null, status = null, focus = RunKind.DISTANCES) }
         job = viewModelScope.launch {
-            val cal = loadCalibration()
+            startLive()
             try {
-                val pass = measurePass(layout, cal, hold = stockPass == null)
-                val session = TheatreSession(System.currentTimeMillis(), layout, u.method ?: PlayMethod.STEREO, u.tv, pass.speakers, pass.system, u.pretend, u.real)
-                Diag.log(ctx, "theatre_pass", mapOf("layout" to layout.name, "heard" to pass.speakers.count { it.heard }, "system" to (pass.system?.heard == true), "pretend" to u.pretend))
-                TheatreStore.save(dir, "latest", session)
-                // a pretend system is never the stock: its readings are of a phone or tablet's own speakers
-                if (!u.pretend && session.complete && pass.speakers.all { it.heard } && pass.complete && stockPass == null) {
-                    stock = session
-                    TheatreStore.save(dir, "stock", session)
-                }
-                _ui.update { it.copy(latest = session, hasStock = stock != null) }
-                judgeSystem(session)?.let(::showSystem)
+                val pass = measurePass(layout, loadCalibration(), hold = false, kind = PassKind.DISTANCES)
+                addRun(TheatreRun(RunKind.DISTANCES, System.currentTimeMillis(), layout, u.tv, u.pretend, u.real, readings = pass.speakers))
+                Diag.log(ctx, "theatre_distances", mapOf("layout" to layout.name, "heard" to pass.speakers.count { it.heard }))
+                sendResult(RunKind.DISTANCES)
             } finally {
-                passing = false
+                stopLive(); passing = false
                 _ui.update { it.copy(busy = false, playing = null, allPlaying = false, status = null) }
             }
         }
     }
 
-    private suspend fun measurePass(layout: Layout, cal: Calibration?, hold: Boolean): PassReading {
+    private var seatGo: CompletableDeferred<Unit>? = null
+
+    /**
+     * The EQ test: every speaker together, at [TheatreUi.seats] seats (the phone waits at each for Next seat), the
+     * readings power-averaged, one EQ for every speaker fitted from the test's first EQ run. The first one plays with
+     * AutoTune's own EQ held off; later ones with it as it is, so they show what the EQ did.
+     */
+    fun eqTest() {
+        val u = _ui.value
+        if (u.busy || u.tv == null || !u.threeTests || !micOk()) return
+        val layout = u.layout
+        val hold = u.test?.eqStock == null
+        _ui.update { it.copy(busy = true, error = null, status = null, focus = RunKind.EQ, eqReached = null) }
+        job = viewModelScope.launch {
+            startLive()
+            val cal = loadCalibration()
+            val seats = ArrayList<SpeakerReading?>()
+            try {
+                for (k in 1..u.seats) {
+                    if (k > 1) {
+                        val go = CompletableDeferred<Unit>()
+                        seatGo = go
+                        _ui.update { it.copy(seat = k, waitingSeat = true, status = "move the phone to seat $k") }
+                        go.await()
+                    }
+                    _ui.update { it.copy(seat = k, waitingSeat = false) }
+                    seats += measurePass(layout, cal, hold, PassKind.EQ).system
+                }
+                val sys = PassAnalysis.averageSeats(seats)
+                addRun(TheatreRun(RunKind.EQ, System.currentTimeMillis(), layout, u.tv, u.pretend, u.real, system = sys, seats = seats.size,
+                    eqInUse = if (!hold && u.tvEqOn) "on the ${u.device}" else null))
+                Diag.log(ctx, "theatre_eq", mapOf("layout" to layout.name, "seats" to seats.size, "heard" to (sys?.heard == true), "hold" to hold))
+                sendResult(RunKind.EQ)
+            } finally {
+                stopLive(); passing = false; seatGo = null
+                _ui.update { it.copy(busy = false, playing = null, allPlaying = false, status = null, seat = null, waitingSeat = false) }
+            }
+        }
+    }
+
+    /** The EQ test goes on at the next seat. */
+    fun nextSeat() { seatGo?.complete(Unit) }
+
+    fun setSeats(n: Int) {
+        prefs.edit().putInt("theatreSeats", n).apply()
+        _ui.update { it.copy(seats = n.coerceIn(1, 5)) }
+    }
+
+    /**
+     * Whether the TV's or PC's EQ reaches the speakers: the EQ test twice at this seat, the EQ held, then on, and how
+     * much of the EQ's shape changed between them.
+     */
+    fun eqCheck() {
+        val u = _ui.value
+        val eq = u.eq?.eq?.takeIf { it.isNotEmpty() } ?: return
+        if (u.busy || u.tv == null || !u.threeTests || !micOk()) return
+        val chain = EqChain(eq.sortedBy { it.freqHz }, EqChain.withSafePreamp(eq).preampDb)
+        _ui.update { it.copy(busy = true, error = null, status = null, focus = RunKind.EQ, eqReached = null) }
+        job = viewModelScope.launch {
+            startLive()
+            try {
+                val cal = loadCalibration()
+                val off = measurePass(u.layout, cal, hold = true, PassKind.EQ).system
+                val on = measurePass(u.layout, cal, hold = false, PassKind.EQ).system
+                val r = EqJudge.reached(off, on, chain)
+                _ui.update { it.copy(eqReached = r ?: -1.0) }
+                Diag.log(ctx, "theatre_eq_check", mapOf("reached" to r))
+            } finally {
+                stopLive(); passing = false
+                _ui.update { it.copy(busy = false, playing = null, allPlaying = false, status = null) }
+            }
+        }
+    }
+
+    private suspend fun measurePass(layout: Layout, cal: Calibration?, hold: Boolean, kind: PassKind): PassReading {
         doneAt = 0L
         val id = ++nextId
         passing = true
         val failed = CompletableDeferred<String>()
         failures[id] = failed
         _ui.update { it.copy(status = "waiting for the start beeps", playing = null, allPlaying = false) }
-        val after = (PassClip.afterMarkerSeconds(layout) * fs).toInt()
+        val after = (PassClip.afterMarkerSeconds(layout, kind) * fs).toInt()
         var markerAt = -1
-        val seconds = (PassClip.seconds(layout) + 9).toInt()
-        fun none(why: String) = PassReading(layout.speakers.map { SpeakerReading(it, null, null, null, why) }, SpeakerReading(ChannelClip.REFERENCE, null, null, null, why))
+        val seconds = (PassClip.seconds(layout, kind) + 9).toInt()
+        fun none(why: String): PassReading {
+            val r = PassClip.slots(layout, kind).map { SpeakerReading(it ?: ChannelClip.REFERENCE, null, null, null, why) }
+            return PassReading(if (kind == PassKind.EQ) emptyList() else r, if (kind == PassKind.EQ) r.first() else null)
+        }
         try {
             val rec = MeasurementRunner.recordOnly(
                 UsbMic.find(ctx), fs, seconds,
                 stopWhen = { buf, got ->
                     if (markerAt < 0) markerAt = Marker.find(buf, fs, max(0, got - 5 * fs), got) ?: -1
+                    // the clip ended a while ago and no beeps came: stop waiting
                     val gaveUp = markerAt < 0 && doneAt > 0 && System.currentTimeMillis() - doneAt > 2500
                     failed.isCompleted || gaveUp || (markerAt >= 0 && got >= markerAt + after)
                 },
-            ) { sec -> if (sec == 1) link.send(Msg.pass(id, layout.name, hold)) }
+            ) { sec -> if (sec == 1) link.send(Msg.pass(id, layout.name, hold, kind.code)) }
             if (failed.isCompleted) return none(failed.getCompleted())
+            if (markerAt < 0) return none("The start beeps were not heard: turn the volume up and check front left plays.")
             _ui.update { it.copy(status = "reading", playing = null, allPlaying = false) }
-            return withContext(Dispatchers.Default) { PassAnalysis.read(rec, fs, layout, cal, markerAt.takeIf { it >= 0 }) }
+            return withContext(Dispatchers.Default) { PassAnalysis.read(rec, fs, layout, cal, markerAt, kind) }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             return none(e.message ?: "The recording failed.")
@@ -321,30 +420,150 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Judges [session] the way it was measured: a system pass, or speaker by speaker. */
-    private fun rejudge(session: TheatreSession) { if (session.system != null) judgeSystem(session) else judge(session) }
+    // ---- the named tests and their runs
 
-    private fun judgeSystem(session: TheatreSession): PassReport? {
-        if (session.system == null || session.layout != _ui.value.layout) return null
-        val stockPass = stock?.takeIf { it.layout == session.layout && it.system?.heard == true }?.pass
-        val r = PassJudge.judge(session.layout, session.pass, target, stockPass)
-        _ui.update { it.copy(system = r, report = r.speakers) }
-        return r
+    private fun openTest(t: TheatreTest) {
+        prefs.edit().putString("theatreTest", t.id).apply()
+        val layout = t.runs.lastOrNull()?.layout ?: _ui.value.layout
+        _ui.update { it.copy(test = t, layout = if (it.method == null || layout in it.method.layouts) layout else it.layout, compare = emptySet(), eqReached = null) }
+        judgeTest()
     }
 
-    private fun showSystem(r: PassReport) {
-        val rows = r.speakers.speakers.map { ShownRow(it.speaker, TheatreJudge.trimText(it.trimDb), TheatreJudge.distanceText(it.distanceM), it.heard) }
-        link.send(Msg.show(r.speakers.layout.name, r.headline, rows))
+    fun selectTest(id: String) {
+        if (_ui.value.busy) return
+        TheatreTests.load(ctx.filesDir, id)?.let(::openTest)
     }
+
+    /** A new home theatre, empty, named [name]; it becomes the open one. */
+    fun newTest(name: String) {
+        if (_ui.value.busy) return
+        val t = TheatreTest(TheatreTests.newId(), name.trim().ifEmpty { "Home theatre" }, System.currentTimeMillis(), emptyList())
+        TheatreTests.save(ctx.filesDir, t)
+        _ui.update { it.copy(tests = listOf(t.id to t.name) + it.tests) }
+        openTest(t)
+    }
+
+    fun renameTest(name: String) {
+        val t = _ui.value.test?.renamed(name) ?: return
+        TheatreTests.save(ctx.filesDir, t)
+        _ui.update { it.copy(test = t, tests = it.tests.map { (id, n) -> id to if (id == t.id) t.name else n }) }
+    }
+
+    fun deleteTest() {
+        val t = _ui.value.test ?: return
+        if (_ui.value.busy) return
+        TheatreTests.delete(ctx.filesDir, t.id)
+        val rest = TheatreTests.list(ctx.filesDir)
+        _ui.update { it.copy(tests = rest.map { r -> r.id to r.name }, test = null, distances = null, eq = null) }
+        rest.firstOrNull()?.let(::openTest)
+    }
+
+    /** The note on the last run of [kind]. */
+    fun setNote(kind: RunKind, note: String) {
+        val t = _ui.value.test ?: return
+        val i = t.runs.indexOfLast { it.kind == kind }
+        if (i < 0) return
+        val runs = t.runs.toMutableList().also { it[i] = it[i].withNote(note) }
+        val nt = TheatreTest(t.id, t.name, t.createdMillis, runs)
+        TheatreTests.save(ctx.filesDir, nt)
+        _ui.update { it.copy(test = nt) }
+    }
+
+    /** Draws an EQ run on the chart or takes it off; three at most, the oldest pick making way. */
+    fun toggleCompare(whenMillis: Long) = _ui.update {
+        it.copy(compare = if (whenMillis in it.compare) it.compare - whenMillis else (it.compare.sorted().takeLast(2) + whenMillis).toSet())
+    }
+
+    fun setFocus(k: RunKind) = _ui.update { it.copy(focus = k) }
+
+    /** Saves [r] to the open test (a new one, "Home theatre", when none is open) and judges it. */
+    private fun addRun(r: TheatreRun) {
+        val t = _ui.value.test ?: TheatreTest(TheatreTests.newId(), "Home theatre", System.currentTimeMillis(), emptyList()).also { nt ->
+            _ui.update { it.copy(tests = listOf(nt.id to nt.name) + it.tests) }
+            prefs.edit().putString("theatreTest", nt.id).apply()
+        }
+        val nt = t.with(r)
+        TheatreTests.save(ctx.filesDir, nt)
+        _ui.update { it.copy(test = nt) }
+        judgeTest()
+    }
+
+    /** The open test's last distances and EQ, judged for the layout in use. */
+    private fun judgeTest() {
+        val t = _ui.value.test
+        val layout = _ui.value.layout
+        val d = t?.last(RunKind.DISTANCES)?.takeIf { it.layout == layout }?.let { DistanceJudge.judge(layout, it.readings, target) }
+        val e = t?.last(RunKind.EQ)?.let { r -> EqJudge.judge(r.system, r.seats, target, t.eqStock?.takeIf { it !== r }?.system ?: r.system) }
+        _ui.update { it.copy(distances = d, eq = e) }
+    }
+
+    /** The result of the last [kind] run, on the TV or PC: the room's rows, the readings, the chart and the notes. */
+    private fun sendResult(kind: RunKind) {
+        val u = _ui.value
+        val layout = u.layout
+        val levels = u.levelsDone
+        val d = u.distances
+        val rows = layout.speakers.map { s ->
+            val dist = d?.speakers?.firstOrNull { it.speaker == s }
+            ShownRow(s, levels[s]?.let { TheatreJudge.trimText(it) } ?: "—", dist?.let { TheatreJudge.distanceText(it.distanceM) } ?: "—", dist?.heard ?: true)
+        }
+        val (headline, readings, notes) = when (kind) {
+            RunKind.LEVELS -> {
+                val worst = levels.values.maxOfOrNull { kotlin.math.abs(it) } ?: 0.0
+                Triple(if (worst <= LevelMeter.OK_DB) "Every speaker is level" else "Levels within ${fmt1(worst)} dB",
+                    listOf(Triple("±${fmt1(worst)}", "dB", "levels")), emptyList())
+            }
+            RunKind.DISTANCES -> Triple(d?.headline ?: "Distances", listOfNotNull(d?.let { Triple(fmt2(it.spreadM), "m", "distance") }, d?.let { Triple("${it.heardCount}/${it.speakers.size}", "", "heard") }), d?.notes.orEmpty())
+            else -> {
+                val e = u.eq
+                Triple(e?.headline ?: "EQ", listOfNotNull(e?.rmsDb?.let { Triple(fmt1(it), "dB", "from target") }, e?.let { Triple("${it.seats}", "", if (it.seats == 1) "seat" else "seats") }),
+                    listOfNotNull(u.test?.last(RunKind.EQ)?.system?.fatal))
+            }
+        }
+        link.send(Msg.show(layout.name, headline, rows))
+        val grid = dev.autotune.dsp.FreqGrid()
+        val resp = u.eq?.systemDb?.takeIf { kind == RunKind.EQ }?.let { m ->
+            val sm = grid.smoothOctave(m, 3.0)
+            val ref = TheatreJudge.level(m, ChannelClip.REFERENCE, grid)
+            dev.autotune.dsp.Rta.CENTERS.map { f -> sm[grid.indexAtOrAbove(f).coerceAtMost(grid.size - 1)] - ref }
+        }
+        val tgt = resp?.let { dev.autotune.dsp.Rta.CENTERS.map { f -> target.dbAt(f) } }
+        link.send(Msg.result(headline, readings, resp, tgt, notes, threeKey(u.copy(focus = kind)).first))
+    }
+
+    private fun fmt1(x: Double) = String.format(java.util.Locale.US, "%.1f", x)
+    private fun fmt2(x: Double) = String.format(java.util.Locale.US, "%.2f", x)
+
+    // ---- what the phone hears, on the TV while it tests (a few times a second)
+
+    private var liveJob: Job? = null
+
+    private fun startLive() {
+        liveJob?.cancel()
+        val history = ArrayDeque<Float>()
+        liveJob = viewModelScope.launch {
+            while (true) {
+                val lv = LiveCapture.level.value
+                history.addLast(lv); while (history.size > 48) history.removeFirst()
+                val wave = history.joinToString("") { (((it + 60f) / 60f * 35f).toInt().coerceIn(0, 35)).toString(36) }
+                val u = _ui.value
+                link.send(Msg.live(lv, wave, u.status, u.level?.change))
+                kotlinx.coroutines.delay(150)
+            }
+        }
+    }
+
+    private fun stopLive() { liveJob?.cancel(); liveJob = null }
 
     /** The pinned key: tests what the last result asks for (one speaker, or all). */
     fun next() {
         val u = _ui.value
-        if (u.twoTests) {
-            when (systemNext(u.system, u.levelsDone.isNotEmpty())) {
-                SystemStep.LEVELS -> levelTest()
-                SystemStep.USE_EQ -> useEq()
-                SystemStep.SYSTEM -> systemTest()
+        if (u.threeTests) {
+            when (threeNext(u)) {
+                ThreeStep.LEVELS -> levelTest()
+                ThreeStep.DISTANCES -> distancesTest()
+                ThreeStep.USE_EQ -> useEq()
+                ThreeStep.EQ -> eqTest()
             }
             return
         }
@@ -388,7 +607,8 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
                     TheatreStore.save(dir, "stock", session)
                 }
                 _ui.update { it.copy(latest = session, hasStock = stock != null) }
-                if (session.system != null) judgeSystem(session)?.let(::showSystem) else judge(session)?.let(::show)
+                judge(session)?.let(::show)
+                addRun(TheatreRun(RunKind.SPEAKERS, session.whenMillis, layout, u.tv, u.pretend, u.real, readings = session.readings))
             }
         }
     }
@@ -453,12 +673,12 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun useEq() {
         // the two tests give one EQ for every speaker, as a soundbar's or receiver's own EQ has
-        _ui.value.system?.let { sys ->
-            if (sys.eq.isEmpty()) return
-            val eq = sys.eq.sortedBy { it.freqHz }
+        val u0 = _ui.value
+        if (u0.threeTests) {
+            val eq = u0.eq?.eq?.sortedBy { it.freqHz }?.takeIf { it.isNotEmpty() } ?: return
             val chain = EqChain(eq, EqChain.withSafePreamp(eq).preampDb)
-            link.send(Msg.eq(sys.speakers.layout.speakers.associateWith { chain }))
-            Diag.log(ctx, "theatre_eq_sent", mapOf("speakers" to sys.speakers.layout.speakers.size, "preampDb" to chain.preampDb, "one" to true))
+            link.send(Msg.eq(u0.layout.speakers.associateWith { chain }))
+            Diag.log(ctx, "theatre_eq_sent", mapOf("speakers" to u0.layout.speakers.size, "preampDb" to chain.preampDb, "one" to true))
             return
         }
         val r = _ui.value.report ?: return
@@ -476,7 +696,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         stock = null
         TheatreStore.delete(dir, "stock")
         _ui.update { it.copy(hasStock = false) }
-        _ui.value.latest?.let(::rejudge)
+        _ui.value.latest?.let(::judge)
     }
 
     override fun onCleared() {

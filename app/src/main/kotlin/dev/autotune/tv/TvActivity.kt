@@ -75,26 +75,56 @@ fun TvScreen(
     setPretend: (Layout?) -> Unit = {},
 ) {
     val c = At.c
+    val now = System.currentTimeMillis()
+    val live = u.live?.takeIf { now - it.atMillis < 3000 || u.playing != null || u.allPlaying }
+    val result = u.result?.takeIf { live == null && u.playing == null && !u.allPlaying }
     Row(
         Modifier.fillMaxSize().background(c.bg).padding(horizontal = 48.dp, vertical = 32.dp),
         horizontalArrangement = Arrangement.spacedBy(32.dp),
     ) {
-        Box(Modifier.weight(1.5f).deckPlate().padding(20.dp), contentAlignment = Alignment.Center) {
-            SpeakerMap(
-                u.layout, u.playing, large = true, all = u.allPlaying,
-                notes = u.rows.associate { it.speaker to listOf(it.trim, it.distance).filter { t -> t.isNotBlank() && t != "—" }.joinToString("\n") },
-                silent = u.rows.filter { !it.heard }.map { it.speaker }.toSet(),
-            )
+        // the room, and under it what the phone hears while it tests, or the result's chart after
+        Column(Modifier.weight(1.45f).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            Box(Modifier.fillMaxWidth().deckPlate().padding(20.dp), contentAlignment = Alignment.Center) {
+                SpeakerMap(
+                    u.layout, u.playing, large = true, all = u.allPlaying,
+                    level = live?.let { ((it.levelDb + 60f) / 50f).coerceIn(0f, 1f) },
+                    notes = u.rows.associate { it.speaker to listOf(it.trim, it.distance).filter { t -> t.isNotBlank() && t != "—" }.joinToString("\n") },
+                    silent = u.rows.filter { !it.heard }.map { it.speaker }.toSet(),
+                )
+            }
+            when {
+                live != null -> Column(Modifier.fillMaxWidth().weight(1f).deckPlate().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text("what the phone hears", style = MaterialTheme.typography.labelLarge, color = c.muted)
+                    LevelMeter(live.levelDb)
+                    Waveform(live.wave, Modifier.fillMaxWidth().weight(1f))
+                }
+                result != null && result.response.size == dev.autotune.dsp.Rta.CENTERS.size -> Box(Modifier.fillMaxWidth().weight(1f).deckPlate().padding(12.dp)) {
+                    dev.autotune.ui.ResponseChart(
+                        dev.autotune.ChartData(
+                            dev.autotune.dsp.Rta.CENTERS, listOf(dev.autotune.Curve("System", result.response.toDoubleArray(), 0)),
+                            result.target.takeIf { it.size == result.response.size }?.toDoubleArray() ?: DoubleArray(result.response.size), null, "",
+                        ),
+                        height = 260.dp, targetLabel = "Target",
+                    )
+                }
+                else -> Spacer(Modifier.weight(1f))
+            }
         }
-        Column(Modifier.weight(1f).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Column(Modifier.weight(1f).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Wordmark()
             Text("home theatre", style = MaterialTheme.typography.labelLarge, color = c.muted)
             Spacer(Modifier.height(4.dp))
             val playing = u.playing
             when {
+                // the level test: how far to turn the speaker playing, large, as on the phone
+                live?.change != null -> {
+                    val ch = live.change
+                    val ok = kotlin.math.abs(ch) < dev.autotune.dsp.LevelMeter.OK_DB
+                    Reading(if (ok) "0.0 dB" else "%+.1f dB".format(ch), (if (ok) "level" else if (ch > 0) "turn it up" else "turn it down") + (playing?.let { " · ${it.title.lowercase()}" } ?: ""), tint = if (ok) c.good else c.signal)
+                }
                 playing != null || u.allPlaying || u.what != null -> {
-                    Reading(if (u.allPlaying) "every speaker" else playing?.title?.lowercase() ?: "system test", "playing", tint = c.signal)
-                    val hz = if (u.what == "sweep") dev.autotune.dsp.PassClip.nowPlaying(u.layout, u.playT)?.second?.let { 20.0 * Math.pow(1000.0, it / ChannelClip.SWEEP_SECONDS) }
+                    Reading(if (u.allPlaying) "every speaker" else playing?.title?.lowercase() ?: "test", "playing", tint = c.signal)
+                    val hz = if (u.what == "sweep") dev.autotune.dsp.PassClip.nowPlaying(u.layout, u.playT, u.kind)?.second?.let { 20.0 * Math.pow(1000.0, it / ChannelClip.SWEEP_SECONDS) }
                         else if (u.what == null) ChannelClip.nowPlaying(u.playT) else null
                     val what = when {
                         u.what == "level noise" -> "level noise"
@@ -104,20 +134,26 @@ fun TvScreen(
                         else -> "listening"
                     }
                     Text(what, style = MaterialTheme.typography.titleLarge, color = c.muted)
+                    live?.status?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = c.muted, maxLines = 1) }
                 }
                 u.phone == null -> {
                     Reading(u.code, "code for the phone")
-                    Text(
-                        listOfNotNull("same wi-fi", u.address).joinToString(" · "),
-                        style = MaterialTheme.typography.titleMedium, color = c.muted,
-                    )
+                    Text(listOfNotNull("same wi-fi", u.address).joinToString(" · "), style = MaterialTheme.typography.titleMedium, color = c.muted)
                 }
-                else -> {
-                    Reading(u.headline?.lowercase() ?: "ready", u.phone.orEmpty().lowercase(), small = u.headline != null)
+                result != null -> {
+                    Reading(result.headline.lowercase(), u.phone.orEmpty().lowercase(), small = true)
+                    if (result.readings.isNotEmpty()) dev.autotune.ui.ReadingCells(result.readings.map { (v, unit, name) -> dev.autotune.ui.Reading(v, unit.ifBlank { null }, name) })
+                    result.notes.take(3).forEach { Text("· $it", style = MaterialTheme.typography.bodyLarge, color = c.warn, maxLines = 2) }
+                    result.next?.let { Text("next: ${it.lowercase()}", style = MaterialTheme.typography.titleMedium, color = c.text) }
                 }
+                else -> Reading(u.headline?.lowercase() ?: "ready", u.phone.orEmpty().lowercase(), small = u.headline != null)
             }
             Spacer(Modifier.weight(1f))
             u.error?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = c.warn, maxLines = 2) }
+            // the TV's EQ reaches only what the box turns into sound itself
+            if (u.eqOn && u.probe?.method == dev.autotune.dsp.PlayMethod.DOLBY_51) {
+                Text("eq on · stereo · dolby from apps passes by it", style = MaterialTheme.typography.titleSmall, color = c.muted)
+            }
             u.probe?.let { p ->
                 val line = if (u.pretend != null) "pretend ${u.pretend.title} · really ${u.real}" else "${p.output.lowercase()} · ${p.method.title.lowercase()} · ${u.layout.title}"
                 Text(line, style = MaterialTheme.typography.titleSmall, color = if (u.pretend != null) c.signal else c.muted)
@@ -140,6 +176,39 @@ fun TvScreen(
                     TvKey(if (u.pretend == null) "Pretend: off" else "Pretend: ${u.pretend.title}", Ic.SPEAKER, { setPretend(next) })
                 }
             }
+        }
+    }
+}
+
+/** The mic's level as a Braun meter: a track from −60 to 0 dBFS with ticks, the bar in the accent, gliding. */
+@Composable
+private fun LevelMeter(levelDb: Float) {
+    val c = At.c
+    val target = ((levelDb + 60f) / 60f).coerceIn(0f, 1f)
+    val shown by androidx.compose.animation.core.animateFloatAsState(target, androidx.compose.animation.core.tween(dev.autotune.ui.motionMs(180)), label = "meter")
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(28.dp)) {
+            val h = size.height
+            drawRoundRect(c.panelHigh, cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2))
+            drawRoundRect(c.signal, size = androidx.compose.ui.geometry.Size(size.width * shown, h), cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2))
+            for (k in 1 until 6) drawLine(c.line, androidx.compose.ui.geometry.Offset(size.width * k / 6, 0f), androidx.compose.ui.geometry.Offset(size.width * k / 6, h * 0.3f), 2f)
+        }
+        Text("%.0f dBFS".format(levelDb), style = MaterialTheme.typography.titleMedium, color = c.muted)
+    }
+}
+
+/** The last moment of the recording as bars around a centre line, newest on the right. */
+@Composable
+private fun Waveform(heights: List<Float>, modifier: Modifier) {
+    val c = At.c
+    androidx.compose.foundation.Canvas(modifier) {
+        if (heights.isEmpty()) return@Canvas
+        val step = size.width / heights.size
+        val mid = size.height / 2
+        drawLine(c.line, androidx.compose.ui.geometry.Offset(0f, mid), androidx.compose.ui.geometry.Offset(size.width, mid), 2f)
+        heights.forEachIndexed { i, hgt ->
+            val half = (hgt * size.height / 2).coerceAtLeast(2f)
+            drawLine(if (i >= heights.size - 6) c.signal else c.text.copy(alpha = 0.7f), androidx.compose.ui.geometry.Offset(step * (i + 0.5f), mid - half), androidx.compose.ui.geometry.Offset(step * (i + 0.5f), mid + half), step * 0.55f, androidx.compose.ui.graphics.StrokeCap.Round)
         }
     }
 }

@@ -109,6 +109,21 @@ class LinkServerTest {
     }
 
     @Test
+    fun liveAndResultSurviveTheLine() {
+        val x = FloatArray(4800) { if (it < 2400) 0.5f else 0.001f }
+        val w = Msg.waveText(x, 0, x.size)
+        assertEquals(48, w.length)
+        val m = LinkMsg.parse(Msg.live(-23.4f, w, "front left · sweep", 1.5).encode())!!
+        val h = Msg.waveHeights(m["w"])
+        assertTrue(h.first() > 0.8f && h.last() < 0.1f)
+        assertEquals("1.5", m["ch"])
+        val r = LinkMsg.parse(Msg.result("Close to the target", listOf(Triple("2.1", "dB", "from target")), listOf(1.0, -2.0), listOf(0.0, 0.0), listOf("a note"), "Test the EQ again").encode())!!
+        assertEquals(listOf(Triple("2.1", "dB", "from target")), Msg.readings(r["readings"]))
+        assertEquals(listOf(1.0, -2.0), Msg.numbers(r["resp"]))
+        assertEquals("Test the EQ again", r["next"])
+    }
+
+    @Test
     fun aWelcomeWithoutAKindIsFromATv() {
         val old = LinkMsg.parse("welcome name=Living+room method=DOLBY_51 eq=0 out=HDMI+ARC v=1")!!
         assertEquals(Msg.KIND_TV, old["kind"] ?: Msg.KIND_TV)

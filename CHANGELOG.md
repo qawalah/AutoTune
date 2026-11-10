@@ -4,6 +4,24 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.16.0] - 2026-11-10
+### Added
+- **The home theatre in three tests**, each on its own key, run alone and as often as wanted; none sends you to another:
+  - **Set the levels**: pink noise per speaker with the live meter, as before. Its result is what is left to set per speaker.
+  - **Test the distances**: one set of start beeps, then one sweep per speaker. Each speaker's distance against front left, the sub's own delay included. Run it at setup and again only when a speaker moves.
+  - **Test the EQ**: every speaker together, nothing else. One EQ for every speaker, fitted from the first EQ test so EQs never stack; in Advanced it can average 3 or 5 seats (the phone waits at each seat for "Measure seat n"). It never mentions levels.
+  - The pinned key suggests levels, distances, then the EQ; after setup it stays on the EQ, and comes back to levels or distances only when their last run left something to set. An EQ worth using is offered as "Use the EQ on the TV" until it is on.
+- **Named home theatres with every run saved.** "New home theatre" names one ("Living room 5.1"); each keeps every levels, distances and EQ run with its date, the TV or PC, the EQ in use while it played, and a note. In Details: the runs, a note per run, and up to three EQ runs drawn together on the chart against the first. Listed on the Tests tab (home icon), and readable without a TV connected. The 2.15 stock and latest results become the first home theatre.
+- **Check the EQ reaches the speakers** on a TV or PC: the EQ test once with the EQ held and once with it on, and how much of the EQ's shape arrived.
+- **The TV shows the test.** While testing, the TV fills the screen like the phone: the room, the mic's live level meter and waveform (sent from the phone ten times a second), and for the level test the large "+1.5 dB, turn it up". After each test: the readings, the headline, notes, the response against the target, and the next step.
+- **The room after Braun's small devices.** Each speaker is a small rounded cabinet with a dot grille (the sub a round field of dots) and a pilot dot that lights red while it plays; a sofa at the seat.
+### Fixed
+- **The subwoofer on its own was read as not heard** on soundbars that keep the sub well down: it now gets 10 dB more room before it counts as silent, and when it is still not heard the note says what to check on the soundbar.
+### Changed
+- On a TV with its EQ on, the TV says the EQ is stereo and Dolby from apps passes by it.
+- The TV's Dolby clips are now the distances and EQ tests for 2.0, 2.1, 3.1 and 5.1 (the 2.15 system test is gone; phone and TV update together).
+- The Windows app plays the distances and EQ tests too.
+
 ## [2.15.1] - 2026-11-10
 ### Fixed
 - **"This TV does not let an app EQ its sound (AudioEffect: bad parameter value)"** on an Android TV box with Dolby Digital 5.1. The TV's EQ asked for one channel per home-theatre speaker, but Android mixes every app's sound in stereo before HDMI, so it was refused. It now sets the EQ on those two channels (front left's on the left, front right's on the right; with one EQ for every speaker, both the same).

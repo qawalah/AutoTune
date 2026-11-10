@@ -59,8 +59,10 @@ object Msg {
     const val QUIET = "quiet"
     /** The whole system test in one clip (2.15): `playing` names each speaker as its sweep starts, then `all`. */
     const val PASS = "pass"
-    /** In a welcome: what a TV or PC can do beyond playing one speaker's clip. */
-    const val CAPS = "noise,pass"
+    /** In a welcome: what a TV or PC can do beyond playing one speaker's clip (2.16: three separate tests). */
+    const val CAPS = "noise,distances,eqtest,live"
+    /** The phone's live view while it records (level, waveform, status), a few times a second (2.16). */
+    const val LIVE = "live"
     const val ALL = "all"
     // TV to phone
     const val WELCOME = "welcome"
@@ -95,7 +97,57 @@ object Msg {
     fun noise(s: Speaker, layout: String) = LinkMsg(NOISE, mapOf("speaker" to s.code, "layout" to layout))
     fun quiet() = LinkMsg(QUIET)
     /** [hold]: AutoTune's own EQ on the TV or PC stays off while it plays (the stock pass reads the system as it is). */
-    fun pass(id: Int, layout: String, hold: Boolean) = LinkMsg(PASS, mapOf("id" to "$id", "layout" to layout, "hold" to if (hold) "1" else "0"))
+    fun pass(id: Int, layout: String, hold: Boolean, kind: String = "system") =
+        LinkMsg(PASS, mapOf("id" to "$id", "layout" to layout, "hold" to if (hold) "1" else "0", "kind" to kind))
+
+    /**
+     * What the phone hears, live: [levelDb] the mic's level (dBFS), [wave] the last moment as up to 48 heights 0..35
+     * (one base-36 digit each), [status] in a few words, [change] the level test's reading (+ = turn up).
+     */
+    fun live(levelDb: Float, wave: String, status: String?, change: Double?) = LinkMsg(
+        LIVE,
+        buildMap {
+            put("lv", String.format(Locale.US, "%.1f", levelDb)); put("w", wave)
+            status?.let { put("st", it) }
+            change?.let { put("ch", String.format(Locale.US, "%.1f", it)) }
+        },
+    )
+
+    /** [wave] heights from samples: the peak of each of [n] slices, on a dB scale from −60 to 0 dBFS. */
+    fun waveText(x: FloatArray, from: Int, to: Int, n: Int = 48): String = buildString {
+        val len = (to - from).coerceAtLeast(n)
+        for (k in 0 until n) {
+            var peak = 0f
+            for (i in from + k * len / n until (from + (k + 1) * len / n).coerceAtMost(x.size)) if (i >= 0) peak = maxOf(peak, kotlin.math.abs(x[i]))
+            val db = if (peak <= 1e-6f) -60.0 else 20 * kotlin.math.log10(peak.toDouble())
+            append(((db + 60) / 60 * 35).toInt().coerceIn(0, 35).toString(36))
+        }
+    }
+
+    fun waveHeights(text: String?): List<Float> = text.orEmpty().map { (it.digitToIntOrNull(36) ?: 0) / 35f }
+
+    /**
+     * The result as the phone shows it, for the TV: [readings] (value, unit, name), the system's response and the
+     * target at third-octave points (dB), the notes and the next step. Sent with [show]'s rows.
+     */
+    fun result(headline: String, readings: List<Triple<String, String, String>>, response: List<Double>?, target: List<Double>?, notes: List<String>, next: String?) = LinkMsg(
+        "result",
+        buildMap {
+            put("headline", headline)
+            put("readings", readings.joinToString("|") { (v, u, n) -> listOf(v, u, n).joinToString(";") { it.replace("|", "").replace(";", "") } })
+            response?.let { put("resp", it.joinToString(",") { v -> String.format(Locale.US, "%.1f", v) }) }
+            target?.let { put("target", it.joinToString(",") { v -> String.format(Locale.US, "%.1f", v) }) }
+            if (notes.isNotEmpty()) put("notes", notes.joinToString("|") { it.replace("|", "") })
+            next?.let { put("next", it) }
+        },
+    )
+    const val RESULT = "result"
+
+    fun readings(text: String?): List<Triple<String, String, String>> = text.orEmpty().split('|').mapNotNull { r ->
+        val f = r.split(';'); if (f.size < 3) null else Triple(f[0], f[1], f[2])
+    }
+
+    fun numbers(text: String?): List<Double> = text.orEmpty().split(',').mapNotNull { it.toDoubleOrNull() }
     fun playingAll(id: Int) = LinkMsg(PLAYING, mapOf("id" to "$id", "speaker" to ALL))
     fun denied(reason: String) = LinkMsg(DENIED, mapOf("reason" to reason))
     fun play(id: Int, s: Speaker, layout: String) = LinkMsg(PLAY, mapOf("id" to "$id", "speaker" to s.code, "layout" to layout))

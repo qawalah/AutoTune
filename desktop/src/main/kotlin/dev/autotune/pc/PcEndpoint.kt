@@ -4,6 +4,7 @@ import dev.autotune.dsp.ChannelClip
 import dev.autotune.dsp.Channels
 import dev.autotune.dsp.LevelNoise
 import dev.autotune.dsp.PassClip
+import dev.autotune.dsp.PassKind
 import dev.autotune.dsp.EqChain
 import dev.autotune.dsp.Layout
 import dev.autotune.dsp.PlayMethod
@@ -178,7 +179,8 @@ class PcEndpoint(
             Msg.QUIET -> playJob?.cancel()
             Msg.PASS -> {
                 val id = m["id"]?.toIntOrNull() ?: return
-                pass(id, Layout.of(m["layout"])?.takeIf { it in method.layouts } ?: Layout.L20, hold = m["hold"] == "1")
+                // no kind: a phone from 2.15, which plays the whole system test
+                pass(id, Layout.of(m["layout"])?.takeIf { it in method.layouts } ?: Layout.L20, hold = m["hold"] == "1", PassKind.of(m["kind"]))
             }
         }
     }
@@ -201,18 +203,18 @@ class PcEndpoint(
         }
     }
 
-    /** The system test in one clip: each speaker's sweep after one set of beeps, then both together. */
-    private fun pass(id: Int, layout: Layout, hold: Boolean) {
+    /** A test in one clip after one set of beeps: each speaker's sweep (distances), both together (EQ), or both (system). */
+    private fun pass(id: Int, layout: Layout, hold: Boolean, kind: PassKind) {
         playJob?.cancel()
         playJob = scope.launch(Dispatchers.IO) {
             _ui.update { it.copy(playing = null, allPlaying = false, what = "starting", playT = 0.0, layout = layout) }
-            val slots = PassClip.slots(layout)
+            val slots = PassClip.slots(layout, kind)
             var last = -1
             var err: String? = null
             try {
                 if (hold && _ui.value.eqOn) { writeEq(on = false); delay(holdMs) }
-                audio.play(_ui.value.output, Channels.interleave16(PassClip.planes(layout), method), method.slots.size, PassClip.FS) { t ->
-                    val now = PassClip.nowPlaying(layout, t)?.first
+                audio.play(_ui.value.output, Channels.interleave16(PassClip.planes(layout, kind = kind), method), method.slots.size, PassClip.FS) { t ->
+                    val now = PassClip.nowPlaying(layout, t, kind)?.first
                     if (now != null && now != last) {
                         last = now
                         val who = slots[now]
