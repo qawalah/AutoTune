@@ -61,3 +61,9 @@ Done on the working branch (see HANDOVER "Gradient edge default"):
 Open follow-ups:
 - CLAUDE.md still says the look is `Look.BRAUN`, "the default" (UI rules). Update it if the owner agrees.
 - Check on the owner's phone: a fresh install, and the palette at night with Light or dark on System.
+
+## Tablet as a pretend home theatre (asked 2026-11-10): parked
+A test mode for a phone or tablet used as the TV (Settings › Advanced › "Use this device as the TV"), so the whole 5.1 / 7.1 flow can be walked without a TV.
+- In Advanced on the TV screen: a "Pretend" drop-down (off, 2.1, 3.1, 5.1, 7.1). The device then answers the phone with that layout and plays every speaker's test sound through its own two speakers.
+- Always show what the system really is, on both screens: for example "pretend 5.1 · really this tablet's speakers, 2.0". The phone's result carries the same line, and such a session is never kept as a stock reference.
+- Readings from a pretend layout are for trying the flow only: levels and distances will all come out the same.

@@ -4,6 +4,10 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.14.1] - 2026-11-10
+### Fixed
+- **The TV screen closed after the first speaker played** (on a TV, and on a phone or tablet used as the TV). It told the phone "done" from Android's main thread, which Android does not allow for network use. The TV now uses the same link as the PC, which sends every message on its own thread; a phone that pairs replaces the one before, and a wrong code no longer drops the paired phone.
+
 ## [2.14.0] - 2026-11-10
 ### Added
 - **AutoTune for Windows.** A small PC app (an MSI installer, `AutoTune-2.14.0-windows.msi`, attached to the Android 2.14.0 release next to the APK) that works like the TV: the phone measures, the PC plays the test sounds and applies the EQ. Start it from Tune › "Speakers on a TV or PC".
