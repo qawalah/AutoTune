@@ -3,6 +3,13 @@ package dev.autotune.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
@@ -43,7 +50,6 @@ import dev.autotune.dsp.TheatreReport
 import dev.autotune.theatre.TheatreUi
 import dev.autotune.theatre.TheatreViewModel
 import dev.autotune.theatre.RunKind
-import dev.autotune.theatre.threeKey
 import dev.autotune.theatre.theatreKey
 
 private const val ABOUT_TV =
@@ -91,18 +97,23 @@ fun TheatrePage(pick: Pickers, openId: String? = null, opened: () -> Unit = {}) 
     DisposableEffect(Unit) { vm.start(); onDispose { vm.pause() } }
     LaunchedEffect(u.needsMic) { if (u.needsMic) { vm.micGranted(true); pick.permission() } }
 
+    // the home theatres are managed on their own page over this one; Back returns
+    var managing by rememberSaveable { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = managing) { managing = false }
+    if (managing) { TheatresPage(u, vm) { managing = false }; return }
+
     ScreenTitle("Home theatre", context = u.tv ?: "not connected", contextIcon = Ic.HOME)
     if (u.tv == null) {
         Connect(u, vm)
         // the open home theatre's last results stay readable while nothing is connected
         if (u.test != null) {
-            TestBar(u, vm)
+            TheatreLine(u) { managing = true }
             LevelsResult(u)
             DistancesResult(u)
             EqResult(u)
             RunsDetails(u, vm)
         }
-    } else Connected(u, vm)
+    } else if (u.threeTests) ThreeTests(u, vm) { managing = true } else Connected(u, vm)
 }
 
 @Composable
@@ -143,7 +154,6 @@ private fun Connect(u: TheatreUi, vm: TheatreViewModel) {
 
 @Composable
 private fun Connected(u: TheatreUi, vm: TheatreViewModel) {
-    if (u.threeTests) { ThreeTests(u, vm); return }
     val r = u.report?.takeIf { it.layout == u.layout }
     val level by LiveCapture.level.collectAsState()
     // the mic's level makes the rings of the playing speaker grow: -60 dBFS is still, -10 is full
@@ -267,7 +277,7 @@ private fun Details(r: TheatreReport, u: TheatreUi, showEq: Boolean = true) {
 // ---- the three tests (2.16): levels, distances and the EQ, each on its own, saved as runs of a named test
 
 @Composable
-private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel) {
+private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel, manage: () -> Unit) {
     val lv = u.level
     val level by LiveCapture.level.collectAsState()
     val ring = if (u.playing != null || u.allPlaying) ((level + 60f) / 50f).coerceIn(0f, 1f) else null
@@ -277,16 +287,14 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel) {
         lv?.change?.let { put(lv.speaker, TheatreJudge.trimText(it)) }
         if (lv == null) d?.speakers?.forEach { r -> put(r.speaker, listOfNotNull(this[r.speaker], TheatreJudge.distanceText(r.distanceM)).joinToString("\n")) }
     }
-    TestBar(u, vm)
+    TheatreLine(u, manage)
     Panel(pad = 12.dp) {
         SpeakerMap(u.layout, u.playing, level = ring, all = u.allPlaying, notes = notes, silent = d?.speakers?.filter { !it.heard }?.map { it.speaker }?.toSet().orEmpty().takeIf { !u.busy }.orEmpty())
         val line = u.status ?: if (u.pretend) "pretend ${u.layout.title} · really ${u.real ?: "its own speakers"}" else listOfNotNull(u.output, u.method?.title).joinToString(" · ").lowercase()
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(line, Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = if (u.pretend && u.status == null) At.c.signal else At.c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            // whether the TV's EQ is on, always in view: the pilot dot is lit (red) only while it is
-            EqPilot(u.tvEqOn, u.device)
-        }
+        Text(line, style = MaterialTheme.typography.labelSmall, color = if (u.pretend && u.status == null) At.c.signal else At.c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
+    // whether the TV's EQ is on, as a big key you can't miss: on sends the EQ, off switches it off
+    EqKey(u, vm)
     u.error?.let { Alerts(listOf(it), title = "The ${u.device}") }
 
     when {
@@ -294,26 +302,20 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel) {
         u.waitingSeat -> RunSheet("EQ test", "seat ${u.seat} of ${u.seats}", trailing = { InfoButton("The EQ test", ABOUT_EQTEST, small = true) }) {
             ReadingCells(listOf(Reading("${u.seat}", null, "move the phone to the next seat, at ear height")))
         }
-        // each test with its own keys right under it
+        // the three tests side by side, each with its own key inside its card: you choose, nothing is pushed
         !u.busy -> {
-            val t = u.test
-            LevelsResult(u)
-            Actions { TextAction(if (t?.last(RunKind.LEVELS) == null) "Set the levels" else "Set the levels again", vm::levelTest, icon = Ic.SPEAKER) }
-            DistancesResult(u)
-            Actions { TextAction(if (t?.last(RunKind.DISTANCES) == null) "Test the distances" else "Test the distances again", vm::distancesTest, icon = Ic.MEASURE) }
-            EqResult(u)
-            Actions {
-                TextAction(if (t?.last(RunKind.EQ) == null) "Test the EQ" else "Test the EQ again", vm::eqTest, icon = Ic.MEASURE)
-                if (u.eq?.eq?.isNotEmpty() == true && !u.tvEqOn) TextAction("Use the EQ on the ${u.device}", vm::useEq, icon = Ic.EQ)
+            LevelsResult(u) { TextAction("Set the levels", vm::levelTest, icon = Ic.SPEAKER) }
+            DistancesResult(u) { TextAction("Test the distances", vm::distancesTest, icon = Ic.MEASURE) }
+            EqResult(u) {
+                TextAction("Test the EQ", vm::eqTest, icon = Ic.MEASURE)
                 if (u.tvEqOn && u.eq?.eq?.isNotEmpty() == true) TextAction("Check the EQ reaches the speakers", vm::eqCheck, icon = Ic.CHECK)
-                if (u.tvEqOn) TextAction("Switch the ${u.device}'s EQ off", vm::tvEqOff, icon = Ic.POWER)
-            }
-            if (isAdvanced()) {
-                DropSelect(
-                    listOf("1 seat", "3 seats", "5 seats"), listOf(1, 3, 5).indexOf(u.seats).coerceAtLeast(0), { vm.setSeats(listOf(1, 3, 5)[it]) },
-                    label = "EQ test seats", icon = Ic.MIC,
-                    info = "The EQ test can average the system over several seats, so the EQ suits the whole sofa rather than one spot. The phone waits at each seat for Next seat.",
-                )
+                if (isAdvanced()) {
+                    DropSelect(
+                        listOf("1 seat", "3 seats", "5 seats"), listOf(1, 3, 5).indexOf(u.seats).coerceAtLeast(0), { vm.setSeats(listOf(1, 3, 5)[it]) },
+                        label = "EQ test seats", icon = Ic.MIC,
+                        info = "The EQ test can average the system over several seats, so the EQ suits the whole sofa rather than one spot. The phone waits at each seat for Next seat.",
+                    )
+                }
             }
         }
     }
@@ -327,7 +329,7 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel) {
         )
     }
 
-    // the one key: next speaker or next seat while a test waits; stop while one plays; else the suggested test
+    // a key is pinned only while a test runs: next speaker or next seat while it waits, stop while it plays
     when {
         lv != null -> {
             val next = u.layout.speakers.getOrNull(lv.index + 1)
@@ -335,48 +337,99 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel) {
         }
         u.waitingSeat -> PinAction("Measure seat ${u.seat}", vm::nextSeat, icon = Ic.MEASURE, sub = "of ${u.seats}")
         u.busy -> PinAction("Stop", vm::stop, icon = Ic.STOP, sub = u.status)
-        else -> { val (k, sub) = threeKey(u); PinAction(k, vm::next, icon = when { k.startsWith("Set") -> Ic.SPEAKER; k.startsWith("Use") -> Ic.EQ; else -> Ic.MEASURE }, sub = sub) }
+        else -> Unit
     }
     if (lv != null || u.waitingSeat) Actions { TextAction("Stop", vm::stop, icon = Ic.STOP) }
     if (!u.busy) Actions { TextAction("Disconnect", vm::disconnect, icon = Ic.CLOSE) }
     if (!u.busy) RunsDetails(u, vm)
 }
 
-/** "eq on" with a lit pilot dot, or "eq off" with an unlit one: the TV's (or PC's) EQ. */
+/**
+ * The TV's (or PC's) EQ as one big latching key: "EQ on" with the pilot lit red while the EQ plays there, "EQ off"
+ * otherwise. Pressing it sends the EQ from the last EQ test, or switches it off.
+ */
 @Composable
-private fun EqPilot(on: Boolean, device: String) {
-    Row(Modifier.padding(start = 8.dp).semantics { contentDescription = "$device EQ ${if (on) "on" else "off"}" }, verticalAlignment = Alignment.CenterVertically) {
-        androidx.compose.foundation.layout.Box(
-            Modifier.size(7.dp).clip(androidx.compose.foundation.shape.CircleShape)
-                .background(if (on) At.c.signal else At.c.line),
-        )
-        Text("${device.lowercase()} eq ${if (on) "on" else "off"}", Modifier.padding(start = 5.dp), style = MaterialTheme.typography.labelSmall, color = if (on) At.c.text else At.c.muted)
+private fun EqKey(u: TheatreUi, vm: TheatreViewModel) {
+    val c = At.c
+    val has = u.eq?.eq?.isNotEmpty() == true
+    val enabled = !u.busy && (u.tvEqOn || has)
+    val on = u.tvEqOn
+    val shape = MaterialTheme.shapes.medium
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 76.dp).offset(y = if (on) 2.dp else 0.dp).clip(shape)
+            .background(if (on) androidx.compose.ui.graphics.lerp(c.panelHigh, c.line, 0.55f) else c.panelHigh)
+            .border(1.dp, if (on) c.text else c.line, shape)
+            .toggleable(value = on, enabled = enabled, role = androidx.compose.ui.semantics.Role.Switch) { want -> if (want) vm.useEq() else vm.tvEqOff() }
+            .padding(horizontal = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(14.dp).clip(CircleShape).background(if (on) c.signal else c.muted.copy(alpha = 0.4f)))
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(if (on) "EQ on" else "EQ off", style = MaterialTheme.typography.headlineMedium, color = if (enabled || on) c.text else c.muted)
+            Text(
+                when {
+                    on -> "on the ${u.device.lowercase()} · press for off"
+                    has -> "press to use it on the ${u.device.lowercase()}"
+                    else -> "no eq yet · test the eq first"
+                },
+                style = MaterialTheme.typography.labelSmall, color = c.muted, maxLines = 1,
+            )
+        }
     }
 }
 
-/** Which home theatre this is: a drop-down of the tests, New test, and in Advanced, rename and delete. */
+/** Which home theatre is open, as one line: tapping it opens the home theatres' own page. */
 @Composable
-private fun TestBar(u: TheatreUi, vm: TheatreViewModel) {
+private fun TheatreLine(u: TheatreUi, manage: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(MaterialTheme.shapes.medium)
+            .clickable(enabled = !u.busy, role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Home theatres", onClick = manage)
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AtIcon(Ic.HOME, At.c.muted, size = 20.dp)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text("home theatre", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
+            Text(u.test?.name ?: "none yet", style = MaterialTheme.typography.titleMedium, color = At.c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        AtIcon(Ic.CHEVRON, At.c.muted, size = 18.dp)
+    }
+}
+
+/** The home theatres on their own page: pick one, start a new one, rename or delete the open one. */
+@Composable
+private fun TheatresPage(u: TheatreUi, vm: TheatreViewModel, back: () -> Unit) {
     var naming by rememberSaveable { mutableStateOf<String?>(null) }
     var renaming by rememberSaveable { mutableStateOf(false) }
     var deleting by rememberSaveable { mutableStateOf(false) }
-    val ids = u.tests.map { it.first }
-    if (u.tests.isNotEmpty()) {
-        DropSelect(
-            u.tests.map { it.second }, ids.indexOf(u.test?.id).coerceAtLeast(0), { vm.selectTest(ids[it]) },
-            enabled = !u.busy, label = "Home theatre", icon = Ic.HOME,
-            info = "Each home theatre keeps every run of its three tests, so you can look back and compare. Name one per room or system.",
-        )
-    }
-    if (!u.busy) Actions {
-        TextAction("New home theatre", { naming = "" }, icon = Ic.PLUS)
-        if (isAdvanced() && u.test != null) {
-            TextAction("Rename", { renaming = true }, icon = Ic.EDIT)
-            TextAction("Delete this home theatre", { deleting = true }, icon = Ic.TRASH, danger = true)
+    ScreenTitle("Home theatres", context = "${u.tests.size}", contextIcon = Ic.HOME)
+    if (u.tests.isNotEmpty()) Panel(pad = 4.dp) {
+        u.tests.forEach { (id, name) ->
+            val open = id == u.test?.id
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(MaterialTheme.shapes.medium)
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button) { vm.selectTest(id); back() }.padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(8.dp).clip(CircleShape).background(if (open) At.c.signal else Color.Transparent))
+                Spacer(Modifier.width(12.dp))
+                Text(name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = At.c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                AtIcon(Ic.CHEVRON, At.c.muted, size = 18.dp)
+            }
         }
     }
+    Actions {
+        TextAction("New home theatre", { naming = "" }, icon = Ic.PLUS)
+        if (u.test != null) {
+            TextAction("Rename ${u.test.name}", { renaming = true }, icon = Ic.EDIT)
+            TextAction("Delete ${u.test.name}", { deleting = true }, icon = Ic.TRASH, danger = true)
+        }
+        TextAction("Back", back, icon = Ic.BACK)
+    }
     naming?.let { text ->
-        NameDialog("New home theatre", text, onDone = { n -> vm.newTest(n); naming = null }, onCancel = { naming = null })
+        NameDialog("New home theatre", text, onDone = { n -> vm.newTest(n); naming = null; back() }, onCancel = { naming = null })
     }
     if (renaming) NameDialog("Rename", u.test?.name.orEmpty(), onDone = { n -> vm.renameTest(n); renaming = false }, onCancel = { renaming = false })
     if (deleting) androidx.compose.material3.AlertDialog(
@@ -403,7 +456,7 @@ private fun NameDialog(title: String, start: String, onDone: (String) -> Unit, o
 private fun whenText(ms: Long?): String? = ms?.let { java.text.SimpleDateFormat("d MMM, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(it)) }
 
 @Composable
-private fun LevelsResult(u: TheatreUi) {
+private fun LevelsResult(u: TheatreUi, keys: (@Composable () -> Unit)? = null) {
     val run = u.test?.last(RunKind.LEVELS)
     val c = deckColors
     RunSheet("Levels", whenText(run?.whenMillis) ?: "not set yet", trailing = { InfoButton("The level test", ABOUT_LEVELS, small = true) }) {
@@ -412,11 +465,12 @@ private fun LevelsResult(u: TheatreUi) {
             val worst = run.levels.values.maxOfOrNull { kotlin.math.abs(it) } ?: 0.0
             ReadingCells(listOf(Reading("±%.1f".format(worst), "dB", "left to set", if (worst > dev.autotune.dsp.LevelMeter.OK_DB) c.warn else c.good)))
         }
+        keys?.let { Actions { it() } }
     }
 }
 
 @Composable
-private fun DistancesResult(u: TheatreUi) {
+private fun DistancesResult(u: TheatreUi, keys: (@Composable () -> Unit)? = null) {
     val d = u.distances
     val run = u.test?.last(RunKind.DISTANCES)
     val c = deckColors
@@ -431,11 +485,12 @@ private fun DistancesResult(u: TheatreUi) {
             ))
             Text(d.headline, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+        keys?.let { Actions { it() } }
     }
 }
 
 @Composable
-private fun EqResult(u: TheatreUi) {
+private fun EqResult(u: TheatreUi, keys: (@Composable () -> Unit)? = null) {
     val e = u.eq
     val run = u.test?.last(RunKind.EQ)
     val c = deckColors
@@ -462,6 +517,7 @@ private fun EqResult(u: TheatreUi) {
                 )
             }
         }
+        keys?.let { Actions { it() } }
     }
 }
 

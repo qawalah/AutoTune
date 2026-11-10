@@ -41,11 +41,18 @@ class TheatreRun(
     fun withNote(n: String) = TheatreRun(kind, whenMillis, layout, device, pretend, real, levels, readings, system, seats, eqInUse, n)
 }
 
-/** A named home theatre ("Living room 5.1") and every run made on it, oldest first. */
-class TheatreTest(val id: String, val name: String, val createdMillis: Long, val runs: List<TheatreRun>) {
-    fun with(r: TheatreRun) = TheatreTest(id, name, createdMillis, runs + r)
-    fun renamed(n: String) = TheatreTest(id, n.trim().ifEmpty { name }, createdMillis, runs)
-    fun replaceLast(r: TheatreRun) = TheatreTest(id, name, createdMillis, runs.dropLast(1) + r)
+/**
+ * A named home theatre ("Living room 5.1") and every run made on it, oldest first. [device]: the TV or PC it belongs
+ * to (its name), so connecting to another device never shows this one's results.
+ */
+class TheatreTest(val id: String, val name: String, val createdMillis: Long, val runs: List<TheatreRun>, val device: String? = null) {
+    fun with(r: TheatreRun) = TheatreTest(id, name, createdMillis, runs + r, device ?: r.device.ifEmpty { null })
+    fun renamed(n: String) = TheatreTest(id, n.trim().ifEmpty { name }, createdMillis, runs, device)
+    fun replaceLast(r: TheatreRun) = TheatreTest(id, name, createdMillis, runs.dropLast(1) + r, device)
+    fun forDevice(d: String) = TheatreTest(id, name, createdMillis, runs, d)
+
+    /** The TV or PC this home theatre is for: as set, else the one its last run played on. */
+    val owner: String? get() = device ?: runs.lastOrNull()?.device?.ifEmpty { null }
 
     fun last(kind: RunKind): TheatreRun? = runs.lastOrNull { it.kind == kind }
 
@@ -68,6 +75,7 @@ object TheatreTests {
         appendLine("$HEAD $VERSION")
         appendLine("name=${enc(t.name)}")
         appendLine("created=${t.createdMillis}")
+        t.device?.let { appendLine("device=${enc(it)}") }
         for (r in t.runs) {
             appendLine(
                 "run=${r.kind.code};when=${r.whenMillis};layout=${r.layout.name};device=${enc(r.device)};pretend=${if (r.pretend) 1 else 0}" +
@@ -90,7 +98,7 @@ object TheatreTests {
         val lines = text.lines()
         val head = lines.firstOrNull()?.split(' ') ?: return null
         if (head.getOrNull(0) != HEAD || (head.getOrNull(1)?.toIntOrNull() ?: return null) < 1) return null
-        var name = "Home theatre"; var created = 0L
+        var name = "Home theatre"; var created = 0L; var device: String? = null
         val runs = ArrayList<TheatreRun>()
         // the run being read: its fields, then its readings as they come
         var meta: Map<String, String>? = null
@@ -119,6 +127,7 @@ object TheatreTests {
             when (k) {
                 "name" -> name = dec(v)
                 "created" -> created = v.toLongOrNull() ?: 0L
+                "device" -> if (meta == null && runs.isEmpty()) device = dec(v).ifEmpty { null }
                 "run" -> {
                     close()
                     val parts = v.split(';')
@@ -139,8 +148,15 @@ object TheatreTests {
             }
         }
         close()
-        return TheatreTest(id, name, created, runs)
+        return TheatreTest(id, name, created, runs, device)
     }
+
+    /**
+     * The home theatre to open for [device] (a TV's or PC's name): the newest whose runs or name say it is that
+     * device's, else null (the caller starts one for it).
+     */
+    fun forDevice(all: List<TheatreTest>, device: String): TheatreTest? =
+        all.filter { it.owner.equals(device, ignoreCase = true) }.maxByOrNull { t -> t.runs.lastOrNull()?.whenMillis ?: t.createdMillis }
 
     fun list(base: File): List<TheatreTest> =
         dir(base).listFiles { f -> f.name.endsWith(".txt") }.orEmpty().mapNotNull { f -> runCatching { decode(f.nameWithoutExtension, f.readText()) }.getOrNull() }

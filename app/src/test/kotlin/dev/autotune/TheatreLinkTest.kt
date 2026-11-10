@@ -15,13 +15,10 @@ import dev.autotune.link.Msg
 import dev.autotune.link.Pairing
 import dev.autotune.link.ShownRow
 import dev.autotune.theatre.RunKind
-import dev.autotune.theatre.ThreeStep
 import dev.autotune.theatre.TheatreRun
 import dev.autotune.theatre.TheatreSession
 import dev.autotune.theatre.TheatreTest
 import dev.autotune.theatre.TheatreTests
-import dev.autotune.theatre.threeKey
-import dev.autotune.theatre.threeNext
 import dev.autotune.theatre.TheatreStore
 import dev.autotune.theatre.theatreKey
 import dev.autotune.theatre.theatreNextSpeakers
@@ -76,33 +73,23 @@ class TheatreLinkTest {
     }
 
     @Test
-    fun theThreeTestsSuggestLevelsThenDistancesThenTheEq() {
-        val grid = FreqGrid()
-        val flat = DoubleArray(grid.size)
-        fun ui(vararg runs: TheatreRun, eq: dev.autotune.dsp.EqReport? = null, distOk: Boolean = true, eqOn: Boolean = false) = dev.autotune.theatre.TheatreUi(
-            threeTests = true, test = TheatreTest("t", "Living room", 1L, runs.toList()), eq = eq, tvEqOn = eqOn,
-            distances = dev.autotune.dsp.DistanceReport(emptyList(), emptyList(), "", distOk),
-        )
-        val levels = TheatreRun(RunKind.LEVELS, 10L, Layout.L51, "TV", levels = mapOf(Speaker.C to 0.5))
-        val distances = TheatreRun(RunKind.DISTANCES, 20L, Layout.L51, "TV")
-        val eqRun = TheatreRun(RunKind.EQ, 30L, Layout.L51, "TV", system = SpeakerReading(Speaker.FL, flat, 0.0, 50.0))
-        assertEquals(ThreeStep.LEVELS, threeNext(dev.autotune.theatre.TheatreUi(threeTests = true)))
-        assertEquals("Set the levels", threeKey(dev.autotune.theatre.TheatreUi(threeTests = true)).first)
-        assertEquals(ThreeStep.DISTANCES, threeNext(ui(levels)))
-        assertEquals(ThreeStep.EQ, threeNext(ui(levels, distances)))
-        assertEquals("Test the EQ", threeKey(ui(levels, distances)).first)
-        // set up once: from then on the EQ, never the distances again
-        assertEquals("Test the EQ again", threeKey(ui(levels, distances, eqRun)).first)
-        // distances found off: test them again, until an EQ test comes after
-        assertEquals(ThreeStep.DISTANCES, threeNext(ui(levels, distances, distOk = false)))
-        assertEquals(ThreeStep.EQ, threeNext(ui(levels, distances, eqRun, distOk = false)))
-        // levels left off by more than the meter's ok: set them again
-        val off = TheatreRun(RunKind.LEVELS, 40L, Layout.L51, "TV", levels = mapOf(Speaker.SUB to 3.0))
-        assertEquals("Set the levels again", threeKey(ui(levels, distances, eqRun, off)).first)
-        // an EQ worth using is offered until it is on
-        val worth = dev.autotune.dsp.EqReport(flat, 3.0, null, listOf(EqFilter(60.0, -4.0, 2.0)), 1, "", true)
-        assertEquals("Use the EQ on the TV", threeKey(ui(levels, distances, eqRun, eq = worth)).first)
-        assertEquals(ThreeStep.EQ, threeNext(ui(levels, distances, eqRun, eq = worth, eqOn = true)))
+    fun eachTvOrPcOpensItsOwnHomeTheatre() {
+        val tv = TheatreTest("a", "Living room", 1L, emptyList())
+            .with(TheatreRun(RunKind.EQ, 10L, Layout.L51, "BRAVIA 4K", system = SpeakerReading(Speaker.FL, null, 0.0, 50.0)))
+        val pc = TheatreTest("b", "Office", 2L, emptyList(), device = "hamza-pc")
+        val older = TheatreTest("c", "Old TV test", 0L, emptyList())
+            .with(TheatreRun(RunKind.LEVELS, 5L, Layout.L51, "BRAVIA 4K"))
+        // the device a test belongs to comes from its runs, or is set when it is made for one
+        assertEquals("BRAVIA 4K", tv.owner)
+        assertEquals("hamza-pc", pc.owner)
+        assertEquals("b", TheatreTests.forDevice(listOf(tv, pc, older), "hamza-pc")!!.id)
+        // the newest of a device's tests
+        assertEquals("a", TheatreTests.forDevice(listOf(older, tv, pc), "BRAVIA 4K")!!.id)
+        // a device never seen opens nothing of another's
+        assertNull(TheatreTests.forDevice(listOf(tv, pc), "Kitchen TV"))
+        // the device survives saving
+        assertEquals("hamza-pc", TheatreTests.decode("b", TheatreTests.encode(pc))!!.device)
+        assertEquals("hamza-pc", TheatreTests.decode("b", TheatreTests.encode(pc.renamed("Desk")))!!.owner)
     }
 
     @Test

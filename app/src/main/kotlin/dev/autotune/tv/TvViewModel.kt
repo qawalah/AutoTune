@@ -28,7 +28,10 @@ import kotlinx.coroutines.launch
 import java.net.Inet4Address
 
 /** The phone's live view: the mic's level (dBFS), the waveform's heights (0..1), its status, the level test's change. */
-data class TvLive(val levelDb: Float, val wave: List<Float>, val status: String?, val change: Double?, val atMillis: Long)
+data class TvLive(val levelDb: Float, val wave: List<Float>, val status: String?, val change: Double?, val atMillis: Long, val samples: FloatArray = FloatArray(0)) {
+    override fun equals(other: Any?) = other is TvLive && other.atMillis == atMillis && other.levelDb == levelDb && other.status == status && other.change == change
+    override fun hashCode() = atMillis.hashCode()
+}
 
 /** The result the phone shows: headline, readings (value, unit, name), response and target at third octaves, notes, next step. */
 data class TvResult(
@@ -172,7 +175,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
                 pass(id, layout, hold = m["hold"] == "1", kind = kind, pcm = m["pcm"] == "1")
             }
             Msg.LIVE -> _ui.update {
-                it.copy(live = TvLive(m["lv"]?.toFloatOrNull() ?: -90f, Msg.waveHeights(m["w"]), m["st"], m["ch"]?.toDoubleOrNull(), System.currentTimeMillis()))
+                it.copy(live = TvLive(m["lv"]?.toFloatOrNull() ?: -90f, Msg.waveHeights(m["w"]), m["st"], m["ch"]?.toDoubleOrNull(), System.currentTimeMillis(), Msg.samples(m["ws"])))
             }
             Msg.RESULT -> _ui.update {
                 it.copy(

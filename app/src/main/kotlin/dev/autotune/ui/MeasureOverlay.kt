@@ -64,8 +64,7 @@ private fun playing(t: Double): Pair<String, Float> {
         t < pre + lead -> "Get ready" to 0f
         t < pre + lead + SWEEP_SEC -> {
             val x = (t - pre - lead) / SWEEP_SEC
-            val f = 20.0 * 1000.0.pow(x)
-            "Sweeping " + (if (f >= 1000) "%.1f kHz".format(f / 1000) else "%.0f Hz".format(f)) to x.toFloat()
+            dev.autotune.ui.gauge.sweepText(x) to x.toFloat()
         }
         else -> "Listening to the room ring out" to 1f
     }
@@ -145,7 +144,7 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
                 Pilot(accent, blink = busy, modifier = Modifier.padding(bottom = 10.dp))
             }
             // the sweep on a radio dial: 20 Hz to 20 kHz, the needle follows the tone
-            SweepDial(progress, accent, waiting = progress == null && (busy || v.stage == MeasureStage.ANALYSING))
+            dev.autotune.ui.gauge.SweepDial(progress, accent, gaugeColors(), waiting = progress == null && (busy || v.stage == MeasureStage.ANALYSING), animate = animationsOn())
             Text(headline, style = MaterialTheme.typography.titleLarge, modifier = Modifier.fillMaxWidth())
             sub?.let {
                 Text(
@@ -155,8 +154,8 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
             }
             // the live signal only while something is being recorded
             if (busy) {
-                Waveform(wave, active = v.stage == MeasureStage.MEASURING)
-                SignalMeter(level, active = hasLevel)
+                dev.autotune.ui.gauge.WaveLine(wave, active = v.stage == MeasureStage.MEASURING, gaugeColors())
+                dev.autotune.ui.gauge.SignalMeter(level, active = hasLevel, gaugeColors(), animate = animationsOn())
             }
         }
 
@@ -192,97 +191,13 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
     }
 }
 
-/** The last fraction of a second the mic heard, as a plain line. */
+/** The phone's colours for the shared measuring display. */
 @Composable
-private fun Waveform(wave: FloatArray, active: Boolean) {
-    val line = At.c.text
-    val axis = At.c.line
-    Canvas(Modifier.fillMaxWidth().height(64.dp).clip(MaterialTheme.shapes.small).background(At.c.bg)) {
-        val mid = size.height / 2
-        drawLine(axis, Offset(0f, mid), Offset(size.width, mid), strokeWidth = 1.dp.toPx())
-        if (!active || wave.isEmpty()) return@Canvas
-        var peak = 1e-4f
-        for (x in wave) peak = maxOf(peak, kotlin.math.abs(x))
-        val gain = (size.height * 0.42f) / maxOf(peak, 0.02f)
-        val path = Path()
-        for (i in wave.indices) {
-            val px = i.toFloat() / (wave.size - 1).coerceAtLeast(1) * size.width
-            val py = mid - wave[i] * gain
-            if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
-        }
-        drawPath(path, line, style = Stroke(1.5.dp.toPx(), cap = StrokeCap.Round))
-    }
-}
+fun gaugeColors() = dev.autotune.ui.gauge.GaugeColors(At.c.bg, At.c.text, At.c.muted, At.c.line, At.c.good, At.c.warn, At.c.bad, At.c.signal)
 
-/**
- * Live level of the mic on a meter scale, −80 to 0 dBFS: ticks every 10 dB, the range a measurement is happy with
- * shaded green, and the needle in the accent (warn when too quiet, bad when clipping).
- */
 @Composable
-private fun SignalMeter(level: Float, active: Boolean) {
-    val c = At.c
-    val col = when { level > -6f -> c.bad; level < -60f -> c.warn; else -> c.signal }
-    val shown by androidx.compose.animation.core.animateFloatAsState(if (active) level else -80f, androidx.compose.animation.core.tween(motionMs(120), easing = EaseArrive), label = "vu")
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Canvas(Modifier.fillMaxWidth().height(36.dp).clip(MaterialTheme.shapes.small).background(c.bg)) {
-            val pad = 10.dp.toPx(); val w = size.width - 2 * pad; val h = size.height
-            fun x(db: Float) = pad + ((db + 80f) / 80f).coerceIn(0f, 1f) * w
-            drawRect(c.good.copy(alpha = 0.16f), Offset(x(-55f), h * 0.15f), Size(x(-8f) - x(-55f), h * 0.7f))
-            for (d in -80..0 step 5) {
-                val major = d % 10 == 0
-                drawLine(c.muted.copy(alpha = if (major) 0.9f else 0.45f), Offset(x(d.toFloat()), h * 0.2f), Offset(x(d.toFloat()), h * if (major) 0.55f else 0.4f), 1.dp.toPx())
-            }
-            if (active) drawLine(col, Offset(x(shown), 0f), Offset(x(shown), h), 2.5.dp.toPx())
-        }
-        Row {
-            Text("too quiet", style = MaterialTheme.typography.labelSmall, color = c.muted, modifier = Modifier.weight(1f))
-            Text("good", style = MaterialTheme.typography.labelSmall, color = c.good, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-            Text("clipping", style = MaterialTheme.typography.labelSmall, color = c.muted, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-        }
-    }
-}
-
-/** The sweep as a radio tuning dial: 20 Hz to 20 kHz in decades, the needle at the tone playing now. */
-@Composable
-private fun SweepDial(progress: Float?, accent: androidx.compose.ui.graphics.Color, waiting: Boolean) {
-    val c = At.c
-    val moving = if (waiting && animationsOn()) {
-        val inf = androidx.compose.animation.core.rememberInfiniteTransition(label = "seek")
-        inf.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1600, easing = androidx.compose.animation.core.FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse), label = "s").value
-    } else null
-    val p by androidx.compose.animation.core.animateFloatAsState((progress ?: 0f).coerceIn(0f, 1f), androidx.compose.animation.core.tween(motionMs(150), easing = EaseArrive), label = "dial")
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Canvas(Modifier.fillMaxWidth().height(40.dp).clip(MaterialTheme.shapes.small).background(c.bg)) {
-            val pad = 10.dp.toPx(); val w = size.width - 2 * pad; val h = size.height
-            // log ticks: 20, 30 … 90, 100 … per decade
-            for (dec in 0..2) for (k in 2..10) {
-                val f = k * Math.pow(10.0, dec + 1.0)
-                if (f < 20 || f > 20000) continue
-                val x = pad + w * (Math.log10(f / 20.0) / 3.0).toFloat()
-                val major = k == 10 || (dec == 0 && k == 2)
-                drawLine(c.muted.copy(alpha = if (major) 0.9f else 0.45f), Offset(x, h * 0.2f), Offset(x, h * if (major) 0.6f else 0.4f), 1.dp.toPx())
-            }
-            val pos = moving ?: p
-            if (progress != null || moving != null) {
-                val x = pad + w * pos
-                drawLine(accent.copy(alpha = if (moving != null) 0.55f else 1f), Offset(x, 0f), Offset(x, h), 2.5.dp.toPx())
-            }
-        }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            listOf("20", "200", "2k", "20k").forEach { Text(it, style = MaterialTheme.typography.labelSmall, color = c.muted) }
-        }
-    }
-}
-
-/** A pilot light: lit in [color]; blinking while work is under way. */
-@Composable
-private fun Pilot(color: androidx.compose.ui.graphics.Color, blink: Boolean, size: androidx.compose.ui.unit.Dp = 14.dp, modifier: Modifier = Modifier) {
-    val a = if (blink && animationsOn()) {
-        val inf = androidx.compose.animation.core.rememberInfiniteTransition(label = "pilot")
-        inf.animateFloat(0.3f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(700), androidx.compose.animation.core.RepeatMode.Reverse), label = "a").value
-    } else 1f
-    Box(modifier.size(size).clip(CircleShape).background(color.copy(alpha = a)))
-}
+private fun Pilot(color: androidx.compose.ui.graphics.Color, blink: Boolean, size: androidx.compose.ui.unit.Dp = 14.dp, modifier: Modifier = Modifier) =
+    dev.autotune.ui.gauge.Pilot(color, blink, animationsOn(), size, modifier)
 
 @Composable
 private fun CheckRow(c: CheckItem, current: Boolean) {

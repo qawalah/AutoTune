@@ -175,6 +175,8 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
                         threeTests = w["caps"].orEmpty().split(',').containsAll(listOf("noise", "distances", "eqtest")),
                         pretend = w["pretend"] == "1", real = w["real"])
                 }
+                // this TV's or PC's own home theatre, never another device's results
+                if (_ui.value.threeTests) openTestFor(tvName)
                 if (_ui.value.threeTests) sendResult(_ui.value.focus) else _ui.value.report?.let(::show)
                 Diag.log(ctx, "theatre_connected", mapOf("method" to method.name, "output" to w["out"], "kind" to (w["kind"] ?: Msg.KIND_TV)))
             } catch (e: Exception) {
@@ -202,6 +204,13 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         when (m.type) {
             Msg.FAILED -> m["id"]?.toIntOrNull()?.let { failures[it]?.complete(m["reason"] ?: "The ${_ui.value.device} could not play it.") }
             Msg.DONE -> m["id"]?.toIntOrNull()?.let { if (it == nextId) doneAt = System.currentTimeMillis() }
+            // the PC changed its speakers (stereo, 5.1, 7.1): the layouts follow
+            Msg.WELCOME -> PlayMethod.of(m["method"])?.let { method ->
+                _ui.update {
+                    it.copy(method = method, layout = if (it.layout in method.layouts) it.layout else method.layouts.first(), output = m["out"] ?: it.output, tvEqOn = m["eq"] == "1")
+                }
+                judgeTest()
+            }
             Msg.EQ_STATE -> _ui.update { it.copy(tvEqOn = m["on"] == "1", error = m["error"] ?: it.error) }
             // the system test: the TV names each speaker as its sweep starts, then "all"
             Msg.PLAYING -> if (m["id"]?.toIntOrNull() == nextId && passing) {
@@ -431,6 +440,23 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         judgeTest()
     }
 
+    /**
+     * Opens [device]'s home theatre: the newest made on it, or the open one when it has no runs yet (it becomes this
+     * device's), else a new one named after the device.
+     */
+    private fun openTestFor(device: String) {
+        val all = TheatreTests.list(ctx.filesDir)
+        val mine = TheatreTests.forDevice(all, device)
+        val open = _ui.value.test
+        val t = when {
+            mine != null -> mine
+            open != null && open.runs.isEmpty() && open.device == null -> open.forDevice(device).also { TheatreTests.save(ctx.filesDir, it) }
+            else -> TheatreTest(TheatreTests.newId(), device, System.currentTimeMillis(), emptyList(), device).also { TheatreTests.save(ctx.filesDir, it) }
+        }
+        _ui.update { it.copy(tests = TheatreTests.list(ctx.filesDir).map { r -> r.id to r.name }, distances = null, eq = null) }
+        openTest(t)
+    }
+
     fun selectTest(id: String) {
         if (_ui.value.busy) return
         TheatreTests.load(ctx.filesDir, id)?.let(::openTest)
@@ -439,7 +465,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
     /** A new home theatre, empty, named [name]; it becomes the open one. */
     fun newTest(name: String) {
         if (_ui.value.busy) return
-        val t = TheatreTest(TheatreTests.newId(), name.trim().ifEmpty { "Home theatre" }, System.currentTimeMillis(), emptyList())
+        val t = TheatreTest(TheatreTests.newId(), name.trim().ifEmpty { "Home theatre" }, System.currentTimeMillis(), emptyList(), _ui.value.tv)
         TheatreTests.save(ctx.filesDir, t)
         _ui.update { it.copy(tests = listOf(t.id to t.name) + it.tests) }
         openTest(t)
@@ -466,7 +492,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         val i = t.runs.indexOfLast { it.kind == kind }
         if (i < 0) return
         val runs = t.runs.toMutableList().also { it[i] = it[i].withNote(note) }
-        val nt = TheatreTest(t.id, t.name, t.createdMillis, runs)
+        val nt = TheatreTest(t.id, t.name, t.createdMillis, runs, t.device)
         TheatreTests.save(ctx.filesDir, nt)
         _ui.update { it.copy(test = nt) }
     }
@@ -480,7 +506,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Saves [r] to the open test (a new one, "Home theatre", when none is open) and judges it. */
     private fun addRun(r: TheatreRun) {
-        val t = _ui.value.test ?: TheatreTest(TheatreTests.newId(), "Home theatre", System.currentTimeMillis(), emptyList()).also { nt ->
+        val t = _ui.value.test ?: TheatreTest(TheatreTests.newId(), _ui.value.tv ?: "Home theatre", System.currentTimeMillis(), emptyList(), _ui.value.tv).also { nt ->
             _ui.update { it.copy(tests = listOf(nt.id to nt.name) + it.tests) }
             prefs.edit().putString("theatreTest", nt.id).apply()
         }
@@ -530,7 +556,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
             dev.autotune.dsp.Rta.CENTERS.map { f -> sm[grid.indexAtOrAbove(f).coerceAtMost(grid.size - 1)] - ref }
         }
         val tgt = resp?.let { dev.autotune.dsp.Rta.CENTERS.map { f -> target.dbAt(f) } }
-        link.send(Msg.result(headline, readings, resp, tgt, notes, threeKey(u.copy(focus = kind)).first))
+        link.send(Msg.result(headline, readings, resp, tgt, notes, null))
     }
 
     private fun fmt1(x: Double) = String.format(java.util.Locale.US, "%.1f", x)
@@ -549,7 +575,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
                 history.addLast(lv); while (history.size > 48) history.removeFirst()
                 val wave = history.joinToString("") { (((it + 60f) / 60f * 35f).toInt().coerceIn(0, 35)).toString(36) }
                 val u = _ui.value
-                link.send(Msg.live(lv, wave, u.status, u.level?.change))
+                link.send(Msg.live(lv, wave, u.status, u.level?.change, Msg.sampleText(LiveCapture.wave.value)))
                 kotlinx.coroutines.delay(150)
             }
         }
@@ -560,15 +586,6 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
     /** The pinned key: tests what the last result asks for (one speaker, or all). */
     fun next() {
         val u = _ui.value
-        if (u.threeTests) {
-            when (threeNext(u)) {
-                ThreeStep.LEVELS -> levelTest()
-                ThreeStep.DISTANCES -> distancesTest()
-                ThreeStep.USE_EQ -> useEq()
-                ThreeStep.EQ -> eqTest()
-            }
-            return
-        }
         val r = _ui.value.report
         if (r != null && r.move == dev.autotune.dsp.TheatreMove.USE_EQ) useEq()
         else test(theatreNextSpeakers(r, _ui.value.layout))

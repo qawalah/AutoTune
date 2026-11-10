@@ -20,7 +20,13 @@ enum class ApoState(val line: String) {
 }
 
 /** Equalizer APO for one output: its state, the output's device (for the `Device:` line) and the config folder. */
-data class ApoStatus(val state: ApoState, val device: RenderDevice? = null, val configDir: String? = null) {
+data class ApoStatus(
+    val state: ApoState, val device: RenderDevice? = null, val configDir: String? = null,
+    /** Where Equalizer APO is installed (its Configurator is there). */
+    val installDir: String? = null,
+    /** The outputs Equalizer APO is on now (connected ones), as Windows names them. */
+    val withApo: List<String> = emptyList(),
+) {
     /** What to tell the phone when an EQ cannot reach the speakers, or null when it can (or might). */
     fun problem(output: String?): String? = when (state) {
         ApoState.NOT_WINDOWS -> "The PC's EQ works on Windows only."
@@ -140,6 +146,13 @@ object ApoRegistry {
     fun configDir(out: String?): String? {
         val v = out?.let { keys(it).values.firstOrNull() } ?: return null
         return v["ConfigPath"]?.takeIf { it.isNotBlank() } ?: v["InstallPath"]?.takeIf { it.isNotBlank() }?.trimEnd('\\')?.plus("\\config")
+    }
+
+    /** The install folder from `reg query HKLM\SOFTWARE\EqualizerAPO`, or the config folder's parent. */
+    fun installDir(out: String?, configDir: String?): String? {
+        val v = out?.let { keys(it).values.firstOrNull() }
+        return v?.get("InstallPath")?.takeIf { it.isNotBlank() }?.trimEnd('\\')
+            ?: configDir?.trimEnd('\\')?.let { c -> c.substring(0, c.lastIndexOf('\\').coerceAtLeast(0)).ifEmpty { null } }
     }
 
     /** The class ids of every audio effect registered with a name like "Equalizer APO", plus [KNOWN_CLSID]. */

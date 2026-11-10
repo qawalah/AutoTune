@@ -105,10 +105,11 @@ object Msg {
      * What the phone hears, live: [levelDb] the mic's level (dBFS), [wave] the last moment as up to 48 heights 0..35
      * (one base-36 digit each), [status] in a few words, [change] the level test's reading (+ = turn up).
      */
-    fun live(levelDb: Float, wave: String, status: String?, change: Double?) = LinkMsg(
+    fun live(levelDb: Float, wave: String, status: String?, change: Double?, samples: String? = null) = LinkMsg(
         LIVE,
         buildMap {
             put("lv", String.format(Locale.US, "%.1f", levelDb)); put("w", wave)
+            samples?.let { put("ws", it) }
             status?.let { put("st", it) }
             change?.let { put("ch", String.format(Locale.US, "%.1f", it)) }
         },
@@ -124,6 +125,22 @@ object Msg {
             append(((db + 60) / 60 * 35).toInt().coerceIn(0, 35).toString(36))
         }
     }
+
+    /**
+     * The waveform itself for the phone's measuring display: [n] samples of [x], scaled to its peak, one base-36 digit
+     * each (0 = −1, 35 = +1). The display draws it to its own peak, so the scale does not travel.
+     */
+    fun sampleText(x: FloatArray, n: Int = 96): String = buildString {
+        if (x.isEmpty()) return@buildString
+        var peak = 1e-6f
+        for (v in x) peak = maxOf(peak, kotlin.math.abs(v))
+        for (k in 0 until n) {
+            val v = x[(k.toLong() * x.size / n).toInt().coerceIn(0, x.size - 1)] / peak
+            append(Math.round((v + 1f) / 2f * 35f).coerceIn(0, 35).toString(36))
+        }
+    }
+
+    fun samples(text: String?): FloatArray = text.orEmpty().map { (it.digitToIntOrNull(36) ?: 17) / 35f * 2f - 1f }.toFloatArray()
 
     fun waveHeights(text: String?): List<Float> = text.orEmpty().map { (it.digitToIntOrNull(36) ?: 0) / 35f }
 

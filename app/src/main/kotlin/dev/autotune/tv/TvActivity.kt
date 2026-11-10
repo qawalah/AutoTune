@@ -93,10 +93,15 @@ fun TvScreen(
                 )
             }
             when {
-                live != null -> Column(Modifier.fillMaxWidth().weight(1f).deckPlate().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text("what the phone hears", style = MaterialTheme.typography.labelLarge, color = c.muted)
-                    LevelMeter(live.levelDb)
-                    Waveform(live.wave, Modifier.fillMaxWidth().weight(1f))
+                // the phone's measuring display, the same drawing and movement, larger
+                live != null -> Column(Modifier.fillMaxWidth().weight(1f).deckPlate().padding(24.dp)) {
+                    val (headline, sweep) = tvPlaying(u)
+                    dev.autotune.ui.gauge.MeasureDisplay(
+                        live.levelDb, live.samples.takeIf { it.isNotEmpty() } ?: live.wave.map { it * 2f - 1f }.toFloatArray(),
+                        headline, live.status, sweep, waiting = u.playing != null || u.allPlaying || u.what != null,
+                        dev.autotune.ui.gauge.GaugeColors(c.bg, c.text, c.muted, c.line, c.good, c.warn, c.bad, c.signal),
+                        animate = dev.autotune.ui.animationsOn(), scale = 1.25f, change = live.change, okDb = dev.autotune.dsp.LevelMeter.OK_DB,
+                    )
                 }
                 result != null && result.response.size == dev.autotune.dsp.Rta.CENTERS.size -> Box(Modifier.fillMaxWidth().weight(1f).deckPlate().padding(12.dp)) {
                     dev.autotune.ui.ResponseChart(
@@ -116,12 +121,6 @@ fun TvScreen(
             Spacer(Modifier.height(4.dp))
             val playing = u.playing
             when {
-                // the level test: how far to turn the speaker playing, large, as on the phone
-                live?.change != null -> {
-                    val ch = live.change
-                    val ok = kotlin.math.abs(ch) < dev.autotune.dsp.LevelMeter.OK_DB
-                    Reading(if (ok) "0.0 dB" else "%+.1f dB".format(ch), (if (ok) "level" else if (ch > 0) "turn it up" else "turn it down") + (playing?.let { " · ${it.title.lowercase()}" } ?: ""), tint = if (ok) c.good else c.signal)
-                }
                 playing != null || u.allPlaying || u.what != null -> {
                     Reading(if (u.allPlaying) "every speaker" else playing?.title?.lowercase() ?: "test", "playing", tint = c.signal)
                     val hz = if (u.what == "sweep") dev.autotune.dsp.PassClip.nowPlaying(u.layout, u.playT, u.kind)?.second?.let { 20.0 * Math.pow(1000.0, it / ChannelClip.SWEEP_SECONDS) }
@@ -180,36 +179,24 @@ fun TvScreen(
     }
 }
 
-/** The mic's level as a Braun meter: a track from −60 to 0 dBFS with ticks, the bar in the accent, gliding. */
-@Composable
-private fun LevelMeter(levelDb: Float) {
-    val c = At.c
-    val target = ((levelDb + 60f) / 60f).coerceIn(0f, 1f)
-    val shown by androidx.compose.animation.core.animateFloatAsState(target, androidx.compose.animation.core.tween(dev.autotune.ui.motionMs(180)), label = "meter")
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(28.dp)) {
-            val h = size.height
-            drawRoundRect(c.panelHigh, cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2))
-            drawRoundRect(c.signal, size = androidx.compose.ui.geometry.Size(size.width * shown, h), cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2))
-            for (k in 1 until 6) drawLine(c.line, androidx.compose.ui.geometry.Offset(size.width * k / 6, 0f), androidx.compose.ui.geometry.Offset(size.width * k / 6, h * 0.3f), 2f)
-        }
-        Text("%.0f dBFS".format(levelDb), style = MaterialTheme.typography.titleMedium, color = c.muted)
+/** What the TV is playing now as the phone's display says it ("Sweeping 734 Hz"), and how far through the sweep. */
+private fun tvPlaying(u: TvUi): Pair<String, Float?> {
+    val into = when {
+        u.what == "sweep" -> dev.autotune.dsp.PassClip.nowPlaying(u.layout, u.playT, u.kind)?.second
+        u.what == null && u.playing != null -> ChannelClip.nowPlaying(u.playT)?.let { hz -> Math.log10(hz / 20.0) / 3.0 * ChannelClip.SWEEP_SECONDS }
+        else -> null
     }
-}
-
-/** The last moment of the recording as bars around a centre line, newest on the right. */
-@Composable
-private fun Waveform(heights: List<Float>, modifier: Modifier) {
-    val c = At.c
-    androidx.compose.foundation.Canvas(modifier) {
-        if (heights.isEmpty()) return@Canvas
-        val step = size.width / heights.size
-        val mid = size.height / 2
-        drawLine(c.line, androidx.compose.ui.geometry.Offset(0f, mid), androidx.compose.ui.geometry.Offset(size.width, mid), 2f)
-        heights.forEachIndexed { i, hgt ->
-            val half = (hgt * size.height / 2).coerceAtLeast(2f)
-            drawLine(if (i >= heights.size - 6) c.signal else c.text.copy(alpha = 0.7f), androidx.compose.ui.geometry.Offset(step * (i + 0.5f), mid - half), androidx.compose.ui.geometry.Offset(step * (i + 0.5f), mid + half), step * 0.55f, androidx.compose.ui.graphics.StrokeCap.Round)
-        }
+    val who = if (u.allPlaying) "every speaker" else u.playing?.title?.lowercase()
+    if (into != null) {
+        val x = (into / ChannelClip.SWEEP_SECONDS).coerceIn(0.0, 1.0)
+        return dev.autotune.ui.gauge.sweepText(x) + (who?.let { " · $it" } ?: "") to x.toFloat()
+    }
+    return when {
+        u.what == "level noise" -> "Level noise" + (who?.let { " · $it" } ?: "") to null
+        u.playT < ChannelClip.LEAD_SECONDS && (u.playing != null || u.what != null) -> "Waking the speakers" to null
+        u.playT < ChannelClip.LEAD_SECONDS + dev.autotune.dsp.Marker.LENGTH_SEC + 0.1 && u.what != null -> "Start beeps" to null
+        u.what != null || u.playing != null -> "Get ready" to null
+        else -> "Listening" to null
     }
 }
 

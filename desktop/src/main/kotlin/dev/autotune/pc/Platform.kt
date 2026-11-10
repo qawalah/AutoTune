@@ -30,6 +30,8 @@ interface ApoControl {
     fun write(status: ApoStatus, text: String): String?
     /** The one-time setup, as administrator. Returns what went wrong, or null. */
     fun setup(status: ApoStatus): String?
+    /** Opens Equalizer APO's Configurator (Windows asks for an administrator). Returns what went wrong, or null. */
+    fun openConfigurator(status: ApoStatus): String? = "Equalizer APO's Configurator is on Windows only."
 }
 
 /** The PC's sound outputs, so tests can stand in for the sound card. */
@@ -37,6 +39,8 @@ interface AudioOut {
     fun outputs(): List<String>
     /** Plays interleaved 16-bit [pcm] on [output] until it ends (round and round until cancelled when [loop]); [onTime] gets the seconds played. */
     suspend fun play(output: String?, pcm: ShortArray, channels: Int, fs: Int, loop: Boolean = false, onTime: (Double) -> Unit)
+    /** The most channels [output] plays (2, 6 or 8), or null when it cannot be told. */
+    fun maxChannels(output: String?): Int? = null
 }
 
 /** Runs a command and returns its output, or null when it fails or takes too long. */
@@ -55,9 +59,11 @@ internal fun regQuery(vararg args: String): String? =
 class WindowsApo : ApoControl {
     override fun status(output: String?): ApoStatus {
         if (!isWindows) return ApoStatus(ApoState.NOT_WINDOWS)
-        val dir = ApoRegistry.configDir(regQuery(ApoRegistry.EQUALIZER_APO, "/reg:64"))
+        val root = regQuery(ApoRegistry.EQUALIZER_APO, "/reg:64")
+        val dir = ApoRegistry.configDir(root)
             ?: "C:\\Program Files\\EqualizerAPO\\config".takeIf { File(it, "config.txt").exists() }
             ?: return ApoStatus(ApoState.MISSING)
+        val install = ApoRegistry.installDir(root, dir)
         val ids = ApoRegistry.apoIds(regQuery(ApoRegistry.APOS, "/s", "/reg:64"))
         val devices = regQuery(ApoRegistry.RENDER, "/s", "/reg:64")?.let { ApoRegistry.devices(it, ids) }.orEmpty()
         val device = output?.let { ApoRegistry.match(it, devices) }
@@ -70,7 +76,17 @@ class WindowsApo : ApoControl {
             device?.apo == true -> ApoState.READY
             else -> ApoState.UNKNOWN
         }
-        return ApoStatus(state, device, dir)
+        return ApoStatus(state, device, dir, install, devices.filter { it.active && it.apo == true }.map { it.name })
+    }
+
+    override fun openConfigurator(status: ApoStatus): String? {
+        val dir = status.installDir ?: return "Equalizer APO's folder was not found. Open Configurator from the Start menu (Equalizer APO)."
+        val exe = File(dir, "Configurator.exe")
+        if (!exe.exists()) return "Configurator.exe is not in $dir. Open it from the Start menu (Equalizer APO)."
+        // it needs an administrator: Start-Process asks Windows to run it elevated, without waiting for it
+        val ps = "Start-Process -FilePath '${exe.path.replace("'", "''")}' -Verb RunAs"
+        val ok = run("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", ps, timeoutSec = 120) != null
+        return if (ok) null else "Windows did not open Equalizer APO's Configurator. Choose Yes when it asks, or open it from the Start menu."
     }
 
     override fun write(status: ApoStatus, text: String): String? {
@@ -124,6 +140,11 @@ class JavaSoundOut : AudioOut {
                 runCatching { AudioSystem.getMixer(info).sourceLineInfo.any { it.lineClass == SourceDataLine::class.java } }.getOrDefault(false)
         }.map { it.name }.distinct()
     }.getOrDefault(emptyList())
+
+    override fun maxChannels(output: String?): Int? = runCatching {
+        val mixer = AudioSystem.getMixerInfo().firstOrNull { it.name == output }?.let { AudioSystem.getMixer(it) } ?: return null
+        listOf(8, 6, 2).firstOrNull { n -> mixer.isLineSupported(DataLine.Info(SourceDataLine::class.java, AudioFormat(48000f, 16, n, true, false))) }
+    }.getOrNull()
 
     override suspend fun play(output: String?, pcm: ShortArray, channels: Int, fs: Int, loop: Boolean, onTime: (Double) -> Unit) {
         val fmt = AudioFormat(fs.toFloat(), 16, channels, true, false)
@@ -208,6 +229,7 @@ class PcStore(private val file: File = defaultFile()) {
         val eqOn: Boolean = false,
         val from: String? = null,
         val whenMillis: Long? = null,
+        val method: dev.autotune.dsp.PlayMethod? = null,
     )
 
     fun load(): Saved = runCatching {
@@ -219,6 +241,7 @@ class PcStore(private val file: File = defaultFile()) {
             eqOn = v["eqon"] == "1",
             from = v["from"]?.takeIf { it.isNotBlank() },
             whenMillis = v["when"]?.toLongOrNull(),
+            method = dev.autotune.dsp.PlayMethod.of(v["method"]),
         )
     }.getOrDefault(Saved())
 
@@ -234,6 +257,7 @@ class PcStore(private val file: File = defaultFile()) {
                     appendLine("eqon=${if (s.eqOn) 1 else 0}")
                     s.from?.let { appendLine("from=${it.replace('\n', ' ')}") }
                     s.whenMillis?.let { appendLine("when=$it") }
+                    s.method?.let { appendLine("method=${it.name}") }
                 },
             )
         }

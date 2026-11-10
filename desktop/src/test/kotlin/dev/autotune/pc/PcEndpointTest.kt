@@ -207,6 +207,42 @@ class PcEndpointTest {
     }
 
     @Test
+    fun fivePointOneTellsThePhoneAndPlaysTheCentre() {
+        val p = pair()
+        assertEquals("STEREO", p.read()["method"])
+        pc.setMethod(dev.autotune.dsp.PlayMethod.PCM_51)
+        // the phone hears at once, so its layouts follow
+        assertEquals("PCM_51", p.readUntil(Msg.WELCOME)["method"])
+        p.send(Msg.play(5, Speaker.C, "L51"))
+        assertEquals("5", p.readUntil(Msg.DONE)["id"])
+        assertEquals(6, audio.played.last().second)
+        assertEquals(dev.autotune.dsp.PlayMethod.PCM_51, store.load().method)
+    }
+
+    @Test
+    fun anEqEditedOnThePcGoesStraightIn() {
+        val c = EqChain.withSafePreamp(listOf(EqFilter(120.0, 3.0, 1.5)))
+        pc.setChains(mapOf(Speaker.FL to c, Speaker.FR to c))
+        waitFor { apo.writes.lastOrNull()?.contains("Fc 120 Hz Gain 3.0 dB") == true }
+        assertTrue(pc.ui.value.eqOn)
+        assertEquals("this PC", pc.ui.value.eqFrom)
+        assertEquals(2, store.load().chains.size)
+    }
+
+    @Test
+    fun thePhonesLiveLevelAndWaveReachTheWindow() {
+        val p = pair()
+        p.read()
+        p.send(Msg.live(-31f, "", "front right · sweep", null, Msg.sampleText(FloatArray(400) { kotlin.math.sin(it * 0.3).toFloat() * 0.2f })))
+        waitFor { pc.ui.value.live != null }
+        val l = pc.ui.value.live!!
+        assertEquals(-31f, l.levelDb)
+        assertEquals(96, l.samples.size)
+        assertTrue(l.samples.maxOrNull()!! > 0.9f)
+        assertEquals("front right · sweep", l.status)
+    }
+
+    @Test
     fun theOutputIsRemembered() {
         pc.pickOutput(1)
         waitFor { store.load().output == "LG TV SSCR2 (NVIDIA High Definition Audio)" }
