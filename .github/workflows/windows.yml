@@ -1,8 +1,11 @@
 # AutoTune for Windows: every push to main, and every pull request, builds and tests the PC app on Windows; a pull
-# request keeps the installer as a downloadable artifact. On main, the installer is added to the same version's Android
-# release (android-vX.Y.Z+code, made by DevStore) as AutoTune-X.Y.Z-windows.msi. There is never a release of its own:
-# Obtainium looks at the newest release only, so every release must carry the APK. It installs .apk files and ignores
-# the .msi.
+# request keeps the installer as a downloadable artifact. On main, once DevStore has made this version's Android release
+# (android-vX.Y.Z+code):
+# - the MSI is added to it as AutoTune-X.Y.Z-windows.msi (for a download by hand);
+# - a windows-vX.Y.Z release is made the way DevStore's PC app installs and updates it: autotune-X.Y.Z-win-x64.zip
+#   (autotune.exe, devstore.json) and its .sha256, plus store.json, store-icon.png and screenshots. It is never marked
+#   latest, and Obtainium on every phone and TV must filter AutoTune's releases by ^android- (it stopped at the
+#   windows-v2.14.0 release before that filter was set).
 name: Windows
 
 on:
@@ -31,8 +34,41 @@ jobs:
       - name: Test the shared link and the PC app
         run: ./gradlew :dsp:test :link:test :desktop:test --console=plain
 
-      - name: Build the installer
-        run: ./gradlew :desktop:packageMsi --console=plain
+      - name: Build the installer and the app folder
+        run: ./gradlew :desktop:packageMsi :desktop:createDistributable --console=plain
+
+      - name: Make DevStore's zip
+        shell: pwsh
+        run: |
+          $v = ((Get-Content gradle.properties | Select-String '^APP_VERSION_NAME=').Line -replace '^APP_VERSION_NAME=', '').Trim()
+          $src = 'desktop/build/compose/binaries/main/app/AutoTune'
+          $dist = Join-Path $env:RUNNER_TEMP 'autotune'
+          if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
+          Copy-Item $src $dist -Recurse
+          # DevStore starts <name>.exe; the launcher reads app/<its own name>.cfg, so both are renamed
+          Rename-Item (Join-Path $dist 'AutoTune.exe') 'autotune.exe'
+          Rename-Item (Join-Path $dist 'app/AutoTune.cfg') 'autotune.cfg'
+          $m = [ordered]@{
+            name = 'autotune'; displayName = 'AutoTune'; type = 'gui'; version = $v; updateWhileRunning = $true
+            description = 'The PC side of AutoTune: the phone measures, the PC plays the test sounds and applies the EQ with Equalizer APO.'
+          }
+          $m | ConvertTo-Json | Set-Content (Join-Path $dist 'devstore.json') -Encoding utf8
+          $out = Join-Path $env:RUNNER_TEMP 'devstore'
+          New-Item -ItemType Directory $out -Force | Out-Null
+          $zipName = "autotune-$v-win-x64.zip"
+          $zip = Join-Path $out $zipName
+          Compress-Archive -Path (Join-Path $dist '*') -DestinationPath $zip -Force
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Path "$zip.sha256" -Value "$hash  $zipName" -NoNewline -Encoding ascii
+          [ordered]@{ name = $m.name; displayName = $m.displayName; description = $m.description; type = $m.type; version = $v } |
+            ConvertTo-Json | Set-Content (Join-Path $out 'store.json') -Encoding utf8
+          Copy-Item store/icon.png (Join-Path $out 'store-icon.png')
+          $n = 0
+          foreach ($f in Get-ChildItem store/screenshots/windows -Filter *.png | Sort-Object Name | Select-Object -First 6) {
+            $n++; Copy-Item $f.FullName (Join-Path $out "store-screenshot-$n.png")
+          }
+          if (-not (Test-Path (Join-Path $dist 'autotune.exe')) -or -not (Test-Path (Join-Path $dist 'app/autotune.cfg'))) { throw 'autotune.exe or its cfg is missing' }
+          Get-ChildItem $out | ForEach-Object { "$($_.Name) $($_.Length)" }
 
       - name: Keep the installer with this run
         uses: actions/upload-artifact@v4
@@ -66,7 +102,13 @@ jobs:
             cp desktop/build/compose/binaries/main/msi/*.msi "$msi"
             gh release upload "$tag" "$msi"
           fi
-          # 2.14.0 first went out as its own windows-v release, the newest one without an APK, which stopped Obtainium
-          if gh release view "windows-v$v" >/dev/null 2>&1; then
-            gh release delete "windows-v$v" --cleanup-tag --yes
+          # DevStore's release for the PC: never the latest, so GitHub's Latest stays the Android one
+          wtag="windows-v$v"
+          out="$(cygpath -u "$RUNNER_TEMP")/devstore"
+          if gh release view "$wtag" >/dev/null 2>&1; then
+            echo "$wtag is out already"
+          else
+            gh release create "$wtag" --target "$GITHUB_SHA" --title "Windows $v" --latest=false \
+              --notes "AutoTune for Windows $v, for DevStore on the PC. The phone and TV app is in android-v$v+$code." \
+              "$out"/*
           fi

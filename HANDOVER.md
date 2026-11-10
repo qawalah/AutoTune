@@ -25,7 +25,7 @@ Main features:
 
 ## Platform and type
 
-An **Android app**, written in native Kotlin with Jetpack Compose (Material 3). Since 2.13 the same APK also runs on Android TV / Google TV as the home-theatre companion (`tv/TvActivity`, leanback launcher), with one applicationId. Since 2.14 there is also **AutoTune for Windows**, a Compose for Desktop app released as an MSI (see "AutoTune for Windows (2.14.0)" below). No server. Gradle modules:
+An **Android app**, written in native Kotlin with Jetpack Compose (Material 3). Since 2.13 the same APK also runs on Android TV / Google TV as the home-theatre companion (`tv/TvActivity`, leanback launcher), with one applicationId. Since 2.14 there is also **AutoTune for Windows**, a Compose for Desktop app released as an MSI and through DevStore on the PC (see "AutoTune for Windows (2.14.0)" below). No server. Gradle modules:
 - `:dsp` is pure Kotlin/JVM signal processing with no Android dependency, and is unit-tested anywhere.
 - `:link` is the phone / TV / PC link (pure Kotlin, depends on `:dsp`), shared by `:app` and `:desktop`.
 - `:app` is the Android application: UI, audio I/O, system EQ, storage and AI clients.
@@ -159,7 +159,7 @@ Before publishing to Google Play:
 - **Switching AutoTune EQ on with nothing picked starts a flat EQ** (`eqWanted` + `eqFlat`) instead of refusing.
 - **`:app` is included only when an Android SDK is configured**, so the DSP core builds and tests anywhere.
 - **The version lives only in `gradle.properties`.** Each release gets a CHANGELOG entry and a `vX.Y.Z` tag.
-- **Every GitHub Release holds the APK (2.14.0).** Obtainium looks at the newest release only (unless "fallback to older releases" is on), so the separate `windows-v2.14.0` pre-release, newest and without an APK, stopped phone updates with "Could not find a suitable release". Other platforms' files go into the same version's Android release as extra files (`AutoTune-X.Y.Z-windows.msi`); never a release of their own.
+- **Every GitHub Release holds the APK (2.14.0).** Obtainium looks at the newest release only (unless "fallback to older releases" is on), so the separate `windows-v2.14.0` pre-release, newest and without an APK, stopped phone updates with "Could not find a suitable release". Other platforms' files go into the same version's Android release as extra files (`AutoTune-X.Y.Z-windows.msi`). Since 2.16.1 there is also DevStore's `windows-vX.Y.Z` release, and Obtainium on the phone and TV filters by `^android-` (see below).
 - **This 1.18 line is the one to continue, not 2.0.0-m5.** 2.0's analysis core is the same as this one; its gains are engineering ones (native audio, Room, Hilt). It lacks everything from 1.10 to 1.18, and its source code is not available. Port its strengths here instead. The comparison is in the Audio Apps project as `claude/autotune-2.0-port-plan.md`.
 
 ## Other docs in this repo
@@ -473,3 +473,8 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - Windows: `PcEndpoint` plays `pass` by `PassKind.of(kind)`.
 - 2.16.1: on the owner's box (2.15.1) the second system pass, played with `TvEq` on, heard nothing, while the first (EQ held) was fine; the level noise always held the EQ. Now `TvViewModel.pass` holds the EQ for every Dolby clip, and `pass … pcm=1` (the phone's `eqCheck` on `DOLBY_51`) plays the EQ pass as plain stereo, every speaker folded into the front pair, through the mix where the EQ acts. `EqPilot` on the phone shows the TV's EQ state under the room.
 - Not verified on hardware: the TV's live screen and result over a real Wi-Fi, the seat averaging, the EQ check on the box.
+
+### AutoTune in DevStore on the PC (2.16.1)
+- Asked 2026-11-10: DevStore's PC app listed AutoTune as Android only. DevStore (github.com/qawalah/devstore, `windows/agent`) installs a Windows app only from a `windows-vX.Y.Z` release (the highest, not draft or pre-release) holding `<name>-X.Y.Z-win-x64.zip` and its `.sha256` ("<hex>  <file>"); the zip's root holds `devstore.json` (name, type `gui`) and `<name>.exe`. Store listing: `store.json`, `store-icon.png`, `store-screenshot-N.png` on the release, else `store/icon.png` and `store/screenshots/` in the repo.
+- `windows.yml` builds `:desktop:createDistributable` too, copies the app folder, renames `AutoTune.exe` to `autotune.exe` and `app/AutoTune.cfg` to `app/autotune.cfg` (the jpackage launcher reads `app/<its name>.cfg`), writes `devstore.json` (`updateWhileRunning`: DevStore installs each version in its own folder), zips it and, on main after the Android release exists, creates `windows-v<name>` with `--latest=false`. Owner chose this over the MSI only and set Obtainium's `^android-` filter on the phone and the TV.
+- `store/icon.png` (from `desktop/icon.ico`) and `store/screenshots/windows/` (from `:desktop:shots`) are the store pictures.

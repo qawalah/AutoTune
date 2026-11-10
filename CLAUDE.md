@@ -4,7 +4,7 @@ Read `HANDOVER.md` first. It covers what the app is, how it's built, where data 
 
 ## Build and test
 - `./gradlew :dsp:test :link:test :desktop:test :app:testDebugUnitTest :app:assembleDebug`. This needs `ANDROID_HOME` or a `local.properties` with `sdk.dir`; without either, `:app` is left out (`:dsp`, `:link` and `:desktop` build anywhere).
-- The Windows app is `desktop/` (Compose for Desktop). `./gradlew :desktop:shots` renders its window to PNG without a screen; its MSI is built by `.github/workflows/windows.yml` and added to the same version's Android release (`AutoTune-X.Y.Z-windows.msi`). Never give it a release of its own: Obtainium looks at the newest release only, so every release must carry the APK.
+- The Windows app is `desktop/` (Compose for Desktop). `./gradlew :desktop:shots` renders its window to PNG without a screen; `.github/workflows/windows.yml` adds its MSI to the same version's Android release (`AutoTune-X.Y.Z-windows.msi`) and makes DevStore's `windows-vX.Y.Z` release (`autotune-X.Y.Z-win-x64.zip` with `autotune.exe` and `devstore.json`, its `.sha256`, store files), never marked latest, so DevStore on the PC installs and updates it.
 - Pure logic lives in `dsp/`, `link/`, `desktop/` (`Apo.kt`, `PcEndpoint.kt`) and in `app/src/main/kotlin/dev/autotune/TuningLogic.kt`. Add or extend unit tests there with every change.
 
 ## Releasing a version
@@ -27,12 +27,12 @@ phone through Obtainium.
 - **Don't add a release `signingConfig`** and don't commit keystores. CI signs
   every release with the shared DevStore key.
 - Keep `gradlew`, `gradlew.bat` and `gradle/wrapper/*` committed.
-- **Every GitHub Release in this repo must hold the APK.** Obtainium follows the
-  newest release only, so a release without an APK (a pre-release, a Windows or
-  iOS build, notes) stops every phone update with "Could not find a suitable
-  release" (it happened with `windows-v2.14.0`). Put other platforms' files in
-  the same version's Android release as extra files, as
-  `.github/workflows/windows.yml` does.
+- **Obtainium must filter AutoTune's releases by `^android-`** (on the phone and
+  on the TV, set by the owner 2026-11-10, as DevStore's phone-setup asks for a repo
+  with a Windows part). Without it Obtainium looks at the newest release only, and
+  a release without an APK stops every update with "Could not find a suitable
+  release" (it happened with `windows-v2.14.0`). Only `android-v…` and
+  `windows-v…` releases, nothing else.
 - When a change is done: commit and push to `main`. That push *is* the
   release. If the environment allows it, run `./gradlew assembleRelease` first.
 - If the Release workflow fails, read its log in the Actions tab and fix it.
