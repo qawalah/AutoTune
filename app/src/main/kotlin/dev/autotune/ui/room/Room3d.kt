@@ -100,11 +100,6 @@ object Room3d {
         for (k in 1..3) drawLine(colors.floorLine.copy(alpha = 0.5f), at(-1.0, k / 4.0, 0.0), at(1.0, k / 4.0, 0.0), hair * 0.6f)
         // the screen on the front wall
         drawPath(rounded(listOf(at(-0.3, 0.0, 0.2), at(0.3, 0.0, 0.2), at(0.3, 0.0, 0.4), at(-0.3, 0.0, 0.4)), hair * 3), colors.screen.copy(alpha = 0.88f))
-        // the seat
-        drawPath(
-            rounded(listOf(at(SEAT_X - 0.16, SEAT_Y - 0.04, 0.0), at(SEAT_X + 0.16, SEAT_Y - 0.04, 0.0), at(SEAT_X + 0.16, SEAT_Y + 0.06, 0.0), at(SEAT_X - 0.16, SEAT_Y + 0.06, 0.0)), hair * 4),
-            colors.muted, style = Stroke(hair * 1.4f),
-        )
         // sound spreading over the floor from the speaker that plays
         val source = if (all) SEAT_X to SEAT_Y else playing?.takeIf { it in layout.speakers }?.let { it.x to it.y }
         if (source != null) {
@@ -117,40 +112,33 @@ object Room3d {
             }
         }
 
-        // the cabinets, far ones first
-        val boxes = layout.speakers.map(::boxOf).sortedByDescending { project(it.s.x.toDouble(), it.s.y.toDouble(), 0.0).d }
-        for (b in boxes) {
+        // the speakers and the sofa, far ones first
+        class Item(val depth: Double, val draw: () -> Unit)
+        val items = ArrayList<Item>()
+        for (b in layout.speakers.map(::boxOf)) items += Item(project(b.s.x.toDouble(), b.s.y.toDouble(), 0.0).d) {
+            drawCabinet(b, all || b.s == playing, speakers[b.s]?.silent == true, colors, hair, ::at)
+        }
+        // the sofa at the seat, its back to us: a seat, a back and two arms, plain and rounded
+        val sofa = listOf(
+            Block(SEAT_X.toDouble(), SEAT_Y + 0.01, 0.0, 0.40, 0.13, 0.055, 0.0),
+            Block(SEAT_X.toDouble(), SEAT_Y + 0.085, 0.0, 0.40, 0.05, 0.12, 0.0),
+            Block(SEAT_X - 0.215, SEAT_Y + 0.03, 0.0, 0.05, 0.16, 0.085, 0.0),
+            Block(SEAT_X + 0.215, SEAT_Y + 0.03, 0.0, 0.05, 0.16, 0.085, 0.0),
+        )
+        items += Item(project(SEAT_X.toDouble(), SEAT_Y.toDouble(), 0.0).d) {
+            for (part in sofa.sortedByDescending { project(it.x, it.y, 0.0).d }) {
+                drawBlock(part, colors.side, colors.face, colors.muted, hair, ::at) { _, _ -> }
+            }
+        }
+        items.sortedByDescending { it.depth }.forEach { it.draw() }
+
+        // each speaker's name on the floor in front of it, and its note under the name (over everything)
+        for (b in layout.speakers.map(::boxOf)) {
             val live = all || b.s == playing
             val faint = speakers[b.s]?.silent == true
             val ca = cos(b.angle); val sa = sin(b.angle)
-            fun corner(u: Double, v: Double, z: Double) = at(b.s.x + u * ca + v * sa, b.s.y + (-u * sa + v * ca) / DEPTH, z)
-            val hw = b.w / 2; val hd = b.d / 2
-            val bot = listOf(corner(-hw, -hd, 0.0), corner(hw, -hd, 0.0), corner(hw, hd, 0.0), corner(-hw, hd, 0.0))
-            val top = listOf(corner(-hw, -hd, b.h), corner(hw, -hd, b.h), corner(hw, hd, b.h), corner(-hw, hd, b.h))
-            val edge = when { live -> colors.live; faint -> colors.floorLine; else -> colors.ink }
-            val round = hypot((bot[1].x - bot[0].x).toDouble(), (bot[1].y - bot[0].y).toDouble()).toFloat() * 0.18f
-            // the four sides, far first; the one turned to the seat carries the cones
-            val sides = (0 until 4).map { i -> val j = (i + 1) % 4; Triple(listOf(bot[i], bot[j], top[j], top[i]), i == 2, i) }
-                .sortedByDescending { (_, _, i) -> depthOf(listOf(i, (i + 1) % 4), b, ca, sa) }
-            for ((pts, front, _) in sides) {
-                val fill = if (live) (if (front) colors.live else colors.live.copy(alpha = 0.78f)) else if (front) colors.face else colors.side
-                drawPath(rounded(pts, round), fill)
-                drawPath(rounded(pts, round), edge, style = Stroke(hair * 1.1f))
-                if (front) {
-                    val cone = if (b.s.sub) 0.045 else 0.032
-                    val zc = b.h * if (b.s.sub) 0.5 else 0.38
-                    val ink = if (live) colors.onLive else edge
-                    drawPath(poly((0..36).map { i -> val a = i / 36.0 * 2 * PI; corner(cone * cos(a), hd, zc + cone * sin(a)) }), ink, style = Stroke(hair * 1.1f))
-                    if (!b.s.sub && b.s != Speaker.C) {
-                        drawPath(poly((0..24).map { i -> val a = i / 24.0 * 2 * PI; corner(0.011 * cos(a), hd, b.h * 0.78 + 0.011 * sin(a)) }), ink, style = Stroke(hair))
-                    }
-                }
-            }
-            drawPath(rounded(top, round), if (live) colors.live else colors.face)
-            drawPath(rounded(top, round), edge, style = Stroke(hair * 1.1f))
-
-            // its name on the floor in front of it, and its note under the name
-            val foot = corner(0.0, hd + 0.05, 0.0)
+            val hd = b.d / 2
+            val foot = at(b.s.x + (hd + 0.05) * sa, b.s.y + ((hd + 0.05) * ca) / DEPTH, 0.0)
             val name = text.measure(b.s.short, nameStyle.copy(color = if (live) colors.live else if (faint) colors.muted else colors.ink))
             var y = foot.y + hair * 2
             drawText(name, topLeft = Offset(foot.x - name.size.width / 2f, y))
@@ -163,11 +151,73 @@ object Room3d {
         }
     }
 
-    /** How far a side of [b] (between its corners [ij]) is from the camera, for drawing far sides first. */
-    private fun depthOf(ij: List<Int>, b: Box, ca: Double, sa: Double): Double {
+    /** A box on the floor plan: centre [x], [y], bottom [z], size [w] across, [d] deep, [h] high, turned by [angle]. */
+    private class Block(val x: Double, val y: Double, val z: Double, val w: Double, val d: Double, val h: Double, val angle: Double)
+
+    /**
+     * Draws [b] with soft rounded edges: sides in [side], the top in [top], a hairline [edge]; far sides first.
+     * [onFront] draws on the side turned toward +v (the seat for a speaker) with a point on it: (u across, z up).
+     */
+    private fun DrawScope.drawBlock(
+        b: Block, side: Color, top: Color, edge: Color, hair: Float, at: (Double, Double, Double) -> Offset,
+        front: Color = side, onFront: (((Double, Double) -> Offset), Float) -> Unit,
+    ) {
+        val ca = cos(b.angle); val sa = sin(b.angle)
+        fun corner(u: Double, v: Double, z: Double) = at(b.x + u * ca + v * sa, b.y + (-u * sa + v * ca) / DEPTH, z)
         val hw = b.w / 2; val hd = b.d / 2
         val us = listOf(-hw, hw, hw, -hw); val vs = listOf(-hd, -hd, hd, hd)
-        return ij.sumOf { k -> project(b.s.x + us[k] * ca + vs[k] * sa, b.s.y + (-us[k] * sa + vs[k] * ca) / DEPTH, b.h / 2).d } / ij.size
+        val bot = (0 until 4).map { corner(us[it], vs[it], b.z) }
+        val tp = (0 until 4).map { corner(us[it], vs[it], b.z + b.h) }
+        val round = min(
+            hypot((bot[1].x - bot[0].x).toDouble(), (bot[1].y - bot[0].y).toDouble()).toFloat(),
+            hypot((tp[0].x - bot[0].x).toDouble(), (tp[0].y - bot[0].y).toDouble()).toFloat(),
+        ) * 0.28f
+        fun depth(i: Int): Double {
+            val j = (i + 1) % 4
+            return (project(b.x + (us[i] + us[j]) / 2 * ca + (vs[i] + vs[j]) / 2 * sa, b.y + (-(us[i] + us[j]) / 2 * sa + (vs[i] + vs[j]) / 2 * ca) / DEPTH, b.z + b.h / 2)).d
+        }
+        for (i in (0 until 4).sortedByDescending(::depth)) {
+            val j = (i + 1) % 4
+            val pts = listOf(bot[i], bot[j], tp[j], tp[i])
+            val isFront = i == 2
+            drawPath(rounded(pts, round), if (isFront) front else side)
+            drawPath(rounded(pts, round), edge, style = Stroke(hair))
+            if (isFront) onFront({ u, z -> corner(u, hd, b.z + z) }, round)
+        }
+        drawPath(rounded(tp, round), top)
+        drawPath(rounded(tp, round), edge, style = Stroke(hair))
+    }
+
+    /**
+     * A speaker after Braun's small devices: a light cabinet with soft edges, a grille of dots on the face turned to the
+     * seat (a round field on the sub) and a small pilot dot that lights in the accent, with the grille, while it plays.
+     */
+    private fun DrawScope.drawCabinet(b: Box, live: Boolean, faint: Boolean, colors: RoomColors, hair: Float, at: (Double, Double, Double) -> Offset) {
+        val edge = if (faint) colors.floorLine else colors.muted
+        val dots = when { live -> colors.live; faint -> colors.floorLine; else -> colors.ink.copy(alpha = 0.55f) }
+        drawBlock(Block(b.s.x.toDouble(), b.s.y.toDouble(), 0.0, b.w, b.d, b.h, b.angle), colors.side, colors.face, edge, hair, at, front = colors.face) { face, _ ->
+            val r = (hair * 0.9f).coerceAtLeast(0.8f)
+            val gap = 0.016
+            fun dot(u: Double, z: Double) = drawCircle(dots, r, face(u, z))
+            when {
+                b.s.sub -> {
+                    // a round field of dots, as on a Braun fan or heater
+                    val cz = b.h * 0.5; val rad = min(b.w, b.h) * 0.36
+                    var u = -rad
+                    while (u <= rad) { var z = -rad; while (z <= rad) { if (u * u + z * z <= rad * rad) dot(u, cz + z); z += gap }; u += gap }
+                }
+                else -> {
+                    // a rectangle of dots over most of the face, the pilot dot under it
+                    val uMax = b.w / 2 - 0.022
+                    val zLo = b.h * (if (b.s == Speaker.C) 0.3 else 0.22); val zHi = b.h - 0.02
+                    var u = -uMax
+                    while (u <= uMax + 1e-9) { var z = zLo; while (z <= zHi + 1e-9) { dot(u, z); z += gap }; u += gap }
+                }
+            }
+            // the pilot: the one accent, lit only while this speaker plays
+            val pilotZ = if (b.s.sub) b.h * 0.12 else b.h * 0.1
+            drawCircle(if (live) colors.live else colors.floorLine, r * 2.6f, face(b.w / 2 - 0.03, pilotZ))
+        }
     }
 
     private fun poly(pts: List<Offset>): Path = Path().apply {
