@@ -340,7 +340,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 val sys = PassAnalysis.averageSeats(seats)
                 addRun(TheatreRun(RunKind.EQ, System.currentTimeMillis(), layout, u.tv, u.pretend, u.real, system = sys, seats = seats.size,
-                    eqInUse = if (!hold && u.tvEqOn) "on the ${u.device}" else null))
+                    eqInUse = if (!hold && u.tvEqOn && u.method != PlayMethod.DOLBY_51) "on the ${u.device}" else null))
                 Diag.log(ctx, "theatre_eq", mapOf("layout" to layout.name, "seats" to seats.size, "heard" to (sys?.heard == true), "hold" to hold))
                 sendResult(RunKind.EQ)
             } finally {
@@ -372,8 +372,10 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
             startLive()
             try {
                 val cal = loadCalibration()
-                val off = measurePass(u.layout, cal, hold = true, PassKind.EQ).system
-                val on = measurePass(u.layout, cal, hold = false, PassKind.EQ).system
+                // Dolby passes by the TV's EQ, so the check plays plain stereo through the TV's mix, both times
+                val pcm = u.method == PlayMethod.DOLBY_51
+                val off = measurePass(u.layout, cal, hold = true, PassKind.EQ, pcm).system
+                val on = measurePass(u.layout, cal, hold = false, PassKind.EQ, pcm).system
                 val r = EqJudge.reached(off, on, chain)
                 _ui.update { it.copy(eqReached = r ?: -1.0) }
                 Diag.log(ctx, "theatre_eq_check", mapOf("reached" to r))
@@ -384,7 +386,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private suspend fun measurePass(layout: Layout, cal: Calibration?, hold: Boolean, kind: PassKind): PassReading {
+    private suspend fun measurePass(layout: Layout, cal: Calibration?, hold: Boolean, kind: PassKind, pcm: Boolean = false): PassReading {
         doneAt = 0L
         val id = ++nextId
         passing = true
@@ -407,7 +409,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
                     val gaveUp = markerAt < 0 && doneAt > 0 && System.currentTimeMillis() - doneAt > 2500
                     failed.isCompleted || gaveUp || (markerAt >= 0 && got >= markerAt + after)
                 },
-            ) { sec -> if (sec == 1) link.send(Msg.pass(id, layout.name, hold, kind.code)) }
+            ) { sec -> if (sec == 1) link.send(Msg.pass(id, layout.name, hold, kind.code, pcm)) }
             if (failed.isCompleted) return none(failed.getCompleted())
             if (markerAt < 0) return none("The start beeps were not heard: turn the volume up and check front left plays.")
             _ui.update { it.copy(status = "reading", playing = null, allPlaying = false) }

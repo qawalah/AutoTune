@@ -4,6 +4,14 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.16.1] - 2026-11-10
+### Fixed
+- **A second home-theatre test heard nothing** on an Android box with Dolby Digital (the first was fine). The first test plays with the TV's EQ switched off; later ones played with it on, and on that box an EQ on the TV's sound silenced the Dolby clip. Dolby passes by the TV's EQ anyway, so every Dolby test now plays with the EQ off for the moment it plays.
+- **"Check the EQ reaches the speakers" on a Dolby TV** now plays plain stereo through the TV's own sound, where its EQ acts, once with the EQ off and once on. Before, it played Dolby, which the EQ never touches.
+- **Nothing heard showed green zeros** ("±0.0 dB", "0.00 m"). The distance now reads "—", and the headline says "Nothing heard: is the volume up, and the TV playing?".
+### Added
+- **Whether the TV's EQ is on**, always in view under the room: "tv eq on" with a lit red pilot dot, or "tv eq off". On a Dolby TV with its EQ on, the EQ result notes that the test plays Dolby, which passes by the EQ.
+
 ## [2.16.0] - 2026-11-10
 ### Added
 - **The home theatre in three tests**, each on its own key, run alone and as often as wanted; none sends you to another:

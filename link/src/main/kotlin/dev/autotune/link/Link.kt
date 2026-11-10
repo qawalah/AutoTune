@@ -97,8 +97,9 @@ object Msg {
     fun noise(s: Speaker, layout: String) = LinkMsg(NOISE, mapOf("speaker" to s.code, "layout" to layout))
     fun quiet() = LinkMsg(QUIET)
     /** [hold]: AutoTune's own EQ on the TV or PC stays off while it plays (the stock pass reads the system as it is). */
-    fun pass(id: Int, layout: String, hold: Boolean, kind: String = "system") =
-        LinkMsg(PASS, mapOf("id" to "$id", "layout" to layout, "hold" to if (hold) "1" else "0", "kind" to kind))
+    /** [pcm]: play it as plain stereo through the TV's own mix, where its EQ acts (the EQ check on a Dolby TV). */
+    fun pass(id: Int, layout: String, hold: Boolean, kind: String = "system", pcm: Boolean = false) =
+        LinkMsg(PASS, mapOf("id" to "$id", "layout" to layout, "hold" to if (hold) "1" else "0", "kind" to kind) + if (pcm) mapOf("pcm" to "1") else emptyMap())
 
     /**
      * What the phone hears, live: [levelDb] the mic's level (dBFS), [wave] the last moment as up to 48 heights 0..35

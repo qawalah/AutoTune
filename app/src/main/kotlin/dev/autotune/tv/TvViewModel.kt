@@ -169,7 +169,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
                     return
                 }
                 _ui.update { it.copy(layout = layout, kind = kind, result = null) }
-                pass(id, layout, hold = m["hold"] == "1", kind = kind)
+                pass(id, layout, hold = m["hold"] == "1", kind = kind, pcm = m["pcm"] == "1")
             }
             Msg.LIVE -> _ui.update {
                 it.copy(live = TvLive(m["lv"]?.toFloatOrNull() ?: -90f, Msg.waveHeights(m["w"]), m["st"], m["ch"]?.toDoubleOrNull(), System.currentTimeMillis()))
@@ -205,17 +205,23 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * The whole system test: one clip with the start beeps once, each speaker's sweep, then every speaker together.
-     * The phone is told who plays as each sweep starts. [hold]: AutoTune's EQ stays off (the stock pass).
+     * The phone is told who plays as each sweep starts. [hold]: AutoTune's EQ stays off (the stock pass). [pcm]: plain
+     * stereo through the TV's mix, every speaker folded into the front pair (the EQ check).
+     *
+     * A Dolby clip always plays with the EQ held: Dolby passes by the EQ anyway, and on the owner's Android box an EQ
+     * on the mix silenced the Dolby clip (2.15.1: the second pass heard nothing, the first, with the EQ held, was fine).
      */
-    private fun pass(id: Int, layout: Layout, hold: Boolean, kind: dev.autotune.dsp.PassKind) {
+    private fun pass(id: Int, layout: Layout, hold: Boolean, kind: dev.autotune.dsp.PassKind, pcm: Boolean = false) {
         playJob?.cancel()
         playJob = viewModelScope.launch {
             _ui.update { it.copy(playing = null, allPlaying = false, playT = 0.0, what = "starting") }
-            if (hold) TvEq.hold(true)
+            val method = if (pcm) PlayMethod.STEREO else playMethod
+            val held = hold || method == PlayMethod.DOLBY_51
+            if (held) TvEq.hold(true)
             val slots = dev.autotune.dsp.PassClip.slots(layout, kind)
             var last = -1
             val err = runCatching {
-                TvAudio.play(ctx, playMethod, TvAudio.passClip(playMethod, layout, mixDown, kind), loop = false) { t ->
+                TvAudio.play(ctx, method, TvAudio.passClip(method, layout, mixDown || pcm, kind), loop = false) { t ->
                     val now = dev.autotune.dsp.PassClip.nowPlaying(layout, t, kind)?.first
                     if (now != null && now != last) {
                         last = now
@@ -226,7 +232,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
                     _ui.update { it.copy(playT = t, playing = who, allPlaying = now != null && who == null, what = if (now == null) it.what else "sweep") }
                 }
             }.exceptionOrNull()
-            if (hold) TvEq.hold(false)
+            if (held) TvEq.hold(false)
             _ui.update { it.copy(playing = null, allPlaying = false, what = null) }
             send(if (err == null) Msg.done(id) else Msg.failed(id, err.message ?: "The TV could not play it."))
         }
