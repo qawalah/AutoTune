@@ -81,10 +81,10 @@ object TvAudio {
         if (method == PlayMethod.DOLBY_51) Clip.Ac3("theatre/${speaker.code}.ac3", ChannelClip.seconds)
         else Clip.Pcm(Channels.interleave16(ChannelClip.planes(speaker), method, mixDown = pretend), ChannelClip.seconds)
 
-    /** The whole system test in one clip ([PassClip]). */
-    fun passClip(method: PlayMethod, layout: Layout, pretend: Boolean = false): Clip =
-        if (method == PlayMethod.DOLBY_51) Clip.Ac3("theatre/pass-${layout.name}.ac3", PassClip.seconds(layout))
-        else Clip.Pcm(Channels.interleave16(PassClip.planes(layout), method, mixDown = pretend), PassClip.seconds(layout))
+    /** A test in one clip ([PassClip]): the distances (each speaker) or the EQ (every speaker together). */
+    fun passClip(method: PlayMethod, layout: Layout, pretend: Boolean = false, kind: dev.autotune.dsp.PassKind = dev.autotune.dsp.PassKind.EQ): Clip =
+        if (method == PlayMethod.DOLBY_51) Clip.Ac3("theatre/${kind.code}-${layout.name}.ac3", PassClip.seconds(layout, kind))
+        else Clip.Pcm(Channels.interleave16(PassClip.planes(layout, kind = kind), method, mixDown = pretend), PassClip.seconds(layout, kind))
 
     /** [speaker]'s level noise, one loop of it ([LevelNoise]); play it with loop = true. */
     fun noiseClip(method: PlayMethod, speaker: Speaker, pretend: Boolean = false): Clip =

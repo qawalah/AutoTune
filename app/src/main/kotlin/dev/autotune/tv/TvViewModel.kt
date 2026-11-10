@@ -27,6 +27,15 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.net.Inet4Address
 
+/** The phone's live view: the mic's level (dBFS), the waveform's heights (0..1), its status, the level test's change. */
+data class TvLive(val levelDb: Float, val wave: List<Float>, val status: String?, val change: Double?, val atMillis: Long)
+
+/** The result the phone shows: headline, readings (value, unit, name), response and target at third octaves, notes, next step. */
+data class TvResult(
+    val headline: String, val readings: List<Triple<String, String, String>>, val response: List<Double>, val target: List<Double>,
+    val notes: List<String>, val next: String?,
+)
+
 /** What the TV screen shows. */
 data class TvUi(
     val code: String = "",
@@ -49,6 +58,12 @@ data class TvUi(
     val allPlaying: Boolean = false,
     /** What is playing, in a word: "level noise", "sweep". */
     val what: String? = null,
+    /** The test playing: its sweeps' order for the clock ([dev.autotune.dsp.PassKind]). */
+    val kind: dev.autotune.dsp.PassKind = dev.autotune.dsp.PassKind.EQ,
+    /** What the phone hears while it records (2.16), and when it last said so. */
+    val live: TvLive? = null,
+    /** The last result as the phone shows it. */
+    val result: TvResult? = null,
 ) {
     /** The way of playing the phone is told about: what is pretended, else the output's own. */
     val method: PlayMethod get() = if (pretend != null) PlayMethod.PCM_71 else probe?.method ?: PlayMethod.STEREO
@@ -147,8 +162,24 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             Msg.PASS -> {
                 val id = m["id"]?.toIntOrNull() ?: return
                 val layout = Layout.of(m["layout"]) ?: _ui.value.layout
-                _ui.update { it.copy(layout = layout) }
-                pass(id, layout, hold = m["hold"] == "1")
+                val kind = dev.autotune.dsp.PassKind.of(m["kind"])
+                // the one-pass system test of 2.15 has no Dolby clip any more: that phone needs the update
+                if (kind == dev.autotune.dsp.PassKind.SYSTEM && playMethod == PlayMethod.DOLBY_51) {
+                    send(Msg.failed(id, "Update AutoTune on the phone to test this TV."))
+                    return
+                }
+                _ui.update { it.copy(layout = layout, kind = kind, result = null) }
+                pass(id, layout, hold = m["hold"] == "1", kind = kind)
+            }
+            Msg.LIVE -> _ui.update {
+                it.copy(live = TvLive(m["lv"]?.toFloatOrNull() ?: -90f, Msg.waveHeights(m["w"]), m["st"], m["ch"]?.toDoubleOrNull(), System.currentTimeMillis()))
+            }
+            Msg.RESULT -> _ui.update {
+                it.copy(
+                    live = null,
+                    result = TvResult(m["headline"].orEmpty(), Msg.readings(m["readings"]), Msg.numbers(m["resp"]), Msg.numbers(m["target"]),
+                        m["notes"]?.split('|')?.filter { n -> n.isNotBlank() }.orEmpty(), m["next"]),
+                )
             }
         }
     }
@@ -160,7 +191,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     private fun noise(sp: Speaker) {
         playJob?.cancel()
         playJob = viewModelScope.launch {
-            _ui.update { it.copy(playing = sp, allPlaying = false, playT = 0.0, what = "level noise") }
+            _ui.update { it.copy(playing = sp, allPlaying = false, playT = 0.0, what = "level noise", result = null) }
             TvEq.hold(true)
             runCatching {
                 kotlinx.coroutines.withTimeout(120_000) {
@@ -176,16 +207,16 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
      * The whole system test: one clip with the start beeps once, each speaker's sweep, then every speaker together.
      * The phone is told who plays as each sweep starts. [hold]: AutoTune's EQ stays off (the stock pass).
      */
-    private fun pass(id: Int, layout: Layout, hold: Boolean) {
+    private fun pass(id: Int, layout: Layout, hold: Boolean, kind: dev.autotune.dsp.PassKind) {
         playJob?.cancel()
         playJob = viewModelScope.launch {
             _ui.update { it.copy(playing = null, allPlaying = false, playT = 0.0, what = "starting") }
             if (hold) TvEq.hold(true)
-            val slots = dev.autotune.dsp.PassClip.slots(layout)
+            val slots = dev.autotune.dsp.PassClip.slots(layout, kind)
             var last = -1
             val err = runCatching {
-                TvAudio.play(ctx, playMethod, TvAudio.passClip(playMethod, layout, mixDown), loop = false) { t ->
-                    val now = dev.autotune.dsp.PassClip.nowPlaying(layout, t)?.first
+                TvAudio.play(ctx, playMethod, TvAudio.passClip(playMethod, layout, mixDown, kind), loop = false) { t ->
+                    val now = dev.autotune.dsp.PassClip.nowPlaying(layout, t, kind)?.first
                     if (now != null && now != last) {
                         last = now
                         val who = slots[now]

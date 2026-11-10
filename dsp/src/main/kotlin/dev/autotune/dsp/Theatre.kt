@@ -191,6 +191,12 @@ object TheatreJudge {
     const val DISTANCE_OK_M = 0.15
     const val EQ_WORTH_DB = 2.0
     const val QUIET_DB = 25.0
+    const val SUB_EXTRA_DB = 10.0
+
+    /** What to check when the sub is not heard on its own (seen on the owner's soundbar, 2026-11-10). */
+    const val SUB_MISSING = "Nothing heard from the subwoofer on its own. Check it is on and paired with the soundbar, its " +
+        "level is not at the bottom, and night mode or a voice mode is off. Some soundbars play the sub only with other " +
+        "sound: the EQ test, with every speaker playing, still reads its bass."
 
     private val MAIN_BAND = 500.0 to 2000.0
     private val SUB_BAND = 40.0 to 100.0
@@ -214,7 +220,9 @@ object TheatreJudge {
         val median = mainLevels.getOrNull(mainLevels.size / 2)
         // far quieter than the rest (25 dB) is only the room's noise or another speaker's echo: not heard
         val by = all.mapValues { (s, r) ->
-            if (r.heard && median != null && level(r.magDb!!, s, grid) < median - QUIET_DB) SpeakerReading(s, null, null, r.snrDb, "Too quiet to read.") else r
+            // a soundbar's sub is often set well down, so it gets more room before it counts as not heard
+            val quiet = QUIET_DB + if (s.sub) SUB_EXTRA_DB else 0.0
+            if (r.heard && median != null && level(r.magDb!!, s, grid) < median - quiet) SpeakerReading(s, null, null, r.snrDb, "Too quiet to read.") else r
         }
         val heard = layout.speakers.mapNotNull { s -> by[s]?.takeIf { it.heard } }
         val mains = heard.filter { !it.speaker.sub }
@@ -241,7 +249,7 @@ object TheatreJudge {
         }
         val notes = ArrayList<String>()
         val missing = results.filter { !it.heard }.map { it.speaker }
-        missing.forEach { notes += "Nothing heard from ${it.title.lowercase()}." }
+        missing.forEach { notes += if (it.sub) SUB_MISSING else "Nothing heard from ${it.title.lowercase()}." }
         val mixed = downmixed(layout, by, grid)
         mixed.forEach { (s, from) -> notes += "${s.title} sounds like ${from.title.lowercase()}: check the home theatre has ${s.title.lowercase()} switched on." }
 

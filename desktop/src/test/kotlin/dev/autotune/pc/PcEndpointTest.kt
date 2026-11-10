@@ -143,6 +143,26 @@ class PcEndpointTest {
         assertEquals(listOf("FL", "FR", Msg.ALL), said)
     }
 
+    private fun passSays(kind: String): List<String> {
+        val p = pair()
+        p.read()
+        p.send(Msg.pass(4, "L20", hold = true, kind = kind))
+        val said = ArrayList<String>()
+        while (true) {
+            val m = p.read()
+            if (m.type == Msg.PLAYING) said += m["speaker"]!!
+            if (m.type == Msg.DONE) break
+            if (m.type == Msg.FAILED) error("failed: ${m["reason"]}")
+        }
+        return said
+    }
+
+    @Test
+    fun theDistancesTestPlaysEachSpeakerOnly() = assertEquals(listOf("FL", "FR"), passSays("distances"))
+
+    @Test
+    fun theEqTestPlaysBothTogether() = assertEquals(listOf(Msg.ALL), passSays("eq"))
+
     @Test
     fun levelNoiseLoopsUntilQuiet() {
         val p = pair()

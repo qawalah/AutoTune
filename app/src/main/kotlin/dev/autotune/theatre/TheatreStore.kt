@@ -4,7 +4,6 @@ import dev.autotune.dsp.FreqGrid
 import dev.autotune.dsp.Layout
 import dev.autotune.dsp.PassClip
 import dev.autotune.dsp.PassReading
-import dev.autotune.dsp.PassReport
 import dev.autotune.dsp.PlayMethod
 import dev.autotune.dsp.Speaker
 import dev.autotune.dsp.SpeakerReading
@@ -144,28 +143,37 @@ fun theatreKey(r: TheatreReport, device: String = "TV"): Pair<String, String> = 
 fun theatreNextSpeakers(r: TheatreReport?, layout: Layout): List<Speaker> =
     if (r?.move == TheatreMove.CHECK_SPEAKER && r.moveSpeaker != null && r.layout == layout) listOf(r.moveSpeaker!!) else layout.speakers
 
-/** What the pinned key does next in the two tests. */
-enum class SystemStep { LEVELS, SYSTEM, USE_EQ }
+/** What the pinned key does in the three tests. */
+enum class ThreeStep { LEVELS, DISTANCES, EQ, USE_EQ }
 
-/** Levels first, then the system; after a system test, what its result asks for. */
-fun systemNext(r: PassReport?, levelsDone: Boolean): SystemStep = when {
-    r == null -> if (levelsDone) SystemStep.SYSTEM else SystemStep.LEVELS
-    r.move == TheatreMove.SET_LEVELS -> SystemStep.LEVELS
-    r.move == TheatreMove.USE_EQ -> SystemStep.USE_EQ
-    else -> SystemStep.SYSTEM
+/**
+ * The suggested step in the three tests: at setup levels, then distances, then the EQ; after that the EQ (the one run
+ * again and again). Levels or distances come back only when their last run left something to set, and an EQ worth
+ * using is offered until it is on. It only suggests: every test stays on its own key.
+ */
+fun threeNext(u: TheatreUi): ThreeStep {
+    val t = u.test
+    val levels = t?.last(RunKind.LEVELS)
+    return when {
+        levels == null -> ThreeStep.LEVELS
+        t.last(RunKind.DISTANCES) == null -> ThreeStep.DISTANCES
+        levels.levels.values.any { kotlin.math.abs(it) > dev.autotune.dsp.LevelMeter.OK_DB } &&
+            levels.whenMillis > (t.last(RunKind.EQ)?.whenMillis ?: 0L) -> ThreeStep.LEVELS
+        u.distances?.ok == false && t.last(RunKind.DISTANCES)!!.whenMillis > (t.last(RunKind.EQ)?.whenMillis ?: 0L) -> ThreeStep.DISTANCES
+        u.eq?.worth == true && u.eq.eq.isNotEmpty() && !u.tvEqOn -> ThreeStep.USE_EQ
+        else -> ThreeStep.EQ
+    }
 }
 
-/** The pinned key in the two tests, and its second line. [device] is what plays: "TV" or "PC". */
-fun systemKey(r: PassReport?, levelsDone: Boolean, layout: Layout, device: String = "TV"): Pair<String, String> {
-    val secs = PassClip.seconds(layout).roundToInt()
-    return when (systemNext(r, levelsDone)) {
-        SystemStep.LEVELS -> "Set the levels" to if (r == null) "pink noise, one speaker at a time" else "they differ by up to ${String.format(Locale.US, "%.1f", r.speakers.levelSpreadDb)} dB"
-        SystemStep.USE_EQ -> "Use the EQ on the $device" to "one EQ for every speaker"
-        SystemStep.SYSTEM -> when (r?.move) {
-            null -> "Test the system" to "one pass, about $secs s"
-            TheatreMove.CHECK_SPEAKER -> "Test the system again" to "after checking ${r.speakers.moveSpeaker?.title?.lowercase() ?: "the speakers"}"
-            TheatreMove.SET_DISTANCES -> "Test the system again" to "after setting the distances"
-            else -> "Test the system again" to "every speaker is set"
-        }
+/** The pinned key in the three tests, and its second line. */
+fun threeKey(u: TheatreUi): Pair<String, String> {
+    val seats = if (u.seats > 1) ", ${u.seats} seats" else ""
+    val t = u.test
+    return when (threeNext(u)) {
+        ThreeStep.LEVELS -> (if (t?.last(RunKind.LEVELS) == null) "Set the levels" else "Set the levels again") to "pink noise, one speaker at a time"
+        ThreeStep.DISTANCES -> (if (t?.last(RunKind.DISTANCES) == null) "Test the distances" else "Test the distances again") to
+            "one sweep per speaker, about ${PassClip.seconds(u.layout, dev.autotune.dsp.PassKind.DISTANCES).roundToInt()} s"
+        ThreeStep.USE_EQ -> "Use the EQ on the ${u.device}" to "one EQ for every speaker"
+        ThreeStep.EQ -> (if (t?.last(RunKind.EQ) == null) "Test the EQ" else "Test the EQ again") to "every speaker together$seats"
     }
 }

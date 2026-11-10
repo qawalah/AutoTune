@@ -3,6 +3,8 @@ package dev.autotune.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -35,9 +37,10 @@ import dev.autotune.dsp.TheatreJudge
 import dev.autotune.dsp.TheatreReport
 import dev.autotune.theatre.TheatreUi
 import dev.autotune.theatre.TheatreViewModel
-import dev.autotune.theatre.SystemStep
-import dev.autotune.theatre.systemKey
-import dev.autotune.theatre.systemNext
+import dev.autotune.theatre.RunKind
+import dev.autotune.theatre.ThreeStep
+import dev.autotune.theatre.threeKey
+import dev.autotune.theatre.threeNext
 import dev.autotune.theatre.theatreKey
 
 private const val ABOUT_TV =
@@ -59,10 +62,15 @@ private const val ABOUT_LEVELS =
         "level, and the next one starts by itself after three seconds there. The sub is set to the target's bass above the " +
         "others.\n\nKeep the phone at your seat, at ear height, and the room quiet."
 
-private const val ABOUT_SYSTEM =
-    "One pass: the start beeps once, each speaker's sweep in turn, then every speaker together. The single sweeps give " +
-        "each speaker's level and distance (when its sound arrives against front left); the last one is the system as you " +
-        "hear it, and gives one EQ for every speaker, fitted from the first full pass so EQs never stack."
+private const val ABOUT_DIST =
+    "The start beeps once, then each speaker's sweep in turn: when each one's sound arrives against front left gives its " +
+        "distance setting, the sub's own delay included. Run it at setup, and again only when a speaker moves; the EQ does " +
+        "not need it, but wrong distances make the sub and the others cancel."
+
+private const val ABOUT_EQTEST =
+    "Every speaker together, as you hear the system, at one seat or averaged over several. It gives one EQ for every " +
+        "speaker, fitted from this home theatre's first EQ test so EQs never stack; test again with the EQ on to see what it " +
+        "did. The first EQ test plays with AutoTune's own EQ held off."
 
 private const val ABOUT_EQ =
     "An EQ for each speaker, fitted from the first full test so EQs never stack. \"Use the EQ on the TV\" sets it on the " +
@@ -73,14 +81,25 @@ private const val ABOUT_EQ =
 
 /** Tune a home theatre (or a PC's speakers) with the TV or PC playing each speaker and the phone listening. A page over the current tab. */
 @Composable
-fun TheatrePage(pick: Pickers) {
+fun TheatrePage(pick: Pickers, openId: String? = null, opened: () -> Unit = {}) {
     val vm: TheatreViewModel = viewModel()
     val u by vm.ui.collectAsState()
+    LaunchedEffect(openId) { openId?.let { vm.selectTest(it); opened() } }
     DisposableEffect(Unit) { vm.start(); onDispose { vm.pause() } }
     LaunchedEffect(u.needsMic) { if (u.needsMic) { vm.micGranted(true); pick.permission() } }
 
     ScreenTitle("Home theatre", context = u.tv ?: "not connected", contextIcon = Ic.HOME)
-    if (u.tv == null) Connect(u, vm) else Connected(u, vm)
+    if (u.tv == null) {
+        Connect(u, vm)
+        // the open home theatre's last results stay readable while nothing is connected
+        if (u.test != null) {
+            TestBar(u, vm)
+            LevelsResult(u)
+            DistancesResult(u)
+            EqResult(u)
+            RunsDetails(u, vm)
+        }
+    } else Connected(u, vm)
 }
 
 @Composable
@@ -121,7 +140,7 @@ private fun Connect(u: TheatreUi, vm: TheatreViewModel) {
 
 @Composable
 private fun Connected(u: TheatreUi, vm: TheatreViewModel) {
-    if (u.twoTests) { TwoTests(u, vm); return }
+    if (u.threeTests) { ThreeTests(u, vm); return }
     val r = u.report?.takeIf { it.layout == u.layout }
     val level by LiveCapture.level.collectAsState()
     // the mic's level makes the rings of the playing speaker grow: -60 dBFS is still, -10 is full
@@ -242,23 +261,22 @@ private fun Details(r: TheatreReport, u: TheatreUi, showEq: Boolean = true) {
     }
 }
 
-// ---- the two tests (2.15): levels with pink noise, then the system in one pass
+// ---- the three tests (2.16): levels, distances and the EQ, each on its own, saved as runs of a named test
 
 @Composable
-private fun TwoTests(u: TheatreUi, vm: TheatreViewModel) {
-    val sys = u.system?.takeIf { it.speakers.layout == u.layout }
-    val r = sys?.speakers
+private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel) {
     val lv = u.level
     val level by LiveCapture.level.collectAsState()
     val ring = if (u.playing != null || u.allPlaying) ((level + 60f) / 50f).coerceIn(0f, 1f) else null
-    val notes: Map<dev.autotune.dsp.Speaker, String> = when {
-        lv != null || (u.levelsDone.isNotEmpty() && sys == null) ->
-            u.levelsDone.mapValues { TheatreJudge.trimText(it.value) } + (lv?.change?.let { mapOf(lv.speaker to TheatreJudge.trimText(it)) }.orEmpty())
-        r != null && !u.busy -> r.speakers.associate { it.speaker to TheatreJudge.trimText(it.trimDb) }
-        else -> emptyMap()
+    val d = u.distances
+    val notes: Map<dev.autotune.dsp.Speaker, String> = buildMap {
+        u.levelsDone.forEach { (s, ch) -> put(s, TheatreJudge.trimText(ch)) }
+        lv?.change?.let { put(lv.speaker, TheatreJudge.trimText(it)) }
+        if (lv == null) d?.speakers?.forEach { r -> put(r.speaker, listOfNotNull(this[r.speaker], TheatreJudge.distanceText(r.distanceM)).joinToString("\n")) }
     }
+    TestBar(u, vm)
     Panel(pad = 12.dp) {
-        SpeakerMap(u.layout, u.playing, level = ring, all = u.allPlaying, notes = notes, silent = r?.speakers?.filter { !it.heard }?.map { it.speaker }?.toSet().orEmpty().takeIf { !u.busy }.orEmpty())
+        SpeakerMap(u.layout, u.playing, level = ring, all = u.allPlaying, notes = notes, silent = d?.speakers?.filter { !it.heard }?.map { it.speaker }?.toSet().orEmpty().takeIf { !u.busy }.orEmpty())
         val line = u.status ?: if (u.pretend) "pretend ${u.layout.title} · really ${u.real ?: "its own speakers"}" else listOfNotNull(u.output, u.method?.title).joinToString(" · ").lowercase()
         Text(line, style = MaterialTheme.typography.labelSmall, color = if (u.pretend && u.status == null) At.c.signal else At.c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
@@ -266,8 +284,14 @@ private fun TwoTests(u: TheatreUi, vm: TheatreViewModel) {
 
     when {
         lv != null -> LevelDeck(lv)
-        sys != null && !u.busy -> SystemSummary(sys, u)
-        u.levelsDone.isNotEmpty() && !u.busy -> LevelsSet(u.levelsDone)
+        u.waitingSeat -> RunSheet("EQ test", "seat ${u.seat} of ${u.seats}", trailing = { InfoButton("The EQ test", ABOUT_EQTEST, small = true) }) {
+            ReadingCells(listOf(Reading("${u.seat}", null, "move the phone to the next seat, at ear height")))
+        }
+        !u.busy -> {
+            LevelsResult(u)
+            DistancesResult(u)
+            EqResult(u)
+        }
     }
 
     val method = u.method
@@ -278,38 +302,196 @@ private fun TwoTests(u: TheatreUi, vm: TheatreViewModel) {
             info = "The speakers your home theatre has. ${method.title} from this ${u.device} reaches up to ${method.layouts.first().title}.",
         )
     }
+    if (isAdvanced() && !u.busy) {
+        DropSelect(
+            listOf("1 seat", "3 seats", "5 seats"), listOf(1, 3, 5).indexOf(u.seats).coerceAtLeast(0), { vm.setSeats(listOf(1, 3, 5)[it]) },
+            label = "EQ test seats", icon = Ic.MIC,
+            info = "The EQ test can average the system over several seats, so the EQ suits the whole sofa rather than one spot. The phone waits at each seat for Next seat.",
+        )
+    }
 
-    // the one key: the next speaker while levels are set; stop while the system plays; else what comes next
+    // the one key: next speaker or next seat while a test waits; stop while one plays; else the suggested test
     when {
         lv != null -> {
             val next = u.layout.speakers.getOrNull(lv.index + 1)
             PinAction("Next speaker", vm::nextLevel, icon = Ic.NEXT, sub = next?.let { "then ${it.title.lowercase()}" } ?: "the last one")
         }
+        u.waitingSeat -> PinAction("Measure seat ${u.seat}", vm::nextSeat, icon = Ic.MEASURE, sub = "of ${u.seats}")
         u.busy -> PinAction("Stop", vm::stop, icon = Ic.STOP, sub = u.status)
-        else -> {
-            val (k, sub) = systemKey(sys, u.levelsDone.isNotEmpty(), u.layout, u.device)
-            PinAction(k, vm::next, icon = if (k.startsWith("Use")) Ic.EQ else if (k.startsWith("Set")) Ic.SPEAKER else Ic.MEASURE, sub = sub)
-        }
+        else -> { val (k, sub) = threeKey(u); PinAction(k, vm::next, icon = when { k.startsWith("Set") -> Ic.SPEAKER; k.startsWith("Use") -> Ic.EQ; else -> Ic.MEASURE }, sub = sub) }
     }
-    if (lv != null) Actions { TextAction("Stop", vm::stop, icon = Ic.STOP) }
+    if (lv != null || u.waitingSeat) Actions { TextAction("Stop", vm::stop, icon = Ic.STOP) }
     if (!u.busy) Actions {
-        val step = systemNext(sys, u.levelsDone.isNotEmpty())
-        if (step != SystemStep.LEVELS) TextAction("Set the levels", vm::levelTest, icon = Ic.SPEAKER)
-        if (step != SystemStep.SYSTEM) TextAction("Test the system", vm::systemTest, icon = Ic.MEASURE)
-        if (sys != null && sys.eq.isNotEmpty() && step != SystemStep.USE_EQ) TextAction("Use the EQ on the ${u.device}", vm::useEq, icon = Ic.EQ)
+        val next = threeNext(u)
+        if (next != ThreeStep.LEVELS) TextAction("Set the levels", vm::levelTest, icon = Ic.SPEAKER)
+        if (next != ThreeStep.DISTANCES) TextAction("Test the distances", vm::distancesTest, icon = Ic.MEASURE)
+        if (next != ThreeStep.EQ) TextAction("Test the EQ", vm::eqTest, icon = Ic.EQ)
+        if (next != ThreeStep.USE_EQ && u.eq?.eq?.isNotEmpty() == true) TextAction("Use the EQ on the ${u.device}", vm::useEq, icon = Ic.EQ)
+        if (u.tvEqOn && u.eq?.eq?.isNotEmpty() == true) TextAction("Check the EQ reaches the speakers", vm::eqCheck, icon = Ic.CHECK)
         if (u.tvEqOn) TextAction("Switch the ${u.device}'s EQ off", vm::tvEqOff, icon = Ic.POWER)
-        if (isAdvanced() && u.hasStock) TextAction("Start over (new reference)", vm::startOver, icon = Ic.AGAIN)
         TextAction("Disconnect", vm::disconnect, icon = Ic.CLOSE)
     }
-    if (isAdvanced() && !u.busy) {
-        var one by rememberSaveable { mutableIntStateOf(0) }
-        val sp = u.layout.speakers
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Column(Modifier.weight(1f)) { DropSelect(sp.map { it.title }, one.coerceAtMost(sp.size - 1), { one = it }, label = "One speaker", icon = Ic.SPEAKER) }
-            SecondaryButton("Test", { vm.testOne(sp[one.coerceAtMost(sp.size - 1)]) }, icon = Ic.MEASURE)
+    if (!u.busy) RunsDetails(u, vm)
+}
+
+/** Which home theatre this is: a drop-down of the tests, New test, and in Advanced, rename and delete. */
+@Composable
+private fun TestBar(u: TheatreUi, vm: TheatreViewModel) {
+    var naming by rememberSaveable { mutableStateOf<String?>(null) }
+    var renaming by rememberSaveable { mutableStateOf(false) }
+    var deleting by rememberSaveable { mutableStateOf(false) }
+    val ids = u.tests.map { it.first }
+    if (u.tests.isNotEmpty()) {
+        DropSelect(
+            u.tests.map { it.second }, ids.indexOf(u.test?.id).coerceAtLeast(0), { vm.selectTest(ids[it]) },
+            enabled = !u.busy, label = "Home theatre", icon = Ic.HOME,
+            info = "Each home theatre keeps every run of its three tests, so you can look back and compare. Name one per room or system.",
+        )
+    }
+    if (!u.busy) Actions {
+        TextAction("New home theatre", { naming = "" }, icon = Ic.PLUS)
+        if (isAdvanced() && u.test != null) {
+            TextAction("Rename", { renaming = true }, icon = Ic.EDIT)
+            TextAction("Delete this home theatre", { deleting = true }, icon = Ic.TRASH, danger = true)
         }
     }
-    if (sys != null && !u.busy) SystemDetails(sys, u)
+    naming?.let { text ->
+        NameDialog("New home theatre", text, onDone = { n -> vm.newTest(n); naming = null }, onCancel = { naming = null })
+    }
+    if (renaming) NameDialog("Rename", u.test?.name.orEmpty(), onDone = { n -> vm.renameTest(n); renaming = false }, onCancel = { renaming = false })
+    if (deleting) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { deleting = false },
+        title = { Text("Delete ${u.test?.name ?: "this home theatre"}?") },
+        text = { Text("Every run of it is deleted.") },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { vm.deleteTest(); deleting = false }) { Text("Delete", color = At.c.bad) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = { deleting = false }) { Text("Keep it") } },
+    )
+}
+
+@Composable
+private fun NameDialog(title: String, start: String, onDone: (String) -> Unit, onCancel: () -> Unit) {
+    var text by rememberSaveable { mutableStateOf(start) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(title) },
+        text = { OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true, placeholder = { Text("Living room 5.1") }, modifier = Modifier.fillMaxWidth()) },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { onDone(text) }) { Text("Save") } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onCancel) { Text("Cancel") } },
+    )
+}
+
+private fun whenText(ms: Long?): String? = ms?.let { java.text.SimpleDateFormat("d MMM, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(it)) }
+
+@Composable
+private fun LevelsResult(u: TheatreUi) {
+    val run = u.test?.last(RunKind.LEVELS)
+    val c = deckColors
+    RunSheet("Levels", whenText(run?.whenMillis) ?: "not set yet", trailing = { InfoButton("The level test", ABOUT_LEVELS, small = true) }) {
+        if (run == null) Muted("Pink noise, one speaker at a time: set each level on the home theatre.")
+        else {
+            val worst = run.levels.values.maxOfOrNull { kotlin.math.abs(it) } ?: 0.0
+            ReadingCells(listOf(Reading("±%.1f".format(worst), "dB", "left to set", if (worst > dev.autotune.dsp.LevelMeter.OK_DB) c.warn else c.good)))
+        }
+    }
+}
+
+@Composable
+private fun DistancesResult(u: TheatreUi) {
+    val d = u.distances
+    val run = u.test?.last(RunKind.DISTANCES)
+    val c = deckColors
+    RunSheet("Distances", whenText(run?.whenMillis) ?: "not tested yet", trailing = { if (d != null) AlertsIcon(d.notes) else InfoButton("The distances test", ABOUT_DIST, small = true) }) {
+        if (d == null) Muted("One sweep per speaker. Run it at setup, and again when a speaker moves.")
+        else {
+            ReadingCells(listOf(
+                Reading("%.2f".format(d.spreadM), "m", "off by", if (d.spreadM > TheatreJudge.DISTANCE_OK_M) c.warn else c.good),
+                Reading("${d.heardCount}/${d.speakers.size}", null, "heard", if (d.heardCount < d.speakers.size) c.warn else null),
+            ))
+            Text(d.headline, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun EqResult(u: TheatreUi) {
+    val e = u.eq
+    val run = u.test?.last(RunKind.EQ)
+    val c = deckColors
+    val notes = listOfNotNull(run?.system?.fatal, u.real?.takeIf { run?.pretend == true }?.let { "Pretend: really $it. Never kept as the reference." })
+    RunSheet("EQ", whenText(run?.whenMillis) ?: "not tested yet", trailing = { if (notes.isNotEmpty()) AlertsIcon(notes) else InfoButton("The EQ test", ABOUT_EQTEST, small = true) }) {
+        if (e == null) Muted("Every speaker together: one EQ for all of them.")
+        else {
+            ReadingCells(listOfNotNull(
+                e.rmsDb?.let { now ->
+                    val st = e.stockRmsDb
+                    Reading("%.1f".format(now), "dB", "from target", if (e.worth) c.warn else c.good, note = if (st != null && kotlin.math.abs(st - now) > 0.05) "%+.1f vs start".format(now - st) else null)
+                },
+                Reading("${e.seats}", null, if (e.seats == 1) "seat" else "seats"),
+            ))
+            Text(e.headline, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            u.eqReached?.let { r ->
+                Text(
+                    when { r < 0 -> "eq check: not heard"; r >= 0.6 -> "eq check: it reaches the speakers (%.0f%%)".format(r * 100); else -> "eq check: it does not reach the speakers (%.0f%%)".format(r * 100) },
+                    style = MaterialTheme.typography.labelSmall, color = if (r >= 0.6) c.good else c.warn, maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+/** The graph (the EQ runs ticked, against the target), every run with its note, the distances and the one EQ. */
+@Composable
+private fun RunsDetails(u: TheatreUi, vm: TheatreViewModel) {
+    val t = u.test ?: return
+    val grid = FreqGrid()
+    val eqRuns = t.runs.filter { it.kind == RunKind.EQ && it.system?.heard == true }
+    val shown = eqRuns.filter { it.whenMillis in u.compare }.ifEmpty { listOfNotNull(eqRuns.lastOrNull()) }
+    if (shown.isNotEmpty()) {
+        val curves = shown.mapIndexed { k, r ->
+            val m = r.system!!.magDb!!
+            val sm = grid.smoothOctave(m, 6.0)
+            val ref = TheatreJudge.level(m, dev.autotune.dsp.Speaker.FL, grid)
+            Curve(whenText(r.whenMillis) ?: "EQ test", DoubleArray(sm.size) { sm[it] - ref }, if (r === t.eqStock) 0 else k + 1)
+        }
+        ResponseChart(ChartData(grid.freqs, curves, DoubleArray(grid.size) { Target.HOME_THEATER.dbAt(grid.freqs[it]) }, null, ""), targetLabel = "Home theatre")
+    }
+    DetailsHeading()
+    Fold("Runs", summary = "${t.runs.size} saved", startOpen = false, info = "Every run of this home theatre's tests, newest first. Tick EQ runs to draw them together on the graph; the first EQ run is the reference every EQ is fitted from.") {
+        t.runs.asReversed().forEach { r ->
+            Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (r.kind == RunKind.EQ && r.system?.heard == true) androidx.compose.material3.Checkbox(r.whenMillis in u.compare || (u.compare.isEmpty() && r === eqRuns.lastOrNull()), { vm.toggleCompare(r.whenMillis) })
+                else Spacer(Modifier.width(48.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(r.kind.title + (if (r === t.eqStock) " · reference" else "") + (r.eqInUse?.let { " · EQ $it" } ?: ""), style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                    Muted(listOfNotNull(whenText(r.whenMillis), r.note.ifBlank { null }, if (r.pretend) "pretend" else null).joinToString(" · "))
+                }
+            }
+        }
+        var note by rememberSaveable(t.id, u.focus) { mutableStateOf(t.last(u.focus)?.note.orEmpty()) }
+        if (t.last(u.focus) != null) OutlinedTextField(
+            value = note, onValueChange = { note = it; vm.setNote(u.focus, it) }, singleLine = true,
+            label = { Text("Note on the last ${u.focus.title.lowercase()} run") }, modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
+        )
+    }
+    u.distances?.let { d ->
+        Fold("Distances per speaker", summary = "against front left", info = ABOUT_DIST) {
+            d.speakers.forEach { s ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(s.speaker.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = if (s.heard) At.c.text else At.c.muted, maxLines = 1)
+                    Text(if (s.heard) TheatreJudge.distanceText(s.distanceM) else "not heard", Modifier.width(88.dp), style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                    Text(s.delayMs?.let { "%+.2f ms".format(it) } ?: "—", Modifier.width(72.dp), style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 1)
+                }
+            }
+        }
+    }
+    u.eq?.let { e ->
+        Fold("EQ for every speaker", summary = if (e.eq.isEmpty()) "no change" else "${e.eq.size} bands", info = ABOUT_EQ) {
+            if (e.eq.isEmpty()) Muted("no change")
+            e.eq.sortedBy { it.freqHz }.forEach { f ->
+                Text("%s  %+.1f dB  Q %.1f".format(if (f.freqHz >= 1000) "%.1f kHz".format(f.freqHz / 1000) else "%.0f Hz".format(f.freqHz), f.gainDb, f.q), style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
 }
 
 /** The level test as it runs: the speaker playing noise and, large, how far to turn it. */
@@ -335,67 +517,3 @@ private fun LevelDeck(lv: dev.autotune.theatre.LevelState) {
     }
 }
 
-/** The levels the last level test ended with. */
-@Composable
-private fun LevelsSet(done: Map<dev.autotune.dsp.Speaker, Double>) {
-    val worst = done.values.maxOfOrNull { kotlin.math.abs(it) } ?: 0.0
-    RunSheet("Levels", "set", trailing = { InfoButton("The level test", ABOUT_LEVELS, small = true) }) {
-        ReadingCells(listOf(Reading("±%.1f".format(worst), "dB", "left to set", if (worst > dev.autotune.dsp.LevelMeter.OK_DB) deckColors.warn else deckColors.good)))
-    }
-}
-
-@Composable
-private fun SystemSummary(sys: dev.autotune.dsp.PassReport, u: TheatreUi) {
-    val c = deckColors
-    val r = sys.speakers
-    val whenText = u.latest?.whenMillis?.let { java.text.SimpleDateFormat("d MMM, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(it)) }
-    val notes = r.notes + listOfNotNull(u.real?.takeIf { u.pretend }?.let { "Pretend ${r.layout.title}: really $it. Its readings are for trying the flow, and it is never kept as the reference." })
-    RunSheet("System", whenText, trailing = { AlertsIcon(notes) }) {
-        ReadingCells(
-            listOfNotNull(
-                sys.rmsDb?.let { now ->
-                    val st = sys.stockRmsDb
-                    Reading("%.1f".format(now), "dB", "from target", note = if (st != null && kotlin.math.abs(st - now) > 0.05) "%+.1f vs start".format(now - st) else null)
-                },
-                Reading("±%.1f".format(r.levelSpreadDb), "dB", "levels", if (r.levelSpreadDb > TheatreJudge.LEVEL_OK_DB) c.warn else c.good),
-                Reading("%.2f".format(r.distanceSpreadM), "m", "distance", if (r.distanceSpreadM > TheatreJudge.DISTANCE_OK_M) c.warn else c.good),
-                Reading("${r.heardCount}/${r.speakers.size}", null, "heard", if (r.heardCount < r.speakers.size) c.warn else null),
-            ),
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(sys.headline, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            InfoButton("About this result", ABOUT_SYSTEM, small = true)
-        }
-    }
-}
-
-@Composable
-private fun SystemDetails(sys: dev.autotune.dsp.PassReport, u: TheatreUi) {
-    val grid = FreqGrid()
-    val readings = u.latest?.readings.orEmpty().filter { it.heard }
-    val ref = readings.filter { !it.speaker.sub }.map { TheatreJudge.level(it.magDb!!, it.speaker, grid) }.average().takeIf { !it.isNaN() } ?: 0.0
-    // the graph is always shown: the whole system bold, each speaker under it, against the target
-    val curves = buildList {
-        sys.systemDb?.let { m ->
-            val sm = grid.smoothOctave(m, 6.0)
-            val lvl = TheatreJudge.level(m, dev.autotune.dsp.Speaker.FL, grid)
-            add(Curve("System", DoubleArray(sm.size) { sm[it] - lvl }, 0))
-        }
-        readings.forEach { rd ->
-            val sm = grid.smoothOctave(rd.magDb!!, 6.0)
-            add(Curve(rd.speaker.title, DoubleArray(sm.size) { sm[it] - ref }, rd.speaker.ordinal + 1))
-        }
-    }
-    if (curves.isNotEmpty()) ResponseChart(ChartData(grid.freqs, curves, DoubleArray(grid.size) { Target.HOME_THEATER.dbAt(grid.freqs[it]) }, null, ""), targetLabel = "Home theatre")
-    DetailsHeading()
-    Details(sys.speakers, u, showEq = false)
-    Fold("EQ for every speaker", summary = if (sys.eq.isEmpty()) "no change" else "${sys.eq.size} bands", info = ABOUT_EQ) {
-        if (sys.eq.isEmpty()) Muted("no change")
-        sys.eq.sortedBy { it.freqHz }.forEach { f ->
-            Text(
-                "%s  %+.1f dB  Q %.1f".format(if (f.freqHz >= 1000) "%.1f kHz".format(f.freqHz / 1000) else "%.0f Hz".format(f.freqHz), f.gainDb, f.q),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-    }
-}

@@ -45,13 +45,20 @@ import dev.autotune.dsp.SystemReport
 
 /** The list of tests. One tap on a test opens its results; a new test starts from the button at the bottom. */
 @Composable
-fun TestsTab(s: UiState, vm: TuneViewModel, openResults: (String) -> Unit, continueTest: (String) -> Unit = {}) {
+fun TestsTab(s: UiState, vm: TuneViewModel, openResults: (String) -> Unit, continueTest: (String) -> Unit = {}, openTheatre: (String) -> Unit = {}) {
     val readingCount = s.tests.sumOf { it.runCount }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    // the home theatres, read from their files once the tab opens
+    val theatres by androidx.compose.runtime.produceState(emptyList<dev.autotune.theatre.TheatreTest>()) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { dev.autotune.theatre.TheatreTests.list(ctx.filesDir) }
+    }
     var renameId by remember { mutableStateOf<String?>(null) }
     var renameText by remember { mutableStateOf("") }
     var deleteId by remember { mutableStateOf<String?>(null) }
     ScreenTitle("Tests", context = if (s.tests.isEmpty()) null else "${s.tests.size} systems · $readingCount readings")
+    if (theatres.isNotEmpty()) TheatreList(theatres, openTheatre)
     if (s.tests.isEmpty()) {
+        if (theatres.isNotEmpty()) return
         // the title and one fact; what a test is lives in the bubble, the key below starts one
         Group(
             "No tests yet", divider = false,
@@ -93,6 +100,35 @@ fun TestsTab(s: UiState, vm: TuneViewModel, openResults: (String) -> Unit, conti
             confirmButton = { TextButton(onClick = { vm.deleteTest(id); deleteId = null }) { Text("Delete", color = At.c.bad) } },
             dismissButton = { TextButton(onClick = { deleteId = null }) { Text("Keep it") } },
         )
+    }
+}
+
+/** The home theatres, one row each: its name, its runs and when it was last tested. Opens on the Home theatre page. */
+@Composable
+private fun TheatreList(theatres: List<dev.autotune.theatre.TheatreTest>, open: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().deckPlate()) {
+        DeckColors {
+            theatres.forEachIndexed { i, t ->
+                if (i > 0) HorizontalDivider(color = At.c.line, modifier = Modifier.padding(start = 52.dp))
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClickLabel = "Open ${t.name}", onClick = { open(t.id) })
+                        .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.padding(end = 12.dp)) { AtIcon(Ic.HOME, At.c.text, size = 26.dp) }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(t.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        val last = t.runs.lastOrNull()
+                        Muted(listOfNotNull(
+                            last?.layout?.title,
+                            if (t.runs.isEmpty()) "no runs" else "${t.runs.size} ${if (t.runs.size == 1) "run" else "runs"}",
+                            last?.let { java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault()).format(java.util.Date(it.whenMillis)) },
+                        ).joinToString(" · "))
+                    }
+                    AtIcon(Ic.NEXT, At.c.muted)
+                }
+            }
+        }
     }
 }
 

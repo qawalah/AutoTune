@@ -4,6 +4,7 @@ import dev.autotune.dsp.ChannelClip
 import dev.autotune.dsp.Channels
 import dev.autotune.dsp.LevelNoise
 import dev.autotune.dsp.PassClip
+import dev.autotune.dsp.PassKind
 import dev.autotune.dsp.PlayMethod
 import java.io.File
 import java.nio.ByteBuffer
@@ -13,7 +14,8 @@ import java.nio.ByteOrder
  * Writes the TV's test clips as raw 16-bit 48 kHz PCM in Android's 5.1 order (FL FR FC LFE BL BR), for
  * tools/theatre/make-clips.sh to encode as Dolby Digital. Run with `./gradlew :dsp:theatreClips -Pout=<dir>`.
  * - `<code>.raw`: one speaker's clip (beeps, then its sweep).
- * - `pass-<layout>.raw`: the system test of each layout Dolby Digital 5.1 reaches, in one clip.
+ * - `distances-<layout>.raw` and `eq-<layout>.raw`: the distances test (each speaker's sweep) and the EQ test (every
+ *   speaker together) of each layout Dolby Digital 5.1 reaches, each in one clip.
  * - `noise-<code>.raw`: three loops of the speaker's level noise: exactly 256 Dolby Digital frames, so it loops cleanly.
  */
 object WriteTheatreClips {
@@ -27,7 +29,9 @@ object WriteTheatreClips {
             val loop = Channels.interleave16(LevelNoise.planes(s), method)
             write(dir, "noise-${s.code}.raw", ShortArray(loop.size * 3) { loop[it % loop.size] })
         }
-        for (l in method.layouts) write(dir, "pass-${l.name}.raw", Channels.interleave16(PassClip.planes(l), method))
+        for (l in method.layouts) for (k in listOf(PassKind.DISTANCES, PassKind.EQ)) {
+            write(dir, "${k.code}-${l.name}.raw", Channels.interleave16(PassClip.planes(l, kind = k), method))
+        }
     }
 
     private fun write(dir: File, name: String, pcm: ShortArray) {

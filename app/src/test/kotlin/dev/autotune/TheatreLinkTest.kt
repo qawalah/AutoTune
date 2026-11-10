@@ -14,7 +14,14 @@ import dev.autotune.link.LinkMsg
 import dev.autotune.link.Msg
 import dev.autotune.link.Pairing
 import dev.autotune.link.ShownRow
+import dev.autotune.theatre.RunKind
+import dev.autotune.theatre.ThreeStep
+import dev.autotune.theatre.TheatreRun
 import dev.autotune.theatre.TheatreSession
+import dev.autotune.theatre.TheatreTest
+import dev.autotune.theatre.TheatreTests
+import dev.autotune.theatre.threeKey
+import dev.autotune.theatre.threeNext
 import dev.autotune.theatre.TheatreStore
 import dev.autotune.theatre.theatreKey
 import dev.autotune.theatre.theatreNextSpeakers
@@ -69,21 +76,80 @@ class TheatreLinkTest {
     }
 
     @Test
-    fun theTwoTestsLeadFromLevelsToTheSystemToTheEq() {
-        fun pass(move: TheatreMove, spread: Double = 0.0) = dev.autotune.dsp.PassReport(
-            TheatreReport(Layout.L51, listOf(dev.autotune.dsp.SpeakerResult(Speaker.C, true, 70.0, spread, 0.0, 0.0, 1.0, emptyList())), emptyList(), "", move, null),
-            null, 3.0, null, listOf(EqFilter(60.0, -4.0, 2.0)), "", move,
+    fun theThreeTestsSuggestLevelsThenDistancesThenTheEq() {
+        val grid = FreqGrid()
+        val flat = DoubleArray(grid.size)
+        fun ui(vararg runs: TheatreRun, eq: dev.autotune.dsp.EqReport? = null, distOk: Boolean = true, eqOn: Boolean = false) = dev.autotune.theatre.TheatreUi(
+            threeTests = true, test = TheatreTest("t", "Living room", 1L, runs.toList()), eq = eq, tvEqOn = eqOn,
+            distances = dev.autotune.dsp.DistanceReport(emptyList(), emptyList(), "", distOk),
         )
-        // nothing yet: set the levels; once set, test the system
-        assertEquals(dev.autotune.theatre.SystemStep.LEVELS, dev.autotune.theatre.systemNext(null, levelsDone = false))
-        assertEquals(dev.autotune.theatre.SystemStep.SYSTEM, dev.autotune.theatre.systemNext(null, levelsDone = true))
-        assertEquals("Set the levels", dev.autotune.theatre.systemKey(null, false, Layout.L51).first)
-        assertTrue(dev.autotune.theatre.systemKey(null, true, Layout.L51).second.startsWith("one pass, about"))
-        // a system result decides: levels off, use the one EQ, or test again
-        assertEquals(dev.autotune.theatre.SystemStep.LEVELS, dev.autotune.theatre.systemNext(pass(TheatreMove.SET_LEVELS, 2.0), true))
-        assertEquals("they differ by up to 2.0 dB", dev.autotune.theatre.systemKey(pass(TheatreMove.SET_LEVELS, 2.0), true, Layout.L51).second)
-        assertEquals("Use the EQ on the PC", dev.autotune.theatre.systemKey(pass(TheatreMove.USE_EQ), true, Layout.L51, "PC").first)
-        assertEquals(dev.autotune.theatre.SystemStep.SYSTEM, dev.autotune.theatre.systemNext(pass(TheatreMove.DONE), true))
+        val levels = TheatreRun(RunKind.LEVELS, 10L, Layout.L51, "TV", levels = mapOf(Speaker.C to 0.5))
+        val distances = TheatreRun(RunKind.DISTANCES, 20L, Layout.L51, "TV")
+        val eqRun = TheatreRun(RunKind.EQ, 30L, Layout.L51, "TV", system = SpeakerReading(Speaker.FL, flat, 0.0, 50.0))
+        assertEquals(ThreeStep.LEVELS, threeNext(dev.autotune.theatre.TheatreUi(threeTests = true)))
+        assertEquals("Set the levels", threeKey(dev.autotune.theatre.TheatreUi(threeTests = true)).first)
+        assertEquals(ThreeStep.DISTANCES, threeNext(ui(levels)))
+        assertEquals(ThreeStep.EQ, threeNext(ui(levels, distances)))
+        assertEquals("Test the EQ", threeKey(ui(levels, distances)).first)
+        // set up once: from then on the EQ, never the distances again
+        assertEquals("Test the EQ again", threeKey(ui(levels, distances, eqRun)).first)
+        // distances found off: test them again, until an EQ test comes after
+        assertEquals(ThreeStep.DISTANCES, threeNext(ui(levels, distances, distOk = false)))
+        assertEquals(ThreeStep.EQ, threeNext(ui(levels, distances, eqRun, distOk = false)))
+        // levels left off by more than the meter's ok: set them again
+        val off = TheatreRun(RunKind.LEVELS, 40L, Layout.L51, "TV", levels = mapOf(Speaker.SUB to 3.0))
+        assertEquals("Set the levels again", threeKey(ui(levels, distances, eqRun, off)).first)
+        // an EQ worth using is offered until it is on
+        val worth = dev.autotune.dsp.EqReport(flat, 3.0, null, listOf(EqFilter(60.0, -4.0, 2.0)), 1, "", true)
+        assertEquals("Use the EQ on the TV", threeKey(ui(levels, distances, eqRun, eq = worth)).first)
+        assertEquals(ThreeStep.EQ, threeNext(ui(levels, distances, eqRun, eq = worth, eqOn = true)))
+    }
+
+    @Test
+    fun homeTheatreTestsKeepEveryRun() {
+        val grid = FreqGrid()
+        val mag = DoubleArray(grid.size) { -1.0 + it * 0.02 }
+        val t = TheatreTest("ht1", "Living room 5.1 & sub", 3L, emptyList())
+            .with(TheatreRun(RunKind.LEVELS, 4L, Layout.L51, "Box", levels = mapOf(Speaker.C to -1.5, Speaker.SUB to 2.0)))
+            .with(TheatreRun(RunKind.DISTANCES, 5L, Layout.L51, "Box", readings = listOf(SpeakerReading(Speaker.FL, mag, 0.012, 40.0), SpeakerReading(Speaker.SUB, null, null, null, "not heard"))))
+            .with(TheatreRun(RunKind.EQ, 6L, Layout.L51, "Box", pretend = true, real = "tablet · stereo", system = SpeakerReading(Speaker.FL, mag, 0.0, 55.0), seats = 3, eqInUse = "on the TV"))
+            .with(TheatreRun(RunKind.EQ, 7L, Layout.L51, "Box", system = SpeakerReading(Speaker.FL, mag, 0.0, 55.0)).withNote("after moving the sub; a=b;c"))
+        val back = TheatreTests.decode("ht1", TheatreTests.encode(t), grid)!!
+        assertEquals("Living room 5.1 & sub", back.name)
+        assertEquals(4, back.runs.size)
+        assertEquals(mapOf(Speaker.C to -1.5, Speaker.SUB to 2.0), back.runs[0].levels)
+        assertEquals(0.012, back.runs[1].readings[0].deltaMs!!, 1e-6)
+        assertEquals("not heard", back.runs[1].readings[1].fatal)
+        assertArrayEquals(mag, back.runs[2].system!!.magDb, 0.006)
+        assertEquals(3, back.runs[2].seats)
+        assertEquals("on the TV", back.runs[2].eqInUse)
+        assertTrue(back.runs[2].pretend)
+        assertEquals("after moving the sub; a=b;c", back.runs[3].note)
+        // the EQ is fitted from the first real EQ run, never the pretend one
+        assertEquals(7L, back.eqStock!!.whenMillis)
+        assertEquals(7L, back.last(RunKind.EQ)!!.whenMillis)
+        // a newer version's head is still read; junk is not
+        assertEquals(4, TheatreTests.decode("x", TheatreTests.encode(t).replaceFirst("test 1", "test 2"), grid)!!.runs.size)
+        assertNull(TheatreTests.decode("x", "hello"))
+    }
+
+    @Test
+    fun theOldStockAndLatestBecomeTheFirstTest() {
+        val base = kotlin.io.path.createTempDirectory("ht").toFile()
+        try {
+            val grid = FreqGrid()
+            val mag = DoubleArray(grid.size)
+            val old = java.io.File(base, "theatre")
+            TheatreStore.save(old, "stock", TheatreSession(5L, Layout.L51, PlayMethod.DOLBY_51, "TV", listOf(SpeakerReading(Speaker.C, mag, 0.0, 40.0))))
+            TheatreStore.save(old, "latest", TheatreSession(9L, Layout.L51, PlayMethod.DOLBY_51, "TV", listOf(SpeakerReading(Speaker.C, mag, 0.0, 40.0)), system = SpeakerReading(Speaker.FL, mag, 0.0, 50.0)))
+            val t = TheatreTests.migrate(base)!!
+            assertEquals(listOf(RunKind.SPEAKERS, RunKind.DISTANCES, RunKind.EQ), t.runs.map { it.kind })
+            assertEquals(1, TheatreTests.list(base).size)
+            // once only
+            assertNull(TheatreTests.migrate(base))
+            TheatreTests.delete(base, t.id)
+            assertTrue(TheatreTests.list(base).isEmpty())
+        } finally { base.deleteRecursively() }
     }
 
     @Test
