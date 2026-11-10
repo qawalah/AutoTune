@@ -106,6 +106,23 @@ class TheatreLinkTest {
     }
 
     @Test
+    fun theEqCheckAsksForPlainStereo() {
+        val m = LinkMsg.parse(Msg.pass(3, "L51", hold = true, kind = "eq", pcm = true).encode())!!
+        assertEquals("1", m["pcm"]); assertEquals("eq", m["kind"]); assertEquals("1", m["hold"])
+        // every other pass leaves it out, so older TVs read it as before
+        assertNull(LinkMsg.parse(Msg.pass(4, "L51", hold = false, kind = "distances").encode())!!["pcm"])
+    }
+
+    @Test
+    fun nothingHeardSaysSoNotNoSoundFromFrontLeft() {
+        val none = Layout.L51.speakers.map { SpeakerReading(it, null, null, null, "not heard") }
+        val r = dev.autotune.dsp.DistanceJudge.judge(Layout.L51, none, dev.autotune.dsp.Target.HOME_THEATER)
+        assertTrue(r.headline.startsWith("Nothing heard"))
+        assertFalse(r.ok)
+        assertEquals(0, r.heardCount)
+    }
+
+    @Test
     fun homeTheatreTestsKeepEveryRun() {
         val grid = FreqGrid()
         val mag = DoubleArray(grid.size) { -1.0 + it * 0.02 }

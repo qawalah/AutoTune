@@ -237,6 +237,7 @@ object DistanceJudge {
         val missing = r.speakers.filter { !it.heard }
         val off = r.distanceSpreadM > TheatreJudge.DISTANCE_OK_M
         val headline = when {
+            missing.size == r.speakers.size -> "Nothing heard: is the volume up, and the TV playing?"
             missing.isNotEmpty() -> "No sound from ${missing.first().speaker.title.lowercase()}"
             off -> "Distances are off by up to ${String.format(java.util.Locale.US, "%.2f", r.distanceSpreadM)} m"
             else -> "Every speaker is in time"

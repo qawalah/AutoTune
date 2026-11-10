@@ -3,6 +3,11 @@ package dev.autotune.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,9 +43,7 @@ import dev.autotune.dsp.TheatreReport
 import dev.autotune.theatre.TheatreUi
 import dev.autotune.theatre.TheatreViewModel
 import dev.autotune.theatre.RunKind
-import dev.autotune.theatre.ThreeStep
 import dev.autotune.theatre.threeKey
-import dev.autotune.theatre.threeNext
 import dev.autotune.theatre.theatreKey
 
 private const val ABOUT_TV =
@@ -278,7 +281,11 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel) {
     Panel(pad = 12.dp) {
         SpeakerMap(u.layout, u.playing, level = ring, all = u.allPlaying, notes = notes, silent = d?.speakers?.filter { !it.heard }?.map { it.speaker }?.toSet().orEmpty().takeIf { !u.busy }.orEmpty())
         val line = u.status ?: if (u.pretend) "pretend ${u.layout.title} · really ${u.real ?: "its own speakers"}" else listOfNotNull(u.output, u.method?.title).joinToString(" · ").lowercase()
-        Text(line, style = MaterialTheme.typography.labelSmall, color = if (u.pretend && u.status == null) At.c.signal else At.c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(line, Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = if (u.pretend && u.status == null) At.c.signal else At.c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // whether the TV's EQ is on, always in view: the pilot dot is lit (red) only while it is
+            EqPilot(u.tvEqOn, u.device)
+        }
     }
     u.error?.let { Alerts(listOf(it), title = "The ${u.device}") }
 
@@ -287,10 +294,27 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel) {
         u.waitingSeat -> RunSheet("EQ test", "seat ${u.seat} of ${u.seats}", trailing = { InfoButton("The EQ test", ABOUT_EQTEST, small = true) }) {
             ReadingCells(listOf(Reading("${u.seat}", null, "move the phone to the next seat, at ear height")))
         }
+        // each test with its own keys right under it
         !u.busy -> {
+            val t = u.test
             LevelsResult(u)
+            Actions { TextAction(if (t?.last(RunKind.LEVELS) == null) "Set the levels" else "Set the levels again", vm::levelTest, icon = Ic.SPEAKER) }
             DistancesResult(u)
+            Actions { TextAction(if (t?.last(RunKind.DISTANCES) == null) "Test the distances" else "Test the distances again", vm::distancesTest, icon = Ic.MEASURE) }
             EqResult(u)
+            Actions {
+                TextAction(if (t?.last(RunKind.EQ) == null) "Test the EQ" else "Test the EQ again", vm::eqTest, icon = Ic.MEASURE)
+                if (u.eq?.eq?.isNotEmpty() == true && !u.tvEqOn) TextAction("Use the EQ on the ${u.device}", vm::useEq, icon = Ic.EQ)
+                if (u.tvEqOn && u.eq?.eq?.isNotEmpty() == true) TextAction("Check the EQ reaches the speakers", vm::eqCheck, icon = Ic.CHECK)
+                if (u.tvEqOn) TextAction("Switch the ${u.device}'s EQ off", vm::tvEqOff, icon = Ic.POWER)
+            }
+            if (isAdvanced()) {
+                DropSelect(
+                    listOf("1 seat", "3 seats", "5 seats"), listOf(1, 3, 5).indexOf(u.seats).coerceAtLeast(0), { vm.setSeats(listOf(1, 3, 5)[it]) },
+                    label = "EQ test seats", icon = Ic.MIC,
+                    info = "The EQ test can average the system over several seats, so the EQ suits the whole sofa rather than one spot. The phone waits at each seat for Next seat.",
+                )
+            }
         }
     }
 
@@ -300,13 +324,6 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel) {
             method.layouts.map { it.title }, method.layouts.indexOf(u.layout).coerceAtLeast(0), { vm.setLayout(method.layouts[it]) },
             label = "Speakers", icon = Ic.SPEAKER,
             info = "The speakers your home theatre has. ${method.title} from this ${u.device} reaches up to ${method.layouts.first().title}.",
-        )
-    }
-    if (isAdvanced() && !u.busy) {
-        DropSelect(
-            listOf("1 seat", "3 seats", "5 seats"), listOf(1, 3, 5).indexOf(u.seats).coerceAtLeast(0), { vm.setSeats(listOf(1, 3, 5)[it]) },
-            label = "EQ test seats", icon = Ic.MIC,
-            info = "The EQ test can average the system over several seats, so the EQ suits the whole sofa rather than one spot. The phone waits at each seat for Next seat.",
         )
     }
 
@@ -321,17 +338,20 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel) {
         else -> { val (k, sub) = threeKey(u); PinAction(k, vm::next, icon = when { k.startsWith("Set") -> Ic.SPEAKER; k.startsWith("Use") -> Ic.EQ; else -> Ic.MEASURE }, sub = sub) }
     }
     if (lv != null || u.waitingSeat) Actions { TextAction("Stop", vm::stop, icon = Ic.STOP) }
-    if (!u.busy) Actions {
-        val next = threeNext(u)
-        if (next != ThreeStep.LEVELS) TextAction("Set the levels", vm::levelTest, icon = Ic.SPEAKER)
-        if (next != ThreeStep.DISTANCES) TextAction("Test the distances", vm::distancesTest, icon = Ic.MEASURE)
-        if (next != ThreeStep.EQ) TextAction("Test the EQ", vm::eqTest, icon = Ic.EQ)
-        if (next != ThreeStep.USE_EQ && u.eq?.eq?.isNotEmpty() == true) TextAction("Use the EQ on the ${u.device}", vm::useEq, icon = Ic.EQ)
-        if (u.tvEqOn && u.eq?.eq?.isNotEmpty() == true) TextAction("Check the EQ reaches the speakers", vm::eqCheck, icon = Ic.CHECK)
-        if (u.tvEqOn) TextAction("Switch the ${u.device}'s EQ off", vm::tvEqOff, icon = Ic.POWER)
-        TextAction("Disconnect", vm::disconnect, icon = Ic.CLOSE)
-    }
+    if (!u.busy) Actions { TextAction("Disconnect", vm::disconnect, icon = Ic.CLOSE) }
     if (!u.busy) RunsDetails(u, vm)
+}
+
+/** "eq on" with a lit pilot dot, or "eq off" with an unlit one: the TV's (or PC's) EQ. */
+@Composable
+private fun EqPilot(on: Boolean, device: String) {
+    Row(Modifier.padding(start = 8.dp).semantics { contentDescription = "$device EQ ${if (on) "on" else "off"}" }, verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.foundation.layout.Box(
+            Modifier.size(7.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                .background(if (on) At.c.signal else At.c.line),
+        )
+        Text("${device.lowercase()} eq ${if (on) "on" else "off"}", Modifier.padding(start = 5.dp), style = MaterialTheme.typography.labelSmall, color = if (on) At.c.text else At.c.muted)
+    }
 }
 
 /** Which home theatre this is: a drop-down of the tests, New test, and in Advanced, rename and delete. */
@@ -404,7 +424,9 @@ private fun DistancesResult(u: TheatreUi) {
         if (d == null) Muted("One sweep per speaker. Run it at setup, and again when a speaker moves.")
         else {
             ReadingCells(listOf(
-                Reading("%.2f".format(d.spreadM), "m", "off by", if (d.spreadM > TheatreJudge.DISTANCE_OK_M) c.warn else c.good),
+                // nothing heard: no distance to show, never a green zero
+                if (d.heardCount < 2) Reading("—", null, "off by")
+                else Reading("%.2f".format(d.spreadM), "m", "off by", if (d.spreadM > TheatreJudge.DISTANCE_OK_M) c.warn else c.good),
                 Reading("${d.heardCount}/${d.speakers.size}", null, "heard", if (d.heardCount < d.speakers.size) c.warn else null),
             ))
             Text(d.headline, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -417,7 +439,11 @@ private fun EqResult(u: TheatreUi) {
     val e = u.eq
     val run = u.test?.last(RunKind.EQ)
     val c = deckColors
-    val notes = listOfNotNull(run?.system?.fatal, u.real?.takeIf { run?.pretend == true }?.let { "Pretend: really $it. Never kept as the reference." })
+    val notes = listOfNotNull(
+        run?.system?.fatal, u.real?.takeIf { run?.pretend == true }?.let { "Pretend: really $it. Never kept as the reference." },
+        ("The ${u.device}'s EQ is on, but this test plays Dolby, which passes by it: the reading is the system without it. " +
+            "Check the EQ reaches the speakers plays through it.").takeIf { u.tvEqOn && u.method == dev.autotune.dsp.PlayMethod.DOLBY_51 && run != null },
+    )
     RunSheet("EQ", whenText(run?.whenMillis) ?: "not tested yet", trailing = { if (notes.isNotEmpty()) AlertsIcon(notes) else InfoButton("The EQ test", ABOUT_EQTEST, small = true) }) {
         if (e == null) Muted("Every speaker together: one EQ for all of them.")
         else {
