@@ -21,7 +21,7 @@ Everything below is untested on a real device and microphone unless stated.
 
 ## [2.16.1] - 2026-11-10
 ### Added (after release)
-- **AutoTune for Windows in DevStore.** The PC app is also released the way DevStore installs and updates Windows apps (`windows-v2.16.1`, with its icon and screenshots), so DevStore on the PC lists it as Android and Windows and keeps it up to date. Obtainium on the phone and TV must filter AutoTune's releases by `^android-` (source settings), as DevStore's phone setup says for a repo with a Windows part.
+- **AutoTune for Windows in DevStore.** The PC app is also released the way DevStore installs and updates Windows apps (`windows-v2.16.1`, with its icon and screenshots), so DevStore on the PC lists it as Android and Windows and keeps it up to date. Obtainium on the phone and TV must filter AutoTune's releases by `^Android` (the release title, not the tag) (source settings), as DevStore's phone setup says for a repo with a Windows part.
 ### Fixed
 - **A second home-theatre test heard nothing** on an Android box with Dolby Digital (the first was fine). The first test plays with the TV's EQ switched off; later ones played with it on, and on that box an EQ on the TV's sound silenced the Dolby clip. Dolby passes by the TV's EQ anyway, so every Dolby test now plays with the EQ off for the moment it plays.
 - **"Check the EQ reaches the speakers" on a Dolby TV** now plays plain stereo through the TV's own sound, where its EQ acts, once with the EQ off and once on. Before, it played Dolby, which the EQ never touches.
