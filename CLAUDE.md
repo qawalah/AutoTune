@@ -27,6 +27,12 @@ phone through Obtainium.
 - **Don't add a release `signingConfig`** and don't commit keystores. CI signs
   every release with the shared DevStore key.
 - Keep `gradlew`, `gradlew.bat` and `gradle/wrapper/*` committed.
+- **Every GitHub Release in this repo must hold the APK.** Obtainium follows the
+  newest release only, so a release without an APK (a pre-release, a Windows or
+  iOS build, notes) stops every phone update with "Could not find a suitable
+  release" (it happened with `windows-v2.14.0`). Put other platforms' files in
+  the same version's Android release as extra files, as
+  `.github/workflows/windows.yml` does.
 - When a change is done: commit and push to `main`. That push *is* the
   release. If the environment allows it, run `./gradlew assembleRelease` first.
 - If the Release workflow fails, read its log in the Actions tab and fix it.

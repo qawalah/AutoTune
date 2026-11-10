@@ -159,6 +159,7 @@ Before publishing to Google Play:
 - **Switching AutoTune EQ on with nothing picked starts a flat EQ** (`eqWanted` + `eqFlat`) instead of refusing.
 - **`:app` is included only when an Android SDK is configured**, so the DSP core builds and tests anywhere.
 - **The version lives only in `gradle.properties`.** Each release gets a CHANGELOG entry and a `vX.Y.Z` tag.
+- **Every GitHub Release holds the APK (2.14.0).** Obtainium looks at the newest release only (unless "fallback to older releases" is on), so the separate `windows-v2.14.0` pre-release, newest and without an APK, stopped phone updates with "Could not find a suitable release". Other platforms' files go into the same version's Android release as extra files (`AutoTune-X.Y.Z-windows.msi`); never a release of their own.
 - **This 1.18 line is the one to continue, not 2.0.0-m5.** 2.0's analysis core is the same as this one; its gains are engineering ones (native audio, Room, Hilt). It lacks everything from 1.10 to 1.18, and its source code is not available. Port its strengths here instead. The comparison is in the Audio Apps project as `claude/autotune-2.0-port-plan.md`.
 
 ## Other docs in this repo
