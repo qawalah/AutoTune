@@ -116,3 +116,6 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 - **Windows app in landscape.** The PC window is laid out tall like a phone; make it a landscape desktop window that uses the width (columns side by side).
 - **No nagging about levels.** The page keeps pushing the level test ("Set the levels again" as the pinned key, level notes). Just show the three tests and let the owner choose; no suggested order, no pushing back to levels.
 - **TV and Windows show the phone's measuring screen.** While a test runs, the TV and the PC must show the same visuals and movement as the phone's measuring screen (owner's screenshot, stock reading): the large dBFS mic level, the sweep's frequency slider running 20 Hz to 20 kHz with the red needle and "Sweeping 734 Hz", the waveform, the too quiet / good / clipping level slider, and the checks list. Today the TV's live screen does not match, and the PC has none. (2.17.0: all but the checks list, which the phone keeps for its own car measurements.)
+
+## Owner's notes, round 2 (2026-11-11): roadmap
+- **Runs list: EQ runs only.** Details › Runs lists Levels and Distances runs next to the EQ runs; remove them from that list (it is for the EQ runs drawn on the chart). Levels and distances keep their own cards.
