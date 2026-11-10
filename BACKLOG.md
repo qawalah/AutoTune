@@ -82,3 +82,10 @@ Fixed in 2.15.1 so it no longer fails, but what it can do is limited, and the ap
 - Dolby or DTS passed straight through (most streaming apps, and our own Dolby test clips) skips the EQ entirely. Show this on the TV and the phone when the EQ is on and the output is Dolby: "Applies to sound the box decodes itself; Dolby and DTS from apps pass by it."
 - Verify with a measurement: the system test once with the TV's EQ held and once with it on, PCM output, to prove the EQ reaches the speakers (like the phone's EQ check). Offer it from "Use the EQ on the TV".
 - Check whether the box offers a setting to decode to PCM (stereo or multichannel) and say what that trades (surround over ARC, which carries only two raw channels).
+
+## Home theatre: named tests and saved runs (asked 2026-11-10): roadmap
+The home-theatre page keeps only the stock and the latest pass in `filesDir/theatre/`; there is no name and nothing to look back at, unlike the car tests.
+- **Name the test** when it starts ("Living room 5.1"), with the layout and the TV or PC it ran on; several home theatres side by side, listed on the Tests tab with the car tests (home icon).
+- **Every run saved** (levels, distances, EQ) with its date, what was applied (levels set, distances, the EQ in use and where: TV, PC, or entered on the receiver) and a note, like a car test's runs. Nothing measured is silently lost.
+- **Compare runs**: overlay the system response of any runs against the stock, the score beside each, as the results page does.
+- Reuse `TestStore`'s ideas (a versioned text file per test) or extend it with a home-theatre kind; keep loading the current `stock.txt` / `latest.txt` as the first test's runs.
