@@ -3,8 +3,9 @@
 Read `HANDOVER.md` first. It covers what the app is, how it's built, where data lives, and the decisions not to undo.
 
 ## Build and test
-- `./gradlew :dsp:test :app:testDebugUnitTest :app:assembleDebug`. This needs `ANDROID_HOME` or a `local.properties` with `sdk.dir`; without either, only `:dsp` is included.
-- Pure logic lives in `dsp/` and in `app/src/main/kotlin/dev/autotune/TuningLogic.kt`. Add or extend unit tests there with every change.
+- `./gradlew :dsp:test :link:test :desktop:test :app:testDebugUnitTest :app:assembleDebug`. This needs `ANDROID_HOME` or a `local.properties` with `sdk.dir`; without either, `:app` is left out (`:dsp`, `:link` and `:desktop` build anywhere).
+- The Windows app is `desktop/` (Compose for Desktop). `./gradlew :desktop:shots` renders its window to PNG without a screen; its MSI is built and released by `.github/workflows/windows.yml` (a `windows-vX.Y.Z` pre-release, same version as the APK).
+- Pure logic lives in `dsp/`, `link/`, `desktop/` (`Apo.kt`, `PcEndpoint.kt`) and in `app/src/main/kotlin/dev/autotune/TuningLogic.kt`. Add or extend unit tests there with every change.
 
 ## Releasing a version
 1. Bump both `APP_VERSION_NAME` and `APP_VERSION_CODE` in `gradle.properties`. That file is the only version source.

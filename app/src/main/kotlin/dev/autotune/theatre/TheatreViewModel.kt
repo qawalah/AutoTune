@@ -41,8 +41,10 @@ import kotlin.math.max
 data class TheatreUi(
     val found: List<String> = emptyList(),
     val connecting: Boolean = false,
-    /** The paired TV's name, while connected. */
+    /** The paired TV's or PC's name, while connected. */
     val tv: String? = null,
+    /** What answered: [Msg.KIND_TV] or [Msg.KIND_PC] (AutoTune on Windows). */
+    val kind: String = Msg.KIND_TV,
     val method: PlayMethod? = null,
     val output: String? = null,
     val tvEqOn: Boolean = false,
@@ -57,7 +59,10 @@ data class TheatreUi(
     /** The code last used, per TV name, so a TV is paired once. */
     val codes: Map<String, String> = emptyMap(),
     val needsMic: Boolean = false,
-)
+) {
+    /** The word for what plays, in keys and messages: "TV" or "PC". */
+    val device: String get() = if (kind == Msg.KIND_PC) "PC" else "TV"
+}
 
 /**
  * A home-theatre test from the phone: the TV plays each speaker in turn, the phone listens, and the result (levels,
@@ -113,13 +118,13 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
                 val method = PlayMethod.of(w["method"]) ?: PlayMethod.STEREO
                 _ui.update {
                     val layout = if (it.layout in method.layouts) it.layout else method.layouts.first()
-                    it.copy(connecting = false, tv = tvName, method = method, output = w["out"], tvEqOn = w["eq"] == "1", layout = layout,
+                    it.copy(connecting = false, tv = tvName, kind = w["kind"] ?: Msg.KIND_TV, method = method, output = w["out"], tvEqOn = w["eq"] == "1", layout = layout,
                         codes = it.codes + (tvName to code) + (name to code))
                 }
                 _ui.value.report?.let(::show)
-                Diag.log(ctx, "theatre_connected", mapOf("method" to method.name, "output" to w["out"]))
+                Diag.log(ctx, "theatre_connected", mapOf("method" to method.name, "output" to w["out"], "kind" to (w["kind"] ?: Msg.KIND_TV)))
             } catch (e: Exception) {
-                _ui.update { it.copy(connecting = false, error = e.message ?: "Could not connect to the TV.") }
+                _ui.update { it.copy(connecting = false, error = e.message ?: "Could not connect.") }
             }
         }
     }
@@ -140,7 +145,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun onMessage(m: LinkMsg) {
         when (m.type) {
-            Msg.FAILED -> m["id"]?.toIntOrNull()?.let { failures[it]?.complete(m["reason"] ?: "The TV could not play it.") }
+            Msg.FAILED -> m["id"]?.toIntOrNull()?.let { failures[it]?.complete(m["reason"] ?: "The ${_ui.value.device} could not play it.") }
             Msg.DONE -> m["id"]?.toIntOrNull()?.let { if (it == nextId) doneAt = System.currentTimeMillis() }
             Msg.EQ_STATE -> _ui.update { it.copy(tvEqOn = m["on"] == "1", error = m["error"] ?: it.error) }
         }
@@ -248,7 +253,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Sends each speaker's EQ to the TV. One preamp for all, so the levels just set stay level: the largest any
+     * Sends each speaker's EQ to the TV or PC. One preamp for all, so the levels just set stay level: the largest any
      * speaker needs.
      */
     fun useEq() {

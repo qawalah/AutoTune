@@ -114,8 +114,8 @@ private fun TuneHome(s: UiState, vm: TuneViewModel, pick: Pickers, go: (Tab) -> 
     if (s.runs.isNotEmpty()) {
         SecondaryButton("Continue “${dev.autotune.shortTestName(s.testName, "").first}”", vm::tuneContinue, Modifier.fillMaxWidth(), icon = Ic.NEXT)
     }
-    // every speaker of a home theatre, played by AutoTune on the TV
-    SecondaryButton("Home theatre with the TV", { go(Tab.THEATRE) }, Modifier.fillMaxWidth(), icon = Ic.HOME)
+    // every speaker of a home theatre, played by AutoTune on the TV, or a PC's speakers played by AutoTune on Windows
+    SecondaryButton("Speakers on a TV or PC", { go(Tab.THEATRE) }, Modifier.fillMaxWidth(), icon = Ic.HOME)
     Adv {
         Fold("Advanced tools", summary = "Mic spots, channel, window, left/right, subwoofer") {
             Settings(s, vm, s.hasPermission)

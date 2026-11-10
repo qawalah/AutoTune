@@ -60,6 +60,15 @@ class TheatreLinkTest {
     }
 
     @Test
+    fun aPcSaysWhatItIs() {
+        val w = LinkMsg.parse(Msg.welcome("DESK", "STEREO", false, "Speakers", Msg.KIND_PC).encode())!!
+        assertEquals("PC", dev.autotune.theatre.TheatreUi(kind = w["kind"] ?: Msg.KIND_TV).device)
+        // a TV from before the kind was sent
+        val old = LinkMsg.parse("welcome name=TV method=DOLBY_51 eq=0 out=HDMI v=1")!!
+        assertEquals("TV", dev.autotune.theatre.TheatreUi(kind = old["kind"] ?: Msg.KIND_TV).device)
+    }
+
+    @Test
     fun pairingCodes() {
         val code = Pairing.newCode(java.util.Random(1))
         assertEquals(4, code.length)
@@ -95,6 +104,7 @@ class TheatreLinkTest {
         assertEquals("Test surround left again", theatreKey(report(TheatreMove.CHECK_SPEAKER, Speaker.SL)).first)
         assertEquals("after setting the levels", theatreKey(report(TheatreMove.SET_LEVELS)).second)
         assertEquals("Use the EQ on the TV", theatreKey(report(TheatreMove.USE_EQ)).first)
+        assertEquals("Use the EQ on the PC", theatreKey(report(TheatreMove.USE_EQ), "PC").first)
         assertEquals(listOf(Speaker.SL), theatreNextSpeakers(report(TheatreMove.CHECK_SPEAKER, Speaker.SL), Layout.L51))
         assertEquals(Layout.L51.speakers, theatreNextSpeakers(report(TheatreMove.SET_LEVELS), Layout.L51))
         // a different layout tests everything
