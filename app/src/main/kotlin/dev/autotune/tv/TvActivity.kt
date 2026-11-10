@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.autotune.ThemeMode
 import dev.autotune.dsp.ChannelClip
+import dev.autotune.dsp.Layout
 import dev.autotune.ui.At
 import dev.autotune.ui.AtIcon
 import dev.autotune.ui.AutoTuneTheme
@@ -65,11 +66,14 @@ class TvActivity : ComponentActivity() {
 @Composable
 fun TvScreen(vm: TvViewModel) {
     val u by vm.ui.collectAsState()
-    TvScreen(u, vm::playEach, vm::setLayout, vm::eqOff)
+    TvScreen(u, vm::playEach, vm::setLayout, vm::eqOff, vm::setPretend)
 }
 
 @Composable
-fun TvScreen(u: TvUi, playEach: () -> Unit, setLayout: (dev.autotune.dsp.Layout) -> Unit, eqOff: () -> Unit) {
+fun TvScreen(
+    u: TvUi, playEach: () -> Unit, setLayout: (dev.autotune.dsp.Layout) -> Unit, eqOff: () -> Unit,
+    setPretend: (Layout?) -> Unit = {},
+) {
     val c = At.c
     Row(
         Modifier.fillMaxSize().background(c.bg).padding(horizontal = 48.dp, vertical = 32.dp),
@@ -77,7 +81,7 @@ fun TvScreen(u: TvUi, playEach: () -> Unit, setLayout: (dev.autotune.dsp.Layout)
     ) {
         Box(Modifier.weight(1.5f).deckPlate().padding(20.dp), contentAlignment = Alignment.Center) {
             SpeakerMap(
-                u.layout, u.playing, large = true,
+                u.layout, u.playing, large = true, all = u.allPlaying,
                 notes = u.rows.associate { it.speaker to listOf(it.trim, it.distance).filter { t -> t.isNotBlank() && t != "—" }.joinToString("\n") },
                 silent = u.rows.filter { !it.heard }.map { it.speaker }.toSet(),
             )
@@ -88,10 +92,12 @@ fun TvScreen(u: TvUi, playEach: () -> Unit, setLayout: (dev.autotune.dsp.Layout)
             Spacer(Modifier.height(4.dp))
             val playing = u.playing
             when {
-                playing != null -> {
-                    Reading(playing.title.lowercase(), "playing", tint = c.signal)
-                    val hz = ChannelClip.nowPlaying(u.playT)
+                playing != null || u.allPlaying || u.what != null -> {
+                    Reading(if (u.allPlaying) "every speaker" else playing?.title?.lowercase() ?: "system test", "playing", tint = c.signal)
+                    val hz = if (u.what == "sweep") dev.autotune.dsp.PassClip.nowPlaying(u.layout, u.playT)?.second?.let { 20.0 * Math.pow(1000.0, it / ChannelClip.SWEEP_SECONDS) }
+                        else if (u.what == null) ChannelClip.nowPlaying(u.playT) else null
                     val what = when {
+                        u.what == "level noise" -> "level noise"
                         hz != null -> if (hz >= 1000) "%.1f kHz".format(hz / 1000) else "%.0f Hz".format(hz)
                         u.playT < ChannelClip.LEAD_SECONDS -> "starting"
                         u.playT < ChannelClip.LEAD_SECONDS + dev.autotune.dsp.Marker.LENGTH_SEC + 0.1 -> "start beeps · front left"
@@ -113,7 +119,8 @@ fun TvScreen(u: TvUi, playEach: () -> Unit, setLayout: (dev.autotune.dsp.Layout)
             Spacer(Modifier.weight(1f))
             u.error?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = c.warn, maxLines = 2) }
             u.probe?.let { p ->
-                Text("${p.output.lowercase()} · ${p.method.title.lowercase()} · ${u.layout.title}", style = MaterialTheme.typography.titleSmall, color = c.muted)
+                val line = if (u.pretend != null) "pretend ${u.pretend.title} · really ${u.real}" else "${p.output.lowercase()} · ${p.method.title.lowercase()} · ${u.layout.title}"
+                Text(line, style = MaterialTheme.typography.titleSmall, color = if (u.pretend != null) c.signal else c.muted)
             }
             // one key per row, as on the phone
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -126,6 +133,12 @@ fun TvScreen(u: TvUi, playEach: () -> Unit, setLayout: (dev.autotune.dsp.Layout)
                     TvKey(u.layout.title, Ic.SPEAKER, { setLayout(next) })
                 }
                 if (u.eqOn) TvKey("EQ off", Ic.POWER, eqOff)
+                // a phone or tablet standing in for a bigger system, to try the whole flow without one
+                if (u.probe?.method == dev.autotune.dsp.PlayMethod.STEREO && u.phone == null) {
+                    val options = listOf(null, Layout.L21, Layout.L31, Layout.L51, Layout.L71)
+                    val next = options[(options.indexOf(u.pretend) + 1) % options.size]
+                    TvKey(if (u.pretend == null) "Pretend: off" else "Pretend: ${u.pretend.title}", Ic.SPEAKER, { setPretend(next) })
+                }
             }
         }
     }

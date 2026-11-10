@@ -37,10 +37,13 @@ class PcEndpointTest {
         var eqDuringPlay: String? = null
         var apo: FakeApo? = null
         override fun outputs() = listOf("Speakers (Realtek(R) Audio)", "LG TV SSCR2 (NVIDIA High Definition Audio)")
-        override suspend fun play(output: String?, pcm: ShortArray, channels: Int, fs: Int, onTime: (Double) -> Unit) {
+        override suspend fun play(output: String?, pcm: ShortArray, channels: Int, fs: Int, loop: Boolean, onTime: (Double) -> Unit) {
             eqDuringPlay = apo?.writes?.lastOrNull()
             played += output to channels
-            onTime(1.0)
+            if (loop) kotlinx.coroutines.awaitCancellation()
+            // walk through the clip's time, as a sound card would report it
+            var t = 0.0
+            while (t * fs < pcm.size / channels) { onTime(t); t += 0.5 }
         }
     }
 
@@ -123,6 +126,31 @@ class PcEndpointTest {
         waitFor { apo.writes.last().contains("Filter 1") }
         assertTrue(store.load().eqOn)
         assertEquals(2, store.load().chains.size)
+    }
+
+    @Test
+    fun theSystemTestNamesEachSpeakerThenBoth() {
+        val p = pair()
+        p.read()
+        p.send(dev.autotune.link.Msg.pass(9, "L20", hold = true))
+        val said = ArrayList<String>()
+        while (true) {
+            val m = p.read()
+            if (m.type == Msg.PLAYING) said += m["speaker"]!!
+            if (m.type == Msg.DONE) { assertEquals("9", m["id"]); break }
+            if (m.type == Msg.FAILED) error("failed: ${m["reason"]}")
+        }
+        assertEquals(listOf("FL", "FR", Msg.ALL), said)
+    }
+
+    @Test
+    fun levelNoiseLoopsUntilQuiet() {
+        val p = pair()
+        p.read()
+        p.send(dev.autotune.link.Msg.noise(Speaker.FR, "L20"))
+        waitFor { pc.ui.value.playing == Speaker.FR && pc.ui.value.what == "level noise" }
+        p.send(dev.autotune.link.Msg.quiet())
+        waitFor { pc.ui.value.playing == null }
     }
 
     @Test

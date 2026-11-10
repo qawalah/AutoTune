@@ -149,6 +149,8 @@ Flat. A section is a **deck** (`Panel`, `Group`, `Fold`, `RunSheet`): a light pl
 
 ## Components
 
+- **The room** (`SpeakerMap`, `ui/room/Room3d.kt`, since 2.15): the home theatre seen from just behind the seat, low and straight on (the owner's pick): the floor in the deck's grey with three hairlines across it, the screen a dark slab on the far wall, each speaker a small cabinet with rounded edges turned to the seat (face in the deck colour, sides in the key grey, a hairline edge, the cone and tweeter as rings). The speaker playing is the accent with rings spreading over the floor; for the system test's last sweep every cabinet lights and the rings spread from the seat. Names and changes ("+1.5 dB") sit on the floor in front of each cabinet.
+
 - **Main key** (`MainKey`; pinned by `BigActionBar` via `PinAction`): one per screen, full width, graphite, the action centred in large type with "suggested" under it, a pilot light in the accent at the start. Disabled: grey key, unlit pilot. The reason shows only in Advanced or when it is disabled.
 - **Push keys** (`AtNavBar`): the tabs. Rectangular keys (62×42dp) with the tab's line icon, the pressed one graphite; a lowercase label under each. The key moves down 1dp when chosen.
 - **Tab labels** are title case under each key ("EQ" in capitals). **EQ on** latches the EQ key down, shaded from the rim like a pressed push key; no text, no dot.

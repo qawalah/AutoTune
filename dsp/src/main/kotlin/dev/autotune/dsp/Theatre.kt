@@ -323,14 +323,20 @@ object ChannelAnalysis {
      * [markerAt] is the first sample of the start beeps when the recorder already found them. The sweep is read from
      * the window the beeps point at; its arrival after them, less the planned gap, is [SpeakerReading.deltaMs].
      */
-    fun read(rec: FloatArray, fs: Int, speaker: Speaker, cal: Calibration?, markerAt: Int? = null, gateMs: Double = 300.0): SpeakerReading {
+    fun read(
+        rec: FloatArray, fs: Int, speaker: Speaker, cal: Calibration?, markerAt: Int? = null, gateMs: Double = 300.0,
+        /** From the first beep to this sweep: a one-pass clip ([PassClip]) has several sweeps after one set of beeps. */
+        sweepAfterSec: Double = Marker.SWEEP_OFFSET_SEC,
+        /** How much of the recording around the sweep is read: in a pass the neighbouring sweeps stay out. */
+        beforeSec: Double? = null, afterSec: Double = 3.0,
+    ): SpeakerReading {
         val m0 = markerAt ?: Marker.find(rec, fs)
             ?: return SpeakerReading(speaker, null, null, null, "The start beeps were not heard: turn the volume up and check front left plays.")
-        val lead = (Marker.SWEEP_OFFSET_SEC * fs).toInt()
+        val lead = (sweepAfterSec * fs).toInt()
         val sweep = ChannelClip.sweep(fs)
         if (m0 + lead + sweep.size > rec.size) return SpeakerReading(speaker, null, null, null, "The recording ended before the sweep did.")
-        val from = max(0, m0 - fs)
-        val to = min(rec.size, m0 + lead + sweep.size + 3 * fs)
+        val from = max(0, if (beforeSec == null) m0 - fs else m0 + lead - (beforeSec * fs).toInt())
+        val to = min(rec.size, m0 + lead + sweep.size + (afterSec * fs).toInt())
         val expected = m0 - from + lead
         val m = Analyzer.analyze(rec.copyOfRange(from, to), sweep, fs, cal, gateMs, expectedStart = expected)
         if (m.fatal != null) return SpeakerReading(speaker, null, null, m.snrDb, m.fatal)

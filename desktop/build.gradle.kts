@@ -27,6 +27,9 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 
+// the phone's room drawing is plain Compose: the screenshot tool renders it here too, without Android
+kotlin.sourceSets["test"].kotlin.srcDir("../app/src/main/kotlin/dev/autotune/ui/room")
+
 tasks.test {
     useJUnitPlatform()
     systemProperty("java.awt.headless", "true")

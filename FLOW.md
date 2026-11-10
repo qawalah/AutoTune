@@ -81,9 +81,11 @@ flowchart LR
   AI -->|"Measure it"| TU
   L -->|"Advanced: Open EQ"| EQ
   TU -->|"Speakers on a TV or PC"| HT["Home theatre page<br/>over the current tab"]
-  HT -->|"Test every speaker: the TV plays each,<br/>the phone listens (link)"| TV(("AutoTune on the TV"))
+  HT -->|"1 Set the levels: pink noise per speaker,<br/>live meter, next after 3 s level"| TV(("AutoTune on the TV"))
+  HT -->|"2 Test the system: one pass,<br/>then Use the EQ (one for every speaker)"| TV
+  TV -.->|"TV or PC from 2.14: speaker by speaker"| HT
   HT -->|"Test every speaker: the PC plays left and right;<br/>Use the EQ on the PC: Equalizer APO"| PC(("AutoTune on Windows"))
-  ST -->|"Advanced: Use this device as the TV"| TVS["TV screen on this phone or tablet<br/>(TvActivity; Back returns)"]
+  ST -->|"Advanced: Use this device as the TV"| TVS["TV screen on this phone or tablet<br/>(TvActivity; Back returns;<br/>Pretend: off, 2.1, 3.1, 5.1, 7.1)"]
   HT -.->|"from another phone"| TVS
   W["Widgets, notification actions,<br/>Quick Settings tile"] -->|"EqActionReceiver"| BG(("background:<br/>app stays closed"))
   SH["Shortcuts, routines,<br/>autotune://profile/name"] -->|"ApplyProfileActivity"| BG

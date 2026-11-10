@@ -1,6 +1,9 @@
 package dev.autotune.pc
 
 import dev.autotune.dsp.ChannelClip
+import dev.autotune.dsp.Channels
+import dev.autotune.dsp.LevelNoise
+import dev.autotune.dsp.PassClip
 import dev.autotune.dsp.EqChain
 import dev.autotune.dsp.Layout
 import dev.autotune.dsp.PlayMethod
@@ -44,6 +47,10 @@ data class PcUi(
     val eqFrom: String? = null,
     val eqWhen: Long? = null,
     val playing: Speaker? = null,
+    /** Every speaker plays at once (the system test's last sweep). */
+    val allPlaying: Boolean = false,
+    /** What plays, in a word: "level noise", "sweep". */
+    val what: String? = null,
     /** Seconds into the clip that is playing. */
     val playT: Double = 0.0,
     val layout: Layout = Layout.L20,
@@ -167,6 +174,63 @@ class PcEndpoint(
             }
             // the phone switched it off: the bands stay, so the PC's key can bring them back
             Msg.EQ_OFF -> setEqOn(false)
+            Msg.NOISE -> Speaker.of(m["speaker"])?.takeIf { ApoText.channelOf(it, method) != null }?.let(::noise)
+            Msg.QUIET -> playJob?.cancel()
+            Msg.PASS -> {
+                val id = m["id"]?.toIntOrNull() ?: return
+                pass(id, Layout.of(m["layout"])?.takeIf { it in method.layouts } ?: Layout.L20, hold = m["hold"] == "1")
+            }
+        }
+    }
+
+    /** Loops [sp]'s level noise until the phone says quiet (two minutes at most, should the phone vanish). */
+    private fun noise(sp: Speaker) {
+        playJob?.cancel()
+        playJob = scope.launch(Dispatchers.IO) {
+            _ui.update { it.copy(playing = sp, allPlaying = false, what = "level noise", playT = 0.0) }
+            try {
+                if (_ui.value.eqOn) { writeEq(on = false); delay(holdMs) }
+                kotlinx.coroutines.withTimeout(120_000) {
+                    audio.play(_ui.value.output, Channels.interleave16(LevelNoise.planes(sp), method), method.slots.size, LevelNoise.FS, loop = true) {}
+                }
+            } catch (_: Exception) {
+            } finally {
+                withContext(NonCancellable) { if (_ui.value.eqOn) writeEq(on = true) }
+                _ui.update { it.copy(playing = null, what = null) }
+            }
+        }
+    }
+
+    /** The system test in one clip: each speaker's sweep after one set of beeps, then both together. */
+    private fun pass(id: Int, layout: Layout, hold: Boolean) {
+        playJob?.cancel()
+        playJob = scope.launch(Dispatchers.IO) {
+            _ui.update { it.copy(playing = null, allPlaying = false, what = "starting", playT = 0.0, layout = layout) }
+            val slots = PassClip.slots(layout)
+            var last = -1
+            var err: String? = null
+            try {
+                if (hold && _ui.value.eqOn) { writeEq(on = false); delay(holdMs) }
+                audio.play(_ui.value.output, Channels.interleave16(PassClip.planes(layout), method), method.slots.size, PassClip.FS) { t ->
+                    val now = PassClip.nowPlaying(layout, t)?.first
+                    if (now != null && now != last) {
+                        last = now
+                        val who = slots[now]
+                        server.send(if (who == null) Msg.playingAll(id) else Msg.playing(id, who))
+                    }
+                    val who = now?.let { slots[it] }
+                    _ui.update { it.copy(playT = t, playing = who, allPlaying = now != null && who == null, what = if (now == null) it.what else "sweep") }
+                }
+            } catch (e: CancellationException) {
+                err = "Stopped."
+                throw e
+            } catch (e: Exception) {
+                err = "The PC could not play it (${e.message ?: e.javaClass.simpleName})."
+            } finally {
+                withContext(NonCancellable) { if (hold && _ui.value.eqOn) writeEq(on = true) }
+                _ui.update { it.copy(playing = null, allPlaying = false, what = null) }
+                server.send(if (err == null) Msg.done(id) else Msg.failed(id, err))
+            }
         }
     }
 

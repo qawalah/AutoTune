@@ -26,3 +26,10 @@ tasks.register<JavaExec>("theatreClips") {
     mainClass.set("dev.autotune.dsp.tools.WriteTheatreClips")
     args((project.findProperty("out") as String?) ?: layout.buildDirectory.dir("theatre").get().asFile.path)
 }
+
+// Checks the encoded system-test clips once make-clips.sh has decoded them back (CheckTheatreClips).
+tasks.register<JavaExec>("theatreCheck") {
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("dev.autotune.dsp.tools.CheckTheatreClips")
+    args((project.findProperty("out") as String?) ?: layout.buildDirectory.dir("theatre").get().asFile.path)
+}

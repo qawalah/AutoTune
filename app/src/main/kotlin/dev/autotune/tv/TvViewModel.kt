@@ -43,7 +43,19 @@ data class TvUi(
     val headline: String? = null,
     val eqOn: Boolean = false,
     val error: String? = null,
-)
+    /** A phone or tablet standing in for this bigger system (it plays every speaker from its own two); null = itself. */
+    val pretend: Layout? = null,
+    /** Every speaker is playing at once (the last sweep of the system test). */
+    val allPlaying: Boolean = false,
+    /** What is playing, in a word: "level noise", "sweep". */
+    val what: String? = null,
+) {
+    /** The way of playing the phone is told about: what is pretended, else the output's own. */
+    val method: PlayMethod get() = if (pretend != null) PlayMethod.PCM_71 else probe?.method ?: PlayMethod.STEREO
+
+    /** What this really is, for the line under a pretend: "tablet speakers · stereo only". */
+    val real: String get() = listOfNotNull(probe?.output, probe?.method?.title).joinToString(" · ").lowercase()
+}
 
 /**
  * The TV side of a home-theatre test: waits for the phone on the Wi-Fi, plays the clip the phone asks for, shows what
@@ -58,8 +70,8 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     private val server = LinkServer(
         code = { _ui.value.code },
         welcome = {
-            val p = _ui.value.probe
-            Msg.welcome(_ui.value.tvName, (p?.method ?: PlayMethod.STEREO).name, TvEq.on, p?.output ?: "TV")
+            val u = _ui.value
+            Msg.welcome(u.tvName, u.method.name, TvEq.on, u.probe?.output ?: "TV", pretend = u.pretend != null, real = u.real.takeIf { u.pretend != null })
         },
         onMessage = ::handle,
         onPhone = { name -> _ui.update { it.copy(phone = name, error = if (name != null) null else it.error) } },
@@ -73,9 +85,11 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         val prefs = ctx.getSharedPreferences("autotune_tv", Context.MODE_PRIVATE)
         val code = prefs.getString("code", null) ?: Pairing.newCode().also { prefs.edit().putString("code", it).apply() }
         val probe = runCatching { TvAudio.probe(ctx) }.getOrNull()
-        val layout = probe?.method?.layouts?.first() ?: Layout.L20
+        // pretending only makes sense where the output has nothing more than two channels
+        val pretend = Layout.of(prefs.getString("pretend", null))?.takeIf { probe?.method == PlayMethod.STEREO }
+        val layout = pretend ?: probe?.method?.layouts?.first() ?: Layout.L20
         TvEq.restore(ctx)
-        _ui.update { it.copy(code = code, tvName = deviceName(), address = ipAddress(), probe = probe, layout = layout, eqOn = TvEq.on) }
+        _ui.update { it.copy(code = code, tvName = deviceName(), address = ipAddress(), probe = probe, layout = layout, eqOn = TvEq.on, pretend = pretend) }
         startServer()
     }
 
@@ -124,7 +138,80 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             }
             Msg.EQ -> setEq(Msg.chains(m["chains"]))
             Msg.EQ_OFF -> setEq(emptyMap())
+            Msg.NOISE -> {
+                val sp = Speaker.of(m["speaker"]) ?: return
+                Layout.of(m["layout"])?.let { l -> _ui.update { it.copy(layout = l) } }
+                noise(sp)
+            }
+            Msg.QUIET -> stopPlaying()
+            Msg.PASS -> {
+                val id = m["id"]?.toIntOrNull() ?: return
+                val layout = Layout.of(m["layout"]) ?: _ui.value.layout
+                _ui.update { it.copy(layout = layout) }
+                pass(id, layout, hold = m["hold"] == "1")
+            }
         }
+    }
+
+    private val playMethod: PlayMethod get() = _ui.value.probe?.method ?: PlayMethod.STEREO
+    private val mixDown: Boolean get() = _ui.value.pretend != null
+
+    /** Loops [sp]'s level noise until the phone says quiet (or two minutes pass, should the phone vanish). */
+    private fun noise(sp: Speaker) {
+        playJob?.cancel()
+        playJob = viewModelScope.launch {
+            _ui.update { it.copy(playing = sp, allPlaying = false, playT = 0.0, what = "level noise") }
+            TvEq.hold(true)
+            runCatching {
+                kotlinx.coroutines.withTimeout(120_000) {
+                    TvAudio.play(ctx, playMethod, TvAudio.noiseClip(playMethod, sp, mixDown), loop = true) {}
+                }
+            }
+            TvEq.hold(false)
+            _ui.update { it.copy(playing = null, what = null) }
+        }
+    }
+
+    /**
+     * The whole system test: one clip with the start beeps once, each speaker's sweep, then every speaker together.
+     * The phone is told who plays as each sweep starts. [hold]: AutoTune's EQ stays off (the stock pass).
+     */
+    private fun pass(id: Int, layout: Layout, hold: Boolean) {
+        playJob?.cancel()
+        playJob = viewModelScope.launch {
+            _ui.update { it.copy(playing = null, allPlaying = false, playT = 0.0, what = "starting") }
+            if (hold) TvEq.hold(true)
+            val slots = dev.autotune.dsp.PassClip.slots(layout)
+            var last = -1
+            val err = runCatching {
+                TvAudio.play(ctx, playMethod, TvAudio.passClip(playMethod, layout, mixDown), loop = false) { t ->
+                    val now = dev.autotune.dsp.PassClip.nowPlaying(layout, t)?.first
+                    if (now != null && now != last) {
+                        last = now
+                        val who = slots[now]
+                        send(if (who == null) Msg.playingAll(id) else Msg.playing(id, who))
+                    }
+                    val who = now?.let { slots[it] }
+                    _ui.update { it.copy(playT = t, playing = who, allPlaying = now != null && who == null, what = if (now == null) it.what else "sweep") }
+                }
+            }.exceptionOrNull()
+            if (hold) TvEq.hold(false)
+            _ui.update { it.copy(playing = null, allPlaying = false, what = null) }
+            send(if (err == null) Msg.done(id) else Msg.failed(id, err.message ?: "The TV could not play it."))
+        }
+    }
+
+    private fun stopPlaying() {
+        playJob?.cancel()
+        TvEq.hold(false)
+        _ui.update { it.copy(playing = null, allPlaying = false, what = null) }
+    }
+
+    /** Stand in for a bigger system (a phone or tablet trying the flow), or [l] = null to be itself again. */
+    fun setPretend(l: Layout?) {
+        if (_ui.value.phone != null || _ui.value.probe?.method != PlayMethod.STEREO) return
+        ctx.getSharedPreferences("autotune_tv", Context.MODE_PRIVATE).edit().putString("pretend", l?.name).apply()
+        _ui.update { it.copy(pretend = l, layout = l ?: Layout.L20) }
     }
 
     private fun setEq(c: Map<dev.autotune.dsp.Speaker, dev.autotune.dsp.EqChain>) {
@@ -141,7 +228,9 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             _ui.update { it.copy(playing = sp, playT = 0.0) }
             // raw sound passes the TV's EQ; a test must read the speakers as they are
             TvEq.hold(true)
-            val err = runCatching { TvAudio.play(ctx, method, sp) { t -> _ui.update { it.copy(playT = t) } } }.exceptionOrNull()
+            val err = runCatching {
+                TvAudio.play(ctx, method, TvAudio.speakerClip(method, sp, mixDown), loop = false) { t -> _ui.update { it.copy(playT = t) } }
+            }.exceptionOrNull()
             TvEq.hold(false)
             _ui.update { it.copy(playing = null) }
             then(err?.let { it.message ?: "The TV could not play it." })

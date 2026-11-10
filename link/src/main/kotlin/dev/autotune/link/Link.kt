@@ -54,6 +54,14 @@ object Msg {
     const val EQ = "eq"
     const val EQ_OFF = "eqoff"
     const val BYE = "bye"
+    /** Pink noise on one speaker, looping until [QUIET], for setting its level (2.15). */
+    const val NOISE = "noise"
+    const val QUIET = "quiet"
+    /** The whole system test in one clip (2.15): `playing` names each speaker as its sweep starts, then `all`. */
+    const val PASS = "pass"
+    /** In a welcome: what a TV or PC can do beyond playing one speaker's clip. */
+    const val CAPS = "noise,pass"
+    const val ALL = "all"
     // TV to phone
     const val WELCOME = "welcome"
     const val DENIED = "denied"
@@ -67,8 +75,28 @@ object Msg {
     const val KIND_TV = "tv"
     const val KIND_PC = "pc"
 
-    fun welcome(tv: String, method: String, eqOn: Boolean, output: String, kind: String = KIND_TV) =
-        LinkMsg(WELCOME, mapOf("name" to tv, "method" to method, "eq" to if (eqOn) "1" else "0", "out" to output, "v" to "$LINK_VERSION", "kind" to kind))
+    /**
+     * [caps]: the extra tests it plays ([CAPS]). [pretend]: a phone or tablet standing in for a bigger system, with
+     * [real] saying what it really is ("tablet speakers · 2.0").
+     */
+    fun welcome(
+        tv: String, method: String, eqOn: Boolean, output: String, kind: String = KIND_TV, caps: String? = CAPS,
+        pretend: Boolean = false, real: String? = null,
+    ) = LinkMsg(
+        WELCOME,
+        buildMap {
+            put("name", tv); put("method", method); put("eq", if (eqOn) "1" else "0"); put("out", output); put("v", "$LINK_VERSION"); put("kind", kind)
+            caps?.let { put("caps", it) }
+            if (pretend) put("pretend", "1")
+            real?.let { put("real", it) }
+        },
+    )
+
+    fun noise(s: Speaker, layout: String) = LinkMsg(NOISE, mapOf("speaker" to s.code, "layout" to layout))
+    fun quiet() = LinkMsg(QUIET)
+    /** [hold]: AutoTune's own EQ on the TV or PC stays off while it plays (the stock pass reads the system as it is). */
+    fun pass(id: Int, layout: String, hold: Boolean) = LinkMsg(PASS, mapOf("id" to "$id", "layout" to layout, "hold" to if (hold) "1" else "0"))
+    fun playingAll(id: Int) = LinkMsg(PLAYING, mapOf("id" to "$id", "speaker" to ALL))
     fun denied(reason: String) = LinkMsg(DENIED, mapOf("reason" to reason))
     fun play(id: Int, s: Speaker, layout: String) = LinkMsg(PLAY, mapOf("id" to "$id", "speaker" to s.code, "layout" to layout))
     fun playing(id: Int, s: Speaker) = LinkMsg(PLAYING, mapOf("id" to "$id", "speaker" to s.code))
