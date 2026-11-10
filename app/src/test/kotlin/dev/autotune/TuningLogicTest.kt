@@ -264,13 +264,85 @@ class ConvergenceTest {
     @Test
     fun aRemovedLookOpensTheDefault() {
         val kept = listOf("BRAUN", "BRAUN_GRAPHITE", "BRAUN_BLACK", "WHITE", "GRADIENT")
-        RETIRED_LOOKS.forEach { assertEquals(it, "BRAUN", resolveLookName(it, kept, "BRAUN")) }
+        // the default is Gradient edge (asked 2026-11-09), for a missing, retired or unknown setting
+        assertEquals("GRADIENT", DEFAULT_LOOK)
+        assertTrue(DEFAULT_LOOK in kept)
+        RETIRED_LOOKS.forEach { assertEquals(it, "GRADIENT", resolveLookName(it, kept)) }
+        assertEquals("GRADIENT", resolveLookName(null, kept))
+        assertEquals("GRADIENT", resolveLookName("", kept))
+        assertEquals("GRADIENT", resolveLookName("braun_black", kept))
+        assertEquals("GRADIENT", resolveLookName("SOMETHING_ELSE", kept))
+        // a look saved by name is kept: Classic stays Classic
+        assertEquals("BRAUN", resolveLookName("BRAUN", kept))
+        kept.forEach { assertEquals(it, resolveLookName(it, kept)) }
+        // an explicit fallback is still honoured
         assertEquals("BRAUN", resolveLookName(null, kept, "BRAUN"))
-        assertEquals("BRAUN", resolveLookName("", kept, "BRAUN"))
-        assertEquals("BRAUN", resolveLookName("braun_black", kept, "BRAUN"))
-        kept.forEach { assertEquals(it, resolveLookName(it, kept, "BRAUN")) }
         // a retired name is never a kept one
         assertTrue(RETIRED_LOOKS.none { it in kept })
+    }
+
+    /** The owner's Gradient edge palette (asked 2026-11-09), from the drop-downs' own presets. */
+    @Test
+    fun gradientDefaultPaletteIsTheOwnersPresets() {
+        val p = lookDefaultPalette("GRADIENT")
+        assertEquals(GRADIENT_DEFAULT_PALETTE, p)
+        assertEquals(0xFFF3F2EEL, p[PaletteSlot.BODY])
+        assertEquals(0xFFFFFFFFL, p[PaletteSlot.DECK])
+        assertEquals(0xFF5E5C57L, p[PaletteSlot.INK])
+        assertEquals(0xFFBF3C18L, p[PaletteSlot.ACCENT])
+        assertEquals(0xFFB9BAB8L, p[PaletteSlot.RULE])
+        // the same values as the presets of those names
+        fun preset(slot: PaletteSlot, name: String) = paletteChoices(slot).single { it.name == name }.argb
+        assertEquals(preset(PaletteSlot.BODY, "Warm white"), p[PaletteSlot.BODY])
+        assertEquals(preset(PaletteSlot.DECK, "White"), p[PaletteSlot.DECK])
+        assertEquals(preset(PaletteSlot.INK, "Slate"), p[PaletteSlot.INK])
+        assertEquals(preset(PaletteSlot.ACCENT, "Braun red"), p[PaletteSlot.ACCENT])
+        assertEquals(preset(PaletteSlot.RULE, "Aluminium"), p[PaletteSlot.RULE])
+        // the other looks start from their own colours
+        listOf("BRAUN", "BRAUN_GRAPHITE", "BRAUN_BLACK", "WHITE", "NAVY", "").forEach { assertTrue(it, lookDefaultPalette(it).isDefault) }
+    }
+
+    /** The preferences as the view model writes and reads them: set, "As the look", reset, and switching looks. */
+    @Test
+    fun gradientPaletteDefaultsResetAndOverrides() {
+        val prefs = HashMap<String, String>()
+        val gradient = lookDefaultPalette("GRADIENT")
+        val none = lookDefaultPalette("BRAUN")
+        fun read(d: Palette) = paletteFrom(d) { prefs[it] }
+        fun set(slot: PaletteSlot, argb: Long?, d: Palette) {
+            val v = paletteStoredValue(slot, argb, d)
+            if (v != null) prefs[slot.key] = v else prefs.remove(slot.key)
+        }
+        // nothing saved: Gradient edge shows its five colours, Classic its own
+        assertEquals(gradient, read(gradient))
+        assertTrue(read(none).isDefault)
+        // a saved colour overrides the default, the others stay
+        set(PaletteSlot.BODY, 0xFF121211L, gradient)
+        set(PaletteSlot.INK, 0xFFF2F1ECL, gradient)
+        val own = read(gradient)
+        assertEquals(0xFF121211L, own[PaletteSlot.BODY])
+        assertEquals(0xFFF2F1ECL, own[PaletteSlot.INK])
+        assertEquals(gradient[PaletteSlot.DECK], own[PaletteSlot.DECK])
+        // "As the look" on Gradient edge is the look's own colour there, not the default, and it survives a restart
+        set(PaletteSlot.RULE, null, gradient)
+        assertEquals(PALETTE_AS_LOOK, prefs[PaletteSlot.RULE.key])
+        assertNull(read(gradient)[PaletteSlot.RULE])
+        assertEquals(0, paletteMenu(PaletteSlot.RULE, read(gradient)[PaletteSlot.RULE]).selected)
+        // on Classic the same choice just removes the key, and the marker reads as not set
+        set(PaletteSlot.ACCENT, 0xFF2456A6L, none)
+        set(PaletteSlot.ACCENT, null, none)
+        assertNull(prefs[PaletteSlot.ACCENT.key])
+        assertNull(read(none)[PaletteSlot.RULE])
+        // Classic with the same saved colours: only the saved ones, no Gradient defaults
+        assertEquals(Palette().with(PaletteSlot.BODY, 0xFF121211L).with(PaletteSlot.INK, 0xFFF2F1ECL), read(none))
+        // a bad stored value takes the default
+        prefs[PaletteSlot.DECK.key] = "nope"
+        assertEquals(gradient[PaletteSlot.DECK], read(gradient)[PaletteSlot.DECK])
+        assertNull(read(none)[PaletteSlot.DECK])
+        // Reset palette removes every key: Gradient edge returns to its five colours, Classic to its own
+        PaletteSlot.entries.forEach { prefs.remove(it.key) }
+        assertEquals(gradient, read(gradient))
+        assertTrue(read(none).isDefault)
     }
 
     @Test

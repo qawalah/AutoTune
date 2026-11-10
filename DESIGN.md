@@ -35,7 +35,13 @@ colors:
   white-rule: "#C4C4BF"
   white-ink: "#1B1B1A"
   white-ink-muted: "#575753"
-  # Gradient edge (Look.GRADIENT): Classic's colours, the deck outline shaded top to bottom
+  # Gradient edge (Look.GRADIENT, the default look): Classic's colours, the deck outline shaded top to bottom,
+  # and its default palette (GRADIENT_DEFAULT_PALETTE), day and night
+  gradient-body: "#F3F2EE"      # Warm white
+  gradient-deck: "#FFFFFF"      # White
+  gradient-ink: "#5E5C57"       # Slate
+  gradient-accent: "#BF3C18"    # Braun red
+  gradient-hairline: "#B9BAB8"  # Aluminium
   edge-top: "#5E5C57"
   edge-bottom: "#E4E2DC"
   night-edge-top: "#2E2E2B"
@@ -102,7 +108,7 @@ components:
 
 The world lends material, type and a few signature objects. It never replaces Material 3 behaviour: drop-downs for choices, standard switches and dialogs, five tabs.
 
-Every look is a Braun look (`Look` in `ui/Theme.kt`), each with a day and a night version: **Classic** (`Look.BRAUN`, the default: dark body, light decks, teak cheeks, one red), **Graphite** (greys, dark grey accent), **Black** (black and aluminium, orange accent), **White** (a true white body with pale grey decks, always light) and **Gradient edge** (Classic with each deck outline shaded from ink grey at the top to a light tone at the bottom, `AtColors.edge`). The enum names are what the setting stores and stay as they are. The older colour looks (Dyno sheet, Studio, Mixing console, Hi-fi, Analog VU, Synthwave, Navy) and the wallpaper colours were removed in 2.8; a saved setting that names one opens Classic.
+Every look is a Braun look (`Look` in `ui/Theme.kt`), each with a day and a night version: **Classic** (`Look.BRAUN`: dark body, light decks, teak cheeks, one red), **Graphite** (greys, dark grey accent), **Black** (black and aluminium, orange accent), **White** (a true white body with pale grey decks, always light) and **Gradient edge** (`Look.GRADIENT`, **the default** since the owner's request of 2026-11-09: Classic with each deck outline shaded from ink grey at the top to a light tone at the bottom, `AtColors.edge`, over its own default palette: body Warm white #F3F2EE, deck White #FFFFFF, ink Slate #5E5C57, accent Braun red #BF3C18, hairline Aluminium #B9BAB8, the same by day and by night). The enum names are what the setting stores and stay as they are. A fresh install, and a saved look that is missing, retired or unknown, opens Gradient edge (`DEFAULT_LOOK`, `Look.DEFAULT`); a look saved by name (Classic included) stays as saved. The older colour looks (Dyno sheet, Studio, Mixing console, Hi-fi, Analog VU, Synthwave, Navy) and the wallpaper colours were removed in 2.8; a saved setting that names one opens the default look.
 
 ## Colours
 
@@ -111,7 +117,7 @@ Every look is a Braun look (`Look` in `ui/Theme.kt`), each with a day and a nigh
 - **Pilot green** (`good`): on states and improvements. **Warn** and **bad**: cautions, always beside an icon.
 - **Teak** (`teak`): the cheeks down both screen edges. Never elsewhere.
 - **Runs**: the stock is grey ink, drawn dashed; later runs are inks (blue, green, violet…), the same colour everywhere.
-- **Palette** (Settings, Advanced): the user can set body, deck, ink, accent and hairline over any look, each a drop-down of Braun colours, the look's own, or a typed hex colour (`Palette`, `withPalette`); the field always shows the colour that was stored (`paletteMenu`). The ink you pick is the text: where it would not read on one of the look's surfaces, that surface takes its light version for a dark ink or its dark version for a light ink, by day and by night (`inkMove`, `inkSurface`): Classic's dark body turns light under a dark ink, its night decks take the day decks, its day decks take the night decks under a white ink. A surface you set yourself stays as set, and text that still would not read falls back to an ink that does (`readableInk`, 4.5:1). One status line under the Ink field says what happened: light or dark surfaces came with it, it reads only in places or nowhere, or it looks the same as the look's own ink (the darkest presets are as dark as most looks' ink). Reset palette returns to the look's own.
+- **Palette** (Settings, Advanced): the user can set body, deck, ink, accent and hairline over any look, each a drop-down of Braun colours, the look's own, or a typed hex colour (`Palette`, `withPalette`); the field always shows the colour that was stored (`paletteMenu`). The ink you pick is the text: where it would not read on one of the look's surfaces, that surface takes its light version for a dark ink or its dark version for a light ink, by day and by night (`inkMove`, `inkSurface`): Classic's dark body turns light under a dark ink, its night decks take the day decks, its day decks take the night decks under a white ink. A surface you set yourself stays as set, and text that still would not read falls back to an ink that does (`readableInk`, 4.5:1). One status line under the Ink field says what happened: light or dark surfaces came with it, it reads only in places or nowhere, or it looks the same as the look's own ink (the darkest presets are as dark as most looks' ink). Each look starts from its default palette (`lookDefaultPalette`): Gradient edge's five colours above, none for the other looks; a slot the user has not set takes it, and the drop-downs show those colours by name. "As the look" is always the look's own colour (on Gradient edge it is stored as `look` so the default does not come back). Reset palette returns to the look's default palette: Gradient edge's five colours, the look's own for the others.
 
 ## Typography
 

@@ -77,18 +77,26 @@ class AtColors(
 /**
  * The app's looks, all after Braun, each with a day and a night version (Light / Dark / System picks between them).
  * The enum names are what the setting stores, so they stay as they are; [title] is what the user sees. Append new
- * looks; a removed look's name is listed in [dev.autotune.RETIRED_LOOKS] and opens [BRAUN].
+ * looks; a removed look's name is listed in [dev.autotune.RETIRED_LOOKS] and opens [DEFAULT] (Gradient edge), as does a
+ * missing or unknown one. A look's [palette] is the palette it starts from (Gradient edge's own colours, none for the
+ * others).
  */
 enum class Look(val title: String, val detail: String) {
-    BRAUN("Classic", "Dark body, light decks, teak cheeks and one red. The default"),
+    BRAUN("Classic", "Dark body, light decks, teak cheeks and one red"),
     BRAUN_GRAPHITE("Graphite", "Greys throughout, with a dark grey accent"),
     BRAUN_BLACK("Black", "Black and aluminium with an orange accent"),
     WHITE("White", "A white body with pale grey decks, always light"),
-    GRADIENT("Gradient edge", "Classic, with deck edges shaded from dark to light"),
+    GRADIENT("Gradient edge", "Warm white, white decks, edges shaded dark to light. The default"),
     ;
 
+    /** The palette this look starts from; Reset palette returns to it ([dev.autotune.lookDefaultPalette]). */
+    val palette: Palette get() = dev.autotune.lookDefaultPalette(name)
+
     companion object {
-        fun of(name: String?): Look = valueOf(dev.autotune.resolveLookName(name, entries.map { it.name }, BRAUN.name))
+        /** The look the app opens with ([dev.autotune.DEFAULT_LOOK]). */
+        val DEFAULT: Look get() = valueOf(dev.autotune.DEFAULT_LOOK)
+
+        fun of(name: String?): Look = valueOf(dev.autotune.resolveLookName(name, entries.map { it.name }, dev.autotune.DEFAULT_LOOK))
     }
 }
 
@@ -242,7 +250,7 @@ fun lookColors(l: Look, dark: Boolean): AtColors = when (l) {
     Look.GRADIENT -> if (dark) GradientDark else GradientLight
 }
 
-val LocalAt = staticCompositionLocalOf { BraunLight }
+val LocalAt = staticCompositionLocalOf { themeColors(Look.DEFAULT, false, dev.autotune.Accent.LOOK, Look.DEFAULT.palette) }
 
 object At {
     val c: AtColors @Composable get() = LocalAt.current
@@ -483,8 +491,8 @@ fun dialColours(c: AtColors): Pair<Color, Color> {
 
 @Composable
 fun AutoTuneTheme(
-    mode: ThemeMode, lookChoice: Look = Look.BRAUN, accent: dev.autotune.Accent = dev.autotune.Accent.LOOK,
-    palette: Palette = Palette(), content: @Composable () -> Unit,
+    mode: ThemeMode, lookChoice: Look = Look.DEFAULT, accent: dev.autotune.Accent = dev.autotune.Accent.LOOK,
+    palette: Palette = lookChoice.palette, content: @Composable () -> Unit,
 ) {
     val dark = isNight(mode)
     val at = themeColors(lookChoice, dark, accent, palette)
