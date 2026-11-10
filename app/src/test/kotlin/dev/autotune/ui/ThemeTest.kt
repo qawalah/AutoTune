@@ -71,11 +71,19 @@ class ThemeTest {
     }
 
     @Test
-    fun removedLooksOpenClassic() {
-        for (old in dev.autotune.RETIRED_LOOKS) assertEquals(Look.BRAUN, Look.of(old))
-        assertEquals(Look.BRAUN, Look.of(null))
-        assertEquals(Look.BRAUN, Look.of("SOMETHING_ELSE"))
+    fun removedOrMissingLooksOpenTheDefaultGradientEdge() {
+        assertEquals(Look.GRADIENT, Look.DEFAULT)
+        for (old in dev.autotune.RETIRED_LOOKS) assertEquals(Look.GRADIENT, Look.of(old))
+        assertEquals(Look.GRADIENT, Look.of(null))
+        assertEquals(Look.GRADIENT, Look.of(""))
+        assertEquals(Look.GRADIENT, Look.of("SOMETHING_ELSE"))
+        assertEquals(Look.GRADIENT, Look.of("braun"))
+        // a look saved by name keeps opening as saved: Classic stays Classic
+        assertEquals(Look.BRAUN, Look.of("BRAUN"))
         for (l in Look.entries) assertEquals(l, Look.of(l.name))
+        // the app's state starts with it, and with its palette
+        assertEquals(Look.GRADIENT, dev.autotune.UiState().look)
+        assertEquals(dev.autotune.GRADIENT_DEFAULT_PALETTE, dev.autotune.UiState().palette)
         // the stored names of the Braun looks are unchanged, so a saved choice survives the rename
         assertEquals(listOf("BRAUN", "BRAUN_GRAPHITE", "BRAUN_BLACK"), Look.entries.take(3).map { it.name })
     }
@@ -108,6 +116,62 @@ class ThemeTest {
             val c = lookColors(l, dark)
             assertNull(c.edge); assertNull(c.deck?.edge)
         }
+    }
+
+    /** The owner's setting (asked 2026-11-09): Gradient edge with Warm white, White, Slate, Braun red and Aluminium. */
+    @Test
+    fun gradientEdgeDefaultPaletteIsTheOwnersAndReads() {
+        val p = Look.GRADIENT.palette
+        assertEquals(dev.autotune.GRADIENT_DEFAULT_PALETTE, p)
+        for (l in Look.entries.filter { it != Look.GRADIENT }) assertTrue(l.name, l.palette.isDefault)
+        for (dark in listOf(false, true)) {
+            val what = "GRADIENT default dark=$dark"
+            val c = themeColors(Look.GRADIENT, dark, dev.autotune.Accent.LOOK, p)
+            val d = c.deck!!
+            assertEquals(what, Color(0xFFF3F2EE), c.bg)
+            assertEquals(what, Color(0xFFFFFFFF), d.panel)
+            assertEquals(what, Color(0xFF5E5C57), c.text)
+            assertEquals(what, Color(0xFF5E5C57), d.text)
+            assertEquals(what, Color(0xFFBF3C18), c.signal)
+            assertEquals(what, Color(0xFFBF3C18), d.signal)
+            assertEquals(what, Color(0xFFB9BAB8), c.line)
+            assertEquals(what, Color(0xFFB9BAB8), d.line)
+            // ink, muted and deck text read 4.5:1 on the body, the deck and their fields
+            readsEverywhere(c, what)
+            assertTrue(what, contrast(c.text, c.panelHigh) >= 4.5)
+            assertTrue(what, contrast(c.muted, c.panelHigh) >= 4.5)
+            // the edge stays shaded dark to light, and the text on the accent reads
+            assertTrue(what, d.edge!!.first().luminance() < d.edge!!.last().luminance())
+            assertTrue(what, contrast(c.onSignal, c.signal) >= 4.5)
+            // nothing to say under Ink: Slate simply applies
+            assertNull(what, paletteInkNote(Look.GRADIENT, dark, p))
+            val (face, dots) = dialColours(c)
+            assertTrue(what, contrast(dots, face) >= 4.5)
+        }
+        // the theme the app opens with when nothing is passed is this one
+        assertEquals(themeColors(Look.GRADIENT, false, dev.autotune.Accent.LOOK, p).bg, themeColors(Look.DEFAULT, false, dev.autotune.Accent.LOOK, Look.DEFAULT.palette).bg)
+    }
+
+    /** The palette editor shows the default colours by name on Gradient edge, and "As the look" elsewhere. */
+    @Test
+    fun paletteEditorNamesGradientDefaults() {
+        val want = mapOf(
+            dev.autotune.PaletteSlot.BODY to "Warm white", dev.autotune.PaletteSlot.DECK to "White",
+            dev.autotune.PaletteSlot.INK to "Slate", dev.autotune.PaletteSlot.ACCENT to "Braun red",
+            dev.autotune.PaletteSlot.RULE to "Aluminium",
+        )
+        val p = dev.autotune.paletteFrom(Look.GRADIENT.palette) { null }
+        for ((slot, name) in want) {
+            val m = dev.autotune.paletteMenu(slot, p[slot])
+            assertEquals(slot.name, name, m.names[m.selected])
+        }
+        val classic = dev.autotune.paletteFrom(Look.BRAUN.palette) { null }
+        for (slot in dev.autotune.PaletteSlot.entries) {
+            val m = dev.autotune.paletteMenu(slot, classic[slot])
+            assertEquals(slot.name, "As the look", m.names[m.selected])
+        }
+        // Classic's own colours are untouched: no palette, the look as it was
+        assertTrue(themeColors(Look.BRAUN, false, dev.autotune.Accent.LOOK, classic) === lookColors(Look.BRAUN, false))
     }
 
     @Test

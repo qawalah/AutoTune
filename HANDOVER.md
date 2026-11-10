@@ -20,7 +20,7 @@ Main features:
 - **Outside the app.** Profiles, with automatic switching when a Bluetooth device connects. Home-screen widgets (panel, EQ toggle, auto toggle, profile) run in the background without opening the app. Notification actions: "Switch EQ off" and "Stop auto-detect". Shortcuts and intents work with Samsung Routines. The EQ is restored after a reboot.
 - **Export.** ParametricEQ.txt (Equalizer APO, Poweramp), GraphicEQ.txt (Wavelet), a report and a CSV, and test WAVs (sweep, pink noise, sweep plus pink, left only, right only) for head units. Files go to a chosen folder or to Downloads.
 - **Live spectrum.** A 1/3-octave RTA with an SPL reading.
-- **Looks.** Braun looks only (since 2.8): Classic (the default), Graphite, Black, White and Gradient edge, each with a day and a night version (White is always light), all with fader sliders. An accent, and in Advanced a palette (body, deck, ink, accent, hairline), can be set over any look.
+- **Looks.** Braun looks only (since 2.8): Classic, Graphite, Black, White and Gradient edge (the default since the owner's request of 2026-11-09), each with a day and a night version (White is always light), all with fader sliders. An accent, and in Advanced a palette (body, deck, ink, accent, hairline), can be set over any look. Gradient edge starts from its own palette (Warm white body, White deck, Slate ink, Braun red accent, Aluminium hairline); the other looks start from their own colours.
 - **Send diagnostics.** A zip containing a JSONL log, the last 12 recordings, the tests and the settings.
 
 ## Platform and type
@@ -412,3 +412,12 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - VM: `UiState.showTutorial` (`!tutorialSeen` on start), `tutorialDone()` (sets the pref), `replayTutorial()` (Settings › About, "Replay the tutorial"). AutoTuneScreen draws the tutorial over every screen but the teak cheeks; it fades in, and fades out with a 1.04 scale.
 - Screenshots: `g1`-`g6` in tools/screenshots/ShotsTest.kt.
 - Not verified on a phone: the swipe and its layering under a real finger, Back on the first card, the fade into the app.
+
+### Gradient edge default (unreleased, after 2.11.0)
+- Asked 2026-11-09: the owner's own setting (Gradient edge, accent As the look, palette Warm white / White / Slate / Braun red / Aluminium) is Gradient edge's default palette and Gradient edge is the app's default look.
+- TuningLogic (pure, tested): `DEFAULT_LOOK` ("GRADIENT"), `resolveLookName(saved, kept, fallback = DEFAULT_LOOK)`, `GRADIENT_DEFAULT_PALETTE` (built from the `PALETTE_NEUTRALS`/`PALETTE_ACCENTS` presets by name), `lookDefaultPalette(lookName)` (empty for the other looks), `PALETTE_AS_LOOK` ("look", what a slot stores for "As the look" where the look has a default; not a hex colour, so older versions read it as not set), `paletteFrom(defaults) { read }` (missing or bad value takes the default, `look` is the look's own), `paletteStoredValue(slot, argb, defaults)`.
+- Theme.kt: `Look.DEFAULT`, `Look.palette`, `Look.of` falls back to `DEFAULT_LOOK`; Classic's detail no longer says "The default", Gradient edge's does; `AutoTuneTheme(lookChoice = Look.DEFAULT, palette = lookChoice.palette)`; `LocalAt`'s fallback is the default look with its palette.
+- VM: `UiState.look = Look.DEFAULT`, `UiState.palette = Look.DEFAULT.palette`; `savedLook()`, `savedPalette(look)` (the stored keys over the look's default); `setLook` re-reads the palette for the new look; `setPaletteColour` writes `paletteStoredValue`; `resetPalette()` removes every key and shows the look's default palette; `migrateLooks()` rewrites a retired look to `DEFAULT_LOOK`, wrapped so it never throws. The palette stays one global set of keys (`palBody`…`palRule`); a missing key means "the look's default".
+- UI: `PaletteEditor(p, start, …)`: the drop-downs show the palette in effect (so the names, not "As the look"), Reset palette is enabled when it differs from the look's default.
+- Who moves: a fresh install and anyone whose `look` pref is missing, retired or unknown opens Gradient edge with its palette (keys they saved still win). A look saved by name stays.
+- Not verified on a phone: the default on a fresh install, Gradient edge's palette with Light or dark on System at night (the deck edge keeps its night gradient on the white decks).

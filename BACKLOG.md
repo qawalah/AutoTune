@@ -53,3 +53,11 @@ Done on the working branch (see HANDOVER "Results, runs, palette and graphics, r
 Open follow-ups:
 - Check on the owner's phone: the pull gesture with One UI's overscroll, the full-screen chart, the dark ink by day and at night.
 - CLAUDE.md still says every result opens with a one-line headline; the owner asked for it to go. Update CLAUDE.md if the owner agrees.
+
+## Gradient edge default (asked 2026-11-09): done, not released
+Done on the working branch (see HANDOVER "Gradient edge default"):
+- **Gradient edge's default palette is the owner's setting.** Done. Body Warm white, Deck White, Ink Slate, Accent Braun red, Hairline Aluminium; the palette editor shows those names, a colour you save wins, Reset palette returns to them. "As the look" still means the look's own colours.
+- **Gradient edge is the app's default look.** Done. A fresh install, and a saved look that is missing, retired or unknown, opens Gradient edge; a look saved by name (Classic, Graphite, Black, White) stays.
+Open follow-ups:
+- CLAUDE.md still says the look is `Look.BRAUN`, "the default" (UI rules). Update it if the owner agrees.
+- Check on the owner's phone: a fresh install, and the palette at night with Light or dark on System.

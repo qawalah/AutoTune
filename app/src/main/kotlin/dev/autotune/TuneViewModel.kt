@@ -444,10 +444,13 @@ data class UiState(
     val systemEqMessage: String? = null,
     // --- appearance
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    /** The app's look (colours and slider style). */
-    val look: dev.autotune.ui.Look = dev.autotune.ui.Look.BRAUN,
-    /** The user's own colours over the look (Settings, Advanced: Palette); empty keeps the look's own. */
-    val palette: Palette = Palette(),
+    /** The app's look (colours and slider style); Gradient edge unless the user picked another. */
+    val look: dev.autotune.ui.Look = dev.autotune.ui.Look.DEFAULT,
+    /**
+     * The palette in effect over the look (Settings, Advanced: Palette): the user's colours over the look's default
+     * palette ([lookDefaultPalette]: Gradient edge's own, none for the others); empty keeps the look's own.
+     */
+    val palette: Palette = dev.autotune.ui.Look.DEFAULT.palette,
     /** Advanced shows every explanation and extra control; Simple (the default) keeps the essentials. App-wide. */
     val advanced: Boolean = false,
     /** The accent colour; LOOK keeps the look's own. */
@@ -517,8 +520,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 advanced = prefs.getBoolean("advanced", false),
                 showTutorial = !prefs.getBoolean("tutorialSeen", false),
                 accent = Accent.of(prefs.getString("accent", null)),
-                look = dev.autotune.ui.Look.of(prefs.getString("look", null)),
-                palette = paletteFrom { k -> prefs.getString(k, null) },
+                look = savedLook(),
+                palette = savedPalette(savedLook()),
                 flavour = Flavour.of(prefs.getString("flavour", null)),
                 preampMode = PreampMode.of(prefs.getString("preampMode", null)),
                 manualPreampDb = prefs.getFloat("preampManual", -6f).toDouble(),
@@ -615,27 +618,40 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     fun replayTutorial() = state.update { it.copy(showTutorial = true) }
 
     /**
-     * 2.8 kept only the Braun looks: a saved look that was removed is rewritten to the default (Classic), and the
-     * wallpaper colours, which only removed looks offered, are dropped.
+     * 2.8 kept only the Braun looks: a saved look that was removed is rewritten to the default (Gradient edge since
+     * the owner's 2026-11-09 request; Classic before), and the wallpaper colours, which only removed looks offered,
+     * are dropped. A missing look stays missing and opens the default; a look saved by name is kept. Never throws.
      */
     private fun migrateLooks() {
-        val saved = prefs.getString("look", null)
-        prefs.edit().apply {
-            if (saved != null && saved in RETIRED_LOOKS) putString("look", dev.autotune.ui.Look.BRAUN.name)
-            remove("dynamic")
-        }.apply()
+        runCatching {
+            val saved = runCatching { prefs.getString("look", null) }.getOrNull()
+            prefs.edit().apply {
+                if (saved != null && saved in RETIRED_LOOKS) putString("look", DEFAULT_LOOK)
+                remove("dynamic")
+            }.apply()
+        }
     }
+
+    /** The saved look: the one stored by name, else the default (missing, retired, unknown or unreadable). */
+    private fun savedLook(): dev.autotune.ui.Look =
+        dev.autotune.ui.Look.of(runCatching { prefs.getString("look", null) }.getOrNull())
+
+    /** The palette in effect for [look]: the stored colours over the look's default palette. */
+    private fun savedPalette(look: dev.autotune.ui.Look): Palette =
+        paletteFrom(look.palette) { k -> runCatching { prefs.getString(k, null) }.getOrNull() }
 
     /** Sets one colour of the palette ([argb] null = back to the look's own); the theme follows at once. */
     fun setPaletteColour(slot: PaletteSlot, argb: Long?) {
         val p = state.value.palette.with(slot, argb)
-        prefs.edit().apply { p[slot]?.let { putString(slot.key, hexColour(it)) } ?: remove(slot.key) }.apply()
+        val v = paletteStoredValue(slot, argb, state.value.look.palette)
+        prefs.edit().apply { if (v != null) putString(slot.key, v) else remove(slot.key) }.apply()
         state.update { it.copy(palette = p) }
     }
 
+    /** Back to the look's default palette: Gradient edge's own colours, or the look's own for the other looks. */
     fun resetPalette() {
         prefs.edit().apply { PaletteSlot.entries.forEach { remove(it.key) } }.apply()
-        state.update { it.copy(palette = Palette()) }
+        state.update { it.copy(palette = it.look.palette) }
     }
 
     // ---------------------------------------------------------------- tests (named, saved)
@@ -1553,7 +1569,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     /** Settings: what a new test starts with. [target] by name (null = Car); spots and window 0 = automatic. */
     fun setLook(l: dev.autotune.ui.Look) {
         prefs.edit().putString("look", l.name).apply()
-        state.update { it.copy(look = l) }
+        // the stored colours over the new look's default palette (Gradient edge brings its own)
+        state.update { it.copy(look = l, palette = savedPalette(l)) }
     }
 
     fun setDefaults(target: String?, bassDb: Double, trebleDb: Double, spots: Int, gateMs: Int) {

@@ -4,6 +4,11 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.12.0] - 2026-11-10
+### Changed
+- **Gradient edge is the default look.** A fresh install opens it, and so does any saved look that is missing or no longer exists. Looks you chose by name (Classic, Graphite, Black, White) are kept.
+- **Gradient edge's default palette**: warm white body, white decks, slate ink, Braun red accent, aluminium hairline. Reset palette returns to these on Gradient edge. Picking "As the look" on Gradient edge keeps the look's own colours.
+
 ## [2.11.0] - 2026-11-09
 ### Added
 - **First-start tutorial.** Five cards you swipe through on the first start: what AutoTune does, then the four steps of a tune (measure the stock sound, get a suggested EQ, verify it, keep it). Each card has a small picture that plays when the card comes up: the knob tunes in, the sweep draws the stock response, the faders settle, the reading counts down to the target, the EQ key latches on when the car connects. As you swipe, the picture moves further than the words. Skip is on every card but the last; the key reads Next, then Get started; Back goes to the previous card. It shows once (existing installs see it once after this update), and Settings › About › "Replay the tutorial" shows it again. With "Remove animations" each picture shows its finished state.

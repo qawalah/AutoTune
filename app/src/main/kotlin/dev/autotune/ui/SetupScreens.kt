@@ -145,7 +145,7 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             DropSelect(ThemeMode.entries.map { it.title }, ThemeMode.entries.indexOf(s.themeMode), { vm.setThemeMode(ThemeMode.entries[it]) }, label = "Light or dark")
         }
 
-        if (isAdvanced()) PaletteEditor(s.palette, vm, paletteInkNote(s.look, isNight(s.themeMode), s.palette))
+        if (isAdvanced()) PaletteEditor(s.palette, s.look.palette, vm, paletteInkNote(s.look, isNight(s.themeMode), s.palette))
 
         if (isAdvanced()) Group("Target curves", info = "A curve file is a text or CSV file with one “frequency, dB” pair per line, covering about 20 Hz to 20 kHz, for example a house curve you like. You can also tune a system until it sounds right and use “Keep this sound as a target” on the test's results.") {
             SecondaryButton("Import a curve file", pick.curve, icon = Ic.FILE)
@@ -169,17 +169,19 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
 
 /**
  * The palette: body, deck, ink, accent and hairline, each a drop-down of Braun's colours, the look's own, or a hex
- * colour typed in. Changes show at once; Reset palette goes back to the look's own colours.
+ * colour typed in. [p] is the palette in effect, so Gradient edge's default colours show by name. Changes show at once;
+ * Reset palette goes back to the look's [start] palette (Gradient edge's own colours; the look's own for the others).
  */
 @Composable
-private fun PaletteEditor(p: dev.autotune.Palette, vm: TuneViewModel, inkNote: String? = null) {
+private fun PaletteEditor(p: dev.autotune.Palette, start: dev.autotune.Palette, vm: TuneViewModel, inkNote: String? = null) {
     var custom by androidx.compose.runtime.remember { mutableStateOf<dev.autotune.PaletteSlot?>(null) }
     Group(
         "Palette",
         info = "Your own colours over the look. Body is the page, Deck the plates that hold each section, Ink the text, " +
             "Accent what is live or acted on, Hairline the edges and rules. “As the look” keeps the look's own. " +
             "An ink that would not read on the look's surfaces brings their light (or dark) versions with it, by day and by night, so it shows; on colours you set yourself it falls back to an ink that does. " +
-            "The accent set here wins over the Accent above.",
+            "The accent set here wins over the Accent above. " +
+            "Gradient edge starts from its own colours (Warm white, White, Slate, Braun red, Aluminium); Reset palette goes back to the look's start.",
     ) {
         dev.autotune.PaletteSlot.entries.forEach { slot ->
             // the look's own, the presets, the stored colour when it is none of them, and a way to type one; the field
@@ -194,7 +196,7 @@ private fun PaletteEditor(p: dev.autotune.Palette, vm: TuneViewModel, inkNote: S
             // what the ink did, in one line: brought light or dark surfaces, reads only in places, or looks the same
             if (slot == dev.autotune.PaletteSlot.INK && inkNote != null) Muted(inkNote)
         }
-        Actions { TextAction("Reset palette", vm::resetPalette, enabled = !p.isDefault, icon = Ic.UNDO) }
+        Actions { TextAction("Reset palette", vm::resetPalette, enabled = p != start, icon = Ic.UNDO) }
     }
     custom?.let { slot -> HexColourDialog(slot.title, p[slot], { vm.setPaletteColour(slot, it); custom = null }, { custom = null }) }
 }

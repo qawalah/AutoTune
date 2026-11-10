@@ -877,8 +877,15 @@ fun contrast(a: Long, b: Long): Double {
 /** Looks removed in 2.8 (only the Braun looks stay). A saved setting that names one opens the default look. */
 val RETIRED_LOOKS = setOf("DYNO", "STUDIO", "CONSOLE", "HIFI", "VU", "SYNTH", "NAVY")
 
+/**
+ * The look the app opens with (the stored name of `Look.GRADIENT`, "Gradient edge"): on a fresh install and for a
+ * saved look that is missing, retired or unknown. Asked by the owner 2026-11-09; Classic (`BRAUN`) was the default
+ * before. A look the user saved by name keeps opening as saved.
+ */
+const val DEFAULT_LOOK = "GRADIENT"
+
 /** The look to open for the saved name [saved]: the kept look of that name, else [fallback] (retired, unknown or none). */
-fun resolveLookName(saved: String?, kept: List<String>, fallback: String): String =
+fun resolveLookName(saved: String?, kept: List<String>, fallback: String = DEFAULT_LOOK): String =
     saved?.takeIf { it in kept } ?: fallback
 
 /** The colours of the palette the user can set. [key] is the preference that stores it as "#RRGGBB". */
@@ -913,9 +920,33 @@ fun parseHexColour(text: String?): Long? {
 /** "#RRGGBB" for an ARGB colour (alpha dropped). */
 fun hexColour(argb: Long): String = "#%06X".format(argb and 0xFFFFFFL)
 
-/** The saved palette, read slot by slot through [read] (the preference for a key); a missing or bad value is not set. */
-fun paletteFrom(read: (String) -> String?): Palette =
-    Palette(PaletteSlot.entries.mapNotNull { s -> parseHexColour(read(s.key))?.let { s to it } }.toMap())
+/**
+ * What a palette slot stores when the user picks "As the look" for a slot where the look has a default colour of its
+ * own ([lookDefaultPalette]): the look's own colour there, not the default. It is not a hex colour, so a version
+ * without look defaults reads it as not set, which is the same thing.
+ */
+const val PALETTE_AS_LOOK = "look"
+
+/**
+ * The saved palette over the look's [defaults], read slot by slot through [read] (the preference for a key): a
+ * missing or bad value takes the default ([lookDefaultPalette]; none for most looks, so it is not set), and
+ * [PALETTE_AS_LOOK] is the look's own colour.
+ */
+fun paletteFrom(defaults: Palette = Palette(), read: (String) -> String?): Palette =
+    Palette(
+        PaletteSlot.entries.mapNotNull { s ->
+            val raw = read(s.key)
+            val v = if (raw?.trim() == PALETTE_AS_LOOK) null else parseHexColour(raw) ?: defaults[s]
+            v?.let { s to it }
+        }.toMap(),
+    )
+
+/**
+ * The preference value for [slot] set to [argb] (null = "As the look") over the look's [defaults]: "#RRGGBB", or
+ * [PALETTE_AS_LOOK] where the look has a default there, or null to remove the key (no default: the look's own).
+ */
+fun paletteStoredValue(slot: PaletteSlot, argb: Long?, defaults: Palette = Palette()): String? =
+    argb?.let(::hexColour) ?: if (defaults[slot] != null) PALETTE_AS_LOOK else null
 
 /** A named colour offered in the palette's drop-downs. */
 data class PaletteColour(val name: String, val argb: Long)
@@ -947,6 +978,28 @@ val PALETTE_ACCENTS = listOf(
 )
 
 fun paletteChoices(slot: PaletteSlot): List<PaletteColour> = if (slot == PaletteSlot.ACCENT) PALETTE_ACCENTS else PALETTE_NEUTRALS
+
+private fun preset(slot: PaletteSlot, name: String): Long = paletteChoices(slot).first { it.name == name }.argb
+
+/**
+ * Gradient edge's default palette, the owner's own setting (asked 2026-11-09): body Warm white, deck White, ink Slate,
+ * accent Braun red, hairline Aluminium, all presets of the drop-downs, so the editor shows their names.
+ */
+val GRADIENT_DEFAULT_PALETTE: Palette = Palette(
+    mapOf(
+        PaletteSlot.BODY to preset(PaletteSlot.BODY, "Warm white"),
+        PaletteSlot.DECK to preset(PaletteSlot.DECK, "White"),
+        PaletteSlot.INK to preset(PaletteSlot.INK, "Slate"),
+        PaletteSlot.ACCENT to preset(PaletteSlot.ACCENT, "Braun red"),
+        PaletteSlot.RULE to preset(PaletteSlot.RULE, "Aluminium"),
+    ),
+)
+
+/**
+ * The palette a look starts from, by its stored name: Gradient edge's [GRADIENT_DEFAULT_PALETTE], none for the other
+ * looks (their own colours). A slot the user has not set takes it; Reset palette returns to it.
+ */
+fun lookDefaultPalette(lookName: String): Palette = if (lookName == "GRADIENT") GRADIENT_DEFAULT_PALETTE else Palette()
 
 /** [a] mixed towards [b] by [t] (0 = a, 1 = b), per channel, opaque. */
 fun mixArgb(a: Long, b: Long, t: Double): Long {
