@@ -1,6 +1,9 @@
 package dev.autotune.pc
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.ImageComposeScene
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.use
 import dev.autotune.dsp.EqChain
@@ -32,11 +35,56 @@ fun main(args: Array<String>) {
             rows = listOf(ShownRow(Speaker.FL, "level", "in time", true), ShownRow(Speaker.FR, "+1.0 dB", "in time", true)),
         ),
     )
+    roomShots(out)
     for ((name, u) in shots) {
         ImageComposeScene(width = 840, height = 1600, density = Density(2f)) { PcTheme { PcScreen(u, null) } }.use { scene ->
             val img = scene.render()
             File(out, "$name.png").writeBytes(img.encodeToData()!!.bytes)
         }
+        println("wrote $name.png")
+    }
+}
+
+/** The phone's and the TV's room drawing (Room3d), by day on a deck and at night, in 5.1 with surround left playing. */
+private fun roomShots(out: File) {
+    val notes = mapOf(
+        Speaker.FL to "level", Speaker.FR to "+1.0 dB", Speaker.C to "−2.5 dB", Speaker.SUB to "+3.0 dB",
+        Speaker.SL to "+1.5 dB", Speaker.SR to "in time",
+    ).mapValues { (s, n) -> dev.autotune.ui.room.RoomSpeaker(s, n) }
+    val day = dev.autotune.ui.room.RoomColors(
+        floor = androidx.compose.ui.graphics.Color(0xFFE9E7E1), floorLine = androidx.compose.ui.graphics.Color(0xFFC9C7C0),
+        ink = androidx.compose.ui.graphics.Color(0xFF232321), muted = androidx.compose.ui.graphics.Color(0xFF5E5C57),
+        face = androidx.compose.ui.graphics.Color(0xFFF3F2EE), side = androidx.compose.ui.graphics.Color(0xFFE4E2DC),
+        live = androidx.compose.ui.graphics.Color(0xFFBF3C18), onLive = androidx.compose.ui.graphics.Color.White,
+        screen = androidx.compose.ui.graphics.Color(0xFF232321),
+    )
+    val night = dev.autotune.ui.room.RoomColors(
+        floor = androidx.compose.ui.graphics.Color(0xFF1A1A19), floorLine = androidx.compose.ui.graphics.Color(0xFF45453F),
+        ink = androidx.compose.ui.graphics.Color(0xFFECEAE4), muted = androidx.compose.ui.graphics.Color(0xFFA3A19A),
+        face = androidx.compose.ui.graphics.Color(0xFF2E2E2B), side = androidx.compose.ui.graphics.Color(0xFF3A3A37),
+        live = androidx.compose.ui.graphics.Color(0xFFF0663A), onLive = androidx.compose.ui.graphics.Color(0xFF1A0A03),
+        screen = androidx.compose.ui.graphics.Color(0xFFD9D7D1),
+    )
+    for ((name, spec) in mapOf(
+        "room-phone" to Triple(day, 720 to 412, false),
+        "room-tv" to Triple(night, 1200 to 686, true),
+    )) {
+        val (colors, wh, big) = spec
+        ImageComposeScene(width = wh.first, height = wh.second, density = Density(2f)) {
+            val tm = androidx.compose.ui.text.rememberTextMeasurer()
+            androidx.compose.foundation.Canvas(
+                androidx.compose.ui.Modifier.fillMaxSize().background(if (big) androidx.compose.ui.graphics.Color(0xFF232321) else androidx.compose.ui.graphics.Color.White),
+            ) {
+                with(dev.autotune.ui.room.Room3d) {
+                    drawRoom(
+                        dev.autotune.dsp.Layout.L51, Speaker.SL, notes, colors, tm,
+                        androidx.compose.ui.text.TextStyle(fontFamily = dev.autotune.pc.ui.Inter, fontSize = (if (big) 16 else 12).sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium),
+                        androidx.compose.ui.text.TextStyle(fontFamily = dev.autotune.pc.ui.Inter, fontSize = (if (big) 14 else 11).sp),
+                        phase = 0.35f, level = 0.7f,
+                    )
+                }
+            }
+        }.use { scene -> File(out, "$name.png").writeBytes(scene.render().encodeToData()!!.bytes) }
         println("wrote $name.png")
     }
 }
