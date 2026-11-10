@@ -4,6 +4,10 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.15.1] - 2026-11-10
+### Fixed
+- **"This TV does not let an app EQ its sound (AudioEffect: bad parameter value)"** on an Android TV box with Dolby Digital 5.1. The TV's EQ asked for one channel per home-theatre speaker, but Android mixes every app's sound in stereo before HDMI, so it was refused. It now sets the EQ on those two channels (front left's on the left, front right's on the right; with one EQ for every speaker, both the same).
+
 ## [2.15.0] - 2026-11-10
 ### Added
 - **The home theatre in two tests**, the way calibration is done (levels, then distances, then the EQ):

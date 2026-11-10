@@ -108,6 +108,20 @@ class TheatreLinkTest {
     }
 
     @Test
+    fun theTvEqUsesTheMixsTwoChannels() {
+        val one = EqChain(listOf(EqFilter(80.0, -4.0, 2.0)), -2.0)
+        // one EQ for every speaker: both channels get it
+        val (l, r) = dev.autotune.tv.TvEq.stereoChains(Layout.L51.speakers.associateWith { one })
+        assertEquals(one, l); assertEquals(one, r)
+        // per speaker: left and right keep their own
+        val other = EqChain(listOf(EqFilter(2000.0, 1.0, 1.0)), -2.0)
+        assertEquals(one to other, dev.autotune.tv.TvEq.stereoChains(mapOf(Speaker.FL to one, Speaker.FR to other, Speaker.C to other)))
+        // only a centre EQ: it plays on both
+        assertEquals(other to other, dev.autotune.tv.TvEq.stereoChains(mapOf(Speaker.C to other)))
+        assertEquals(null to null, dev.autotune.tv.TvEq.stereoChains(emptyMap()))
+    }
+
+    @Test
     fun pairingCodes() {
         val code = Pairing.newCode(java.util.Random(1))
         assertEquals(4, code.length)
