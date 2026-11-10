@@ -20,7 +20,7 @@ corrects for the mic's calibration file, and automatically tunes a parametric EQ
   tuning, and Details (chart, runs, compare, report card, tonal balance, resonances, distortion, suggested EQ, target,
   notes, manage), each closed until opened.
 - **Speakers on a TV or PC**: install the same app on an Android TV or Google TV. The TV plays each speaker on its own (Dolby Digital 5.1 over HDMI ARC, raw 7.1 over eARC), the phone listens, and both show a room map with the playing speaker lit. You get level, distance and EQ per speaker, and the TV can hold the EQ.
-- **AutoTune for Windows** (`desktop/`, an MSI from the `windows-v*` pre-releases): the same for a PC's speakers. The PC plays front left and right on the output you pick and keeps the EQ in [Equalizer APO](https://sourceforge.net/projects/equalizerapo/), one EQ per channel, for that output only.
+- **AutoTune for Windows** (`desktop/`, `AutoTune-X.Y.Z-windows.msi` in each Android release): the same for a PC's speakers. The PC plays front left and right on the output you pick and keeps the EQ in [Equalizer APO](https://sourceforge.net/projects/equalizerapo/), one EQ per channel, for that output only.
 - **EQ**: AutoTune as the EQ, any time. "EQ in use" is one drop-down grouped by test (car / home theatre icon): the next
   suggestion, the EQ of every run with its result, and saved EQs. The power switch applies it. Locked sliders add to it;
   A/B listening and automatic switching per Bluetooth device are under Advanced.

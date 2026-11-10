@@ -1,7 +1,8 @@
 # AutoTune for Windows: every push to main, and every pull request, builds and tests the PC app on Windows; a pull
-# request keeps the installer as a downloadable artifact. On main, a version not released yet (APP_VERSION_NAME in
-# gradle.properties) also publishes the installer as a GitHub *pre-release* tagged windows-vX.Y.Z, so Obtainium, which
-# follows the full releases, keeps installing only the phone's APK.
+# request keeps the installer as a downloadable artifact. On main, the installer is added to the same version's Android
+# release (android-vX.Y.Z+code, made by DevStore) as AutoTune-X.Y.Z-windows.msi. There is never a release of its own:
+# Obtainium looks at the newest release only, so every release must carry the APK. It installs .apk files and ignores
+# the .msi.
 name: Windows
 
 on:
@@ -40,20 +41,32 @@ jobs:
           path: desktop/build/compose/binaries/main/msi/*.msi
           retention-days: 14
 
-      - name: Publish it when this version is new
+      - name: Add the installer to this version's Android release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           v=$(sed -n 's/^APP_VERSION_NAME=//p' gradle.properties | tr -d '\r')
-          tag="windows-v$v"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "$tag is already released"
-            exit 0
+          code=$(sed -n 's/^APP_VERSION_CODE=//p' gradle.properties | tr -d '\r')
+          tag="android-v$v+$code"
+          msi="AutoTune-$v-windows.msi"
+          # DevStore makes the Android release at the same time (about 3 minutes): wait for it
+          for i in $(seq 1 45); do
+            gh release view "$tag" >/dev/null 2>&1 && break
+            sleep "${WAIT_SECONDS:-20}"
+          done
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            echo "::error::There is no release $tag: DevStore has not released this version (versionCode bumped?)"
+            exit 1
           fi
-          msi=$(ls desktop/build/compose/binaries/main/msi/*.msi)
-          cp "$msi" "AutoTune-$v-windows.msi"
-          gh release create "$tag" "AutoTune-$v-windows.msi" \
-            --target "$GITHUB_SHA" --prerelease --latest=false \
-            --title "AutoTune for Windows $v" \
-            --notes "The PC side of AutoTune: the phone measures, the PC plays each speaker and keeps the EQ in Equalizer APO. Install it, open it, and pair from the phone (Tune › Speakers on a TV or PC). See CHANGELOG.md for what changed."
+          assets=$(gh release view "$tag" --json assets -q '.assets[].name')
+          if grep -qxF "$msi" <<<"$assets"; then
+            echo "$tag already has $msi"
+          else
+            cp desktop/build/compose/binaries/main/msi/*.msi "$msi"
+            gh release upload "$tag" "$msi"
+          fi
+          # 2.14.0 first went out as its own windows-v release, the newest one without an APK, which stopped Obtainium
+          if gh release view "windows-v$v" >/dev/null 2>&1; then
+            gh release delete "windows-v$v" --cleanup-tag --yes
+          fi
