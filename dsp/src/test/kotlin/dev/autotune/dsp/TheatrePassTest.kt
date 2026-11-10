@@ -148,4 +148,49 @@ class TheatrePassTest {
         assertEquals(6, PassClip.nowPlaying(Layout.L51, all)!!.first)
         assertEquals(null, PassClip.nowPlaying(Layout.L51, 0.5))
     }
+
+    @Test
+    fun theDistancesTestPlaysEachSpeakerAfterOneSetOfBeeps() {
+        val planes = PassClip.planes(Layout.L51, fs, PassKind.DISTANCES)
+        assertEquals(6, PassClip.slots(Layout.L51, PassKind.DISTANCES).size)
+        val pass = PassAnalysis.read(record(planes, room51), fs, Layout.L51, null, kind = PassKind.DISTANCES)
+        assertEquals(null, pass.system)
+        val d = DistanceJudge.judge(Layout.L51, pass.speakers, Target.HOME_THEATER)
+        val by = d.speakers.associateBy { it.speaker }
+        assertEquals(-1.0, by.getValue(Speaker.SL).distanceM!!, 0.05)
+        assertTrue(!d.ok && d.headline.startsWith("Distances are off"), d.headline)
+    }
+
+    @Test
+    fun theEqTestReadsTheWholeSystemAndAveragesSeats() {
+        val planes = PassClip.planes(Layout.L51, fs, PassKind.EQ)
+        assertEquals(listOf<Speaker?>(null), PassClip.slots(Layout.L51, PassKind.EQ))
+        // a short clip: one set of beeps and one sweep
+        assertTrue(PassClip.seconds(Layout.L51, PassKind.EQ) < 13.0)
+        val seat1 = PassAnalysis.read(record(planes, room51, seed = 1), fs, Layout.L51, null, kind = PassKind.EQ).system
+        val seat2 = PassAnalysis.read(record(planes, room51.mapValues { (_, v) -> Sim(v.distanceM + 0.3, v.gainDb, v.subLowpassHz) }, seed = 2), fs, Layout.L51, null, kind = PassKind.EQ).system
+        assertTrue(seat1!!.heard && seat2!!.heard)
+        val avg = PassAnalysis.averageSeats(listOf(seat1, seat2))!!
+        val r = EqJudge.judge(avg, 2, Target.HOME_THEATER, null)
+        assertNotNull(r.rmsDb)
+        assertEquals(2, r.seats)
+        // against itself as the stock there is nothing gained, and the EQ is the same
+        assertEquals(r.eq.size, EqJudge.judge(avg, 2, Target.HOME_THEATER, avg).eq.size)
+    }
+
+    @Test
+    fun theEqCheckSeesWhetherTheEqArrived() {
+        val planes = PassClip.planes(Layout.L20, fs, PassKind.EQ)
+        val room = mapOf(Speaker.FL to Sim(3.0, 0.0), Speaker.FR to Sim(3.0, 0.0))
+        val off = PassAnalysis.read(record(planes, room), fs, Layout.L20, null, kind = PassKind.EQ).system
+        val eq = EqChain(listOf(EqFilter(200.0, -6.0, 1.5), EqFilter(3000.0, 3.0, 1.0)), -3.0)
+        // the same sound through the EQ: what the TV's EQ does when it reaches the speakers
+        val filtered = planes.mapValues { (_, x) -> x.copyOf().also { EqProcessor(eq, fs).process(it) } }
+        val on = PassAnalysis.read(record(filtered, room), fs, Layout.L20, null, kind = PassKind.EQ).system
+        val reached = EqJudge.reached(off, on, eq)!!
+        assertTrue(reached > 0.8, "reached $reached")
+        // and when it never arrives
+        val none = EqJudge.reached(off, off, eq)!!
+        assertTrue(none < 0.2, "none $none")
+    }
 }

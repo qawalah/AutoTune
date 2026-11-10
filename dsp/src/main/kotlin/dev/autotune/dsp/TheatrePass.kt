@@ -128,32 +128,49 @@ object LevelMeter {
     fun steady(change: Double): Boolean = abs(change) < OK_DB
 }
 
-/** The whole system test as one clip: the start beeps once, each speaker's sweep in turn, then every speaker at once. */
+/**
+ * Which sweeps a pass plays after its one set of start beeps (2.16): each speaker on its own for the distances, every
+ * speaker together for the EQ, or both (the system test of 2.15). The name is what the link and the Dolby files use.
+ */
+enum class PassKind(val code: String) {
+    SYSTEM("system"), DISTANCES("distances"), EQ("eq");
+
+    companion object {
+        fun of(code: String?): PassKind = entries.firstOrNull { it.code == code } ?: SYSTEM
+    }
+}
+
+/** A test as one clip: the start beeps once, then the sweeps of its [PassKind]. */
 object PassClip {
     const val FS = 48000
     /** After each sweep the room's tail dies away before the next one. */
     const val GAP_SECONDS = 1.0
 
     /** Who plays each sweep, in order: each speaker of [layout], then all of them together (null). */
-    fun slots(layout: Layout): List<Speaker?> = layout.speakers + listOf<Speaker?>(null)
+    fun slots(layout: Layout, kind: PassKind = PassKind.SYSTEM): List<Speaker?> = when (kind) {
+        PassKind.SYSTEM -> layout.speakers + listOf<Speaker?>(null)
+        PassKind.DISTANCES -> layout.speakers
+        PassKind.EQ -> listOf(null)
+    }
 
     /** Seconds from the first beep to the start of sweep [k]. */
     fun sweepAfterMarker(k: Int): Double = Marker.SWEEP_OFFSET_SEC + k * (ChannelClip.SWEEP_SECONDS + GAP_SECONDS)
 
-    fun seconds(layout: Layout): Double = ChannelClip.LEAD_SECONDS + sweepAfterMarker(slots(layout).size) - GAP_SECONDS + ChannelClip.TAIL_SECONDS
+    fun seconds(layout: Layout, kind: PassKind = PassKind.SYSTEM): Double =
+        ChannelClip.LEAD_SECONDS + sweepAfterMarker(slots(layout, kind).size) - GAP_SECONDS + ChannelClip.TAIL_SECONDS
 
     /** Seconds from the first beep to the end of the last sweep and its tail: how long the phone listens once it hears them. */
-    fun afterMarkerSeconds(layout: Layout): Double = sweepAfterMarker(slots(layout).size) + 0.2
+    fun afterMarkerSeconds(layout: Layout, kind: PassKind = PassKind.SYSTEM): Double = sweepAfterMarker(slots(layout, kind).size) + 0.2
 
-    fun planes(layout: Layout, fs: Int = FS): Map<Speaker, FloatArray> {
-        val n = (seconds(layout) * fs).toInt()
+    fun planes(layout: Layout, fs: Int = FS, kind: PassKind = PassKind.SYSTEM): Map<Speaker, FloatArray> {
+        val n = (seconds(layout, kind) * fs).toInt()
         val lead = (ChannelClip.LEAD_SECONDS * fs).toInt()
         val marker = Marker.waveform(fs)
         val sweep = ChannelClip.sweep(fs)
         val lfe = 10.0.pow(ChannelClip.LFE_TRIM_DB / 20).toFloat()
         val out = layout.speakers.associateWith { FloatArray(n) }
         System.arraycopy(marker, 0, out.getValue(ChannelClip.REFERENCE), lead, marker.size)
-        slots(layout).forEachIndexed { k, who ->
+        slots(layout, kind).forEachIndexed { k, who ->
             val at = lead + (sweepAfterMarker(k) * fs).toInt()
             for (s in who?.let { listOf(it) } ?: layout.speakers) {
                 val plane = out.getValue(s)
@@ -165,9 +182,9 @@ object PassClip {
     }
 
     /** What plays [t] seconds into the clip: the slot's index and how far into its sweep, or null between sweeps. */
-    fun nowPlaying(layout: Layout, t: Double): Pair<Int, Double>? {
+    fun nowPlaying(layout: Layout, t: Double, kind: PassKind = PassKind.SYSTEM): Pair<Int, Double>? {
         val sinceMarker = t - ChannelClip.LEAD_SECONDS
-        for (k in slots(layout).indices) {
+        for (k in slots(layout, kind).indices) {
             val into = sinceMarker - sweepAfterMarker(k)
             if (into >= 0 && into <= ChannelClip.SWEEP_SECONDS) return k to into
         }
@@ -182,8 +199,8 @@ class PassReading(val speakers: List<SpeakerReading>, val system: SpeakerReading
 
 object PassAnalysis {
     /** Reads every sweep of a [PassClip] recording; [markerAt] is the first sample of the beeps when already found. */
-    fun read(rec: FloatArray, fs: Int, layout: Layout, cal: Calibration?, markerAt: Int? = null): PassReading {
-        val slots = PassClip.slots(layout)
+    fun read(rec: FloatArray, fs: Int, layout: Layout, cal: Calibration?, markerAt: Int? = null, kind: PassKind = PassKind.SYSTEM): PassReading {
+        val slots = PassClip.slots(layout, kind)
         val m0 = markerAt ?: Marker.find(rec, fs) ?: run {
             val none = "The start beeps were not heard: turn the volume up and check front left plays."
             return PassReading(layout.speakers.map { SpeakerReading(it, null, null, null, none) }, SpeakerReading(ChannelClip.REFERENCE, null, null, null, none))
@@ -194,7 +211,88 @@ object PassAnalysis {
                 beforeSec = 0.5, afterSec = PassClip.GAP_SECONDS - 0.1,
             )
         }
-        return PassReading(readings.dropLast(1), readings.last())
+        val system = readings.lastOrNull()?.takeIf { slots.last() == null }
+        return PassReading(if (system != null) readings.dropLast(1) else readings, system)
+    }
+
+    /** The whole system as heard over several seats: the readings' power average (null when none was heard). */
+    fun averageSeats(seats: List<SpeakerReading?>): SpeakerReading? {
+        val heard = seats.filterNotNull().filter { it.heard }
+        if (heard.isEmpty()) return seats.filterNotNull().firstOrNull()
+        val n = heard.first().magDb!!.size
+        val avg = DoubleArray(n) { i -> 10 * log10(heard.sumOf { 10.0.pow(it.magDb!![i] / 10) } / heard.size) }
+        return SpeakerReading(heard.first().speaker, avg, heard.first().deltaMs, heard.mapNotNull { it.snrDb }.minOrNull())
+    }
+}
+
+/** The distances test: each speaker against front left, the sub's measured delay included. */
+class DistanceReport(val speakers: List<SpeakerResult>, val notes: List<String>, val headline: String, val ok: Boolean) {
+    val spreadM: Double get() = speakers.mapNotNull { it.distanceM }.maxOfOrNull { abs(it) } ?: 0.0
+    val heardCount: Int get() = speakers.count { it.heard }
+}
+
+object DistanceJudge {
+    fun judge(layout: Layout, readings: List<SpeakerReading>, target: Target, grid: FreqGrid = FreqGrid()): DistanceReport {
+        val r = TheatreJudge.judge(layout, readings, target, null, grid)
+        val missing = r.speakers.filter { !it.heard }
+        val off = r.distanceSpreadM > TheatreJudge.DISTANCE_OK_M
+        val headline = when {
+            missing.isNotEmpty() -> "No sound from ${missing.first().speaker.title.lowercase()}"
+            off -> "Distances are off by up to ${String.format(java.util.Locale.US, "%.2f", r.distanceSpreadM)} m"
+            else -> "Every speaker is in time"
+        }
+        return DistanceReport(r.speakers, r.notes, headline, missing.isEmpty() && !off)
+    }
+}
+
+/** The EQ test: the whole system at the seat(s), and one EQ for every speaker. */
+class EqReport(
+    val systemDb: DoubleArray?,
+    val rmsDb: Double?,
+    /** The stock EQ test's, to compare with (null on the stock itself). */
+    val stockRmsDb: Double?,
+    val eq: List<EqFilter>,
+    val seats: Int,
+    val headline: String,
+    val worth: Boolean,
+)
+
+object EqJudge {
+    val FIT = PassJudge.FIT
+
+    /** [stock]: the test's first EQ run, which every EQ is fitted from so they never stack. */
+    fun judge(system: SpeakerReading?, seats: Int, target: Target, stock: SpeakerReading?, grid: FreqGrid = FreqGrid()): EqReport {
+        val sys = system?.takeIf { it.heard }?.magDb
+        val base = stock?.takeIf { it.heard }?.magDb ?: sys
+        val rms = sys?.let { EqFitter.score(it, grid, target, FIT).first }
+        val stockRms = stock?.takeIf { it.heard && it !== system }?.magDb?.let { EqFitter.score(it, grid, target, FIT).first }
+        val eq = base?.let { EqChain.capBoost(EqFitter.fit(it, grid, target, FIT).filters) }.orEmpty()
+        val worth = (rms ?: 0.0) > TheatreJudge.EQ_WORTH_DB && eq.isNotEmpty()
+        val headline = when {
+            sys == null -> "The system was not heard: ${system?.fatal ?: "turn the volume up"}"
+            stockRms != null && rms != null && stockRms - rms >= 0.5 -> "${String.format(java.util.Locale.US, "%.1f", stockRms - rms)} dB closer to the target than at the start"
+            worth -> "${String.format(java.util.Locale.US, "%.1f", rms)} dB from the target: an EQ will help"
+            else -> "Close to the target"
+        }
+        return EqReport(sys, rms, stockRms, eq, seats, headline, worth)
+    }
+
+    /**
+     * Whether an EQ reaches the speakers: [off] and [on] are the system with the EQ held and on, and [eq] what was
+     * set. The measured change against the EQ's own curve, over 60 Hz to 8 kHz, both level-matched: null when either
+     * was not heard; otherwise the share of the EQ's shape that arrived (1 = all of it, 0 = none).
+     */
+    fun reached(off: SpeakerReading?, on: SpeakerReading?, eq: EqChain, grid: FreqGrid = FreqGrid()): Double? {
+        val a = off?.takeIf { it.heard }?.magDb ?: return null
+        val b = on?.takeIf { it.heard }?.magDb ?: return null
+        val sa = grid.smoothOctave(a, 3.0); val sb = grid.smoothOctave(b, 3.0)
+        val lo = grid.indexAtOrAbove(60.0); val hi = grid.indexAtOrBelow(8000.0)
+        val want = DoubleArray(hi - lo + 1) { eq.responseDb(grid.freqs[lo + it]) - eq.preampDb }
+        val got = DoubleArray(hi - lo + 1) { sb[lo + it] - sa[lo + it] }
+        val wm = want.average(); val gm = got.average()
+        var num = 0.0; var den = 0.0
+        for (i in want.indices) { num += (want[i] - wm) * (got[i] - gm); den += (want[i] - wm) * (want[i] - wm) }
+        return if (den < 1e-6) null else (num / den).coerceIn(0.0, 1.5)
     }
 }
 
