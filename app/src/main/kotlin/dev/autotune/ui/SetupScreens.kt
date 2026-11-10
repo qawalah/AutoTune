@@ -44,6 +44,12 @@ import dev.autotune.UiState
 // ------------------------------------------------------------------ setup
 
 /** The Settings tab: how much the app shows, the mic, defaults, the EQ, files, AI, diagnostics and the look. */
+private const val ABOUT_TV_HERE =
+    "Opens the screen AutoTune shows on a TV, so a tablet or a second phone can stand in for the TV. It shows a code; " +
+        "on the other phone, open Tune › Speakers on a TV or PC and enter it.\n\n" +
+        "It plays the test sounds on this device's own speakers, so left and right only (with a USB-C to HDMI adapter into a " +
+        "receiver it may offer 5.1 or 7.1). \"Use the EQ on the TV\" sets the EQ on this device's sound. Back returns here."
+
 @Composable
 fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pickers, go: (Tab) -> Unit = {}) {
     run {
@@ -122,6 +128,14 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             Actions {
                 SecondaryButton("Send diagnostics", vm::shareDiagnostics, icon = Ic.DIAG)
                 TextAction("Clear", vm::clearDiagnostics, danger = true, icon = Ic.TRASH)
+            }
+        }
+
+        // the TV's screen on a phone or tablet, to try the home-theatre link without a TV
+        if (isAdvanced()) Group("TV screen", info = ABOUT_TV_HERE) {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            Actions {
+                SecondaryButton("Use this device as the TV", { ctx.startActivity(android.content.Intent(ctx, dev.autotune.tv.TvActivity::class.java)) }, icon = Ic.HOME)
             }
         }
 
