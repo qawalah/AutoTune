@@ -56,6 +56,15 @@ object TvEq {
         apply(PlayMethod.of(p.getString("method", null)) ?: PlayMethod.STEREO)
     }
 
+    /**
+     * The EQ for the mix's two channels: front left's and front right's, or, where the speakers share one EQ or only
+     * some have one, the first there is.
+     */
+    fun stereoChains(chains: Map<Speaker, EqChain>): Pair<EqChain?, EqChain?> {
+        val any = chains[Speaker.FL] ?: chains[Speaker.FR] ?: chains.values.firstOrNull()
+        return (chains[Speaker.FL] ?: any) to (chains[Speaker.FR] ?: any)
+    }
+
     /** Switches the effect off for a moment (a raw test clip must read the system as it is) and back on. */
     @Synchronized
     fun hold(held: Boolean) { runCatching { dp?.enabled = !held && on } }
@@ -67,14 +76,14 @@ object TvEq {
         if (chains.isEmpty()) return null
         if (Build.VERSION.SDK_INT < 28) return "This TV is too old for an app EQ (Android 9 or newer)."
         return try {
-            val slots = method.slots
+            // Android mixes every app's sound in stereo before HDMI (and before a Dolby encoder), so the effect on the
+            // output mix has two channels: asking for one per home-theatre speaker is refused ("bad parameter value")
+            val (left, right) = stereoChains(chains)
             val cfg = DynamicsProcessing.Config.Builder(
-                DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION, slots.size, true, centres.size, false, 0, false, 0, true,
+                DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION, 2, true, centres.size, false, 0, false, 0, true,
             ).build()
             val d = DynamicsProcessing(0, 0, cfg)
-            // stereo output: the fronts' EQ; a channel with no EQ of its own stays flat
-            for ((ch, s) in slots.withIndex()) {
-                val c = s?.let { chains[it] }
+            for ((ch, c) in listOf(left, right).withIndex()) {
                 for (i in centres.indices) {
                     val edge = minOf(centres[i] * Rta.EDGE, 21000.0)
                     val g = c?.let { it.responseDb(centres[i]).coerceIn(-30.0, 15.0) } ?: 0.0

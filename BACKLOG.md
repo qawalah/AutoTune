@@ -75,3 +75,10 @@ A test mode for a phone or tablet used as the TV (Settings › Advanced › "Use
 - Neither test sends the user to the other; each can be run alone, in any order, as often as wanted.
 - **Distances** (decided 2026-11-10: a third test of its own, so it is not repeated with every level or EQ run): one short sweep per speaker after one set of start beeps, giving each speaker's distance against front left, the sub's measured delay included. Its own entry and saved result; run once at setup and again only when a speaker moves. The EQ does not need distances, but wrong ones make the sub and mains cancel, so the order at setup is levels, distances, then EQ.
 - Keep the TV/PC link messages (`noise`, `pass`) or add a lighter `system` clip with just the all-together sweep; the Dolby assets follow.
+
+## The TV's EQ on an Android box is stereo (seen 2026-11-10, owner's box over HDMI): roadmap
+Fixed in 2.15.1 so it no longer fails, but what it can do is limited, and the app should say so:
+- Android mixes app sound in stereo before HDMI, so AutoTune's EQ on a TV or box is one stereo EQ (left and right), never one per home-theatre speaker. With the one-EQ-for-every-speaker test that matches; per-speaker EQ belongs in the receiver or soundbar.
+- Dolby or DTS passed straight through (most streaming apps, and our own Dolby test clips) skips the EQ entirely. Show this on the TV and the phone when the EQ is on and the output is Dolby: "Applies to sound the box decodes itself; Dolby and DTS from apps pass by it."
+- Verify with a measurement: the system test once with the TV's EQ held and once with it on, PCM output, to prove the EQ reaches the speakers (like the phone's EQ check). Offer it from "Use the EQ on the TV".
+- Check whether the box offers a setting to decode to PCM (stereo or multichannel) and say what that trades (surround over ARC, which carries only two raw channels).
