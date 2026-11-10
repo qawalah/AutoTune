@@ -255,8 +255,12 @@ class ApplyProfileActivity : Activity() {
 /** Starts the Bluetooth watcher again after a restart, if the user turned automation on. */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
-        // the EQ was on before the reboot: put it back (the service keeps it alive)
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        // the TV's EQ (AutoTune on a TV, or a phone or tablet used as the TV) was on: its service puts it back
+        if (dev.autotune.tv.TvEq.wanted(context)) {
+            runCatching { ContextCompat.startForegroundService(context, Intent(context, dev.autotune.tv.TvEqService::class.java)) }
+        }
+        // the EQ was on before the reboot or the update: put it back (the service keeps it alive)
         if (ProfileController.prefs(context).getBoolean("eqWanted", false)) {
             ProfileController.restore(context)
             if (SystemEq.chain != null) runCatching { ContextCompat.startForegroundService(context, Intent(context, SystemEqService::class.java)) }

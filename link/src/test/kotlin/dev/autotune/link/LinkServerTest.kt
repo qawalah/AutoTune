@@ -94,6 +94,21 @@ class LinkServerTest {
     }
 
     @Test
+    fun sendingNeverWaitsOnTheNetwork() {
+        // Android stops an app that touches the network from its main thread, so send() must only queue: here the
+        // phone reads nothing, the socket's buffers fill, and every send still returns at once.
+        val p = Phone(port)
+        p.send(Msg.hello("4821", "slow phone"))
+        assertNotNull(p.read())
+        val big = Msg.show("L51", "x".repeat(60_000), emptyList())
+        val sender = Thread { repeat(200) { server.send(big) } }.apply { isDaemon = true; start() }
+        sender.join(2000)
+        assertFalse(sender.isAlive, "send() waited on the network")
+        // what was queued still arrives, in order
+        repeat(3) { assertEquals(Msg.SHOW, p.read()!!.type) }
+    }
+
+    @Test
     fun aWelcomeWithoutAKindIsFromATv() {
         val old = LinkMsg.parse("welcome name=Living+room method=DOLBY_51 eq=0 out=HDMI+ARC v=1")!!
         assertEquals(Msg.KIND_TV, old["kind"] ?: Msg.KIND_TV)

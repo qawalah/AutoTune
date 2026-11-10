@@ -14,6 +14,7 @@ import dev.autotune.dsp.PlayMethod
 import dev.autotune.dsp.Speaker
 import dev.autotune.link.LINK_PORT
 import dev.autotune.link.LinkMsg
+import dev.autotune.link.LinkServer
 import dev.autotune.link.Msg
 import dev.autotune.link.NSD_TYPE
 import dev.autotune.link.Pairing
@@ -23,14 +24,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.PrintWriter
 import java.net.Inet4Address
-import java.net.ServerSocket
-import java.net.Socket
 
 /** What the TV screen shows. */
 data class TvUi(
@@ -59,9 +54,17 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     private val _ui = MutableStateFlow(TvUi())
     val ui: StateFlow<TvUi> = _ui
 
-    private var server: ServerSocket? = null
-    private var client: Socket? = null
-    private var out: PrintWriter? = null
+    // the shared TV-or-PC end of the link: it writes on its own thread, so sending from the main thread is safe
+    private val server = LinkServer(
+        code = { _ui.value.code },
+        welcome = {
+            val p = _ui.value.probe
+            Msg.welcome(_ui.value.tvName, (p?.method ?: PlayMethod.STEREO).name, TvEq.on, p?.output ?: "TV")
+        },
+        onMessage = ::handle,
+        onPhone = { name -> _ui.update { it.copy(phone = name, error = if (name != null) null else it.error) } },
+        deniedText = "That code is not the one on the TV.",
+    )
     private var playJob: Job? = null
     private var eachJob: Job? = null
     private var nsdListener: NsdManager.RegistrationListener? = null
@@ -87,17 +90,9 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun startServer() {
         viewModelScope.launch(Dispatchers.IO) {
-            val ss = runCatching { ServerSocket(LINK_PORT) }.getOrElse { runCatching { ServerSocket(0) }.getOrNull() }
-            if (ss == null) { _ui.update { it.copy(error = "Could not open a connection for the phone.") }; return@launch }
-            server = ss
-            announce(ss.localPort)
-            while (isActive && !ss.isClosed) {
-                val s = runCatching { ss.accept() }.getOrNull() ?: break
-                // a new phone replaces the one before
-                runCatching { client?.close() }
-                client = s
-                launch { serve(s) }
-            }
+            val port = runCatching { server.start(LINK_PORT) }.getOrNull()
+            if (port == null) { _ui.update { it.copy(error = "Could not open a connection for the phone.") }; return@launch }
+            announce(port)
         }
     }
 
@@ -113,38 +108,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         runCatching { nsd.registerService(info, NsdManager.PROTOCOL_DNS_SD, l); nsdListener = l }
     }
 
-    private fun serve(s: Socket) {
-        val w = PrintWriter(s.getOutputStream().bufferedWriter(), true)
-        val r = BufferedReader(InputStreamReader(s.getInputStream()))
-        var paired = false
-        try {
-            while (true) {
-                val line = r.readLine() ?: break
-                val m = LinkMsg.parse(line) ?: continue
-                if (!paired) {
-                    if (m.type == Msg.HELLO && Pairing.matches(m["code"], _ui.value.code)) {
-                        paired = true
-                        synchronized(this) { out = w }
-                        _ui.update { it.copy(phone = m["name"] ?: "phone", error = null) }
-                        val p = _ui.value.probe
-                        send(Msg.welcome(_ui.value.tvName, (p?.method ?: PlayMethod.STEREO).name, TvEq.on, p?.output ?: "TV"))
-                    } else {
-                        w.println(Msg.denied("That code is not the one on the TV.").encode())
-                        break
-                    }
-                    continue
-                }
-                handle(m)
-            }
-        } catch (_: Exception) {
-        } finally {
-            runCatching { s.close() }
-            synchronized(this) { if (out === w) out = null }
-            if (client === s) _ui.update { it.copy(phone = null) }
-        }
-    }
-
-    private fun send(m: LinkMsg) { synchronized(this) { out?.println(m.encode()) } }
+    private fun send(m: LinkMsg) { server.send(m) }
 
     private fun handle(m: LinkMsg) {
         when (m.type) {
@@ -160,7 +124,6 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             }
             Msg.EQ -> setEq(Msg.chains(m["chains"]))
             Msg.EQ_OFF -> setEq(emptyMap())
-            Msg.BYE -> runCatching { client?.close() }
         }
     }
 
@@ -202,8 +165,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         runCatching { nsdListener?.let { ctx.getSystemService(NsdManager::class.java)?.unregisterService(it) } }
-        runCatching { client?.close() }
-        runCatching { server?.close() }
+        server.close()
         super.onCleared()
     }
 }

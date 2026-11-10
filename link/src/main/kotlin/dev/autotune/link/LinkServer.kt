@@ -6,6 +6,7 @@ import java.io.OutputStreamWriter
 import java.io.PrintWriter
 import java.net.ServerSocket
 import java.net.Socket
+import java.util.concurrent.Executors
 import kotlin.concurrent.thread
 
 /**
@@ -29,6 +30,10 @@ class LinkServer(
     @Volatile private var server: ServerSocket? = null
     @Volatile private var current: Conn? = null
 
+    // every line goes out on this one thread, in order: a caller never touches the network (Android stops an app that
+    // does so from its main thread) and never waits on a phone that is slow to read
+    private val writer = Executors.newSingleThreadExecutor { r -> Thread(r, "link-write").apply { isDaemon = true } }
+
     /** The port it listens on, or -1 before [start]. */
     val port: Int get() = server?.localPort ?: -1
 
@@ -47,19 +52,27 @@ class LinkServer(
         return ss.localPort
     }
 
-    /** Sends [m] to the paired phone. False when no phone is paired or the line has broken. */
+    /**
+     * Queues [m] for the paired phone and returns at once, from any thread. False when no phone is paired. A line that
+     * cannot be written closes that phone's connection, which ends its pairing.
+     */
     fun send(m: LinkMsg): Boolean {
         val c = current ?: return false
-        synchronized(c) {
-            c.out.println(m.encode())
-            return !c.out.checkError()
-        }
+        val line = m.encode()
+        return runCatching {
+            writer.execute {
+                if (current !== c) return@execute
+                c.out.println(line)
+                if (c.out.checkError()) runCatching { c.socket.close() }
+            }
+        }.isSuccess
     }
 
     fun close() {
         runCatching { server?.close() }
         current?.let { runCatching { it.socket.close() } }
         current = null
+        writer.shutdown()
     }
 
     private fun serve(s: Socket) {

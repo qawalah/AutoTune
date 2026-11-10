@@ -34,6 +34,9 @@ object TvEq {
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    /** True when an EQ was set and not switched off: after a reboot or an update it should come back. */
+    fun wanted(ctx: Context): Boolean = prefs(ctx).getString("chains", null) != null
+
     /** Sets the EQ per speaker (empty = off) and remembers it. Returns an error in words, or null. */
     @Synchronized
     fun set(ctx: Context, c: Map<Speaker, EqChain>, method: PlayMethod): String? {
