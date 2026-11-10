@@ -109,3 +109,4 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 - **Each test's key inside its own card.** "Set the levels" sits under the Levels card as a separate row; put it inside the card (Levels, Distances, EQ each with its own keys in the same section).
 - **Managing home theatres on its own page.** The home-theatre drop-down with New home theatre, Rename and Delete this home theatre sits at the top of the test page and throws the owner off; move the managing to a different page.
 - **Bug: a PC showed the TV's results.** Connecting to the Windows PC opened the home theatre last used with the Android TV, so its levels, distances and EQ showed as the PC's. Each TV or PC must open its own home theatre (by the device it ran on), never another device's results.
+- **EQ on/off as a big, pronounced key.** The small "tv eq on / off" line with a dot under the room is too weak; make the TV's or PC's EQ state a big on/off button you can't miss.
