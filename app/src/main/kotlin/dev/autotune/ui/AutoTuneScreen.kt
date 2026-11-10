@@ -77,9 +77,10 @@ enum class Tab(val title: String, val icon: Ic) {
     LIVE("Live", Ic.LIVE),
     EXPORT("Export", Ic.EXPORT),
     SETTINGS("Settings", Ic.GEAR),
+    THEATRE("Home theatre", Ic.HOME),
     ;
 
-    val isPage: Boolean get() = this == EXPORT
+    val isPage: Boolean get() = this == EXPORT || this == THEATRE
 
     companion object {
         /** The bar, start to end. */
@@ -88,7 +89,7 @@ enum class Tab(val title: String, val icon: Ic) {
 }
 
 /** Pages opened over a tab, newest last. Back closes the newest. LIVE is kept for saved state; Live is a tab now. */
-private enum class Page { RESULTS, LIVE, EXPORT }
+private enum class Page { RESULTS, LIVE, EXPORT, THEATRE }
 
 /** What fills the screen: a tab, or the newest page over it, and how deep the pages go. */
 private data class Dest(val tab: Tab, val page: Page?, val depth: Int)
@@ -205,6 +206,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
         overlay = OVERLAY_NONE
         when (t) {
             Tab.EXPORT -> open(Page.EXPORT)
+            Tab.THEATRE -> open(Page.THEATRE)
             else -> { tabIdx = t.ordinal; pages = emptyList() }
         }
     }
@@ -348,6 +350,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                                     Page.RESULTS -> ResultsPage(s, vm, back, go)
                                     Page.LIVE -> LiveTab(s, live, level, vm, pick, go)
                                     Page.EXPORT -> ExportTab(s, vm, go)
+                                    Page.THEATRE -> TheatrePage(pick)
                                 }
                             }
                         } else when (d.tab) {
@@ -356,8 +359,8 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                             Tab.EQ -> EqTab(s, vm, go, pick)
                             Tab.LIVE -> LiveTab(s, live, level, vm, pick, go)
                             Tab.SETTINGS -> SettingsTab(s, ai, vm, pick, go)
-                            // Export always opens as a page
-                            Tab.EXPORT -> Unit
+                            // Export and the home theatre always open as pages
+                            Tab.EXPORT, Tab.THEATRE -> Unit
                         }
                     }
                     ScreenHeader(titleSlot, sc, Modifier.align(Alignment.TopCenter))

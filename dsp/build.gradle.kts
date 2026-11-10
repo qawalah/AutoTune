@@ -19,3 +19,10 @@ tasks.test {
     useJUnitPlatform()
     testLogging { showStandardStreams = true }
 }
+
+// Writes the home-theatre test clips as raw PCM; tools/theatre/make-clips.sh turns them into Dolby Digital.
+tasks.register<JavaExec>("theatreClips") {
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("dev.autotune.dsp.tools.WriteTheatreClips")
+    args((project.findProperty("out") as String?) ?: layout.buildDirectory.dir("theatre").get().asFile.path)
+}

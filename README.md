@@ -19,6 +19,7 @@ corrects for the mic's calibration file, and automatically tunes a parametric EQ
 - **Tests**: your saved tests; New test starts one. Tap a test for the same summary the Tune screens show, Continue
   tuning, and Details (chart, runs, compare, report card, tonal balance, resonances, distortion, suggested EQ, target,
   notes, manage), each closed until opened.
+- **Home theatre with the TV**: install the same app on an Android TV or Google TV. The TV plays each speaker on its own (Dolby Digital 5.1 over HDMI ARC, raw 7.1 over eARC), the phone listens, and both show a room map with the playing speaker lit. You get level, distance and EQ per speaker, and the TV can hold the EQ.
 - **EQ**: AutoTune as the EQ, any time. "EQ in use" is one drop-down grouped by test (car / home theatre icon): the next
   suggestion, the EQ of every run with its result, and saved EQs. The power switch applies it. Locked sliders add to it;
   A/B listening and automatic switching per Bluetooth device are under Advanced.

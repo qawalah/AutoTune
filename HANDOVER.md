@@ -25,7 +25,7 @@ Main features:
 
 ## Platform and type
 
-A single **Android app** (phone), written in native Kotlin with Jetpack Compose (Material 3). It has no Windows parts, no server and no companion app. Gradle modules:
+A single **Android app**, written in native Kotlin with Jetpack Compose (Material 3). Since 2.13 the same APK also runs on Android TV / Google TV as the home-theatre companion (`tv/TvActivity`, leanback launcher); there is still one applicationId, no server and no Windows parts. Gradle modules:
 - `:dsp` is pure Kotlin/JVM signal processing with no Android dependency, and is unit-tested anywhere.
 - `:app` is the Android application: UI, audio I/O, system EQ, storage and AI clients.
 
@@ -93,7 +93,7 @@ What is sent: dB-from-target values at third-octave points, each run's EQ, warni
 
 The app also opens a YouTube search for pink noise in the browser.
 
-There is no server, no open ports and no analytics.
+There is no server and no analytics. Since 2.13, AutoTune on a TV listens on TCP port 47810 (or a free port) on the local network while its screen is open, announced with DNS-SD as `_autotune._tcp`; it only obeys a phone that sent its four-digit code.
 
 Entry points for other apps:
 - Intents `dev.autotune.action.APPLY_PROFILE` (extra `profile`), `EQ_OFF`, `TOGGLE_EQ`, `TOGGLE_AUTO`, `NEXT_PROFILE` and `PREV_PROFILE`, handled by `ApplyProfileActivity`.
@@ -421,3 +421,14 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - UI: `PaletteEditor(p, start, …)`: the drop-downs show the palette in effect (so the names, not "As the look"), Reset palette is enabled when it differs from the look's default.
 - Who moves: a fresh install and anyone whose `look` pref is missing, retired or unknown opens Gradient edge with its palette (keys they saved still win). A look saved by name stays.
 - Not verified on a phone: the default on a fresh install, Gradient edge's palette with Light or dark on System at night (the deck edge keeps its night gradient on the white decks).
+
+### Home theatre with the TV (2.13.0)
+- Asked 2026-11-10: an Android TV companion; the phone listens, the TV plays and applies the EQ; home-theatre first; each speaker tested on its own over HDMI ARC; graphics of each speaker playing. Built as one APK (same `applicationId`), so DevStore releases it unchanged and Obtainium on the TV installs it.
+- dsp/Theatre.kt (pure, `TheatreTest` with a simulated 5.1 room): `Speaker` (map position, `code` for files), `Layout` (2.0 to 7.1), `PlayMethod` (`DOLBY_51`, `PCM_71`, `PCM_51`, `STEREO`; `slots` in Android channel order; `pick(dolby, rawChannels)`), `ChannelClip` (2.5 s lead for the receiver to lock, start beeps on front left, 6 s sweep on the tested speaker, LFE 10 dB lower), `ChannelAnalysis.read` (sweep arrival after the beeps → `deltaMs`), `TheatreJudge.judge` (levels over 500 Hz-2 kHz, sub over 40-100 Hz plus the target's bass lift; distances against front left so the beep detector's offset cancels; EQ from the stock readings; `downmixed` = same arrival within 0.25 ms and same shape within 0.6 dB as a front; 25 dB below the median = not heard).
+- Dolby clips: `app/src/main/assets/theatre/<code>.ac3` (448 kb/s, dialnorm −31), built by `tools/theatre/make-clips.sh` (`:dsp:theatreClips` writes raw PCM from `ChannelClip`, ffmpeg encodes). Rebuild them when `ChannelClip`, `Sweep` or `Marker` change. Checked by decoding: flat to 16 kHz (−0.5 dB at 19 kHz), zero timing error, sub level with the mains once the receiver adds its 10 dB.
+- link/Link.kt (pure, `TheatreLinkTest`): one line per message, `type key=value` URL-encoded; `Msg` builders (hello/welcome/denied, play/playing/done/failed, show, eq/eqoff/eqstate, bye); `Msg.chains` clamps what the TV accepts (−15..+6 dB, Q 0.1-20, preamp −15..0). `Pairing` codes.
+- theatre/: `LinkClient` (NSD discovery and resolve, socket, one writer thread), `TheatreStore` (`filesDir/theatre/stock.txt` and `latest.txt`, versioned text v1), `theatreKey`, `theatreNextSpeakers`, `TheatreViewModel` (records with `MeasurementRunner.recordOnly`, sends `play` at second 1, stops once the sweep is in or 2.5 s after the TV's `done` with no beeps; the first complete test of a layout becomes the stock; `useEq` sends every speaker's EQ with one shared preamp). Prefs `tvCode_<name>` remember the code per TV.
+- tv/: `TvActivity` (leanback launcher, landscape, keeps the screen on, `TvScreen(TvUi, …)` for screenshots), `TvViewModel` (ServerSocket, DNS-SD, pairing, playback, shows the phone's rows), `TvAudio` (probe: HDMI/ARC/eARC device, `isDirectPlaybackSupported` for AC-3 5.1 and PCM 5.1/7.1; plays AC-3 bytes through an `ENCODING_AC3` AudioTrack or interleaved PCM16), `TvEq` + `TvEqService` (DynamicsProcessing on session 0, per channel by `PlayMethod.slots`, prefs `autotune_tv`; held off while a raw clip plays).
+- ui/: `SpeakerMap` (shared by phone and TV), `TheatrePage` (a `Page` over the current tab, `Tab.THEATRE`), entry key on the Tune home. Manifest: microphone, touchscreen, bluetooth, leanback and screen orientations not required; `ACCESS_NETWORK_STATE`; `tv_banner`.
+- Screenshots: tools/screenshots/TheatreShots.kt (TV pairing, playing, result; phone maps).
+- Not verified on real hardware: AC-3 passthrough over ARC on a real TV and soundbar, the TV's direct-playback answers, NSD on the owner's Wi-Fi, the TV EQ (global effects are often refused on TVs), and the leanback banner on Google TV.
