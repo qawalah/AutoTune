@@ -116,3 +116,16 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 - **Windows app in landscape.** The PC window is laid out tall like a phone; make it a landscape desktop window that uses the width (columns side by side).
 - **No nagging about levels.** The page keeps pushing the level test ("Set the levels again" as the pinned key, level notes). Just show the three tests and let the owner choose; no suggested order, no pushing back to levels.
 - **TV and Windows show the phone's measuring screen.** While a test runs, the TV and the PC must show the same visuals and movement as the phone's measuring screen (owner's screenshot, stock reading): the large dBFS mic level, the sweep's frequency slider running 20 Hz to 20 kHz with the red needle and "Sweeping 734 Hz", the waveform, the too quiet / good / clipping level slider, and the checks list. Today the TV's live screen does not match, and the PC has none. (2.17.0: all but the checks list, which the phone keeps for its own car measurements.)
+
+## Owner's notes, round 2 (2026-11-11): done in 2.18.0
+- **Runs list: EQ runs only.** Details › Runs lists Levels and Distances runs next to the EQ runs; remove them from that list (it is for the EQ runs drawn on the chart). Levels and distances keep their own cards.
+- **TV screen: clean it up (owner: "like text was vomited").** No frames or grouping on the right side, nothing emphasised, repeated text. Seen on the owner's TV (2.17.0, light look):
+  - The code stays up after the phone connects; hide it once a phone is connected and show the connected phone in a proper, designed way (a deck with the phone's name and a lit pilot).
+  - Loose status lines with no frame: "home theatre", "eq on · stereo · dolby from apps passes by it", "hdmi · dolby digital 5.1 · 5.1". Group them into decks (device and output; EQ) like the phone's.
+  - Repeated and contradicting text: "5.1" twice in one line and again on a key; "eq on" in a line while the key reads "EQ off" (the key names the action, not the state). Use one big EQ state key as on the phone and PC.
+  - No emphasis: pick what matters at a glance (the connected phone, the test running, the EQ state) and make it the large element; the rest small.
+  - The room and the chart on the left are fine (the photo was cropped); the clean-up is the right side.
+- **The room drawing: labels and look (TV and phone).** On the TV the speaker names and their changes ("+7.0 dB", "level") are not aligned to their speakers and overlap other things (C's "+7.0 dB" runs into the sofa). The phone's is slightly better; fix both. Enhance the TV's room look, and replace the floor's dark grey rug, which the owner finds ugly.
+- **The connected device, shown properly, with its Disconnect.** On the phone, Disconnect sits as a loose row between the EQ card and the chart. Show the connected TV or PC in its own deck (its name, output, a lit pilot) with Disconnect in it.
+- **Animate the EQ (response) chart.** The phone's home-theatre chart never plays its arrival animation, unlike the other charts.
+- **Accent colour on the TV.** The TV screen is all grey and depressing; bring in the accent colour (as the phone does: live, playing, EQ on).

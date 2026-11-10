@@ -85,12 +85,15 @@ fun TvScreen(
         // the room, and under it what the phone hears while it tests, or the result's chart after
         Column(Modifier.weight(1.45f).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             Box(Modifier.fillMaxWidth().deckPlate().padding(20.dp), contentAlignment = Alignment.Center) {
-                SpeakerMap(
-                    u.layout, u.playing, large = true, all = u.allPlaying,
-                    level = live?.let { ((it.levelDb + 60f) / 50f).coerceIn(0f, 1f) },
-                    notes = u.rows.associate { it.speaker to listOf(it.trim, it.distance).filter { t -> t.isNotBlank() && t != "—" }.joinToString("\n") },
-                    silent = u.rows.filter { !it.heard }.map { it.speaker }.toSet(),
-                )
+                // drawn in the deck's own colours, so the room sits light on its light plate
+                dev.autotune.ui.DeckColors {
+                    SpeakerMap(
+                        u.layout, u.playing, large = true, all = u.allPlaying,
+                        level = live?.let { ((it.levelDb + 60f) / 50f).coerceIn(0f, 1f) },
+                        notes = u.rows.associate { it.speaker to listOf(it.trim, it.distance).filter { t -> t.isNotBlank() && t != "—" }.joinToString("\n") },
+                        silent = u.rows.filter { !it.heard }.map { it.speaker }.toSet(),
+                    )
+                }
             }
             when {
                 // the phone's measuring display, the same drawing and movement, larger
@@ -115,59 +118,62 @@ fun TvScreen(
                 else -> Spacer(Modifier.weight(1f))
             }
         }
+        // the right side in decks, one job each: who is connected, what is happening, the EQ, the speakers
         Column(Modifier.weight(1f).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Wordmark()
-            Text("home theatre", style = MaterialTheme.typography.labelLarge, color = c.muted)
-            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Wordmark()
+                Spacer(Modifier.weight(1f))
+                Text(u.tvName.lowercase(), style = MaterialTheme.typography.titleSmall, color = c.muted, maxLines = 1)
+            }
+            // the phone: the code until one pairs, then the phone itself with a lit pilot
+            TvDeck {
+                if (u.phone == null) {
+                    Text("pair the phone", style = MaterialTheme.typography.labelLarge, color = c.muted)
+                    Text(u.code.toList().joinToString(" "), style = MaterialTheme.typography.displayLarge.copy(fontSize = 64.sp, lineHeight = 70.sp, fontWeight = FontWeight.Light), color = c.text)
+                    Text("code · same wi-fi" + (u.address?.let { " · $it" } ?: ""), style = MaterialTheme.typography.titleSmall, color = c.muted)
+                } else Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(16.dp).clip(CircleShape).background(c.signal))
+                    Spacer(Modifier.width(16.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(u.phone, style = MaterialTheme.typography.headlineSmall, color = c.text, maxLines = 1)
+                        Text("phone connected", style = MaterialTheme.typography.titleSmall, color = c.muted)
+                    }
+                    AtIcon(Ic.CHECK, c.signal, size = 32.dp)
+                }
+            }
+            // what is happening: the test playing, or the last result
             val playing = u.playing
             when {
-                playing != null || u.allPlaying || u.what != null -> {
-                    Reading(if (u.allPlaying) "every speaker" else playing?.title?.lowercase() ?: "test", "playing", tint = c.signal)
-                    val hz = if (u.what == "sweep") dev.autotune.dsp.PassClip.nowPlaying(u.layout, u.playT, u.kind)?.second?.let { 20.0 * Math.pow(1000.0, it / ChannelClip.SWEEP_SECONDS) }
-                        else if (u.what == null) ChannelClip.nowPlaying(u.playT) else null
-                    val what = when {
-                        u.what == "level noise" -> "level noise"
-                        hz != null -> if (hz >= 1000) "%.1f kHz".format(hz / 1000) else "%.0f Hz".format(hz)
-                        u.playT < ChannelClip.LEAD_SECONDS -> "starting"
-                        u.playT < ChannelClip.LEAD_SECONDS + dev.autotune.dsp.Marker.LENGTH_SEC + 0.1 -> "start beeps · front left"
-                        else -> "listening"
-                    }
-                    Text(what, style = MaterialTheme.typography.titleLarge, color = c.muted)
-                    live?.status?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = c.muted, maxLines = 1) }
+                playing != null || u.allPlaying || u.what != null -> TvDeck(accent = true) {
+                    Text("playing", style = MaterialTheme.typography.labelLarge, color = c.signal)
+                    Text(if (u.allPlaying) "Every speaker" else playing?.title ?: "Test", style = MaterialTheme.typography.displaySmall, color = c.text, maxLines = 1)
+                    Text(tvPlaying(u).first, style = MaterialTheme.typography.titleMedium, color = c.muted, maxLines = 1)
                 }
-                u.phone == null -> {
-                    Reading(u.code, "code for the phone")
-                    Text(listOfNotNull("same wi-fi", u.address).joinToString(" · "), style = MaterialTheme.typography.titleMedium, color = c.muted)
-                }
-                result != null -> {
-                    Reading(result.headline.lowercase(), u.phone.orEmpty().lowercase(), small = true)
+                result != null && u.phone != null -> TvDeck {
+                    Text(result.headline, style = MaterialTheme.typography.headlineSmall, color = c.text, maxLines = 2)
                     if (result.readings.isNotEmpty()) dev.autotune.ui.ReadingCells(result.readings.map { (v, unit, name) -> dev.autotune.ui.Reading(v, unit.ifBlank { null }, name) })
-                    result.notes.take(3).forEach { Text("· $it", style = MaterialTheme.typography.bodyLarge, color = c.warn, maxLines = 2) }
-                    result.next?.let { Text("next: ${it.lowercase()}", style = MaterialTheme.typography.titleMedium, color = c.text) }
+                    result.notes.take(2).forEach { Text(it, style = MaterialTheme.typography.bodyLarge, color = c.warn, maxLines = 2) }
                 }
-                else -> Reading(u.headline?.lowercase() ?: "ready", u.phone.orEmpty().lowercase(), small = u.headline != null)
+                else -> Unit
             }
+            u.error?.let { TvDeck { Text(it, style = MaterialTheme.typography.bodyLarge, color = c.warn, maxLines = 3) } }
             Spacer(Modifier.weight(1f))
-            u.error?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = c.warn, maxLines = 2) }
-            // the TV's EQ reaches only what the box turns into sound itself
-            if (u.eqOn && u.probe?.method == dev.autotune.dsp.PlayMethod.DOLBY_51) {
-                Text("eq on · stereo · dolby from apps passes by it", style = MaterialTheme.typography.titleSmall, color = c.muted)
-            }
-            u.probe?.let { p ->
-                val line = if (u.pretend != null) "pretend ${u.pretend.title} · really ${u.real}" else "${p.output.lowercase()} · ${p.method.title.lowercase()} · ${u.layout.title}"
-                Text(line, style = MaterialTheme.typography.titleSmall, color = if (u.pretend != null) c.signal else c.muted)
-            }
-            // one key per row, as on the phone
+            // the EQ's state, large: lit while it plays; the key switches it off
+            TvEqKey(u.eqOn, eqOff, note = if (u.eqOn && u.probe?.method == dev.autotune.dsp.PlayMethod.DOLBY_51) "stereo · dolby from apps passes by it" else null)
+            // the speakers: one line on the output, then the keys
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                u.probe?.let { p ->
+                    val line = if (u.pretend != null) "pretend ${u.pretend.title} · really ${u.real}" else "${p.output.lowercase()} · ${p.method.title.lowercase()}"
+                    Text(line, style = MaterialTheme.typography.titleSmall, color = if (u.pretend != null) c.signal else c.muted, maxLines = 1)
+                }
                 val first = remember { FocusRequester() }
                 TvKey(if (u.playing != null && u.phone == null) "Stop" else "Play each speaker", Ic.PLAY, playEach, Modifier.focusRequester(first))
                 LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
                 val layouts = u.probe?.method?.layouts.orEmpty()
                 if (layouts.size > 1 && u.phone == null) {
                     val next = layouts[(layouts.indexOf(u.layout) + 1) % layouts.size]
-                    TvKey(u.layout.title, Ic.SPEAKER, { setLayout(next) })
+                    TvKey("Speakers: ${u.layout.title}", Ic.SPEAKER, { setLayout(next) })
                 }
-                if (u.eqOn) TvKey("EQ off", Ic.POWER, eqOff)
                 // a phone or tablet standing in for a bigger system, to try the whole flow without one
                 if (u.probe?.method == dev.autotune.dsp.PlayMethod.STEREO && u.phone == null) {
                     val options = listOf(null, Layout.L21, Layout.L31, Layout.L51, Layout.L71)
@@ -175,6 +181,39 @@ fun TvScreen(
                     TvKey(if (u.pretend == null) "Pretend: off" else "Pretend: ${u.pretend.title}", Ic.SPEAKER, { setPretend(next) })
                 }
             }
+        }
+    }
+}
+
+/** A deck on the TV: the phone's light plate with its hairline; [accent] rims it in the accent while something plays. */
+@Composable
+private fun TvDeck(accent: Boolean = false, content: @Composable () -> Unit) {
+    val c = At.c
+    Column(
+        Modifier.fillMaxWidth().deckPlate().then(if (accent) Modifier.border(2.dp, c.signal, MaterialTheme.shapes.medium) else Modifier).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) { dev.autotune.ui.DeckColors { content() } }
+}
+
+/** The TV's EQ as one big latching key: "EQ on" with the pilot lit, or "EQ off". Pressing it switches it off. */
+@Composable
+private fun TvEqKey(on: Boolean, off: () -> Unit, note: String?) {
+    var focused by remember { mutableStateOf(false) }
+    val c = At.c
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 84.dp).clip(MaterialTheme.shapes.medium)
+            .background(if (on) androidx.compose.ui.graphics.lerp(c.panelHigh, c.signal, 0.12f) else c.panelHigh)
+            .border(3.dp, if (focused) c.signal else if (on) c.signal.copy(alpha = 0.6f) else c.line, MaterialTheme.shapes.medium)
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(enabled = on, role = Role.Switch, onClick = off)
+            .padding(horizontal = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(16.dp).clip(CircleShape).background(if (on) c.signal else c.line))
+        Spacer(Modifier.width(18.dp))
+        Column(Modifier.weight(1f)) {
+            Text(if (on) "EQ on" else "EQ off", style = MaterialTheme.typography.headlineMedium, color = c.text)
+            Text(note ?: if (on) "press to switch it off" else "the phone sends it", style = MaterialTheme.typography.titleSmall, color = c.muted, maxLines = 1)
         }
     }
 }

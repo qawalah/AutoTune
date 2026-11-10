@@ -1,6 +1,7 @@
 package dev.autotune.ui.room
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -24,6 +25,8 @@ import kotlin.math.sin
 class RoomColors(
     val floor: Color, val floorLine: Color, val ink: Color, val muted: Color,
     val face: Color, val side: Color, val live: Color, val onLive: Color, val screen: Color,
+    /** The plate each speaker's name sits on, so it reads over the floor, the sofa or a cabinet. */
+    val tag: Color = face,
 )
 
 /** What one speaker shows: drawn faint when [silent], its [note] under its name. */
@@ -132,22 +135,42 @@ object Room3d {
         }
         items.sortedByDescending { it.depth }.forEach { it.draw() }
 
-        // each speaker's name on the floor in front of it, and its note under the name (over everything)
-        for (b in layout.speakers.map(::boxOf)) {
+        // each speaker's name and its note on a small plate in front of it, over everything: a plate never covers the
+        // sofa or another plate (it moves down, then above its cabinet), and stays inside the drawing
+        val sofaBox = sofa.flatMap { part ->
+            listOf(-1.0, 1.0).flatMap { su -> listOf(-1.0, 1.0).flatMap { sv -> listOf(0.0, part.h).map { z -> at(part.x + su * part.w / 2, part.y + sv * part.d / 2 / DEPTH, z) } } }
+        }.let { pts -> Rect(pts.minOf { it.x }, pts.minOf { it.y }, pts.maxOf { it.x }, pts.maxOf { it.y }) }
+        val placed = ArrayList<Rect>()
+        val pad = hair * 5
+        // near speakers first, so the far ones make way
+        for (b in layout.speakers.map(::boxOf).sortedBy { project(it.s.x.toDouble(), it.s.y.toDouble(), 0.0).d }) {
             val live = all || b.s == playing
             val faint = speakers[b.s]?.silent == true
+            val ink = if (live) colors.live else if (faint) colors.muted else colors.ink
+            val name = text.measure(b.s.short, nameStyle.copy(color = ink))
+            val lines = speakers[b.s]?.note?.split('\n')?.filter { it.isNotBlank() }.orEmpty()
+                .map { text.measure(it, noteStyle.copy(color = if (live) colors.live else colors.muted)) }
+            val bw = maxOf(name.size.width, lines.maxOfOrNull { it.size.width } ?: 0) + pad * 2
+            val bh = name.size.height + lines.sumOf { it.size.height } + pad * 1.4f
             val ca = cos(b.angle); val sa = sin(b.angle)
             val hd = b.d / 2
-            val foot = at(b.s.x + (hd + 0.05) * sa, b.s.y + ((hd + 0.05) * ca) / DEPTH, 0.0)
-            val name = text.measure(b.s.short, nameStyle.copy(color = if (live) colors.live else if (faint) colors.muted else colors.ink))
-            var y = foot.y + hair * 2
-            drawText(name, topLeft = Offset(foot.x - name.size.width / 2f, y))
+            val foot = at(b.s.x + (hd + 0.04) * sa, b.s.y + ((hd + 0.04) * ca) / DEPTH, 0.0)
+            val top = at(b.s.x.toDouble(), b.s.y.toDouble(), b.h + 0.03)
+            fun boxAt(cx: Float, y: Float) = Rect((cx - bw / 2).coerceIn(hair * 2, w - bw - hair * 2), y, (cx - bw / 2).coerceIn(hair * 2, w - bw - hair * 2) + bw, y + bh)
+            // a touch of overlap at the corners is fine; covering the sofa or another plate is not
+            fun clear(r: Rect) = r.deflate(pad).let { d -> !d.overlaps(sofaBox) && placed.none { it.deflate(pad).overlaps(d) } } && r.bottom <= h
+            // in front of it; else above it; else a little further down
+            val tries = listOf(boxAt(foot.x, foot.y + hair * 2), boxAt(top.x, top.y - bh - hair * 2)) +
+                (1..3).map { k -> boxAt(foot.x, foot.y + hair * 2 + k * bh * 0.5f) }
+            val r = tries.firstOrNull(::clear) ?: tries.first()
+            placed += r
+            val shape = androidx.compose.ui.geometry.CornerRadius(bh * 0.22f)
+            drawRoundRect(colors.tag.copy(alpha = 0.94f), r.topLeft, r.size, shape)
+            drawRoundRect(if (live) colors.live else colors.floorLine, r.topLeft, r.size, shape, style = Stroke(if (live) hair * 1.5f else hair))
+            var y = r.top + pad * 0.7f
+            drawText(name, topLeft = Offset(r.left + (r.width - name.size.width) / 2f, y))
             y += name.size.height
-            speakers[b.s]?.note?.split('\n')?.forEach { line ->
-                val t = text.measure(line, noteStyle.copy(color = if (live) colors.live else colors.muted))
-                drawText(t, topLeft = Offset((foot.x - t.size.width / 2f).coerceIn(hair * 4, w - t.size.width - hair * 4), y))
-                y += t.size.height
-            }
+            for (t in lines) { drawText(t, topLeft = Offset(r.left + (r.width - t.size.width) / 2f, y)); y += t.size.height }
         }
     }
 

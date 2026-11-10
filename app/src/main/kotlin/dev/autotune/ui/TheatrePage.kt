@@ -287,11 +287,13 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel, manage: () -> Unit) {
         lv?.change?.let { put(lv.speaker, TheatreJudge.trimText(it)) }
         if (lv == null) d?.speakers?.forEach { r -> put(r.speaker, listOfNotNull(this[r.speaker], TheatreJudge.distanceText(r.distanceM)).joinToString("\n")) }
     }
+    DeviceDeck(u, vm)
     TheatreLine(u, manage)
     Panel(pad = 12.dp) {
         SpeakerMap(u.layout, u.playing, level = ring, all = u.allPlaying, notes = notes, silent = d?.speakers?.filter { !it.heard }?.map { it.speaker }?.toSet().orEmpty().takeIf { !u.busy }.orEmpty())
-        val line = u.status ?: if (u.pretend) "pretend ${u.layout.title} · really ${u.real ?: "its own speakers"}" else listOfNotNull(u.output, u.method?.title).joinToString(" · ").lowercase()
-        Text(line, style = MaterialTheme.typography.labelSmall, color = if (u.pretend && u.status == null) At.c.signal else At.c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // under the room only what is happening (the output is in the device's deck above)
+        val line = u.status ?: if (u.pretend) "pretend ${u.layout.title} · really ${u.real ?: "its own speakers"}" else null
+        line?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = if (u.pretend && u.status == null) At.c.signal else At.c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis) }
     }
     // whether the TV's EQ is on, as a big key you can't miss: on sends the EQ, off switches it off
     EqKey(u, vm)
@@ -340,7 +342,6 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel, manage: () -> Unit) {
         else -> Unit
     }
     if (lv != null || u.waitingSeat) Actions { TextAction("Stop", vm::stop, icon = Ic.STOP) }
-    if (!u.busy) Actions { TextAction("Disconnect", vm::disconnect, icon = Ic.CLOSE) }
     if (!u.busy) RunsDetails(u, vm)
 }
 
@@ -375,6 +376,30 @@ private fun EqKey(u: TheatreUi, vm: TheatreViewModel) {
                 },
                 style = MaterialTheme.typography.labelSmall, color = c.muted, maxLines = 1,
             )
+        }
+    }
+}
+
+/** The TV or PC connected: its name and output with a lit pilot, and Disconnect, in one deck at the top. */
+@Composable
+private fun DeviceDeck(u: TheatreUi, vm: TheatreViewModel) {
+    val c = At.c
+    Panel(pad = 14.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(10.dp).clip(CircleShape).background(c.signal))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(u.tv.orEmpty(), style = MaterialTheme.typography.titleMedium, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    "connected · " + if (u.pretend) "pretend ${u.layout.title}" else listOfNotNull(u.output, u.method?.title).joinToString(" · ").lowercase(),
+                    style = MaterialTheme.typography.labelSmall, color = c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (!u.busy) androidx.compose.material3.TextButton(onClick = vm::disconnect) {
+                AtIcon(Ic.CLOSE, c.text, size = 18.dp)
+                Spacer(Modifier.width(6.dp))
+                Text("Disconnect", style = MaterialTheme.typography.labelLarge, color = c.text)
+            }
         }
     }
 }
@@ -538,21 +563,21 @@ private fun RunsDetails(u: TheatreUi, vm: TheatreViewModel) {
         ResponseChart(ChartData(grid.freqs, curves, DoubleArray(grid.size) { Target.HOME_THEATER.dbAt(grid.freqs[it]) }, null, ""), targetLabel = "Home theatre")
     }
     DetailsHeading()
-    Fold("Runs", summary = "${t.runs.size} saved", startOpen = false, info = "Every run of this home theatre's tests, newest first. Tick EQ runs to draw them together on the graph; the first EQ run is the reference every EQ is fitted from.") {
-        t.runs.asReversed().forEach { r ->
+    Fold("EQ runs", summary = "${eqRuns.size} saved", startOpen = false, info = "Every EQ test of this home theatre, newest first. Tick runs to draw them together on the graph; the first one is the reference every EQ is fitted from. Levels and distances keep their own cards.") {
+        t.runs.filter { it.kind == RunKind.EQ }.asReversed().forEach { r ->
             Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (r.kind == RunKind.EQ && r.system?.heard == true) androidx.compose.material3.Checkbox(r.whenMillis in u.compare || (u.compare.isEmpty() && r === eqRuns.lastOrNull()), { vm.toggleCompare(r.whenMillis) })
                 else Spacer(Modifier.width(48.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(r.kind.title + (if (r === t.eqStock) " · reference" else "") + (r.eqInUse?.let { " · EQ $it" } ?: ""), style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-                    Muted(listOfNotNull(whenText(r.whenMillis), r.note.ifBlank { null }, if (r.pretend) "pretend" else null).joinToString(" · "))
+                    Text((whenText(r.whenMillis) ?: "EQ test") + (if (r === t.eqStock) " · reference" else "") + (r.eqInUse?.let { " · EQ $it" } ?: ""), style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                    Muted(listOfNotNull("${r.seats} ${if (r.seats == 1) "seat" else "seats"}", r.note.ifBlank { null }, if (r.pretend) "pretend" else null).joinToString(" · "))
                 }
             }
         }
-        var note by rememberSaveable(t.id, u.focus) { mutableStateOf(t.last(u.focus)?.note.orEmpty()) }
-        if (t.last(u.focus) != null) OutlinedTextField(
-            value = note, onValueChange = { note = it; vm.setNote(u.focus, it) }, singleLine = true,
-            label = { Text("Note on the last ${u.focus.title.lowercase()} run") }, modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
+        var note by rememberSaveable(t.id) { mutableStateOf(t.last(RunKind.EQ)?.note.orEmpty()) }
+        if (t.last(RunKind.EQ) != null) OutlinedTextField(
+            value = note, onValueChange = { note = it; vm.setNote(RunKind.EQ, it) }, singleLine = true,
+            label = { Text("Note on the last EQ run") }, modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
         )
     }
     u.distances?.let { d ->
