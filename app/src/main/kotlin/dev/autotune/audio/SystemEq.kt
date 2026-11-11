@@ -4,26 +4,29 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
-import android.media.audiofx.AudioEffect
 import android.media.audiofx.DynamicsProcessing
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import dev.autotune.dsp.EqChain
+import dev.autotune.dsp.EqRamp
 import dev.autotune.dsp.Rta
 
 /**
  * AutoTune as an equaliser for this phone's own audio (which also feeds a car or home theatre over Bluetooth / USB).
  *
- * Uses Android's DynamicsProcessing audio effect, attached to the global output mix and to the sessions of players
- * that announce themselves. Whether the global mix honours it depends on the phone and Android version. It cannot
- * control Samsung's Adapt Sound / Dolby / SoundAlive: those are separate and should be off.
+ * Uses Android's DynamicsProcessing audio effect on the global output mix. Whether the mix honours it depends on the
+ * phone and Android version. It cannot control Samsung's Adapt Sound / Dolby / SoundAlive: those are separate and should
+ * be off. It is NOT also put on the sessions players announce: on a phone whose output mix honours it (the only kind the
+ * measurements work on) music from those players got the EQ twice, while the sweep got it once.
+ *
+ * Every change is faded in over about 150 ms ([EqRamp]): switching on, off, to another EQ, or rebuilding. A jump of a
+ * few dB on playing music is heard as a click.
  */
 object SystemEq {
     /** The EQ currently applied (preamp included), or null when off. */
@@ -45,8 +48,19 @@ object SystemEq {
     @Volatile
     var measuring = false
 
-    private var global: DynamicsProcessing? = null
-    private val sessions = HashMap<Int, DynamicsProcessing>()
+    /** Set when the output changed; the first player starting after that rebuilds the effect (SystemEqService). */
+    @Volatile
+    var routeChanged = false
+
+    /** One effect and the band gains (dB) it holds right now; a fade moves [gains] to [goal]. */
+    private class Fx(val dp: DynamicsProcessing, val edges: FloatArray, val gains: FloatArray, var goal: FloatArray)
+
+    private var global: Fx? = null
+    /** Effects fading to flat before they are released (the EQ switched off, or replaced by a rebuild). */
+    private val leaving = ArrayList<Fx>()
+    private val fader = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "autotune-eq-fade").apply { isDaemon = true } }
+    private var fadeId = 0
+
     // 31 bands at 1/3 octave, or 61 at 1/6 octave (finer cuts, more work for the phone)
     private val coarse = Rta.CENTERS
     private val fineCentres = DoubleArray(61) { 20.0 * Math.pow(2.0, it / 6.0) }.filter { it <= 20000.0 }.toDoubleArray()
@@ -55,7 +69,7 @@ object SystemEq {
     /** Q of one band, for predicting what the bands realise (1/3 or 1/6 octave wide). */
     private val bandQ: Double get() = if (dev.autotune.SystemEqConfig.fine) 8.65 else 4.32
 
-    /** Switches between 31 and 61 bands; the EQ that is on is rebuilt at once. */
+    /** Switches between 31 and 61 bands; the EQ that is on is rebuilt at once (the old bands fade out as the new fade in). */
     @Synchronized
     fun setFine(on: Boolean) {
         if (dev.autotune.SystemEqConfig.fine == on) return
@@ -65,37 +79,45 @@ object SystemEq {
         c?.let { apply(it) }
     }
 
-    private fun fill(dp: DynamicsProcessing, c: EqChain) {
-        val centers = centers
-        for (i in centers.indices) {
-            val edge = minOf(centers[i] * edgeFactor, 21000.0)
-            val gain = c.responseDb(centers[i]).coerceIn(-30.0, 15.0)
-            dp.setPreEqBandAllChannelsTo(i, DynamicsProcessing.EqBand(true, edge.toFloat(), gain.toFloat()))
-        }
-        // a safety limiter so boosts can never clip hard
-        dp.setLimiterAllChannelsTo(DynamicsProcessing.Limiter(true, true, 0, 1f, 60f, 10f, -2f, 0f))
-    }
+    private fun goals(c: EqChain): FloatArray = FloatArray(centers.size) { c.responseDb(centers[it]).coerceIn(-30.0, 15.0).toFloat() }
 
-    private fun create(session: Int, c: EqChain): DynamicsProcessing {
+    /** A new effect, flat: switching it on changes nothing, the fade then brings the EQ in. */
+    private fun create(session: Int): Fx {
+        val centers = centers
         val cfg = DynamicsProcessing.Config.Builder(
             DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION, 2, true, centers.size, false, 0, false, 0, true,
         ).build()
         val dp = DynamicsProcessing(0, session, cfg)
-        fill(dp, c)
-        dp.enabled = true
-        return dp
+        val edges = FloatArray(centers.size) { minOf(centers[it] * edgeFactor, 21000.0).toFloat() }
+        try {
+            for (i in edges.indices) dp.setPreEqBandAllChannelsTo(i, DynamicsProcessing.EqBand(true, edges[i], 0f))
+            // a safety limiter so boosts can never clip hard
+            dp.setLimiterAllChannelsTo(DynamicsProcessing.Limiter(true, true, 0, 1f, 60f, 10f, -2f, 0f))
+            dp.enabled = true
+        } catch (e: Exception) {
+            runCatching { dp.release() }
+            throw e
+        }
+        return Fx(dp, edges, FloatArray(edges.size), FloatArray(edges.size))
     }
 
-    /** Applies [c] to the global mix and to every attached player session. Returns an error message, or null on success. */
+    /** Puts the effect out of use: it fades to flat, then it is released. */
+    private fun retire(fx: Fx) {
+        fx.goal = FloatArray(fx.edges.size)
+        leaving += fx
+    }
+
+    /** Applies [c] to the global mix. Returns an error message, or null on success. */
     @Synchronized
     fun apply(c: EqChain): String? {
         if (!supported) return "The system equaliser needs Android 9 or newer."
         return try {
-            val g = global
-            if (g == null) global = create(0, c) else fill(g, c)
-            sessions.values.forEach { fill(it, c) }
+            global?.takeIf { it.edges.size != centers.size }?.let { retire(it); global = null }
+            val g = global ?: create(0).also { global = it }
+            g.goal = goals(c)
             chain = c
             applied = c.sampledTo(centers.toList(), bandQ)
+            fade()
             null
         } catch (e: Exception) {
             off()
@@ -104,57 +126,64 @@ object SystemEq {
     }
 
     /**
-     * Opens the effects again on the same EQ. The audio system drops or ignores an effect on the output mix when the
+     * Opens the effect again on the same EQ. The audio system drops or ignores an effect on the output mix when the
      * output route changes (Android Auto, a car, a dock) or a player starts after the route moved; pausing and playing
-     * used to be the only way to get it back.
+     * used to be the only way to get it back. The new effect fades in as the old one fades out, so when the old one was
+     * still working the sound does not change at all.
      */
     @Synchronized
     fun rebuild() {
         val c = chain ?: return
-        runCatching { global?.release() }
+        global?.let { retire(it) }
         global = null
-        val ids = sessions.keys.toList()
-        sessions.values.forEach { runCatching { it.release() } }
-        sessions.clear()
         apply(c)
-        ids.forEach { attachSession(it) }
     }
 
+    /** True while the effect on the output is on and in this app's control. */
     @Synchronized
-    fun attachSession(id: Int) {
-        val c = chain ?: return
-        if (id <= 0 || sessions.containsKey(id)) return
-        runCatching { sessions[id] = create(id, c) }
-    }
-
-    @Synchronized
-    fun detachSession(id: Int) {
-        sessions.remove(id)?.let { runCatching { it.release() } }
-    }
+    fun running(): Boolean = global?.let { runCatching { it.dp.enabled && it.dp.hasControl() }.getOrDefault(false) } ?: false
 
     @Synchronized
     fun off() {
-        runCatching { global?.release() }
+        global?.let { retire(it) }
         global = null
-        sessions.values.forEach { runCatching { it.release() } }
-        sessions.clear()
         chain = null
         applied = emptyList()
+        fade()
     }
-}
 
-/** Keeps the equaliser alive while AutoTune is in the background, and attaches it to players that announce an audio session. */
-class SystemEqService : Service() {
-    private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            val id = intent.getIntExtra(AudioEffect.EXTRA_AUDIO_SESSION, -1)
-            when (intent.action) {
-                AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION -> SystemEq.attachSession(id)
-                AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION -> SystemEq.detachSession(id)
+    /** Moves every effect's bands to their goals in [EqRamp.STEPS] steps; a newer fade takes over from where this one got to. */
+    private fun fade() {
+        val id = ++fadeId
+        val moves = (listOfNotNull(global) + leaving).map { it to EqRamp.frames(it.gains, it.goal) }
+        fader.execute {
+            for (k in 0 until EqRamp.STEPS) {
+                synchronized(SystemEq) {
+                    if (id != fadeId) return@execute
+                    for ((fx, frames) in moves) set(fx, frames[k])
+                }
+                Thread.sleep(EqRamp.STEP_MS)
+            }
+            synchronized(SystemEq) {
+                if (id != fadeId) return@execute
+                leaving.forEach { runCatching { it.dp.release() } }
+                leaving.clear()
             }
         }
     }
-    private var registered = false
+
+    private fun set(fx: Fx, g: FloatArray) {
+        for (i in g.indices) {
+            if (g[i] == fx.gains[i]) continue
+            // an effect the audio system already dropped may refuse: it is being replaced or released anyway
+            runCatching { fx.dp.setPreEqBandAllChannelsTo(i, DynamicsProcessing.EqBand(true, fx.edges[i], g[i])) }
+            fx.gains[i] = g[i]
+        }
+    }
+}
+
+/** Keeps the equaliser alive while AutoTune is in the background, and brings it back when the output changes. */
+class SystemEqService : Service() {
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private val rebuildNow = Runnable { if (!SystemEq.measuring) SystemEq.rebuild() }
     private var activePlayers = 0
@@ -167,15 +196,25 @@ class SystemEqService : Service() {
     }
 
     private val deviceCallback = object : android.media.AudioDeviceCallback() {
-        override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>) { if (addedDevices.any { it.isSink }) scheduleRebuild() }
-        override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>) { if (removedDevices.any { it.isSink }) scheduleRebuild() }
+        override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>) { if (addedDevices.any { it.isSink }) routeMoved() }
+        override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>) { if (removedDevices.any { it.isSink }) routeMoved() }
+    }
+
+    private fun routeMoved() {
+        SystemEq.routeChanged = true
+        scheduleRebuild()
     }
 
     private val playbackCallback = object : android.media.AudioManager.AudioPlaybackCallback() {
         override fun onPlaybackConfigChanged(configs: MutableList<android.media.AudioPlaybackConfiguration>) {
             val started = dev.autotune.playbackStarted(activePlayers, configs.size)
             activePlayers = configs.size
-            if (started) scheduleRebuild()
+            // not on every song: that rebuild clicked. Only the first player on a new output, or an effect that stopped.
+            // (a measurement's own sweep starting leaves the flag for the next player)
+            if (!SystemEq.measuring && dev.autotune.rebuildOnPlayback(started, SystemEq.routeChanged, SystemEq.running())) {
+                SystemEq.routeChanged = false
+                scheduleRebuild()
+            }
         }
     }
     private var routeWatched = false
@@ -331,17 +370,6 @@ class SystemEqService : Service() {
         // the foreground notice must go up first, whatever happens next
         notify(if (SystemEq.chain != null) "Equalising" else "For your Bluetooth devices",
             if (SystemEq.chain != null) "EQ on" else "Watching", force = true)
-        if (!registered) {
-            ContextCompat.registerReceiver(
-                this, receiver,
-                IntentFilter().apply {
-                    addAction(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION)
-                    addAction(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION)
-                },
-                ContextCompat.RECEIVER_EXPORTED,
-            )
-            registered = true
-        }
         watchRoute()
         if (automationOn()) startWatching()
         refreshNotification()
@@ -356,7 +384,6 @@ class SystemEqService : Service() {
             runCatching { am.unregisterAudioPlaybackCallback(playbackCallback) }
             routeWatched = false
         }
-        if (registered) runCatching { unregisterReceiver(receiver) }
         watcher?.let { runCatching { unregisterReceiver(it) } }
         volume?.stop()
         volume = null

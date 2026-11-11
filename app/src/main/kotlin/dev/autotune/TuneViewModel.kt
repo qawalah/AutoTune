@@ -20,6 +20,7 @@ import dev.autotune.audio.ProfileController
 import dev.autotune.audio.Outputs
 import dev.autotune.dsp.LevelCheck
 import dev.autotune.dsp.Marker
+import dev.autotune.dsp.SweepCheck
 import dev.autotune.audio.RtaRunner
 import dev.autotune.audio.SystemEq
 import dev.autotune.audio.SystemEqService
@@ -1303,7 +1304,9 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     /** A reading that can't be trusted is not saved: the user measures again instead of tuning to a bad curve. */
     private fun checkUsable(m: Measurement) {
         m.fatal?.let {
-            val hint = if (state.value.systemEqOn) " AutoTune EQ is on: if the speakers stayed silent, this phone may be muting audio through it. Turn it off on the EQ tab and try again." else ""
+            // only when the sound was not heard: a Bluetooth pause or a clipped mic is not the EQ's doing
+            val unheard = it.contains("barely heard") || it.contains("No signal")
+            val hint = if (state.value.systemEqOn && unheard) " AutoTune EQ is on: if the speakers stayed silent, this phone may be muting audio through it. Turn it off on the EQ tab and try again." else ""
             error(it + hint)
         }
         m.warnings.firstOrNull { it.contains("clipped") }?.let { error("$it This reading was not saved.") }
@@ -1335,8 +1338,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     /** Details of the last capture for the diagnostics log (levels, lift, recording file). */
     private var lastCapture: Map<String, Any?> = emptyMap()
 
-    private fun noteCapture(rec: FloatArray, tag: String, extra: Map<String, Any?>) {
-        val (peak, rms) = Diag.levels(rec)
+    private fun noteCapture(rec: FloatArray, tag: String, extra: Map<String, Any?>, levelsOf: FloatArray = rec) {
+        val (peak, rms) = Diag.levels(levelsOf)
         val file = if (state.value.keepRecordings) Diag.keepRecording(ctx(), rec, fs, tag) else null
         lastCapture = mapOf("recPeakDbfs" to peak, "recRmsDbfs" to rms, "recSeconds" to rec.size.toDouble() / fs, "recording" to file) + extra
     }
@@ -1366,33 +1369,46 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             val want = (peak * Math.pow(10.0, 2.9 / 20.0)).toFloat().coerceAtMost(0.9f)
             if (mx > 1e-6f && mx < want * 0.7f) { val k = want / mx; for (i in played.indices) played[i] = (played[i] * k).coerceIn(-1f, 1f) }
         }
-        state.update { it.copy(status = "Playing a sweep and recording...") }
-        val rec = MeasurementRunner.capture(UsbMic.find(getApplication()), played, fs, channel, currentOutput(), ::routed)
-        lastRecordingSeconds = rec.size / fs
         var playedPeak = 0f
         for (x in played) playedPeak = maxOf(playedPeak, abs(x))
-        noteCapture(rec, "phone", mapOf("liftDb" to lift, "playedPeakDbfs" to 20 * kotlin.math.log10(playedPeak + 1e-9)))
-        state.update { it.copy(status = "Analysing...") }
-        return withContext(Dispatchers.Default) {
-            // a "marker" so late that the sweep could not fit after it is the sweep itself (seen with weak beeps)
-            val m = Marker.find(rec, fs)?.takeIf { it + lead + sweep.size <= rec.size }
-            val viaMarker = m?.let {
-                // locate, then cut: 1 s of quiet before the beeps, the sweep, and 4 s of decay. Nothing longer is transformed.
-                val from = max(0, it - fs)
-                val to = min(rec.size, it + lead + sweep.size + 4 * fs)
-                Analyzer.analyze(rec.copyOfRange(from, to), sweep, fs, calibration, gateMs.toDouble(), expectedStart = it - from + lead, fdwCycles = fdw())
-            }
-            val markerGood = viaMarker != null && viaMarker.fatal == null && (viaMarker.snrDb ?: 0.0) >= 30.0
-            lastCapture = lastCapture + mapOf("markerAt" to m?.let { it.toDouble() / fs })
-            if (markerGood) viaMarker!!
-            else {
-                // no marker, or a doubtful result through it: search the whole recording and keep the better reading
-                val full = Analyzer.analyze(rec, sweep, fs, calibration, gateMs.toDouble(), fdwCycles = fdw())
-                val better = viaMarker == null || (full.fatal == null && (viaMarker.fatal != null || (full.snrDb ?: 0.0) > (viaMarker.snrDb ?: 0.0) + 6.0))
-                lastCapture = lastCapture + mapOf("usedFullSearch" to better)
-                if (better) full else viaMarker!!
-            }
+        var attempt = 1
+        while (true) {
+            state.update { it.copy(status = if (attempt == 1) "Playing a sweep and recording..." else "The sound paused. Measuring again...") }
+            val raw = MeasurementRunner.capture(UsbMic.find(getApplication()), played, fs, channel, currentOutput(), ::routed)
+            lastRecordingSeconds = raw.size / fs
+            // nothing plays this early: the USB mic's switch-on click must not count as the sound (or as its peak)
+            val rec = SweepCheck.quietStart(raw, fs)
+            noteCapture(raw, "phone", mapOf("liftDb" to lift, "playedPeakDbfs" to 20 * kotlin.math.log10(playedPeak + 1e-9)), levelsOf = rec)
+            state.update { it.copy(status = "Analysing...") }
+            val (m, sweepAt) = withContext(Dispatchers.Default) { analysePhoneSweep(rec, sweep, lead, gateMs) }
+            // Bluetooth can pause the sound for a moment mid-sweep; such a reading is wrong (holes of 15-20 dB), so measure again
+            val stall = if (m.fatal == null) withContext(Dispatchers.Default) { SweepCheck.stall(rec, sweepAt, sweep, fs) } else null
+            if (stall == null) return m
+            lastCapture = lastCapture + mapOf("stallMs" to Math.round(stall.ms * 10) / 10.0, "stallAtSec" to stall.atSec, "attempt" to attempt)
+            Diag.log(ctx(), "sweep_stall", lastCapture.filterKeys { it != "thirdOctaveDb" } + mapOf("output" to state.value.outputName))
+            if (attempt >= SWEEP_ATTEMPTS) return m.withFatal(stall.message)
+            attempt++
         }
+    }
+
+    /** The reading of one phone sweep, and where the sweep starts in [rec] (for the stall check). */
+    private fun analysePhoneSweep(rec: FloatArray, sweep: FloatArray, lead: Int, gateMs: Int): Pair<Measurement, Int> {
+        // a "marker" so late that the sweep could not fit after it is the sweep itself (seen with weak beeps)
+        val m = Marker.find(rec, fs)?.takeIf { it + lead + sweep.size <= rec.size }
+        val viaMarker = m?.let {
+            // locate, then cut: 1 s of quiet before the beeps, the sweep, and 4 s of decay. Nothing longer is transformed.
+            val from = max(0, it - fs)
+            val to = min(rec.size, it + lead + sweep.size + 4 * fs)
+            Analyzer.analyze(rec.copyOfRange(from, to), sweep, fs, calibration, gateMs.toDouble(), expectedStart = it - from + lead, fdwCycles = fdw())
+        }
+        val markerGood = viaMarker != null && viaMarker.fatal == null && (viaMarker.snrDb ?: 0.0) >= 30.0
+        lastCapture = lastCapture + mapOf("markerAt" to m?.let { it.toDouble() / fs })
+        if (markerGood) return viaMarker!! to (m!! + lead)
+        // no marker, or a doubtful result through it: search the whole recording and keep the better reading
+        val full = Analyzer.analyze(rec, sweep, fs, calibration, gateMs.toDouble(), fdwCycles = fdw())
+        val better = viaMarker == null || (full.fatal == null && (viaMarker.fatal != null || (full.snrDb ?: 0.0) > (viaMarker.snrDb ?: 0.0) + 6.0))
+        lastCapture = lastCapture + mapOf("usedFullSearch" to better)
+        return if (better) full to (full.latencyMs * fs / 1000.0).toInt() else viaMarker!! to (m!! + lead)
     }
 
     private suspend fun captureExternal(source: Source, gateMs: Int): Measurement {

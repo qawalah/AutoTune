@@ -131,6 +131,8 @@ object Marker {
      * broad plateau of correlation (no gaps), noise gives no three-peak train, so neither is mistaken for the marker.
      * The previous test (one strong peak with side peaks) took the sweep's passage through the beep band for the
      * marker on a real soundbar recording; the silent gaps rule that out.
+     * A beep may come up to [LATE_SEC] late (Bluetooth paused the sound); the start is then given where the first beep
+     * would have been, so the sweep still sits [SWEEP_OFFSET_SEC] after it.
      */
     fun find(rec: FloatArray, fs: Int, from: Int = 0, to: Int = rec.size): Int? {
         val template = beepWaveform(fs)
@@ -186,6 +188,13 @@ object Marker {
             for (k in max(0, g0)..min(last, g1)) m = max(m, abs(c[k]))
             return m
         }
+        // Bluetooth can pause the sound for a moment (15-25 ms seen in a car), so a beep may come late, never early
+        val late = (LATE_SEC * fs).toInt()
+        fun strongest(lo: Int, hi: Int): Int {
+            var at = lo; var v = -1.0
+            for (i in max(0, lo)..min(last, hi)) if (abs(c[i]) > v) { v = abs(c[i]); at = i }
+            return at
+        }
         var p = 0
         var pv = 0.0
         for (i in 0..last) { val v = abs(c[i]); if (v > pv) { pv = v; p = i } }
@@ -195,20 +204,29 @@ object Marker {
         for (k in 0 until COUNT) {
             val s = p - k * period
             if (s < 0 || s + (COUNT - 1) * period > last) continue
-            val heights = DoubleArray(COUNT) { peakNear(s + it * period) }
+            // each beep where the one before (or after) says, or up to [late] after it
+            val pos = IntArray(COUNT)
+            pos[k] = p
+            for (j in k + 1 until COUNT) { val e = pos[j - 1] + period; pos[j] = strongest(e - tol, e + late) }
+            for (j in k - 1 downTo 0) { val e = pos[j + 1] - period; pos[j] = strongest(e - late, e + tol) }
+            if (pos[0] < 0 || pos[COUNT - 1] > last) continue
+            val heights = DoubleArray(COUNT) { peakNear(pos[it]) }
             val top = heights.max()
             val low = heights.min()
             if (low < 0.5 * top) continue
-            val gaps = (0 until COUNT - 1).maxOf { gapAfter(s + it * period) }
+            val gaps = (0 until COUNT - 1).maxOf { gapAfter(pos[it]) }
             if (gaps > 0.35 * low) continue
-            // refine: the exact first-beep lag is the strongest sample near s
-            var s0 = s; var s0v = 0.0
-            for (i in max(0, s - tol)..min(last, s + tol)) if (abs(c[i]) > s0v) { s0v = abs(c[i]); s0 = i }
+            val onTime = (1 until COUNT).all { abs(pos[it] - pos[it - 1] - period) <= tol }
+            // after a pause the sweep follows the last beep, so the start is where the first beep would have been
+            val start = if (onTime) strongest(pos[0] - tol, pos[0] + tol) else max(0, pos[COUNT - 1] - (COUNT - 1) * period)
             val score = (low / top) * (1.0 - gaps / low) * top
-            if (best == null || score > best!!.score) best = Hit(s0, score)
+            if (best == null || score > best!!.score) best = Hit(start, score)
         }
         return best
     }
+
+    /** How late a beep may come after the one before it (a Bluetooth pause), on top of the usual slack. */
+    const val LATE_SEC = 0.06
 }
 
 /**
