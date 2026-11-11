@@ -240,7 +240,7 @@ private fun ApplyStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> 
     var bandSet by rememberSaveable { mutableIntStateOf(1) }
     // "Suggested EQ" is AutoTune's proposal; anything else picked on the EQ tab is "the EQ currently in use"
     val isSuggestion = s.eqPick.startsWith("suggest:")
-    StepHeader(2, STEPS, "EQ", exit, onBack = vm::tuneBack, names = dev.autotune.STEP_NAMES)
+    StepHeader(2, STEPS, "Refine", exit, onBack = vm::tuneBack, names = dev.autotune.STEP_NAMES)
     // after the stock reading this step opens with its summary: the old stock review, folded in
     val a = s.stock
     var useAnyway by rememberSaveable { mutableStateOf(false) }

@@ -145,5 +145,14 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 - **Rotate with the phone, upside down included.** The app does not autorotate. It should follow the sensor in every direction, upside down too, so the phone's mic (at the bottom edge) can point up while measuring.
 - **The EQ graph and the band sliders fill the screen in landscape.** Turned sideways, the EQ tab's graph and sliders take the whole width and height.
 
-## Owner's notes, round 7 (2026-11-11): roadmap
+## Owner's notes, round 7 (2026-11-11): done in 2.19.0
 - **Home-screen widget: match the app, more functions.** The widget still has the old look (green Tune, dark EQ, amber Auto keys) and three keys only. Redraw it after the app's Braun look (light deck, graphite keys, red only for what is on, Inter, line icons), and add functions: the EQ in use by name ("F-150") with its on/off latch, switch between saved EQs, Dynamic EQ on/off, the loud button, and open Tune or the TV/PC companion; sizes from 2×1 to 4×2.
+- **The tab bar always shows.** On pages over a tab (a test's results here, with the pinned "Continue tuning" key), the tab bar at the bottom is gone; keep the five tabs on every screen, with the pinned key above them.
+- **Resonances as a table.** The resonance list (frequency, gain, Q, ring time) is one string per row, so the columns wander. Lay it out as a table: fixed columns with headings, figures right-aligned and tabular, the (i) in its own column. Same for other lists of figures (EQ bands, distances).
+- **A score on every run.** The Runs list shows the "/100" score only for the stock and the latest run; work it out for every run (from its reading against the target, as the stock's and latest's are) and show it on each row.
+- **The results card: scores fixed, aligned, cleaned up.** On "Run 7 vs stock" the best run (Run 4, 3.3 dB) has no score while the stock has one; every reading (latest, stock, best) gets its score, each in the same place beside its figure, the three lined up in a grid. Tidy the card: one line of labels, no dangling "best · run 4" cut off by the score.
+- **The header graphic (two reels, top right) looks broken** on the results page: tiny, with stray marks under it. Fix or redraw it.
+- **Diagnostics: save as well as share.** "Send diagnostics" only opens the share sheet; add Save (to the export folder or Downloads, as EQ files do).
+- **Change the on/off key.** The small latching "● on" key (Keep the last 12 recordings, AutoTune EQ, and wherever `LatchKey` is used) reads poorly; replace it with a clearer on/off control in the app's look.
+- **Settings › AI assistant:** "Check the key" and "Remove" sit side by side as loose text buttons; make them rows like every other action.
+- **Rename the EQ step to "Refine".** The Tune step where the new EQ is applied (currently "EQ" in the five steps: Set up, Stock, EQ, Verify, Result) is called "Refine", in the step bar, titles and docs.

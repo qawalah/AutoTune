@@ -414,7 +414,7 @@ fun resumeAt(saved: TuneStep?, runCount: Int): TuneStep {
 }
 
 /** The step names shown in the Tune progress bar, in order. */
-val STEP_NAMES = listOf("Set up", "Stock", "EQ", "Verify", "Result")
+val STEP_NAMES = listOf("Set up", "Stock", "Refine", "Verify", "Result")
 
 fun stepIndex(step: TuneStep): Int = when (step) {
     TuneStep.HOME, TuneStep.FRESH, TuneStep.SETUP -> 0
@@ -1152,10 +1152,12 @@ fun dialDots(face: Long, inks: List<Long>): Long =
 fun knownScore(
     runIdx: Int, focusIdx: Int?, focusScore: Int?, comparedIdx: List<Int> = emptyList(), comparedScores: List<Int> = emptyList(),
     stockScore: Int? = null,
+    allScores: List<Int> = emptyList(),
 ): Int? =
     if (focusIdx == runIdx && focusScore != null) focusScore
     else comparedIdx.indexOf(runIdx).takeIf { it >= 0 }?.let { comparedScores.getOrNull(it) }
         ?: stockScore?.takeIf { runIdx == 0 }
+        ?: allScores.getOrNull(runIdx)?.takeIf { it >= 0 }
 
 // ---------------------------------------------------------------- graphics play twice, replay on a pull (2.10)
 
