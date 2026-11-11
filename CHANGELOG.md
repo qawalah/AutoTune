@@ -4,6 +4,11 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.18.2] - 2026-11-11
+### Changed
+- **Actions grouped, one look.** On the EQ tab (Advanced) the loose actions are one "Actions" deck: Check the EQ reaches the speakers, Try it inside the app / I set it on my equipment, and Export EQ files. The pinned key carries its reason as its second line ("with autotune eq on") instead of a loose line above it.
+- **One style for actions everywhere:** the outlined buttons in action lists (Settings: microphone, calibration, folder, diagnostics, TV screen, curve files; EQ: bands, try it, Bluetooth switching; Tune's set-up tools, Live, Tests, Export, AI) are now the same full-width rows as every other action.
+
 ## [2.18.1] - 2026-11-11
 ### Changed
 - **The Tune screen:** the dial sits in the middle of the screen; Advanced tools (mic spots, channel, window, left/right, subwoofer) moved to the Set up step; the TV and PC key now reads "Connect to the companion app on a TV or PC".

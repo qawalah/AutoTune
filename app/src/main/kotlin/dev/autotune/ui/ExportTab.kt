@@ -46,7 +46,7 @@ fun ExportTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit) {
         runCatching { vm.eqSummary(key) }.getOrNull()?.let { Muted(it) }
         Actions {
             PrimaryButton("Save to Downloads", { vm.exportEq(key, format, share = false) }, icon = Ic.SAVE)
-            SecondaryButton("Share", { vm.exportEq(key, format, share = true) }, icon = Ic.SHARE)
+            TextAction("Share", { vm.exportEq(key, format, share = true) }, icon = Ic.SHARE)
         }
         s.status?.takeIf { it.startsWith("Saved") || it.startsWith("Choose") || it.startsWith("Could") || it.startsWith("That") }?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
     }

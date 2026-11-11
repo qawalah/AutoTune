@@ -65,8 +65,8 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             StatusLine(s.hasPermission, if (s.hasPermission) "Microphone access allowed" else "Microphone access needed")
             StatusLine(s.calibrationName != null, if (s.calibrationName != null) "${s.calibrationName} (${s.calibrationInfo})" else "No calibration loaded")
             Actions {
-                if (!s.hasPermission) SecondaryButton("Allow microphone", pick.permission, icon = Ic.MIC)
-                SecondaryButton(if (s.calibrationName == null) "Import calibration" else "Replace calibration", pick.calibration, icon = Ic.FILE)
+                if (!s.hasPermission) TextAction("Allow microphone", pick.permission, icon = Ic.MIC)
+                TextAction(if (s.calibrationName == null) "Import calibration" else "Replace calibration", pick.calibration, icon = Ic.FILE)
                 if (s.calibrationName != null) TextAction("Remove", vm::removeCalibration, danger = true, icon = Ic.TRASH)
             }
         }
@@ -76,7 +76,7 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             if (isAdvanced()) {
                 StatusLine(true, "Saved to " + (s.exportFolder ?: "Downloads/AutoTune"))
                 Actions {
-                    SecondaryButton(if (s.exportFolder == null) "Choose a folder" else "Choose another folder", pick.exportFolder, icon = Ic.FILE)
+                    TextAction(if (s.exportFolder == null) "Choose a folder" else "Choose another folder", pick.exportFolder, icon = Ic.FILE)
                     if (s.exportFolder != null) TextAction("Use Downloads", { vm.setExportFolder(null) }, icon = Ic.UNDO)
                 }
             }
@@ -126,7 +126,7 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
         if (isAdvanced()) Group("Diagnostics", info = "A record of every measurement (levels, the EQ in effect, how it was applied, warnings), every EQ change and every failure, plus the last recordings. Send it when something sounds wrong, so the cause can be found. It stays on this phone until you share it.") {
             SwitchRow("Keep the last 12 recordings", s.keepRecordings, vm::setKeepRecordings)
             Actions {
-                SecondaryButton("Send diagnostics", vm::shareDiagnostics, icon = Ic.DIAG)
+                TextAction("Send diagnostics", vm::shareDiagnostics, icon = Ic.DIAG)
                 TextAction("Clear", vm::clearDiagnostics, danger = true, icon = Ic.TRASH)
             }
         }
@@ -135,7 +135,7 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
         if (isAdvanced()) Group("TV screen", info = ABOUT_TV_HERE) {
             val ctx = androidx.compose.ui.platform.LocalContext.current
             Actions {
-                SecondaryButton("Use this device as the TV", { ctx.startActivity(android.content.Intent(ctx, dev.autotune.tv.TvActivity::class.java)) }, icon = Ic.HOME)
+                TextAction("Use this device as the TV", { ctx.startActivity(android.content.Intent(ctx, dev.autotune.tv.TvActivity::class.java)) }, icon = Ic.HOME)
             }
         }
 
@@ -162,7 +162,7 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
         if (isAdvanced()) PaletteEditor(s.palette, s.look.palette, vm, paletteInkNote(s.look, isNight(s.themeMode), s.palette))
 
         if (isAdvanced()) Group("Target curves", info = "A curve file is a text or CSV file with one “frequency, dB” pair per line, covering about 20 Hz to 20 kHz, for example a house curve you like. You can also tune a system until it sounds right and use “Keep this sound as a target” on the test's results.") {
-            SecondaryButton("Import a curve file", pick.curve, icon = Ic.FILE)
+            Actions { TextAction("Import a curve file", pick.curve, icon = Ic.FILE) }
             if (s.customTargets.isEmpty()) Muted("No saved curves yet.")
             s.customTargets.forEach { n ->
                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {

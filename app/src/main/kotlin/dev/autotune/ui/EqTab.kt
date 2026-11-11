@@ -161,17 +161,8 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
     // ---- dynamic EQ: less bass and harshness when it's loud
     if (isAdvanced()) LoudEqFold(s, vm)
 
-    // ---- does the EQ reach the speakers?
-    if (bandCount > 0) {
-        val check = s.eqCheck
-        if (check != null) EqCheckCard(check, vm) else if (isAdvanced()) Row(verticalAlignment = Alignment.CenterVertically) {
-            TextAction("Check the EQ reaches the speakers", vm::eqCheck, enabled = !s.busy && s.hasPermission, icon = Ic.CHECK)
-            InfoButton(
-                "EQ check",
-                "Plays the test sweep twice through this phone: once with AutoTune EQ off, once with the EQ in use on, and compares the change with what the EQ should do. It tells you whether the EQ really reaches the speakers. Android Auto (wireless or cable) and some car systems take the sound past the phone's own EQ. AutoTune EQ is left the way it was.",
-            )
-        }
-    }
+    // ---- does the EQ reach the speakers? its result is a card of its own
+    if (bandCount > 0) s.eqCheck?.let { EqCheckCard(it, vm) }
 
     // ---- the one primary action: verify
     if (hasTest && s.runs.isNotEmpty()) {
@@ -186,15 +177,27 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
             vm.tuneMeasure()
             go(Tab.MEASURE)
         }, enabled = bandCount > 0, icon = Ic.MEASURE,
-            hint = when {
-                s.systemEqOn -> "Measured with AutoTune EQ on."
-                onEquipment -> "Set these bands on your equipment first."
-                else -> "Plays the sweep through this EQ inside the app."
+            sub = when {
+                s.systemEqOn -> "with autotune eq on"
+                onEquipment -> "set these bands on your equipment first"
+                else -> "through this eq, inside the app"
             },
         )
-        if (!s.systemEqOn && s.source == Source.PHONE && isAdvanced()) {
-            if (onEquipment) TextAction("Try it inside the app instead", { vm.tryInApp(); vm.tuneMeasure(); go(Tab.MEASURE) }, enabled = bandCount > 0, icon = Ic.PLAY)
-            else TextAction("I set it on my equipment, measure", { vm.appliedOnEquipment(); vm.tuneMeasure(); go(Tab.MEASURE) }, enabled = bandCount > 0, icon = Ic.EDIT)
+    }
+
+    // ---- the EQ's other actions together, one per row, in one deck (owner, 2026-11-11: group actions)
+    if (isAdvanced()) Group(
+        "Actions", divider = false,
+        info = "Check the EQ reaches the speakers plays the test sweep twice through this phone: once with AutoTune EQ off, once with the EQ in use on, and compares the change with what the EQ should do. Android Auto (wireless or cable) and some car systems take the sound past the phone's own EQ. AutoTune EQ is left the way it was.\n\nExport EQ files saves the EQ for other equipment.",
+    ) {
+        Actions {
+            if (bandCount > 0 && s.eqCheck == null) TextAction("Check the EQ reaches the speakers", vm::eqCheck, enabled = !s.busy && s.hasPermission, icon = Ic.CHECK)
+            if (hasTest && s.runs.isNotEmpty() && !s.systemEqOn && s.source == Source.PHONE) {
+                val onEquipment = s.applyWay == ApplyWay.EQUIPMENT && s.runs.size > 1
+                if (onEquipment) TextAction("Try it inside the app instead", { vm.tryInApp(); vm.tuneMeasure(); go(Tab.MEASURE) }, enabled = bandCount > 0, icon = Ic.PLAY)
+                else TextAction("I set it on my equipment, measure", { vm.appliedOnEquipment(); vm.tuneMeasure(); go(Tab.MEASURE) }, enabled = bandCount > 0, icon = Ic.EDIT)
+            }
+            TextAction("Export EQ files", { go(Tab.EXPORT) }, icon = Ic.EXPORT)
         }
     }
 
@@ -207,8 +210,6 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
         }
     }
 
-    // ---- files for other equipment, in reach without opening a fold
-    if (isAdvanced()) Actions { TextAction("Export EQ files", { go(Tab.EXPORT) }, icon = Ic.EXPORT) }
 
     // ---- everything else
     if (isAdvanced()) Fold("More", summary = "Exact bands, listen, measure, automatic switching") {
@@ -244,8 +245,8 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
                     }, vm = vm, onRemoved = { expanded = -1 })
                 }
                 Actions {
-                    SecondaryButton("Add band", { expanded = -1; vm.editAdd() }, icon = Ic.PLUS)
-                    if (list.size > 1) SecondaryButton("Sort", { expanded = -1; vm.editSort() }, icon = Ic.TESTS)
+                    TextAction("Add band", { expanded = -1; vm.editAdd() }, icon = Ic.PLUS)
+                    if (list.size > 1) TextAction("Sort", { expanded = -1; vm.editSort() }, icon = Ic.TESTS)
                 }
             }
             // lossy on purpose, so it is an explicit action with the difference reported
@@ -255,7 +256,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
             }
             Actions {
                 GRAPHIC_SETS.forEach { (cs, q) ->
-                    SecondaryButton("Convert to ${cs.size} bands", { expanded = -1; vm.convertToBands(cs, q) }, enabled = bandCount > 0, icon = Ic.EQ)
+                    TextAction("Convert to ${cs.size} bands", { expanded = -1; vm.convertToBands(cs, q) }, enabled = bandCount > 0, icon = Ic.EQ)
                 }
             }
             s.convertMessage?.let { Muted(it) }
@@ -264,8 +265,8 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
         Fold("Try it", summary = "Listen with and without") {
             Text("Listen: ${s.clipName}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             Actions {
-                if (s.playing && s.playingWithEq) PrimaryButton("With EQ", { vm.playClip(true) }, icon = Ic.PLAY) else SecondaryButton("With EQ", { vm.playClip(true) }, enabled = !s.busy, icon = Ic.PLAY)
-                if (s.playing && !s.playingWithEq) PrimaryButton("Without", { vm.playClip(false) }, icon = Ic.PLAY) else SecondaryButton("Without", { vm.playClip(false) }, enabled = !s.busy, icon = Ic.PLAY)
+                if (s.playing && s.playingWithEq) PrimaryButton("With EQ", { vm.playClip(true) }, icon = Ic.PLAY) else TextAction("With EQ", { vm.playClip(true) }, enabled = !s.busy, icon = Ic.PLAY)
+                if (s.playing && !s.playingWithEq) PrimaryButton("Without", { vm.playClip(false) }, icon = Ic.PLAY) else TextAction("Without", { vm.playClip(false) }, enabled = !s.busy, icon = Ic.PLAY)
                 if (s.playing) TextAction("Stop", vm::stopClip, icon = Ic.STOP)
                 TextAction("Other clip", pick.clip, icon = Ic.FILE)
             }
@@ -369,7 +370,7 @@ fun AutomationSection(s: UiState, vm: TuneViewModel, pick: Pickers) {
 
     if (s.profiles.isNotEmpty()) {
         if (!s.btPermission) {
-            SecondaryButton("Allow Bluetooth to list your devices", pick.bluetooth, icon = Ic.BLUETOOTH)
+            Actions { TextAction("Allow Bluetooth to list your devices", pick.bluetooth, icon = Ic.BLUETOOTH) }
         } else if (s.btDevices.isEmpty()) {
             Muted("No paired Bluetooth devices found. Pair the car or speaker in Android settings first.")
         } else {
@@ -392,11 +393,13 @@ fun AutomationSection(s: UiState, vm: TuneViewModel, pick: Pickers) {
                 "Switch to this profile", s.profiles.firstOrNull { it.id == prof }?.name, "Choose a profile",
                 s.profiles, { it.name }, { it.origin }, { prof = it.id },
             )
-            SecondaryButton("Add", {
-                val d = s.btDevices.firstOrNull { it.address == dev }
-                val pid = prof
-                if (d != null && pid != null) { vm.setRule(d.address, d.name, pid); dev = null; prof = null }
-            }, Modifier.fillMaxWidth(), enabled = dev != null && prof != null, icon = Ic.PLUS)
+            Actions {
+                TextAction("Add", {
+                    val d = s.btDevices.firstOrNull { it.address == dev }
+                    val pid = prof
+                    if (d != null && pid != null) { vm.setRule(d.address, d.name, pid); dev = null; prof = null }
+                }, enabled = dev != null && prof != null, icon = Ic.PLUS)
+            }
         }
         SwitchRow("Turn the EQ off when the device disconnects", s.offOnDisconnect, vm::setOffOnDisconnect)
     }
@@ -840,7 +843,7 @@ fun LoudEqFold(s: UiState, vm: TuneViewModel, startOpen: Boolean = false) {
                 },
             )
             Actions {
-                SecondaryButton("Set this level", vm::loudLevelNow, enabled = s.systemEqOn && live.listening && live.levelDb != null, icon = Ic.MIC)
+                TextAction("Set this level", vm::loudLevelNow, enabled = s.systemEqOn && live.listening && live.levelDb != null, icon = Ic.MIC)
             }
             val levels = (listOf(75.0, 80.0, 85.0, 90.0, 95.0) + s.loudLevelDb).distinct().sorted()
             DropSelect(
