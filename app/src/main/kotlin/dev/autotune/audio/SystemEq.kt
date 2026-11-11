@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import dev.autotune.dsp.DpBins
 import dev.autotune.dsp.EqChain
 import dev.autotune.dsp.EqRamp
 import dev.autotune.dsp.Rta
@@ -79,16 +80,39 @@ object SystemEq {
         c?.let { apply(it) }
     }
 
-    private fun goals(c: EqChain): FloatArray = FloatArray(centers.size) { c.responseDb(centers[it]).coerceIn(-30.0, 15.0).toFloat() }
+    /** The output's sample rate, which sets where the effect's bins fall (SystemEqService and the app read it). */
+    @Volatile
+    var sampleRate = 48000
+
+    /** Each band's cutoff: the effect gives a band everything from the cutoff before it up to its own. */
+    private fun edges(): DoubleArray = DoubleArray(centers.size) { minOf(centers[it] * edgeFactor, 21000.0) }
+    private val block: Int get() = DpBins.block(sampleRate)
+
+    /** Band gains that put [responseDb] on the effect's bins (with long blocks, about 12 Hz apart). */
+    private fun bandGains(responseDb: (Double) -> Double): DoubleArray =
+        DpBins.bandGains(edges(), centers, block, sampleRate, responseDb).map { it.coerceIn(-30.0, 15.0) }.toDoubleArray()
+
+    private fun goals(c: EqChain): FloatArray = bandGains { c.responseDb(it) }.map { it.toFloat() }.toFloatArray()
+
+    /** What the bands really do with [c] (preamp left out), as peaking filters at the band centres. */
+    private fun realised(c: EqChain): List<dev.autotune.dsp.EqFilter> {
+        val e = edges(); val b = block
+        val bins = DpBins.binGains(e, bandGains { f -> c.filters.sumOf { it.magnitudeDb(f) } }, b, sampleRate)
+        return EqChain.peakingAt(centers.toList(), DoubleArray(centers.size) { DpBins.realisedDb(bins, b, sampleRate, centers[it]) }, bandQ)
+    }
 
     /** A new effect, flat: switching it on changes nothing, the fade then brings the EQ in. */
     private fun create(session: Int): Fx {
         val centers = centers
         val cfg = DynamicsProcessing.Config.Builder(
             DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION, 2, true, centers.size, false, 0, false, 0, true,
-        ).build()
+        )
+            // long blocks: Android's default 10 ms gave bins 94 Hz apart, so the whole bass was two bins (smeared, and
+            // the 45 Hz band's gain ran to 140 Hz). 80 ms gives 4096 samples, bins about 12 Hz apart, about 85 ms later.
+            .setPreferredFrameDuration(DpBins.FRAME_MS)
+            .build()
         val dp = DynamicsProcessing(0, session, cfg)
-        val edges = FloatArray(centers.size) { minOf(centers[it] * edgeFactor, 21000.0).toFloat() }
+        val edges = edges().map { it.toFloat() }.toFloatArray()
         try {
             for (i in edges.indices) dp.setPreEqBandAllChannelsTo(i, DynamicsProcessing.EqBand(true, edges[i], 0f))
             // a safety limiter so boosts can never clip hard
@@ -116,7 +140,7 @@ object SystemEq {
             val g = global ?: create(0).also { global = it }
             g.goal = goals(c)
             chain = c
-            applied = c.sampledTo(centers.toList(), bandQ)
+            applied = realised(c)
             fade()
             null
         } catch (e: Exception) {
@@ -367,6 +391,7 @@ class SystemEqService : Service() {
         // restarted by the system after being killed (intent == null), or started after a reboot or an update while
         // the EQ was wanted on: bring it back (restore does nothing when the user switched it off)
         if (SystemEq.chain == null) ProfileController.restore(this)
+        SystemEq.sampleRate = outputRate(this)
         // the foreground notice must go up first, whatever happens next
         notify(if (SystemEq.chain != null) "Equalising" else "For your Bluetooth devices",
             if (SystemEq.chain != null) "EQ on" else "Watching", force = true)
@@ -401,3 +426,8 @@ class SystemEqService : Service() {
         private const val CHANNEL = "autotune_eq"
     }
 }
+
+/** The phone's output mix rate (where the EQ's bins fall), 48 kHz when the phone does not say. */
+fun outputRate(ctx: Context): Int =
+    (ctx.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager)
+        .getProperty(android.media.AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull()?.takeIf { it in 8000..192000 } ?: 48000

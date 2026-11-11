@@ -511,6 +511,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     private var leqBlocks = 0
 
     init {
+        SystemEq.sampleRate = dev.autotune.audio.outputRate(app) // where the phone EQ's bins fall
         Target.ALL = Target.BUILT_IN + TargetStore.load(app)
         aiInit()
         watchOutside()
