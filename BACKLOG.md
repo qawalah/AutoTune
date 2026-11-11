@@ -152,3 +152,6 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 - **A score on every run.** The Runs list shows the "/100" score only for the stock and the latest run; work it out for every run (from its reading against the target, as the stock's and latest's are) and show it on each row.
 - **The results card: scores fixed, aligned, cleaned up.** On "Run 7 vs stock" the best run (Run 4, 3.3 dB) has no score while the stock has one; every reading (latest, stock, best) gets its score, each in the same place beside its figure, the three lined up in a grid. Tidy the card: one line of labels, no dangling "best · run 4" cut off by the score.
 - **The header graphic (two reels, top right) looks broken** on the results page: tiny, with stray marks under it. Fix or redraw it.
+- **Diagnostics: save as well as share.** "Send diagnostics" only opens the share sheet; add Save (to the export folder or Downloads, as EQ files do).
+- **Change the on/off key.** The small latching "● on" key (Keep the last 12 recordings, AutoTune EQ, and wherever `LatchKey` is used) reads poorly; replace it with a clearer on/off control in the app's look.
+- **Settings › AI assistant:** "Check the key" and "Remove" sit side by side as loose text buttons; make them rows like every other action.
