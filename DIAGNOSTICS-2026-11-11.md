@@ -114,12 +114,45 @@ An interactive version of the bins-against-bands picture is `wiki/bins-and-bands
 
 - Diagnostics: `chunkLagsMs`, `stallMs`, `beepLateMs` and `peakOffsetMs` on every phone sweep, `system_eq_rebuild` with its reason, and a "System EQ blocks" line in `info.txt` (the frame length the running effect reports confirms 80 ms took).
 
-## Not verified on the phone (check after 2.19.2)
+## Not verified on the phone (as of 2.19.2; see the second zip below for what was confirmed)
 - Video lip-sync with the extra ~85 ms.
 - Whether switching DynamicsProcessing on still ticks (the effect may add latency when it starts; a fade can't help).
 - That music in the owner's player sounds like Run 4 now that the double EQ is gone (it may sound weaker than before).
 - How long the stall check takes on the phone (~0.1 s per sweep on a desktop JVM).
 - `TvEq` (the TV/tablet companion) still uses the default 10 ms frame.
+
+## The second zip: 11 Nov 23:xx on 2.19.2 (`autotune-diagnostics-20261112-0000.zip`)
+Two tunes on the F-150 over Bluetooth, "F150 HD" (stock 5.00 → Runs 3.11, 3.16, 3.02, 3.01) and "F150 Taste"
+(stock 5.00 → 2.89, 3.01; with bass +12 / treble −6 taste: 3.24, 2.80). No outlier runs this time.
+
+**What worked**
+- `info.txt`: "System EQ blocks: 4096 samples at 48000 Hz (asked for 80.0 ms frames; the effect reports 80.0 ms)".
+- **Bass EQ arrives:** Run minus stock against the wanted EQ, 40-250 Hz, third octaves. The share of the wanted shape
+  that arrived (least-squares slope) was 16-32% on the five clean 512-block runs and 38-77% on the eight 4096-block runs
+  (six of them 58-77%); the mean error fell from 1.5-1.8 dB to 1.0-1.7 dB. A single spot and the 80 ms gate limit how
+  close this can get.
+- **Smear gone:** the energy between the overtones at 80 Hz was 31-36 dB below the tone on the old EQ runs (about 15 dB
+  over the cabin's background) and is 40-46 dB below on the new ones, level with the no-EQ runs.
+- **Pause check:** at 23:43:20 a stock sweep arrived 14-17 ms late from 3 s on (`peakOffsetMs` 16.6); logged as
+  `sweep_stall` and not saved. Smaller slips of 2-6 ms (whole sweep early or late, `beepLateMs` 2-5) are common on
+  this Bluetooth link and harmless.
+
+**What went wrong (fixed in 2.19.3)**
+- **45 EQ rebuilds in an hour.** One second after every `system_eq_on` came `system_eq_rebuild` "output changed",
+  often followed by "first player after an output change". Cause: Android answers `registerAudioDeviceCallback`
+  with every device, and the service registers each time it starts. With 4096-sample blocks each rebuild is a
+  dropout (the new effect outputs zeros until its first block is ready) and a skip (the old effect's buffer is lost).
+- **The automatic re-measure was stopped** 3 s in (23:43:23): the screen went back to "Opening the microphone" and
+  played the beeps again without saying why.
+- **"Microphone read failed (code -3)"** at 23:48:58, with a device change logged 12 s earlier and again 4 s later:
+  most likely the USB mic's plug (its headphone output counts as an output device). The same error is in the first
+  zip at 16:28:56.
+
+**Also seen**
+- The first stock reading of "F150 HD" (23:22:59, 8.4) was about 5 dB quieter than the repeat (5.0), with about 6 dB
+  more bass relative to the mids and a 9 dB hole at 1-1.25 kHz: another volume (the head unit likely lifts the bass
+  at low volume) and mic position, not a pause. Repeated stock readings at one volume still differ by ±4 dB in single
+  third octaves between 1 and 2 kHz, which is what one mic spot gives.
 
 ## Rerunning the checks on a new zip
 Unzip it into its own empty folder, then:

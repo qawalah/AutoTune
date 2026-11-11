@@ -4,6 +4,15 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.19.3] - 2026-11-12
+From the owner's diagnostics after 2.19.2 (F-150, two tunes): the 4096-sample blocks were taken, about twice as much of the bass EQ's shape now arrives, the smear around 80 Hz is gone, and the pause check caught a real 14 ms Bluetooth pause. It also showed three faults.
+### Fixed
+- **AutoTune EQ is no longer rebuilt a second after it is switched on.** Android lists every device again whenever the EQ's service starts watching for device changes, and 2.19.2 took that for a new output: 45 rebuilds in an hour, each one a short dropout and a skip with the long blocks. The EQ is now rebuilt only when the music really moves to another output; a USB mic coming or going does not count.
+- **The second sweep after a Bluetooth pause says why it plays** ("Bluetooth paused the sound. Measuring once more."). The screen used to start over without a word, and the re-measure was stopped.
+- **A microphone that stops mid-measurement is named** ("The USB microphone stopped ... its plug may have come loose"), instead of "Microphone read failed (code -3)".
+### Added
+- Diagnostics: every device that comes or goes (`audio_devices`, named, inputs too), every move of the media route (`media_route`), the route on each `system_eq_rebuild`, and stopped measurements (`measure_cancelled`).
+
 ## [2.19.2] - 2026-11-11
 From the owner's diagnostics of 11 Nov (F-150 over Bluetooth): Runs 1, 2 and 5 scored far worse than stock, and a repeat with the same EQ scored 4 points better, because the car's Bluetooth paused the sound for 15-25 ms partway through the sweep.
 ### Fixed

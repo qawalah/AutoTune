@@ -222,7 +222,7 @@ class SystemEqService : Service() {
         val skipped = SystemEq.measuring
         val wasRunning = SystemEq.running()
         if (!skipped) SystemEq.rebuild()
-        dev.autotune.Diag.log(this, "system_eq_rebuild", mapOf("reason" to rebuildReason, "wasRunning" to wasRunning, "skipped" to skipped))
+        dev.autotune.Diag.log(this, "system_eq_rebuild", mapOf("reason" to rebuildReason, "wasRunning" to wasRunning, "skipped" to skipped, "route" to route.sorted()))
     }
     private var activePlayers = 0
 
@@ -234,23 +234,62 @@ class SystemEqService : Service() {
         handler.postDelayed(rebuildNow, 600)
     }
 
-    private val deviceCallback = object : android.media.AudioDeviceCallback() {
-        override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>) { if (addedDevices.any { it.isSink }) routeMoved() }
-        override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>) { if (removedDevices.any { it.isSink }) routeMoved() }
+    /** The outputs media plays on (Android 13+; before that, every output). The effect is rebuilt when this moves. */
+    private fun mediaRoute(): Set<String> {
+        val am = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        return runCatching {
+            if (Build.VERSION.SDK_INT >= 33) {
+                val media = android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA).setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build()
+                am.getAudioDevicesForAttributes(media).map { Outputs.nameOf(it) }
+            } else am.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS).map { Outputs.nameOf(it) }
+        }.getOrDefault(emptyList()).toSet()
     }
 
-    private fun routeMoved() {
-        SystemEq.routeChanged = true
-        scheduleRebuild("output changed")
+    /** The media route the effect was last built on. */
+    private var route: Set<String> = emptySet()
+    /** False until Android has sent the list it sends on registering: every device, which is not a change. */
+    private var devicesListed = false
+
+    /** Rebuilds when media has moved to other outputs; a device coming or going that leaves the music where it was does nothing. */
+    private val checkRoute = Runnable {
+        val now = mediaRoute()
+        if (dev.autotune.routeMoved(route, now)) {
+            dev.autotune.Diag.log(this, "media_route", mapOf("was" to route.sorted(), "now" to now.sorted()))
+            route = now
+            SystemEq.routeChanged = true
+            scheduleRebuild("output changed")
+        }
+    }
+
+    private fun label(d: android.media.AudioDeviceInfo): String =
+        if (d.isSink) "out " + Outputs.nameOf(d) else "in " + d.productName?.toString().orEmpty().ifBlank { "?" } + " #" + d.type
+
+    private fun devicesChanged(what: String, devices: Array<out android.media.AudioDeviceInfo>) {
+        // named in the log: a USB mic that drops out mid-measurement shows here
+        if (devicesListed) dev.autotune.Diag.log(this, "audio_devices", mapOf(what to devices.map { label(it) }))
+        devicesListed = true
+        // the route settles a moment after the list changes
+        handler.removeCallbacks(checkRoute)
+        handler.postDelayed(checkRoute, 400)
+    }
+
+    private val deviceCallback = object : android.media.AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>) = devicesChanged("added", addedDevices)
+        override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>) = devicesChanged("removed", removedDevices)
     }
 
     private val playbackCallback = object : android.media.AudioManager.AudioPlaybackCallback() {
         override fun onPlaybackConfigChanged(configs: MutableList<android.media.AudioPlaybackConfiguration>) {
             val started = dev.autotune.playbackStarted(activePlayers, configs.size)
             activePlayers = configs.size
+            // (a measurement's own sweep starting leaves everything for the next player)
+            if (!started || SystemEq.measuring) return
+            // the route can also move without a device coming or going: look again when a player starts
+            handler.removeCallbacks(checkRoute)
+            checkRoute.run()
             // not on every song: that rebuild clicked. Only the first player on a new output, or an effect that stopped.
-            // (a measurement's own sweep starting leaves the flag for the next player)
-            if (!SystemEq.measuring && dev.autotune.rebuildOnPlayback(started, SystemEq.routeChanged, SystemEq.running())) {
+            if (dev.autotune.rebuildOnPlayback(true, SystemEq.routeChanged, SystemEq.running())) {
                 val reason = if (SystemEq.routeChanged) "first player after an output change" else "effect stopped"
                 SystemEq.routeChanged = false
                 scheduleRebuild(reason)
@@ -262,6 +301,7 @@ class SystemEqService : Service() {
     private fun watchRoute() {
         if (routeWatched) return
         val am = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        route = mediaRoute() // before registering: Android answers a registration with every device it has
         am.registerAudioDeviceCallback(deviceCallback, handler)
         am.registerAudioPlaybackCallback(playbackCallback, handler)
         routeWatched = true
@@ -419,6 +459,7 @@ class SystemEqService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(rebuildNow)
+        handler.removeCallbacks(checkRoute)
         if (routeWatched) {
             val am = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
             runCatching { am.unregisterAudioDeviceCallback(deviceCallback) }
