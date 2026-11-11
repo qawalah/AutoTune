@@ -330,8 +330,8 @@ private fun ApplyStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> 
             }
             Text("Files", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             Actions {
-                SecondaryButton("Save files", { vm.exportFiles(share = false) }, icon = Ic.SAVE)
-                SecondaryButton("Share", { vm.exportFiles(share = true) }, icon = Ic.SHARE)
+                TextAction("Save files", { vm.exportFiles(share = false) }, icon = Ic.SAVE)
+                TextAction("Share", { vm.exportFiles(share = true) }, icon = Ic.SHARE)
             }
             s.status?.takeIf { it.startsWith("Saved") || it.startsWith("Choose") || it.startsWith("Could") }?.let { Muted(it) }
         }
@@ -500,7 +500,7 @@ private fun MicLine(s: UiState, pick: Pickers) {
     if (s.calibrationName == null && !s.phoneMic) StatusLine(false, say("No calibration file", "No calibration file. Results include the mic's own response."))
     Actions {
         if (!s.hasPermission) PrimaryButton("Allow microphone", pick.permission, icon = Ic.MIC)
-        if (s.calibrationName == null && !s.phoneMic) SecondaryButton("Import calibration", pick.calibration, icon = Ic.FILE)
+        if (s.calibrationName == null && !s.phoneMic) TextAction("Import calibration", pick.calibration, icon = Ic.FILE)
     }
 }
 
@@ -565,7 +565,7 @@ private fun Settings(s: UiState, vm: TuneViewModel, ready: Boolean) {
             { vm.setChannel(OutChannel.entries[it]) }, enabled = !s.busy, label = "Play through", icon = Ic.SPEAKER,
         )
     }
-    SecondaryButton("Level check", vm::levelCheck, enabled = ready && !s.busy, icon = Ic.LIVE)
+    TextAction("Level check", vm::levelCheck, enabled = ready && !s.busy, icon = Ic.LIVE)
     LevelResult(s)
     val fdwOpts = listOf(0, 15, 8, 5)
     DropSelect(
@@ -592,17 +592,17 @@ private fun OtherDeviceSignal(source: Source, vm: TuneViewModel, sharer: Sharer)
         Source.PHONE -> Unit
         Source.TEST_FILE -> {
             Bullet(say("Tap Measure, then play the sweep file on the other device.", "Tap Measure, then play the sweep file on the other device. The file starts with three beeps; the app waits for them (up to 30 seconds) and stops by itself right after the sweep, about 10 seconds in all."))
-            SecondaryButton("Send the sweep file", { vm.shareTestFile(TestFileKind.SWEEP) }, icon = Ic.SHARE)
+            TextAction("Send the sweep file", { vm.shareTestFile(TestFileKind.SWEEP) }, icon = Ic.SHARE)
         }
         Source.COMBINED -> {
             Bullet(say("Tap Measure, then play the file on the other device.", "Tap Measure, then play the file on the other device. It starts with three beeps, then a sweep and pink noise, about 20 seconds in all. The app waits for the beeps and stops by itself."))
-            SecondaryButton("Send the file", { vm.shareTestFile(TestFileKind.COMBINED) }, icon = Ic.SHARE)
+            TextAction("Send the file", { vm.shareTestFile(TestFileKind.COMBINED) }, icon = Ic.SHARE)
         }
         Source.YOUTUBE -> {
             Bullet("Start pink noise on the other device, then tap Measure. It listens for 22 seconds.")
             Actions {
-                SecondaryButton("Find pink noise", { sharer.text(YOUTUBE_SEARCH) }, icon = Ic.PLAY)
-                SecondaryButton("Send our file", { vm.shareTestFile(TestFileKind.PINK) }, icon = Ic.SHARE)
+                TextAction("Find pink noise", { sharer.text(YOUTUBE_SEARCH) }, icon = Ic.PLAY)
+                TextAction("Send our file", { vm.shareTestFile(TestFileKind.PINK) }, icon = Ic.SHARE)
             }
         }
     }
@@ -628,13 +628,13 @@ private fun ExtraChecks(s: UiState, vm: TuneViewModel, ready: Boolean) {
         Text("Left and right balance", style = MaterialTheme.typography.titleSmall)
         if (!sweepRoute) {
             Actions {
-                SecondaryButton("Send left sweep", { vm.shareTestFile(TestFileKind.SWEEP_LEFT) }, icon = Ic.SHARE)
-                SecondaryButton("Send right sweep", { vm.shareTestFile(TestFileKind.SWEEP_RIGHT) }, icon = Ic.SHARE)
+                TextAction("Send left sweep", { vm.shareTestFile(TestFileKind.SWEEP_LEFT) }, icon = Ic.SHARE)
+                TextAction("Send right sweep", { vm.shareTestFile(TestFileKind.SWEEP_RIGHT) }, icon = Ic.SHARE)
             }
         }
         Actions {
-            SecondaryButton("Measure left", { vm.measureSide(OutChannel.LEFT) }, enabled = ready && !s.busy, icon = Ic.MEASURE)
-            SecondaryButton("Measure right", { vm.measureSide(OutChannel.RIGHT) }, enabled = ready && !s.busy, icon = Ic.MEASURE)
+            TextAction("Measure left", { vm.measureSide(OutChannel.LEFT) }, enabled = ready && !s.busy, icon = Ic.MEASURE)
+            TextAction("Measure right", { vm.measureSide(OutChannel.RIGHT) }, enabled = ready && !s.busy, icon = Ic.MEASURE)
             if (s.lr != null) TextAction("Reset", vm::resetLr)
         }
         s.lr?.let { lr ->
@@ -646,7 +646,7 @@ private fun ExtraChecks(s: UiState, vm: TuneViewModel, ready: Boolean) {
         val steps = listOf("MAINS" to "Mains only", "SUB" to "Sub only", "SUM" to "Both, sub normal", "SUM_INV" to "Both, sub inverted")
         Actions {
             steps.forEach { (k, label) ->
-                if (k in s.subDone) SecondaryButton("Done: $label", { vm.measureSub(k) }, enabled = ready && !s.busy, icon = Ic.CHECK)
+                if (k in s.subDone) TextAction("Done: $label", { vm.measureSub(k) }, enabled = ready && !s.busy, icon = Ic.CHECK)
                 else PrimaryButton(label, { vm.measureSub(k) }, enabled = ready && !s.busy, icon = Ic.MEASURE)
             }
             if (s.subDone.isNotEmpty()) TextAction("Reset", vm::resetSub)

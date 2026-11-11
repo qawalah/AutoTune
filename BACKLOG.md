@@ -134,3 +134,6 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 - **Tune home: Advanced tools in the next step.** The "Advanced tools" card (mic spots, channel, window, left/right, subwoofer) on the Tune home moves to the next step (Set up).
 - **Tune home: the dial graphic in the middle** of the screen.
 - **Rename the TV/PC key** "Speakers on a TV or PC" to "Connect to the companion app on a TV or PC".
+
+## Owner's notes, round 4 (2026-11-11): done in 2.18.2
+- **Group actions as much as possible, the Settings tab included.** The EQ tab (Advanced) mixes four looks in a row: folded decks (Dynamic EQ, Saved EQs, More), a bare action line with a tick and an (i) ("Check the EQ reaches the speakers"), a grey filled row ("Export EQ files"), and a loose status line over the pinned key ("Measured with AutoTune EQ on."). Put related actions together in one deck each, in one style (one row per action, as `Actions { }`), and do the same pass over Settings and the other tabs.

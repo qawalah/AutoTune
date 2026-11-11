@@ -36,7 +36,7 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
         Panel {
             StatusLine(true, if (s.phoneMic) "Phone microphone (a USB mic is more accurate)" else "USB microphone: ${s.micName}")
             StatusLine(s.hasPermission, if (s.hasPermission) "Microphone access allowed" else "Microphone access needed")
-            if (!s.hasPermission) SecondaryButton("Allow microphone", pick.permission, icon = Ic.MIC)
+            if (!s.hasPermission) TextAction("Allow microphone", pick.permission, icon = Ic.MIC)
         }
     }
 
@@ -126,6 +126,6 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
             }
         } else {
         }
-        if (isAdvanced()) SecondaryButton("Open EQ", { go(Tab.EQ) }, icon = Ic.EQ)
+        if (isAdvanced()) TextAction("Open EQ", { go(Tab.EQ) }, icon = Ic.EQ)
     }
 }

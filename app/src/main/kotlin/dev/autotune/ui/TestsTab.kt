@@ -310,7 +310,7 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-            SecondaryButton("Open in EQ", { go(Tab.EQ) }, icon = Ic.EQ)
+            TextAction("Open in EQ", { go(Tab.EQ) }, icon = Ic.EQ)
         }
 
         Fold(
@@ -324,7 +324,7 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
                 label = { Text("Name") }, placeholder = { Text("e.g. My car sound") },
                 modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
             )
-            SecondaryButton("Save ${focusLabel ?: "latest run"} as a target", { vm.saveRunAsTarget(targetName.ifBlank { "My curve" }); targetName = "" }, icon = Ic.CURVE)
+            TextAction("Save ${focusLabel ?: "latest run"} as a target", { vm.saveRunAsTarget(targetName.ifBlank { "My curve" }); targetName = "" }, icon = Ic.CURVE)
         }
 
         Fold("Notes", summary = s.testNotes.lineSequence().firstOrNull()?.takeIf { it.isNotBlank() }?.take(60) ?: "None yet") {
