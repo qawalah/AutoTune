@@ -1387,6 +1387,12 @@ fun rebuildOnPlayback(started: Boolean, routeChangedSinceBuild: Boolean, effectR
  */
 fun routeMoved(before: Set<String>, now: Set<String>): Boolean = now.isNotEmpty() && before != now
 
+/**
+ * Whether AutoTune EQ, switched off but still running flat ([parked]), can be taken away now. Only with no music
+ * playing: taking it away mid-song ticks (2.19.3, owner's report), since the long blocks hold ~85 ms of sound.
+ */
+fun letGoOfEq(parked: Boolean, musicPlaying: Boolean): Boolean = parked && !musicPlaying
+
 /** What to say when the microphone stops delivering sound mid-measurement ([code] is AudioRecord.read's error). */
 fun micStopped(code: Int, usbMic: Boolean): String =
     if (usbMic) "The USB microphone stopped during the measurement (code $code). Its plug may have come loose: check it and measure again."

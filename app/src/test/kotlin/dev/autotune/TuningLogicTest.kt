@@ -454,6 +454,14 @@ class ConvergenceTest {
         assertFalse("the phone could not say", routeMoved(car, emptySet()))
     }
 
+    /** 2.19.3: switching the EQ off mid-song ticked; it now stays in place, flat, until the music stops. */
+    @Test
+    fun anOffEqIsLetGoOnlyWhenNothingPlays() {
+        assertFalse(letGoOfEq(parked = true, musicPlaying = true))
+        assertTrue(letGoOfEq(parked = true, musicPlaying = false))
+        assertFalse(letGoOfEq(parked = false, musicPlaying = false))
+    }
+
     @Test
     fun aStoppedMicrophoneSaysWhatToCheck() {
         assertTrue(micStopped(-3, usbMic = true).contains("plug"))
