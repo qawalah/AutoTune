@@ -147,3 +147,4 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 
 ## Owner's notes, round 7 (2026-11-11): roadmap
 - **Home-screen widget: match the app, more functions.** The widget still has the old look (green Tune, dark EQ, amber Auto keys) and three keys only. Redraw it after the app's Braun look (light deck, graphite keys, red only for what is on, Inter, line icons), and add functions: the EQ in use by name ("F-150") with its on/off latch, switch between saved EQs, Dynamic EQ on/off, the loud button, and open Tune or the TV/PC companion; sizes from 2×1 to 4×2.
+- **The tab bar always shows.** On pages over a tab (a test's results here, with the pinned "Continue tuning" key), the tab bar at the bottom is gone; keep the five tabs on every screen, with the pinned key above them.
