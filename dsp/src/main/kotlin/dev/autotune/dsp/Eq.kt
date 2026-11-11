@@ -46,18 +46,21 @@ class EqChain(val filters: List<EqFilter>, val preampDb: Double = 0.0) {
      * band whose summed response, with neighbours overlapping, matches this chain's response (without the preamp) at
      * every band centre. Narrow cuts lose depth here, which is the point: this is the EQ the measurement will see.
      */
-    fun sampledTo(centres: List<Double> = Rta.CENTERS.toList(), q: Double = 4.32): List<EqFilter> {
-        val want = DoubleArray(centres.size) { i -> filters.sumOf { it.magnitudeDb(centres[i]) } }
-        val g = want.copyOf()
-        repeat(6) {
-            val fl = centres.indices.map { EqFilter(centres[it], g[it], q) }
-            for (i in centres.indices) g[i] += want[i] - fl.sumOf { it.magnitudeDb(centres[i]) }
-        }
-        return centres.indices.map { EqFilter(centres[it], g[it].coerceIn(-30.0, 15.0), q) }.filter { abs(it.gainDb) >= 0.2 }
-    }
+    fun sampledTo(centres: List<Double> = Rta.CENTERS.toList(), q: Double = 4.32): List<EqFilter> =
+        peakingAt(centres, DoubleArray(centres.size) { i -> filters.sumOf { it.magnitudeDb(centres[i]) } }, q)
 
     companion object {
         val EMPTY = EqChain(emptyList(), 0.0)
+
+        /** One peaking filter per centre, overlapping, whose summed response is [want] (dB) at every centre. */
+        fun peakingAt(centres: List<Double>, want: DoubleArray, q: Double): List<EqFilter> {
+            val g = want.copyOf()
+            repeat(6) {
+                val fl = centres.indices.map { EqFilter(centres[it], g[it], q) }
+                for (i in centres.indices) g[i] += want[i] - fl.sumOf { it.magnitudeDb(centres[i]) }
+            }
+            return centres.indices.map { EqFilter(centres[it], g[it].coerceIn(-30.0, 15.0), q) }.filter { abs(it.gainDb) >= 0.2 }
+        }
 
         /** Chain with a preamp that prevents clipping (compensates the largest boost). */
         fun withSafePreamp(filters: List<EqFilter>, grid: FreqGrid = FreqGrid()): EqChain {

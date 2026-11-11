@@ -1371,6 +1371,17 @@ fun fitTitlePx(basePx: Float, longestWordPx: Float, availablePx: Float, minPx: F
 /** True when more players are active than before: audio just started (or came back after a route change). */
 fun playbackStarted(before: Int, now: Int): Boolean = now > before
 
+/**
+ * Whether a player starting should rebuild the phone's EQ. Only after the output changed since the last build (a player
+ * opening on the new output drops the effect), or when the effect is no longer running. Rebuilding on every song
+ * clicked: the music played a moment without the EQ, then with it again.
+ */
+fun rebuildOnPlayback(started: Boolean, routeChangedSinceBuild: Boolean, effectRunning: Boolean): Boolean =
+    started && (routeChangedSinceBuild || !effectRunning)
+
+/** Sweeps tried for one phone reading when Bluetooth pauses the sound mid-sweep (2.19.2). */
+const val SWEEP_ATTEMPTS = 2
+
 
 // ---------------------------------------------------------------- the first-start tutorial (2.9.0)
 

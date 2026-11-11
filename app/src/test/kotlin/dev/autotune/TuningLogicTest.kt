@@ -434,6 +434,16 @@ class ConvergenceTest {
         assertFalse(playbackStarted(1, 0))
     }
 
+    /** 2.19.2: a new song clicked because every player start rebuilt the EQ; now only after an output change. */
+    @Test
+    fun aNewSongDoesNotRebuildTheEqUnlessTheOutputChanged() {
+        assertFalse(rebuildOnPlayback(started = true, routeChangedSinceBuild = false, effectRunning = true))
+        assertTrue(rebuildOnPlayback(started = true, routeChangedSinceBuild = true, effectRunning = true))
+        assertTrue(rebuildOnPlayback(started = true, routeChangedSinceBuild = false, effectRunning = false))
+        assertFalse(rebuildOnPlayback(started = false, routeChangedSinceBuild = true, effectRunning = false))
+        assertEquals(2, SWEEP_ATTEMPTS)
+    }
+
     /**
      * Reported again after 2.9.0 (by day): a dark ink never reached Classic's dark body, and on its light decks it was
      * as dark as the ink already there, so nothing changed. Each surface now takes the version the ink reads on.

@@ -4,6 +4,18 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.19.2] - 2026-11-11
+From the owner's diagnostics of 11 Nov (F-150 over Bluetooth): Runs 1, 2 and 5 scored far worse than stock, and a repeat with the same EQ scored 4 points better, because the car's Bluetooth paused the sound for 15-25 ms partway through the sweep.
+### Fixed
+- **A sweep the Bluetooth paused is measured again.** Each half second of the sweep is timed against the recording; when everything after one point arrives late (or early), the sound paused (or skipped), and the reading would have holes of 15-20 dB. The phone measures once more by itself, and only then says "The sound paused for 20 ms during the sweep (Bluetooth dropped out)" instead of saving a wrong reading. Logged as `sweep_stall`.
+- **The start beeps are found when one comes late.** A pause between the beeps (the third came 19 ms late) made the beeps "not there"; the search over the whole recording then took the USB mic's switch-on click for the sound and said "barely heard", blaming AutoTune EQ. A beep may now be up to 60 ms late.
+- **The USB mic's switch-on click is ignored.** The first half second of a phone recording (nothing plays yet) is silenced before it is read, and the diagnostics' recording peak no longer reads 0 dBFS every time.
+- **No more clicks from AutoTune EQ.** Switching it on or off, changing the EQ or the Dynamic EQ amount, and rebuilding it now fade over about 150 ms instead of jumping. A new song no longer rebuilds the EQ (it played a moment without it, then clicked back): only the first player on a new output, or an EQ that stopped, does, and then the old one fades out as the new one fades in.
+- **The bass on AutoTune EQ is applied as tuned, and no longer sounds robotic.** Android's EQ works in blocks, one gain per frequency slot, and at its default of 10 ms the slots were 94 Hz apart: everything below about 140 Hz was two slots, so the 45 Hz band's gain ran from 47 to 140 Hz (seen in the F-150 runs: 63-125 Hz was cut 3.4-5.1 dB where 0.9-3.6 was asked) and the bass sweep came out smeared. AutoTune now asks for 80 ms blocks (4096 samples, slots about 12 Hz apart), gives each band the gain its slots need, and records what the slots really do as the applied EQ. The phone's sound comes about 85 ms later with AutoTune EQ on.
+- **The EQ is applied once.** Players that announce their audio session got a second copy of the EQ on top of the phone-wide one, so music was EQ'd twice while the sweep was EQ'd once.
+### Added
+- **More in the diagnostics:** every phone sweep logs where each half second of the sweep arrived (`chunkLagsMs`), the pause check's verdict, how late the start beeps came (`beepLateMs`) and how far the direct sound was taken from where the beeps put it (`peakOffsetMs`, about 0 normally). Rebuilds of AutoTune EQ are logged with their reason (`system_eq_rebuild`), and `info.txt` gives the EQ's block size, sample rate and the frame length the running effect reports.
+
 ## [2.19.1] - 2026-11-11
 ### Fixed
 - **Landscape no longer breaks the app.** Only the EQ tab turns sideways (its graph and faders fill the width); every other screen stays upright, either way up so the mic can point up. Sideways, nothing sits under the system's side buttons or the camera cut-out.

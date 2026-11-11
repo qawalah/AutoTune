@@ -32,6 +32,10 @@ class Measurement(
     fun withWarnings(w: List<String>, snr: Double? = snrDb): Measurement =
         Measurement(grid, magDb, ir, irPeakIndex, fs, latencyMs, snr, w, fatal, distortion, peakFromMarker, driftPpm)
 
+    /** The same measurement marked unusable for [why]. */
+    fun withFatal(why: String): Measurement =
+        Measurement(grid, magDb, ir, irPeakIndex, fs, latencyMs, snrDb, warnings, why, distortion, peakFromMarker, driftPpm)
+
     companion object {
         const val PRE_MS = 2.0
     }
@@ -396,6 +400,94 @@ object SweepCheck {
         val c1 = min(rec.size, end + fs / 2)
         for (i in c0 until c1) if (abs(rec[i]) >= 0.999f) { clips++; if (firstClip < 0) firstClip = i }
         return Result(if (clips >= 3) freqAt(firstClip) else null, null)
+    }
+
+    /** The first moments of a recording through a USB mic hold its switch-on click (loud enough to clip). */
+    const val MIC_SETTLE_SEC = 0.5
+
+    /**
+     * [rec] with its first [sec] silenced, for recordings where nothing plays that early (the phone's own sweep starts
+     * after a pre-roll). Seen on a real car run: with the start beeps missed, the search over the whole recording took
+     * the click for the sound and reported "barely heard".
+     */
+    fun quietStart(rec: FloatArray, fs: Int, sec: Double = MIC_SETTLE_SEC): FloatArray =
+        rec.copyOf().also { java.util.Arrays.fill(it, 0, min(it.size, (sec * fs).toInt()), 0f) }
+
+    /** The sound paused (or skipped) [ms] milliseconds, [atSec] seconds into the sweep; negative [ms] is a skip. */
+    class Stall(val atSec: Double, val ms: Double) {
+        val message: String
+            get() = "The sound %s for %.0f ms during the sweep (Bluetooth dropped out), which spoils the reading. Measure again, with the phone closer to the speakers' Bluetooth.".format(
+                if (ms > 0) "paused" else "skipped", abs(ms))
+    }
+
+    /** Chunks of the sweep compared with the recording, in seconds, and how far each may have moved. */
+    const val CHUNK_SEC = 0.5
+    const val CHUNK_FROM_SEC = 2.0 // the bass before this is too slow to time
+    private const val CHUNK_SEARCH_SEC = 0.08
+    /** A shift this large that holds to the end of the sweep is a pause, not the speakers' own delay. */
+    const val STALL_MS = 6.0
+
+    /**
+     * Where each [CHUNK_SEC] piece of the [sweep] sits in [rec] against where it should ([start] = first sample of the
+     * sweep), in ms, from [CHUNK_FROM_SEC] on. The envelope of the correlation is used, so a bass chunk cannot slip by a
+     * whole period. Chunks that run past the recording are left out.
+     */
+    fun chunkLagsMs(rec: FloatArray, start: Int, sweep: FloatArray, fs: Int): DoubleArray {
+        val len = (CHUNK_SEC * fs).toInt()
+        val ml = (CHUNK_SEARCH_SEC * fs).toInt()
+        val n = Fft.nextPow2(len + 2 * ml + len)
+        val out = ArrayList<Double>()
+        var a = (CHUNK_FROM_SEC * fs).toInt()
+        val xr = DoubleArray(n); val xi = DoubleArray(n); val yr = DoubleArray(n); val yi = DoubleArray(n)
+        while (a + len <= sweep.size) {
+            val s0 = start + a - ml
+            if (s0 < 0 || start + a + len + ml > rec.size) { a += len; continue }
+            java.util.Arrays.fill(xr, 0.0); java.util.Arrays.fill(xi, 0.0); java.util.Arrays.fill(yr, 0.0); java.util.Arrays.fill(yi, 0.0)
+            for (i in 0 until len) xr[i] = sweep[a + i].toDouble()
+            for (i in 0 until len + 2 * ml) yr[i] = rec[s0 + i].toDouble()
+            Fft.transform(xr, xi); Fft.transform(yr, yi)
+            for (k in 0 until n) {
+                // Y * conj(X), positive frequencies only (doubled): the inverse is the analytic correlation
+                val w = if (k == 0 || k == n / 2) 1.0 else if (k < n / 2) 2.0 else 0.0
+                val r = (yr[k] * xr[k] + yi[k] * xi[k]) * w
+                val im = (yi[k] * xr[k] - yr[k] * xi[k]) * w
+                yr[k] = r; yi[k] = im
+            }
+            Fft.transform(yr, yi, inverse = true)
+            var at = 0; var v = -1.0
+            for (i in 0..2 * ml) { val e = yr[i] * yr[i] + yi[i] * yi[i]; if (e > v) { v = e; at = i } }
+            out += (at - ml) * 1000.0 / fs
+            a += len
+        }
+        return out.toDoubleArray()
+    }
+
+    /**
+     * A pause or skip in the played sound partway through the sweep, or null. Seen in a car over Bluetooth: the sound
+     * stopped for 15-25 ms and went on later, so everything after that point arrived late. The reading then splits in
+     * two, and the window around the stronger part cuts the rest away (holes of 15-20 dB in the response).
+     * A stall is a shift of at least [STALL_MS] from the chunks before it that EVERY chunk after it keeps; the speakers'
+     * own delay (a subwoofer a few ms late) moves single chunks, not everything after a point.
+     */
+    fun stall(rec: FloatArray, start: Int, sweep: FloatArray, fs: Int): Stall? = stallIn(chunkLagsMs(rec, start, sweep, fs))
+
+    /** [stall] on chunk lags already read (ms, one per [CHUNK_SEC] from [CHUNK_FROM_SEC]). */
+    fun stallIn(lags: DoubleArray): Stall? {
+        fun median(a: DoubleArray) = a.sorted().let { (it[(it.size - 1) / 2] + it[it.size / 2]) / 2 }
+        var first = -1
+        var size = 0.0
+        for (s in 2..lags.size - 3) {
+            val before = median(lags.copyOfRange(0, s))
+            val after = lags.copyOfRange(s, lags.size)
+            // a stall only when every chunk after the point stays moved: the first such point is where it happened,
+            // its size the largest typical move (a chunk caught halfway through the pause would understate it)
+            val moved = after.min() - before >= STALL_MS || before - after.max() >= STALL_MS
+            if (!moved) continue
+            if (first < 0) first = s
+            val step = median(after) - before
+            if (abs(step) > abs(size)) size = step
+        }
+        return if (first < 0) null else Stall(CHUNK_FROM_SEC + first * CHUNK_SEC, size)
     }
 }
 
