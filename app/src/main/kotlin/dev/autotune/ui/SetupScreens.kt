@@ -54,9 +54,9 @@ private const val ABOUT_TV_HERE =
 fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pickers, go: (Tab) -> Unit = {}) {
     run {
         ScreenTitle("Settings")
-        Group("Show", divider = false, info = "Simple keeps each screen to the essentials and the main choices. Advanced adds the explanations, extra checks and every option. The switch at the top of each screen changes the same setting.") {
+        Group("Mode", divider = false, info = "Simple keeps each screen to the essentials and the main choices. Advanced adds the explanations, extra checks and every option. The switch at the top of each screen changes the same setting.") {
             DropSelect(
-                listOf("Simple", "Advanced"), if (s.advanced) 1 else 0, { vm.setAdvanced(it == 1) }, label = "How much to show",
+                listOf("Simple", "Advanced"), if (s.advanced) 1 else 0, { vm.setAdvanced(it == 1) }, label = "Mode",
                 details = listOf("Less text, the main choices (default)", "Every option and explanation"),
             )
         }
@@ -130,6 +130,7 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
                 TextAction("Send diagnostics", vm::shareDiagnostics, icon = Ic.DIAG)
                 TextAction("Clear", vm::clearDiagnostics, danger = true, icon = Ic.TRASH)
             }
+            s.diagSaved?.let { Muted(it) }
         }
 
         // the TV's screen on a phone or tablet, to try the home-theatre link without a TV
