@@ -427,6 +427,8 @@ data class UiState(
     val report: SystemReport? = null,
     /** Every run's score (0-100), by index: shown on each run and beside every reading (2.18.5). */
     val runScores: List<Int> = emptyList(),
+    /** Where Save diagnostics last put its zip, shown under the key. */
+    val diagSaved: String? = null,
     val exportWarnings: List<String> = emptyList(),
     val lr: LrInfo? = null,
     val sub: SubResult? = null,
@@ -2577,7 +2579,9 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 val file = withContext(Dispatchers.IO) { Diag.export(ctx(), info) }
                 if (save) {
                     val path = withContext(Dispatchers.IO) { saveToDownloads(file.name, "application/zip", file.readBytes()) }
-                    state.update { it.copy(status = "Saved diagnostics to ${saveWhere()}: ${path.substringAfterLast('/')}") }
+                    val msg = "Saved to ${saveWhere()} · ${path.substringAfterLast('/')}"
+                    state.update { it.copy(status = msg, diagSaved = msg) }
+                    android.widget.Toast.makeText(ctx(), msg, android.widget.Toast.LENGTH_LONG).show()
                 } else fileToShare.emit(ShareFiles(listOf(file), "application/zip", "Send AutoTune diagnostics"))
             } catch (e: Exception) {
                 state.update { it.copy(status = "Could not collect diagnostics: ${e.message}") }

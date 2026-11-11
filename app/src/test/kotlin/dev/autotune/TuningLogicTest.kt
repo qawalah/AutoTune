@@ -660,4 +660,12 @@ class ConvergenceTest {
         org.junit.Assert.assertNull(knownScore(2, 7, 55, allScores = listOf(40, 41, -1)))
         org.junit.Assert.assertEquals("Refine", STEP_NAMES[2])
     }
+
+    @Test
+    fun onlyTheEqTabTurnsSideways() {
+        org.junit.Assert.assertTrue(turnsSideways("EQ", pageOpen = false, measuring = false))
+        org.junit.Assert.assertFalse(turnsSideways("EQ", pageOpen = true, measuring = false))
+        org.junit.Assert.assertFalse(turnsSideways("EQ", pageOpen = false, measuring = true))
+        for (t in listOf("TESTS", "MEASURE", "LIVE", "SETTINGS")) org.junit.Assert.assertFalse(turnsSideways(t, false, false))
+    }
 }

@@ -4,6 +4,14 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.19.1] - 2026-11-11
+### Fixed
+- **Landscape no longer breaks the app.** Only the EQ tab turns sideways (its graph and faders fill the width); every other screen stays upright, either way up so the mic can point up. Sideways, nothing sits under the system's side buttons or the camera cut-out.
+- **Save diagnostics says where it saved** ("Saved to Downloads · …zip"), under the key and as a short message.
+### Changed
+- **No pinned key on the EQ tab:** "Verify this EQ" is the first row of its Actions deck (in Simple too).
+- Settings: the first deck is "Mode" (Simple or Advanced), not "Show".
+
 ## [2.19.0] - 2026-11-11
 ### Changed
 - **The tab bar on every screen**, pages included (a test's results, Export, the home theatre); a tab closes the pages over it.
