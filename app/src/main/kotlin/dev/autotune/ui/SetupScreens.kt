@@ -46,7 +46,7 @@ import dev.autotune.UiState
 /** The Settings tab: how much the app shows, the mic, defaults, the EQ, files, AI, diagnostics and the look. */
 private const val ABOUT_TV_HERE =
     "Opens the screen AutoTune shows on a TV, so a tablet or a second phone can stand in for the TV. It shows a code; " +
-        "on the other phone, open Tune › Speakers on a TV or PC and enter it.\n\n" +
+        "on the other phone, open Tune › Connect to the companion app on a TV or PC and enter it.\n\n" +
         "It plays the test sounds on this device's own speakers, so left and right only (with a USB-C to HDMI adapter into a " +
         "receiver it may offer 5.1 or 7.1). \"Use the EQ on the TV\" sets the EQ on this device's sound. Back returns here."
 

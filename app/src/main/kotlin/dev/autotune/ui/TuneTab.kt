@@ -89,7 +89,9 @@ private const val STEPS = 5
 @Composable
 private fun TuneHome(s: UiState, vm: TuneViewModel, pick: Pickers, go: (Tab) -> Unit) {
     // no header here: the screen starts with the dial (the wordmark, the mode key, the title and the speaker art went)
-    Column(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    // the dial in the middle of the screen: it fills the space above the lines and keys under it
+    val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
+    Box(Modifier.fillMaxWidth().heightIn(min = (screenH * 0.58f).dp), contentAlignment = Alignment.Center) {
         PulsingButton("Tune", "new test", Ic.TUNE, enabled = !s.busy, onClick = vm::tuneStart)
         // the speaker says it all; Advanced adds controls, never a paragraph under it
     }
@@ -115,13 +117,7 @@ private fun TuneHome(s: UiState, vm: TuneViewModel, pick: Pickers, go: (Tab) -> 
         SecondaryButton("Continue “${dev.autotune.shortTestName(s.testName, "").first}”", vm::tuneContinue, Modifier.fillMaxWidth(), icon = Ic.NEXT)
     }
     // every speaker of a home theatre, played by AutoTune on the TV, or a PC's speakers played by AutoTune on Windows
-    SecondaryButton("Speakers on a TV or PC", { go(Tab.THEATRE) }, Modifier.fillMaxWidth(), icon = Ic.HOME)
-    Adv {
-        Fold("Advanced tools", summary = "Mic spots, channel, window, left/right, subwoofer") {
-            Settings(s, vm, s.hasPermission)
-            ExtraChecks(s, vm, s.hasPermission)
-        }
-    }
+    SecondaryButton("Connect to the companion app on a TV or PC", { go(Tab.THEATRE) }, Modifier.fillMaxWidth(), icon = Ic.HOME)
 }
 
 @Composable
@@ -197,6 +193,13 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
         DropSelect(
             listOf("Auto (80 ms for a car, 400 ms for a room)", "80 ms", "200 ms", "400 ms", "600 ms"), gateIdx, { gateIdx = it }, label = "Analysis window",
         )
+    }
+    // the tools for a closer look wait here, in the step they belong to (owner, 2026-11-11), not on the Tune home
+    Adv {
+        Fold("Advanced tools", summary = "Mic spots, channel, window, left/right, subwoofer") {
+            Settings(s, vm, s.hasPermission)
+            ExtraChecks(s, vm, s.hasPermission)
+        }
     }
     // no stop in between: this key creates the test and starts the stock reading
     PinAction(
