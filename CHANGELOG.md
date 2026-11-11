@@ -4,7 +4,7 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
-## [2.19.1] - 2026-11-11
+## [2.19.2] - 2026-11-11
 From the owner's diagnostics of 11 Nov (F-150 over Bluetooth): Runs 1, 2 and 5 scored far worse than stock, and a repeat with the same EQ scored 4 points better, because the car's Bluetooth paused the sound for 15-25 ms partway through the sweep.
 ### Fixed
 - **A sweep the Bluetooth paused is measured again.** Each half second of the sweep is timed against the recording; when everything after one point arrives late (or early), the sound paused (or skipped), and the reading would have holes of 15-20 dB. The phone measures once more by itself, and only then says "The sound paused for 20 ms during the sweep (Bluetooth dropped out)" instead of saving a wrong reading. Logged as `sweep_stall`.
@@ -15,6 +15,14 @@ From the owner's diagnostics of 11 Nov (F-150 over Bluetooth): Runs 1, 2 and 5 s
 - **The EQ is applied once.** Players that announce their audio session got a second copy of the EQ on top of the phone-wide one, so music was EQ'd twice while the sweep was EQ'd once.
 ### Added
 - **More in the diagnostics:** every phone sweep logs where each half second of the sweep arrived (`chunkLagsMs`), the pause check's verdict, how late the start beeps came (`beepLateMs`) and how far the direct sound was taken from where the beeps put it (`peakOffsetMs`, about 0 normally). Rebuilds of AutoTune EQ are logged with their reason (`system_eq_rebuild`), and `info.txt` gives the EQ's block size, sample rate and the frame length the running effect reports.
+
+## [2.19.1] - 2026-11-11
+### Fixed
+- **Landscape no longer breaks the app.** Only the EQ tab turns sideways (its graph and faders fill the width); every other screen stays upright, either way up so the mic can point up. Sideways, nothing sits under the system's side buttons or the camera cut-out.
+- **Save diagnostics says where it saved** ("Saved to Downloads · …zip"), under the key and as a short message.
+### Changed
+- **No pinned key on the EQ tab:** "Verify this EQ" is the first row of its Actions deck (in Simple too).
+- Settings: the first deck is "Mode" (Simple or Advanced), not "Show".
 
 ## [2.19.0] - 2026-11-11
 ### Changed

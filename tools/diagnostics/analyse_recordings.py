@@ -29,7 +29,7 @@ def load(path):
 
 
 def beeps(x):
-    """First beep (s), from one-beep correlation; tolerates a late beep like Marker.find since 2.19.1."""
+    """First beep (s), from one-beep correlation; tolerates a late beep like Marker.find since 2.19.2."""
     B = int(0.12 * FS); tt = np.arange(B) / FS
     f = 1500 + 1500 * (tt / 0.12) / 2
     g = np.full(B, 0.5); fd = int(0.005 * FS)
@@ -118,7 +118,7 @@ def main(d):
         print(f"  chunk lags (ms, from 2 s): {' '.join(f'{v:.0f}' for v in lg)}")
         print(f"  stall: {'none' if st is None else f'{st[1]:+.0f} ms at {st[0]:.1f} s into the sweep'}")
         print(f"  bass: {b}   wobble {wob:.1f}%")
-        if 'peakOffsetMs' in e or 'beepLateMs' in e:  # logged by the app from 2.19.1
+        if 'peakOffsetMs' in e or 'beepLateMs' in e:  # logged by the app from 2.19.2
             print(f"  app logged: peakOffsetMs={e.get('peakOffsetMs')} beepLateMs={e.get('beepLateMs')} stallMs={e.get('stallMs')} attempt={e.get('attempt')}")
 
 

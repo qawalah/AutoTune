@@ -20,6 +20,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -237,12 +242,27 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     // Back on the measuring screen: stop a running measurement, otherwise close the screen
     BackHandler(s.measureView != null) { if (s.busy) vm.cancel() else vm.closeMeasureView() }
 
+    // Only the EQ tab turns sideways (its graph and faders fill the width); every other screen stays upright, either
+    // way up, so the phone's mic can point up while measuring (owner, 2026-11-11: landscape was broken elsewhere)
+    val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
+    LaunchedEffect(tab, page, s.measureView != null) {
+        activity?.requestedOrientation =
+            if (dev.autotune.turnsSideways(tab.name, page != null, s.measureView != null)) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+            else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+    }
     val viewMode = androidx.compose.runtime.remember(s.advanced) { ViewMode(s.advanced, vm::setAdvanced) }
     AutoTuneTheme(s.themeMode, s.look, s.accent, s.palette) {
       androidx.compose.runtime.CompositionLocalProvider(
           LocalPin provides pin, LocalViewMode provides viewMode, LocalChartZoom provides zoom,
       ) {
-        Box(Modifier.fillMaxSize().background(At.c.bg)) {
+        Box(
+            Modifier.fillMaxSize().background(At.c.bg)
+                // sideways, the system's buttons and the camera cut-out sit at a side: keep everything clear of them
+                .windowInsetsPadding(
+                    androidx.compose.foundation.layout.WindowInsets.navigationBars.union(androidx.compose.foundation.layout.WindowInsets.displayCutout)
+                        .only(androidx.compose.foundation.layout.WindowInsetsSides.Horizontal),
+                ),
+        ) {
             Scaffold(
                 containerColor = At.c.bg,
                 contentColor = At.c.text,

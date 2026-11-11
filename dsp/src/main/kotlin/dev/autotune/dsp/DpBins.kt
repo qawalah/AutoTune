@@ -9,7 +9,7 @@ import kotlin.math.min
  * FIRST band whose cutoff, rounded to a bin, reaches k; a band narrower than a bin gets no bin of its own.
  *
  * With Android's default 10 ms frame (512 samples at 48 kHz, bins 94 Hz apart) everything below about 140 Hz was two
- * bins: the 45 Hz band's gain ran from 47 to 140 Hz (seen in the owner's F-150 runs, 2.19.1), and the coarse bins
+ * bins: the 45 Hz band's gain ran from 47 to 140 Hz (seen in the owner's F-150 runs, 2.19.2), and the coarse bins
  * smeared the bass. AutoTune asks for [FRAME_MS] (4096 samples, bins about 12 Hz apart).
  */
 object DpBins {

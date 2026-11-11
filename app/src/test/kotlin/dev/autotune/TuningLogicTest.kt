@@ -434,7 +434,7 @@ class ConvergenceTest {
         assertFalse(playbackStarted(1, 0))
     }
 
-    /** 2.19.1: a new song clicked because every player start rebuilt the EQ; now only after an output change. */
+    /** 2.19.2: a new song clicked because every player start rebuilt the EQ; now only after an output change. */
     @Test
     fun aNewSongDoesNotRebuildTheEqUnlessTheOutputChanged() {
         assertFalse(rebuildOnPlayback(started = true, routeChangedSinceBuild = false, effectRunning = true))
@@ -669,5 +669,13 @@ class ConvergenceTest {
         // a run that could not be scored shows none
         org.junit.Assert.assertNull(knownScore(2, 7, 55, allScores = listOf(40, 41, -1)))
         org.junit.Assert.assertEquals("Refine", STEP_NAMES[2])
+    }
+
+    @Test
+    fun onlyTheEqTabTurnsSideways() {
+        org.junit.Assert.assertTrue(turnsSideways("EQ", pageOpen = false, measuring = false))
+        org.junit.Assert.assertFalse(turnsSideways("EQ", pageOpen = true, measuring = false))
+        org.junit.Assert.assertFalse(turnsSideways("EQ", pageOpen = false, measuring = true))
+        for (t in listOf("TESTS", "MEASURE", "LIVE", "SETTINGS")) org.junit.Assert.assertFalse(turnsSideways(t, false, false))
     }
 }

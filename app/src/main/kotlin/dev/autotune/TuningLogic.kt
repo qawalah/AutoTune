@@ -641,6 +641,9 @@ fun navSlide(from: String, to: String): Int {
 fun stepSlide(from: TuneStep, to: TuneStep): Int = to.ordinal.compareTo(from.ordinal)
 
 /** The tab a widget, shortcut or intent asks for ("eq", "live", "settings"; anything else opens Tune). */
+/** Whether the screen may turn sideways: only the EQ tab itself, with no page over it and nothing measuring. */
+fun turnsSideways(tab: String, pageOpen: Boolean, measuring: Boolean): Boolean = tab == "EQ" && !pageOpen && !measuring
+
 fun requestedTab(request: String): String = when (request.lowercase()) {
     "eq" -> "EQ"
     "live" -> "LIVE"
@@ -1376,7 +1379,7 @@ fun playbackStarted(before: Int, now: Int): Boolean = now > before
 fun rebuildOnPlayback(started: Boolean, routeChangedSinceBuild: Boolean, effectRunning: Boolean): Boolean =
     started && (routeChangedSinceBuild || !effectRunning)
 
-/** Sweeps tried for one phone reading when Bluetooth pauses the sound mid-sweep (2.19.1). */
+/** Sweeps tried for one phone reading when Bluetooth pauses the sound mid-sweep (2.19.2). */
 const val SWEEP_ATTEMPTS = 2
 
 

@@ -1,9 +1,9 @@
-# F-150 diagnostics, 11 Nov 2026: what happened and what changed (2.19.1)
+# F-150 diagnostics, 11 Nov 2026: what happened and what changed (2.19.2)
 
 The owner sent `autotune-diagnostics-20261111-2134.zip` (AutoTune 2.19.0, Galaxy S23 Ultra SM-S918B on Android 17,
 USB mic iMM-6C with `cmm30892.cal`, output "Bluetooth: Ford F-150", target "Car, Harman-style (+8 dB bass)").
 They asked about the 17:44 tune, then about faint clicks, then about bass that "sounds robotic" at the start of
-the sweep. All of it was fixed in 2.19.1 (PR #26). To check a new zip the same way, run
+the sweep. All of it was fixed in 2.19.2 (PR #26). To check a new zip the same way, run
 `tools/diagnostics/analyse_recordings.py` (see the end of this file).
 
 ## Short version
@@ -90,14 +90,14 @@ analyser searches ±200 ms around the beeps. Run 5's EQ was never judged fairly,
 ## Questions answered on the way
 - **Is a pause needed before the sweep for the mic and the EQ?** No, there's one already. The mic starts at 0 s,
   playback at 0.3 s with 1.5 s of silence, the beeps (0.6 s) at ~1.8 s, then 1 s of silence, then the sweep at
-  ~3.4 s. The click is over by 0.1 s, the EQ is set ~1 s before recording starts (and fades in 0.15 s since 2.19.1),
+  ~3.4 s. The click is over by 0.1 s, the EQ is set ~1 s before recording starts (and fades in 0.15 s since 2.19.2),
   and the car's amp wakes during the silence. The Bluetooth pauses came 3-7 s INTO the sweep, so a longer pause
   would not have helped.
 - **Must there be three beeps?** Keep them. Bluetooth delay varies (0-0.3 s here), so the sound must be found in the
   recording, and one beep is easily faked by a click, a voice, or the sweep passing 1.5-3 kHz. Three equal beeps
   with silent gaps are hard to mistake. The test files, the TV and the PC use the same marker. They cost 0.6 s.
 
-## What 2.19.1 changed (see `HANDOVER.md`, "Bluetooth pauses and EQ clicks")
+## What 2.19.2 changed (see `HANDOVER.md`, "Bluetooth pauses and EQ clicks")
 - `SweepCheck.chunkLagsMs` / `stall` / `stallIn`: a pause or skip that every later chunk keeps (≥ 6 ms) makes
   `phoneSweep` measure again (`SWEEP_ATTEMPTS` = 2), then fail with the stall's message; logged as `sweep_stall`.
   Clean runs score ~0-2 ms, stalled ones 9.5-20.
@@ -112,7 +112,7 @@ analyser searches ±200 ms around the beeps. Run 5's EQ was never judged fairly,
 
 - Diagnostics: `chunkLagsMs`, `stallMs`, `beepLateMs` and `peakOffsetMs` on every phone sweep, `system_eq_rebuild` with its reason, and a "System EQ blocks" line in `info.txt` (the frame length the running effect reports confirms 80 ms took).
 
-## Not verified on the phone (check after 2.19.1)
+## Not verified on the phone (check after 2.19.2)
 - Video lip-sync with the extra ~85 ms.
 - Whether switching DynamicsProcessing on still ticks (the effect may add latency when it starts; a fade can't help).
 - That music in the owner's player sounds like Run 4 now that the double EQ is gone (it may sound weaker than before).
@@ -132,6 +132,6 @@ It needs numpy. Per recording it prints:
 - the mic click level;
 - the chunk lags and the stall verdict (the same rule as `SweepCheck.stall`);
 - the bass tone level and THD at the start of the sweep, and the bass wobble;
-- from 2.19.1 logs, what the app itself logged: `peakOffsetMs`, `beepLateMs` and `stallMs`.
+- from 2.19.2 logs, what the app itself logged: `peakOffsetMs`, `beepLateMs` and `stallMs`.
 
 The recordings exist only when "keep recordings" was on. They are the owner's car audio, so they are not committed.

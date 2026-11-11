@@ -191,33 +191,28 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
     // ---- does the EQ reach the speakers? its result is a card of its own
     if (bandCount > 0) s.eqCheck?.let { EqCheckCard(it, vm) }
 
-    // ---- the one primary action: verify
-    if (hasTest && s.runs.isNotEmpty()) {
-        // follow the way this test applies its EQ: a car tuned on the head unit must be verified on the head unit
-        val onEquipment = !s.systemEqOn && (s.source != Source.PHONE || (s.applyWay == ApplyWay.EQUIPMENT && s.runs.size > 1))
-        PinAction("Verify this EQ", {
-            when {
-                s.systemEqOn -> vm.applyWithAutoTuneEq()
-                onEquipment -> vm.appliedOnEquipment()
-                else -> vm.tryInApp()
-            }
-            vm.tuneMeasure()
-            go(Tab.MEASURE)
-        }, enabled = bandCount > 0, icon = Ic.MEASURE,
-            sub = when {
-                s.systemEqOn -> "with autotune eq on"
-                onEquipment -> "set these bands on your equipment first"
-                else -> "through this eq, inside the app"
-            },
-        )
-    }
-
     // ---- the EQ's other actions together, one per row, in one deck (owner, 2026-11-11: group actions)
-    if (isAdvanced()) Group(
+    // no pinned key on this tab (owner, 2026-11-11): it sets the EQ; verifying is one of its actions, in both modes
+    val canVerify = hasTest && s.runs.isNotEmpty()
+    if (isAdvanced() || canVerify) Group(
         "Actions", divider = false,
         info = "Check the EQ reaches the speakers plays the test sweep twice through this phone: once with AutoTune EQ off, once with the EQ in use on, and compares the change with what the EQ should do. Android Auto (wireless or cable) and some car systems take the sound past the phone's own EQ. AutoTune EQ is left the way it was.\n\nExport EQ files saves the EQ for other equipment.",
     ) {
         Actions {
+            if (canVerify) {
+                // follow the way this test applies its EQ: a car tuned on the head unit is verified on the head unit
+                val onEquip = !s.systemEqOn && (s.source != Source.PHONE || (s.applyWay == ApplyWay.EQUIPMENT && s.runs.size > 1))
+                TextAction("Verify this EQ", {
+                    when {
+                        s.systemEqOn -> vm.applyWithAutoTuneEq()
+                        onEquip -> vm.appliedOnEquipment()
+                        else -> vm.tryInApp()
+                    }
+                    vm.tuneMeasure()
+                    go(Tab.MEASURE)
+                }, enabled = bandCount > 0, icon = Ic.MEASURE)
+            }
+            if (!isAdvanced()) return@Actions
             if (bandCount > 0 && s.eqCheck == null) TextAction("Check the EQ reaches the speakers", vm::eqCheck, enabled = !s.busy && s.hasPermission, icon = Ic.CHECK)
             if (hasTest && s.runs.isNotEmpty() && !s.systemEqOn && s.source == Source.PHONE) {
                 val onEquipment = s.applyWay == ApplyWay.EQUIPMENT && s.runs.size > 1

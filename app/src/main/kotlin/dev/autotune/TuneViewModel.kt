@@ -429,6 +429,8 @@ data class UiState(
     val report: SystemReport? = null,
     /** Every run's score (0-100), by index: shown on each run and beside every reading (2.18.5). */
     val runScores: List<Int> = emptyList(),
+    /** Where Save diagnostics last put its zip, shown under the key. */
+    val diagSaved: String? = null,
     val exportWarnings: List<String> = emptyList(),
     val lr: LrInfo? = null,
     val sub: SubResult? = null,
@@ -1410,7 +1412,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             val to = min(rec.size, it + lead + sweep.size + 4 * fs)
             Analyzer.analyze(rec.copyOfRange(from, to), sweep, fs, calibration, gateMs.toDouble(), expectedStart = it - from + lead, fdwCycles = fdw())
                 // where the direct sound was taken against where the beeps put the sweep: about 0, and +15..25 ms when
-                // a Bluetooth pause made the later part of the sweep the stronger one (the F-150 runs, 2.19.1)
+                // a Bluetooth pause made the later part of the sweep the stronger one (the F-150 runs, 2.19.2)
                 .also { r -> peakOffsetMs = Math.round((r.latencyMs - (it - from + lead) * 1000.0 / fs) * 10) / 10.0 }
         }
         val markerGood = viaMarker != null && viaMarker.fatal == null && (viaMarker.snrDb ?: 0.0) >= 30.0
@@ -2609,7 +2611,9 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 val file = withContext(Dispatchers.IO) { Diag.export(ctx(), info) }
                 if (save) {
                     val path = withContext(Dispatchers.IO) { saveToDownloads(file.name, "application/zip", file.readBytes()) }
-                    state.update { it.copy(status = "Saved diagnostics to ${saveWhere()}: ${path.substringAfterLast('/')}") }
+                    val msg = "Saved to ${saveWhere()} · ${path.substringAfterLast('/')}"
+                    state.update { it.copy(status = msg, diagSaved = msg) }
+                    android.widget.Toast.makeText(ctx(), msg, android.widget.Toast.LENGTH_LONG).show()
                 } else fileToShare.emit(ShareFiles(listOf(file), "application/zip", "Send AutoTune diagnostics"))
             } catch (e: Exception) {
                 state.update { it.copy(status = "Could not collect diagnostics: ${e.message}") }
