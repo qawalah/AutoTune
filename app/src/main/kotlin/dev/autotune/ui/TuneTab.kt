@@ -140,19 +140,19 @@ private val ROUTES = listOf(
 @Composable
 private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pickers, exit: () -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
-    // starts from the defaults in Settings
-    // or, on an output tuned before, the choices made there last time
+    // starts from the defaults in Settings (target, spots, window); on an output tuned before only the way the
+    // sound reaches the speakers is taken from last time, so a changed default always takes effect
     val mem = s.setupMemory?.takeIf { it.targetIdx in s.targetNames.indices }
-    val defIdx = mem?.targetIdx ?: Target.ALL.indexOfFirst { it.name == s.defTarget }.takeIf { it >= 0 } ?: s.targetIdx
+    val defIdx = Target.ALL.indexOfFirst { it.name == s.defTarget }.takeIf { it >= 0 } ?: mem?.targetIdx ?: s.targetIdx
     val out = s.outputName
     var targetIdx by rememberSaveable(out) { mutableIntStateOf(defIdx.coerceIn(0, (s.targetNames.size - 1).coerceAtLeast(0))) }
     val memSource = mem?.let { m -> Source.entries.getOrNull(m.sourceIdx) }
     var routeIdx by rememberSaveable(out) { mutableIntStateOf(ROUTES.indexOfFirst { it.first == (memSource ?: s.source) }.coerceAtLeast(0)) }
     val car = dev.autotune.targetKind(Target.ALL.getOrNull(targetIdx)) == dev.autotune.TargetKind.CAR
     var spotsIdx by rememberSaveable(car, out) {
-        mutableIntStateOf(listOf(1, 3, 5).indexOf(mem?.spots ?: s.defSpots).takeIf { it >= 0 } ?: if (car) 1 else 0)
+        mutableIntStateOf(listOf(1, 3, 5).indexOf(s.defSpots).takeIf { it >= 0 } ?: if (car) 1 else 0)
     }
-    var gateIdx by rememberSaveable(out) { mutableIntStateOf(listOf(0, 80, 200, 400, 600).indexOf(mem?.gateMs ?: s.defGateMs).coerceAtLeast(0)) }
+    var gateIdx by rememberSaveable(out) { mutableIntStateOf(listOf(0, 80, 200, 400, 600).indexOf(s.defGateMs).coerceAtLeast(0)) }
     val spots = listOf(1, 3, 5)
 
     StepHeader(0, STEPS, "Set up", exit, onBack = vm::tuneBack, names = dev.autotune.STEP_NAMES)

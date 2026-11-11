@@ -16,6 +16,13 @@ From the owner's diagnostics of 11 Nov (F-150 over Bluetooth): Runs 1, 2 and 5 s
 ### Added
 - **More in the diagnostics:** every phone sweep logs where each half second of the sweep arrived (`chunkLagsMs`), the pause check's verdict, how late the start beeps came (`beepLateMs`) and how far the direct sound was taken from where the beeps put it (`peakOffsetMs`, about 0 normally). Rebuilds of AutoTune EQ are logged with their reason (`system_eq_rebuild`), and `info.txt` gives the EQ's block size, sample rate and the frame length the running effect reports.
 
+## [2.19.2] - 2026-11-11
+### Fixed
+- **Settings › Defaults for new tests take effect.** A new test starts from the defaults (target, bass and treble to taste, mic spots, analysis window); before, the last test's choices on the same output won. Only the way the sound reaches the speakers is still remembered per output.
+### Added
+- **A cursor on the charts:** touch or drag across a chart to place a line; a bubble reads the frequency and each shown curve's level there, in its colour. Tap it again to clear it.
+- **The full-screen chart turns sideways** with the phone.
+
 ## [2.19.1] - 2026-11-11
 ### Fixed
 - **Landscape no longer breaks the app.** Only the EQ tab turns sideways (its graph and faders fill the width); every other screen stays upright, either way up so the mic can point up. Sideways, nothing sits under the system's side buttons or the camera cut-out.
