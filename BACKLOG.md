@@ -145,7 +145,7 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 - **Rotate with the phone, upside down included.** The app does not autorotate. It should follow the sensor in every direction, upside down too, so the phone's mic (at the bottom edge) can point up while measuring.
 - **The EQ graph and the band sliders fill the screen in landscape.** Turned sideways, the EQ tab's graph and sliders take the whole width and height.
 
-## Owner's notes, round 7 (2026-11-11): roadmap
+## Owner's notes, round 7 (2026-11-11): done in 2.19.0
 - **Home-screen widget: match the app, more functions.** The widget still has the old look (green Tune, dark EQ, amber Auto keys) and three keys only. Redraw it after the app's Braun look (light deck, graphite keys, red only for what is on, Inter, line icons), and add functions: the EQ in use by name ("F-150") with its on/off latch, switch between saved EQs, Dynamic EQ on/off, the loud button, and open Tune or the TV/PC companion; sizes from 2×1 to 4×2.
 - **The tab bar always shows.** On pages over a tab (a test's results here, with the pinned "Continue tuning" key), the tab bar at the bottom is gone; keep the five tabs on every screen, with the pinned key above them.
 - **Resonances as a table.** The resonance list (frequency, gain, Q, ring time) is one string per row, so the columns wander. Lay it out as a table: fixed columns with headings, figures right-aligned and tabular, the (i) in its own column. Same for other lists of figures (EQ bands, distances).

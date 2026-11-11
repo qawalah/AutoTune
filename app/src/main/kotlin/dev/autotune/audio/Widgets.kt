@@ -6,7 +6,6 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.os.Build
 import android.util.SizeF
 import android.widget.RemoteViews
@@ -16,7 +15,9 @@ import dev.autotune.R
 
 /** Home-screen widgets: a wide panel (Tune, EQ, Auto, and profile switcher when tall) plus single toggles. */
 object AutoTuneWidgets {
-    private const val ON_TEXT = 0xFF1A1305.toInt()
+    // the app's colours: white lettering on the accent while on, ink on the white keys while off
+    private const val ON_TEXT = 0xFFFFFFFF.toInt()
+    private const val OFF_TEXT = 0xFF2E2E2B.toInt()
     private val providers = listOf(PanelWidget::class.java, EqWidget::class.java, AutoWidget::class.java, ProfileWidget::class.java)
 
     fun update(ctx: Context) {
@@ -36,18 +37,18 @@ object AutoTuneWidgets {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
-    private class St(val eqOn: Boolean, val autoOn: Boolean, val profile: String?)
+    private class St(val eqOn: Boolean, val autoOn: Boolean, val profile: String?, val loudOn: Boolean)
 
     private fun state(ctx: Context): St {
         val p = ProfileController.prefs(ctx)
         val id = p.getString("activeProfile", null)
         val name = ProfileStore.load(ctx).firstOrNull { it.id == id }?.name
-        return St(SystemEq.chain != null || p.getBoolean("eqWanted", false), p.getBoolean("automationOn", false), name)
+        return St(SystemEq.chain != null || p.getBoolean("eqWanted", false), p.getBoolean("automationOn", false), name, LoudEq.manual(ctx))
     }
 
     private fun chip(v: RemoteViews, root: Int, title: Int, sub: Int, on: Boolean, text: String) {
         v.setInt(root, "setBackgroundResource", if (on) R.drawable.widget_chip_on else R.drawable.widget_chip_off)
-        val c = if (on) ON_TEXT else Color.WHITE
+        val c = if (on) ON_TEXT else OFF_TEXT
         v.setTextColor(title, c)
         v.setTextColor(sub, c)
         v.setTextViewText(sub, text)
@@ -58,13 +59,17 @@ object AutoTuneWidgets {
         v.setOnClickPendingIntent(R.id.chip_tune, openApp(ctx, "measure"))
         v.setOnClickPendingIntent(R.id.chip_eq, act(ctx, ProfileController.ACTION_TOGGLE_EQ, 1))
         v.setOnClickPendingIntent(R.id.chip_auto, act(ctx, ProfileController.ACTION_TOGGLE_AUTO, 2))
-        chip(v, R.id.chip_eq, R.id.chip_eq_title, R.id.chip_eq_state, st.eqOn, if (st.eqOn) "On" else "Off")
+        // the EQ key names the EQ in use while it is on
+        chip(v, R.id.chip_eq, R.id.chip_eq_title, R.id.chip_eq_state, st.eqOn, if (st.eqOn) st.profile?.substringBefore(" · ") ?: "On" else "Off")
+        v.setOnClickPendingIntent(R.id.chip_loud, act(ctx, ProfileController.ACTION_TOGGLE_LOUD, 5))
+        chip(v, R.id.chip_loud, R.id.chip_loud_title, R.id.chip_loud_state, st.loudOn, if (st.loudOn) "On" else "Off")
         chip(v, R.id.chip_auto, R.id.chip_auto_title, R.id.chip_auto_state, st.autoOn, if (st.autoOn) "On" else "Off")
         if (tall) {
             v.setTextViewText(R.id.profile_name, st.profile ?: "No profile")
             v.setOnClickPendingIntent(R.id.prev, act(ctx, ProfileController.ACTION_PREV_PROFILE, 3))
             v.setOnClickPendingIntent(R.id.next, act(ctx, ProfileController.ACTION_NEXT_PROFILE, 4))
             v.setOnClickPendingIntent(R.id.profile_name, act(ctx, ProfileController.ACTION_NEXT_PROFILE, 4))
+            v.setOnClickPendingIntent(R.id.companion, openApp(ctx, "theatre"))
         }
         return v
     }

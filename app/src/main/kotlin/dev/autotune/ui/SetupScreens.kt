@@ -126,6 +126,7 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
         if (isAdvanced()) Group("Diagnostics", info = "A record of every measurement (levels, the EQ in effect, how it was applied, warnings), every EQ change and every failure, plus the last recordings. Send it when something sounds wrong, so the cause can be found. It stays on this phone until you share it.") {
             SwitchRow("Keep the last 12 recordings", s.keepRecordings, vm::setKeepRecordings)
             Actions {
+                TextAction("Save diagnostics", vm::saveDiagnostics, icon = Ic.SAVE)
                 TextAction("Send diagnostics", vm::shareDiagnostics, icon = Ic.DIAG)
                 TextAction("Clear", vm::clearDiagnostics, danger = true, icon = Ic.TRASH)
             }

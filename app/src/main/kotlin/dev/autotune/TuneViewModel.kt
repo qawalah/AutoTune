@@ -425,6 +425,8 @@ data class UiState(
     val resonances: List<Resonance> = emptyList(),
     val compare: Compare? = null,
     val report: SystemReport? = null,
+    /** Every run's score (0-100), by index: shown on each run and beside every reading (2.18.5). */
+    val runScores: List<Int> = emptyList(),
     val exportWarnings: List<String> = emptyList(),
     val lr: LrInfo? = null,
     val sub: SubResult? = null,
@@ -952,6 +954,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 suggestedChain = suggested,
                 previousChain = if (run.eq.isNotEmpty()) EqChain(run.eq, 0.0) else null,
                 report = judgeRun(t, focus, target, lrResult),
+                runScores = t.runs.indices.map { i -> runCatching { judgeRun(t, i, target, if (i == focus) lrResult else null).overall }.getOrDefault(-1) },
                 regions = Describe.regions(run.magDb, grid, target),
                 rmsDb = run.rmsDb,
                 compare = compare,
@@ -2548,7 +2551,12 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** One zip with the log, the last recordings, the saved tests and a summary of the settings, for the share sheet. */
-    fun shareDiagnostics() {
+    /** The same zip, saved to the export folder (or Downloads) instead of shared. */
+    fun saveDiagnostics() = shareDiagnostics(save = true)
+
+    fun shareDiagnostics() = shareDiagnostics(save = false)
+
+    private fun shareDiagnostics(save: Boolean) {
         viewModelScope.launch {
             try {
                 val st = state.value
@@ -2567,7 +2575,10 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                     appendLine("Automation: ${st.automationOn}, rules ${st.rules.size}")
                 }
                 val file = withContext(Dispatchers.IO) { Diag.export(ctx(), info) }
-                fileToShare.emit(ShareFiles(listOf(file), "application/zip", "Send AutoTune diagnostics"))
+                if (save) {
+                    val path = withContext(Dispatchers.IO) { saveToDownloads(file.name, "application/zip", file.readBytes()) }
+                    state.update { it.copy(status = "Saved diagnostics to ${saveWhere()}: ${path.substringAfterLast('/')}") }
+                } else fileToShare.emit(ShareFiles(listOf(file), "application/zip", "Send AutoTune diagnostics"))
             } catch (e: Exception) {
                 state.update { it.copy(status = "Could not collect diagnostics: ${e.message}") }
             }

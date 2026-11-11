@@ -60,7 +60,7 @@ fun AiKeySetup(a: AiUi, vm: TuneViewModel) {
         )
         if (a.hasKey) {
             StatusLine(true, "API key saved: ${a.keyMasked ?: "…"}")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Actions {
                 TextAction("Check the key", vm::aiTestKey, enabled = !a.testingKey, icon = Ic.CHECK)
                 TextAction("Remove", vm::aiRemoveKey, danger = true, icon = Ic.TRASH)
             }

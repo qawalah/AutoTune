@@ -4,6 +4,19 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.19.0] - 2026-11-11
+### Changed
+- **The tab bar on every screen**, pages included (a test's results, Export, the home theatre); a tab closes the pages over it.
+- **The EQ step is now "Refine"**: Set up, Stock, Refine, Verify, Result.
+- **Scores everywhere:** every run in the Runs list has its /100 score, and so does every reading on the results card (latest, stock, best). On the card each score sits at the start of the line under its figure, so the three line up.
+- **Resonances as a table:** Hz, dB, Q and ring time in fixed, right-aligned columns under headings, the (i) in its own column.
+- **A new on/off switch:** a slide switch (the knob runs right and the track fills with the accent while on, "on"/"off" beside it) in place of the small latching key.
+- **The home-screen widget in the app's look:** a light plate, white keys with a hairline, graphite Tune, the accent only while a key is on. New: a Loud (Dynamic EQ) key, the EQ key names the EQ in use while on, and the tall size adds a TV or PC companion key.
+- **The reels in the folded header** are drawn larger, without the tape, head and pilot that turned into stray marks at that size.
+- Settings › AI assistant: Check the key and Remove are rows like every other action.
+### Added
+- **Save diagnostics** next to Send diagnostics: the zip goes to the export folder (or Downloads).
+
 ## [2.18.4] - 2026-11-11
 ### Changed
 - **The app turns with the phone, upside down included** (`fullSensor`), so the phone's mic can point up while measuring. Turning it no longer restarts the screen.

@@ -45,7 +45,7 @@ fun ResultSummary(s: UiState, namesTest: Boolean = true) {
     fun db(v: Double) = "%.1f".format(v)
     // the score already worked out for a run (the focus run's report, the compared runs, the stock review); never computed here
     fun score(idx: Int) = dev.autotune.knownScore(
-        idx, s.selectedRuns.maxOrNull(), s.report?.overall, s.compare?.colorIdx.orEmpty(), s.compare?.scores.orEmpty(), s.stock?.score,
+        idx, s.selectedRuns.maxOrNull(), s.report?.overall, s.compare?.colorIdx.orEmpty(), s.compare?.scores.orEmpty(), s.stock?.score, s.runScores,
     )
     if (runs.size == 1) {
         val a = s.stock

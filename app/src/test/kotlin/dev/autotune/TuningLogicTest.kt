@@ -649,4 +649,15 @@ class ConvergenceTest {
         org.junit.Assert.assertEquals("3.3 dB from target · 11 Nov 17:44", eqSubline("", 3.3, "11 Nov 17:44", "Run 4"))
         org.junit.Assert.assertEquals("Suggested EQ", eqSubline(null, null, null, "Suggested EQ"))
     }
+
+    @Test
+    fun everyRunHasItsScore() {
+        // the focus run and compared runs keep theirs; every other run falls back to its own score
+        org.junit.Assert.assertEquals(55, knownScore(7, 7, 55, allScores = List(8) { 40 + it }))
+        org.junit.Assert.assertEquals(44, knownScore(4, 7, 55, allScores = List(8) { 40 + it }))
+        org.junit.Assert.assertEquals(41, knownScore(0, 7, 55, stockScore = 41, allScores = List(8) { 40 + it }))
+        // a run that could not be scored shows none
+        org.junit.Assert.assertNull(knownScore(2, 7, 55, allScores = listOf(40, 41, -1)))
+        org.junit.Assert.assertEquals("Refine", STEP_NAMES[2])
+    }
 }

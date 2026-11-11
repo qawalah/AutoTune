@@ -474,12 +474,28 @@ private fun ResonanceGroup(s: UiState) {
             "Ring test (sweep runs only): the impulse response is cut into slices and the level at that frequency is followed over time. The time to fall 20 dB, times 3, estimates T60, how long it takes to decay by 60 dB. A long ring means the problem is the room or cabin itself, which EQ can't shorten.\n\n" +
             "The pink-noise route has no impulse response, so it finds peaks but no ring times.",
     ) {
+        // a table: fixed columns under headings, figures right-aligned and tabular, the (i) in its own column
+        @Composable
+        fun androidx.compose.foundation.layout.RowScope.cells(a: String, b: String, c: String, d: String, head: Boolean) {
+            val st = if (head) MaterialTheme.typography.labelSmall else MaterialTheme.typography.titleSmall
+            val col = if (head) At.c.muted else At.c.text
+            val end = androidx.compose.ui.text.style.TextAlign.End
+            Text(a, Modifier.weight(1.1f), style = st, color = col, fontFamily = AtFigures, textAlign = end, maxLines = 1)
+            Text(b, Modifier.weight(1f), style = st, color = col, fontFamily = AtFigures, textAlign = end, maxLines = 1)
+            Text(c, Modifier.weight(0.8f), style = st, color = col, fontFamily = AtFigures, textAlign = end, maxLines = 1)
+            Text(d, Modifier.weight(1.1f), style = st, color = col, fontFamily = AtFigures, textAlign = end, maxLines = 1)
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            cells("hz", "db", "q", "rings, ms", head = true)
+            Box(Modifier.width(48.dp))
+        }
         s.resonances.forEach { r ->
-            val t60 = r.t60Ms?.let { "  rings ${if (r.t60IsLowerBound) ">" else "~"}%.0f ms".format(it) } ?: ""
-            // the figures on the page, what to do about it in the bubble
-            Row(Modifier.heightIn(min = 36.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("%.0f Hz   +%.1f dB   Q %.1f%s".format(r.freqHz, r.prominenceDb, r.q, t60), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures)
-                InfoButton("%.0f Hz".format(r.freqHz), r.suggestion, small = true)
+            Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+                cells(
+                    "%.0f".format(r.freqHz), "+%.1f".format(r.prominenceDb), "%.1f".format(r.q),
+                    r.t60Ms?.let { (if (r.t60IsLowerBound) ">" else "~") + "%.0f".format(it) } ?: "—", head = false,
+                )
+                Box(Modifier.width(48.dp), contentAlignment = Alignment.Center) { InfoButton("%.0f Hz".format(r.freqHz), r.suggestion, small = true) }
             }
         }
     }
@@ -534,7 +550,7 @@ private fun RunsDeck(s: UiState, vm: TuneViewModel) {
                 }
                 // the score where it is already known (the focus run, the compared runs, the stock review); empty otherwise
                 Box(Modifier.width(cols.score).padding(end = 6.dp), contentAlignment = Alignment.CenterEnd) {
-                    dev.autotune.knownScore(r.index, s.selectedRuns.maxOrNull(), s.report?.overall, s.compare?.colorIdx.orEmpty(), s.compare?.scores.orEmpty(), s.stock?.score)
+                    dev.autotune.knownScore(r.index, s.selectedRuns.maxOrNull(), s.report?.overall, s.compare?.colorIdx.orEmpty(), s.compare?.scores.orEmpty(), s.stock?.score, s.runScores)
                         ?.let { ScoreTag(it) }
                 }
                 Row(Modifier.width(cols.db), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.Bottom) {

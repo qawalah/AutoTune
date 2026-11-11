@@ -784,8 +784,6 @@ private fun ReadingCell(r: Reading, main: Boolean) {
                 color = r.tint ?: At.c.text, maxLines = 1, softWrap = false,
             )
             if (r.unit != null) Text(" ${r.unit}", Modifier.padding(bottom = if (main) 8.dp else 4.dp), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1, softWrap = false)
-            // the run's system score beside its dB, the same box for every reading that has one
-            if (r.score != null) ScoreTag(r.score, Modifier.padding(start = 8.dp, bottom = if (main) 8.dp else 4.dp))
         }
         val label = androidx.compose.ui.text.buildAnnotatedString {
             append(r.name.lowercase())
@@ -794,7 +792,12 @@ private fun ReadingCell(r: Reading, main: Boolean) {
                 withStyle(androidx.compose.ui.text.SpanStyle(color = r.noteTint ?: At.c.muted)) { append(r.note) }
             }
         }
-        Text(label, style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1, softWrap = false)
+        // the score in one place for every reading: at the start of the line under its figure, so the figures stay
+        // clear and the scores line up across the cells
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (r.score != null) ScoreTag(r.score, Modifier.padding(end = 6.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
     }
 }
 
@@ -1390,8 +1393,11 @@ fun HeaderArt(key: String, modifier: Modifier, shown: (() -> Boolean)? = null) {
             else -> {
                 // a tape deck: two reels turning a little way, the tape between them over the head
                 deck()
+                // in the folded header the deck is small: just the two reels, larger, without the tape, head and pilot,
+                // which turned into stray marks at that size (owner, 2026-11-11)
+                val small = h < 56.dp.toPx()
                 fun reel(cx: Float, spin: Float) {
-                    val ctr = Offset(cx, h * 0.44f); val r = h * 0.3f
+                    val ctr = Offset(cx, h * if (small) 0.5f else 0.44f); val r = h * if (small) 0.4f else 0.3f
                     drawCircle(alu.copy(alpha = 0.7f), r, ctr)
                     drawCircle(Vinyl.copy(alpha = 0.85f), r * 0.62f, ctr)
                     drawCircle(keyFace, r * 0.24f, ctr)
@@ -1403,9 +1409,11 @@ fun HeaderArt(key: String, modifier: Modifier, shown: (() -> Boolean)? = null) {
                 // both reels wind the same way, a turn and a third, then stop with the hubs where they always rest
                 val spin = -480f * (1f - t)
                 reel(w * 0.27f, spin); reel(w * 0.73f, spin)
-                drawLine(ink.copy(alpha = 0.7f), Offset(w * 0.27f, h * 0.74f), Offset(w * 0.73f, h * 0.74f), hair * 1.5f)
-                drawRoundRect(keyFace, Offset(w * 0.44f, h * 0.7f), Size(w * 0.12f, h * 0.14f), r2)
-                pilot(w * 0.9f, h * 0.88f)
+                if (!small) {
+                    drawLine(ink.copy(alpha = 0.7f), Offset(w * 0.27f, h * 0.74f), Offset(w * 0.73f, h * 0.74f), hair * 1.5f)
+                    drawRoundRect(keyFace, Offset(w * 0.44f, h * 0.7f), Size(w * 0.12f, h * 0.14f), r2)
+                    pilot(w * 0.9f, h * 0.88f)
+                }
             }
         }
     }
@@ -1667,19 +1675,14 @@ fun StepHeader(index: Int, total: Int, title: String, onExit: (() -> Unit)?, onB
 }
 
 /**
- * An on/off switch drawn as a Braun latching push key (the SK 4's and audio 1's rows of keys, and the latched EQ key in
- * the tab row): a rectangular key that stays down while on, its face shaded from the rim, with a small pilot light
- * that lights in the accent. The 48dp touch target, the switch role and [label] are kept for accessibility.
+ * An on/off switch drawn as a Braun slide switch (2.18.5, the owner found the latching key unclear): the knob runs right
+ * and the track fills with the accent while on, "on"/"off" lettered beside it. The 48dp touch target, the switch role
+ * and [label] are kept for accessibility.
  */
 @Composable
 fun LatchKey(on: Boolean, onChange: (Boolean) -> Unit, label: String, enabled: Boolean = true, modifier: Modifier = Modifier) {
     val c = At.c
     val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    val down by androidx.compose.animation.core.animateDpAsState(if (on) 2.dp else 0.dp, tween(motionMs(120), easing = EaseArrive), label = "latch")
-    val lit by androidx.compose.animation.animateColorAsState(
-        if (on && enabled) c.signal else c.muted.copy(alpha = 0.4f), tween(motionMs(160), easing = EaseArrive), label = "pilot",
-    )
-    val shape = RoundedCornerShape(3.dp)
     Box(
         modifier.size(64.dp, 48.dp)
             .toggleable(value = on, enabled = enabled, role = Role.Switch, interactionSource = src, indication = null, onValueChange = onChange)
@@ -1687,23 +1690,24 @@ fun LatchKey(on: Boolean, onChange: (Boolean) -> Unit, label: String, enabled: B
             .graphicsLayer { alpha = if (enabled) 1f else 0.5f },
         contentAlignment = Alignment.Center,
     ) {
+        // a slide switch, as on a Braun radio: the knob runs to the right and the track fills with the accent while on,
+        // "on" or "off" lettered beside the knob so the state reads without the colour
+        val knob by androidx.compose.animation.core.animateFloatAsState(if (on) 1f else 0f, tween(motionMs(160), easing = EaseArrive), label = "knob")
+        val track by androidx.compose.animation.animateColorAsState(
+            if (on && enabled) c.signal else c.panelHigh, tween(motionMs(160), easing = EaseArrive), label = "track",
+        )
         Box(
-            Modifier.offset(y = down).size(56.dp, 34.dp).pressScale(src).clip(shape)
-                .background(if (on) androidx.compose.ui.graphics.lerp(c.panelHigh, c.line, 0.55f) else c.panelHigh)
-                .border(1.dp, c.line, shape),
+            Modifier.size(58.dp, 32.dp).pressScale(src).clip(RoundedCornerShape(16.dp)).background(track)
+                .border(1.dp, if (on && enabled) c.signal else c.line, RoundedCornerShape(16.dp)),
         ) {
-            if (on) Box(
-                Modifier.matchParentSize().background(
-                    androidx.compose.ui.graphics.Brush.verticalGradient(
-                        0f to Color.Black.copy(alpha = if (c.dark) 0.45f else 0.2f), 0.45f to Color.Transparent,
-                    ),
-                ),
-            )
-            // the pilot light, and the key's lettering
-            Box(Modifier.align(Alignment.CenterStart).padding(start = 11.dp).size(8.dp).clip(CircleShape).background(lit))
             Text(
-                if (on) "on" else "off", Modifier.align(Alignment.CenterEnd).padding(end = 10.dp),
-                style = MaterialTheme.typography.labelSmall, color = if (on) c.text else c.muted, maxLines = 1,
+                if (on) "on" else "off",
+                Modifier.align(if (on) Alignment.CenterStart else Alignment.CenterEnd).padding(horizontal = 9.dp),
+                style = MaterialTheme.typography.labelSmall, color = if (on && enabled) c.onSignal else c.muted, maxLines = 1,
+            )
+            Box(
+                Modifier.align(Alignment.CenterStart).offset(x = 3.dp + 26.dp * knob).size(26.dp).clip(CircleShape)
+                    .background(if (on && enabled) c.onSignal else c.text.copy(alpha = 0.85f)),
             )
         }
     }

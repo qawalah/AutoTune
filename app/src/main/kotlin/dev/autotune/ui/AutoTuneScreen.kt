@@ -177,7 +177,13 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
 
     LaunchedEffect(Unit) {
         LaunchRequest.tab.collect { t ->
-            if (t != null) { tabIdx = Tab.valueOf(dev.autotune.requestedTab(t)).ordinal; pages = emptyList(); overlay = OVERLAY_NONE; LaunchRequest.tab.value = null }
+            if (t != null) {
+                overlay = OVERLAY_NONE
+                // the widget's companion key opens the TV/PC page over the Tune tab
+                if (t.equals("theatre", ignoreCase = true)) { tabIdx = Tab.MEASURE.ordinal; pages = emptyList(); open(Page.THEATRE) }
+                else { tabIdx = Tab.valueOf(dev.autotune.requestedTab(t)).ordinal; pages = emptyList() }
+                LaunchRequest.tab.value = null
+            }
         }
     }
     // a finished measurement stays in the Tune workflow, which shows the result itself
@@ -268,8 +274,8 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                                 else LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = At.c.signal, trackColor = At.c.line)
                             }
                             // a page is a step away from its tab: the tabs come back with Back
-                            if (page == null) AtNavBar(tab, s.busy, s.systemEqOn) { t -> go(t) }
-                            else Box(Modifier.fillMaxWidth().background(At.c.bg).navigationBarsPadding())
+                            // the five tabs on every screen, pages included (owner, 2026-11-11); a tab closes the pages over it
+                            AtNavBar(tab, s.busy, s.systemEqOn) { t -> go(t) }
                         }
                     }
                 },
