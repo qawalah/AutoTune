@@ -4,6 +4,10 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.18.3] - 2026-11-11
+### Changed
+- **EQs are named after their system.** "EQ in use" and the picker show the device the test was tuned on ("F-150", from "Bluetooth: F-150"), or the test's own name, never "Run 4" or the target. The line under it is the run's note when it has one, else how far from the target it measured and when ("3.3 dB from target · 11 Nov 17:44"). Two tests on one device add their date. Tests keep the device they were tuned on (`device=` in the test file; older tests load as before and use their name).
+
 ## [2.18.2] - 2026-11-11
 ### Changed
 - **Actions grouped, one look.** On the EQ tab (Advanced) the loose actions are one "Actions" deck: Check the EQ reaches the speakers, Try it inside the app / I set it on my equipment, and Export EQ files. The pinned key carries its reason as its second line ("with autotune eq on") instead of a loose line above it.

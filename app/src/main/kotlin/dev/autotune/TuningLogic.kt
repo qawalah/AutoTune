@@ -670,6 +670,23 @@ fun shortTestName(name: String, target: String): Pair<String, String?> {
     return name to sub
 }
 
+/**
+ * An EQ's name in the pickers: the system it is for (the device it was tuned on, else the test's short name), never
+ * the target; [date] is added when another test has the same name.
+ */
+fun eqTitle(testName: String, device: String, target: String, sameAsAnother: Boolean, date: String): String {
+    // "Bluetooth: F-150" is the F-150
+    val base = device.substringAfter(": ").trim().ifBlank { shortTestName(testName, target).first }
+    return if (sameAsAnother) "$base · $date" else base
+}
+
+/** The line under an EQ's name: the run's note when it has one, else how far from the target it measured and when. */
+fun eqSubline(note: String?, db: Double?, date: String?, fallback: String?): String? = when {
+    !note.isNullOrBlank() -> note.trim()
+    db != null -> String.format(java.util.Locale.US, "%.1f dB from target", db) + (date?.let { " · $it" } ?: "")
+    else -> listOfNotNull(fallback, date).joinToString(" · ").ifBlank { null }
+}
+
 // ---------------------------------------------------------------- loud EQ (dynamic EQ for high volume)
 
 /** When the loud EQ comes in. It only plays: measurements never use it. */

@@ -635,4 +635,18 @@ class ConvergenceTest {
         val report = dev.autotune.dsp.SystemReport(39, "Fair", "", emptyList(), 55)
         assertEquals(39, analyzeStock(6.6, 4.1, 6, emptyList(), emptyList(), emptyList(), report).score)
     }
+
+    @Test
+    fun eqsAreNamedAfterTheirSystem() {
+        // the device, without its kind, and never the target
+        org.junit.Assert.assertEquals("F-150", eqTitle("Car (Harman-style) test, 11 Nov 17:44", "Bluetooth: F-150", "Car (Harman-style)", false, "11 Nov 17:44"))
+        // no device: the test's own name
+        org.junit.Assert.assertEquals("Camry front stage", eqTitle("Camry front stage", "", "Car", false, ""))
+        // two tests on one device: the date tells them apart
+        org.junit.Assert.assertEquals("F-150 · 9 Nov 10:02", eqTitle("x", "Bluetooth: F-150", "Car", true, "9 Nov 10:02"))
+        // under it: the note first, else the score and date
+        org.junit.Assert.assertEquals("windows down", eqSubline(" windows down ", 3.3, "11 Nov 17:44", "Run 4"))
+        org.junit.Assert.assertEquals("3.3 dB from target · 11 Nov 17:44", eqSubline("", 3.3, "11 Nov 17:44", "Run 4"))
+        org.junit.Assert.assertEquals("Suggested EQ", eqSubline(null, null, null, "Suggested EQ"))
+    }
 }
