@@ -155,3 +155,4 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 - **Diagnostics: save as well as share.** "Send diagnostics" only opens the share sheet; add Save (to the export folder or Downloads, as EQ files do).
 - **Change the on/off key.** The small latching "● on" key (Keep the last 12 recordings, AutoTune EQ, and wherever `LatchKey` is used) reads poorly; replace it with a clearer on/off control in the app's look.
 - **Settings › AI assistant:** "Check the key" and "Remove" sit side by side as loose text buttons; make them rows like every other action.
+- **Rename the EQ step to "Refine".** The Tune step where the new EQ is applied (currently "EQ" in the five steps: Set up, Stock, EQ, Verify, Result) is called "Refine", in the step bar, titles and docs.
