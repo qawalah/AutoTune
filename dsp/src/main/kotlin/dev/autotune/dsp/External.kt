@@ -120,7 +120,10 @@ object Marker {
     const val WINDOW_SEC = 6.0
 
     /** Highest-scoring candidate of one window (see [find]). */
-    private class Hit(val start: Int, val score: Double)
+    private class Hit(val start: Int, val score: Double, val lateMs: Double = 0.0)
+
+    /** The marker's start (as [find] gives it) and how late its last beep came against an unpaused marker (ms). */
+    class Found(val start: Int, val lateMs: Double)
 
     /**
      * First sample of the marker inside rec[from, to), or null when it is not clearly there.
@@ -134,7 +137,10 @@ object Marker {
      * A beep may come up to [LATE_SEC] late (Bluetooth paused the sound); the start is then given where the first beep
      * would have been, so the sweep still sits [SWEEP_OFFSET_SEC] after it.
      */
-    fun find(rec: FloatArray, fs: Int, from: Int = 0, to: Int = rec.size): Int? {
+    fun find(rec: FloatArray, fs: Int, from: Int = 0, to: Int = rec.size): Int? = findTimed(rec, fs, from, to)?.start
+
+    /** [find], with how late the beeps came (for the diagnostics log). */
+    fun findTimed(rec: FloatArray, fs: Int, from: Int = 0, to: Int = rec.size): Found? {
         val template = beepWaveform(fs)
         val full = waveform(fs)
         val len = to - from
@@ -162,12 +168,12 @@ object Marker {
                     yr[k] = r; yi[k] = im
                 }
                 Fft.transform(yr, yi, inverse = true)
-                hitIn(yr, l - full.size, fs)?.let { h -> if (best == null || h.score > best!!.score) best = Hit(a + h.start, h.score) }
+                hitIn(yr, l - full.size, fs)?.let { h -> if (best == null || h.score > best!!.score) best = Hit(a + h.start, h.score, h.lateMs) }
             }
             if (b >= to) break
             start += win - overlap
         }
-        return best?.start
+        return best?.let { Found(it.start, it.lateMs) }
     }
 
     /** The marker's structure inside one window of single-beep correlation c[0..last]; null when it is not there. */
@@ -220,7 +226,8 @@ object Marker {
             // after a pause the sweep follows the last beep, so the start is where the first beep would have been
             val start = if (onTime) strongest(pos[0] - tol, pos[0] + tol) else max(0, pos[COUNT - 1] - (COUNT - 1) * period)
             val score = (low / top) * (1.0 - gaps / low) * top
-            if (best == null || score > best!!.score) best = Hit(start, score)
+            val lateMs = (pos[COUNT - 1] - pos[0] - (COUNT - 1) * period) * 1000.0 / fs
+            if (best == null || score > best!!.score) best = Hit(start, score, lateMs)
         }
         return best
     }

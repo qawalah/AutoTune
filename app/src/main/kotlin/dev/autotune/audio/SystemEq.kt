@@ -88,6 +88,13 @@ object SystemEq {
     private fun edges(): DoubleArray = DoubleArray(centers.size) { minOf(centers[it] * edgeFactor, 21000.0) }
     private val block: Int get() = DpBins.block(sampleRate)
 
+    /** The block size the effect is asked for at [sampleRate] (for the diagnostics). */
+    val blockSize: Int get() = block
+
+    /** The frame duration (ms) the running effect reports, or null when off: shows whether the phone took [DpBins.FRAME_MS]. */
+    @Synchronized
+    fun frameMsInEffect(): Float? = global?.let { runCatching { it.dp.config.preferredFrameDuration }.getOrNull() }
+
     /** Band gains that put [responseDb] on the effect's bins (with long blocks, about 12 Hz apart). */
     private fun bandGains(responseDb: (Double) -> Double): DoubleArray =
         DpBins.bandGains(edges(), centers, block, sampleRate, responseDb).map { it.coerceIn(-30.0, 15.0) }.toDoubleArray()
@@ -209,12 +216,20 @@ object SystemEq {
 /** Keeps the equaliser alive while AutoTune is in the background, and brings it back when the output changes. */
 class SystemEqService : Service() {
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
-    private val rebuildNow = Runnable { if (!SystemEq.measuring) SystemEq.rebuild() }
+    /** Why the pending rebuild was asked for, for the diagnostics log. */
+    private var rebuildReason = ""
+    private val rebuildNow = Runnable {
+        val skipped = SystemEq.measuring
+        val wasRunning = SystemEq.running()
+        if (!skipped) SystemEq.rebuild()
+        dev.autotune.Diag.log(this, "system_eq_rebuild", mapOf("reason" to rebuildReason, "wasRunning" to wasRunning, "skipped" to skipped))
+    }
     private var activePlayers = 0
 
     /** Waits a moment, so a burst of route and player changes rebuilds the effect once, after the new output is open. */
-    private fun scheduleRebuild() {
+    private fun scheduleRebuild(reason: String) {
         if (SystemEq.chain == null) return
+        rebuildReason = reason
         handler.removeCallbacks(rebuildNow)
         handler.postDelayed(rebuildNow, 600)
     }
@@ -226,7 +241,7 @@ class SystemEqService : Service() {
 
     private fun routeMoved() {
         SystemEq.routeChanged = true
-        scheduleRebuild()
+        scheduleRebuild("output changed")
     }
 
     private val playbackCallback = object : android.media.AudioManager.AudioPlaybackCallback() {
@@ -236,8 +251,9 @@ class SystemEqService : Service() {
             // not on every song: that rebuild clicked. Only the first player on a new output, or an effect that stopped.
             // (a measurement's own sweep starting leaves the flag for the next player)
             if (!SystemEq.measuring && dev.autotune.rebuildOnPlayback(started, SystemEq.routeChanged, SystemEq.running())) {
+                val reason = if (SystemEq.routeChanged) "first player after an output change" else "effect stopped"
                 SystemEq.routeChanged = false
-                scheduleRebuild()
+                scheduleRebuild(reason)
             }
         }
     }

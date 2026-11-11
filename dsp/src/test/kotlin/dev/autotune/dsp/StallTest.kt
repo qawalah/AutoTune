@@ -106,6 +106,8 @@ class StallTest {
         val found = assertNotNull(Marker.find(rec, fs), "marker with a late beep")
         // given where the first beep would have been, so the sweep (which follows the last beep) is where it says
         assertTrue(abs(found - (at + late)) < fs / 500 + 2, "marker off by ${found - at - late} samples")
+        val timed = assertNotNull(Marker.findTimed(rec, fs))
+        assertTrue(abs(timed.lateMs - 19.0) < 1.0, "late by ${timed.lateMs} ms")
     }
 
     @Test
@@ -116,6 +118,7 @@ class StallTest {
         val rec = FloatArray(6 * fs) { (rnd.nextGaussian() * 1e-3).toFloat() }
         for (i in w.indices) rec[at + i] += w[i] * 0.3f
         assertEquals(at, Marker.find(rec, fs))
+        assertTrue(abs(assertNotNull(Marker.findTimed(rec, fs)).lateMs) < 0.2)
     }
 
     @Test

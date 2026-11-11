@@ -118,6 +118,8 @@ def main(d):
         print(f"  chunk lags (ms, from 2 s): {' '.join(f'{v:.0f}' for v in lg)}")
         print(f"  stall: {'none' if st is None else f'{st[1]:+.0f} ms at {st[0]:.1f} s into the sweep'}")
         print(f"  bass: {b}   wobble {wob:.1f}%")
+        if 'peakOffsetMs' in e or 'beepLateMs' in e:  # logged by the app from 2.19.1
+            print(f"  app logged: peakOffsetMs={e.get('peakOffsetMs')} beepLateMs={e.get('beepLateMs')} stallMs={e.get('stallMs')} attempt={e.get('attempt')}")
 
 
 if __name__ == '__main__':

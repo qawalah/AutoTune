@@ -21,6 +21,7 @@ import dev.autotune.audio.Outputs
 import dev.autotune.dsp.LevelCheck
 import dev.autotune.dsp.Marker
 import dev.autotune.dsp.SweepCheck
+import dev.autotune.dsp.DpBins
 import dev.autotune.audio.RtaRunner
 import dev.autotune.audio.SystemEq
 import dev.autotune.audio.SystemEqService
@@ -1383,9 +1384,14 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             state.update { it.copy(status = "Analysing...") }
             val (m, sweepAt) = withContext(Dispatchers.Default) { analysePhoneSweep(rec, sweep, lead, gateMs) }
             // Bluetooth can pause the sound for a moment mid-sweep; such a reading is wrong (holes of 15-20 dB), so measure again
-            val stall = if (m.fatal == null) withContext(Dispatchers.Default) { SweepCheck.stall(rec, sweepAt, sweep, fs) } else null
+            val lags = if (m.fatal == null) withContext(Dispatchers.Default) { SweepCheck.chunkLagsMs(rec, sweepAt, sweep, fs) } else null
+            val stall = lags?.let { SweepCheck.stallIn(it) }
+            // logged on every sweep, so a near miss shows in the diagnostics before it spoils a reading
+            lastCapture = lastCapture + mapOf(
+                "chunkLagsMs" to lags?.map { Math.round(it * 10) / 10.0 }, "attempt" to attempt,
+                "stallMs" to stall?.let { Math.round(it.ms * 10) / 10.0 }, "stallAtSec" to stall?.atSec,
+            )
             if (stall == null) return m
-            lastCapture = lastCapture + mapOf("stallMs" to Math.round(stall.ms * 10) / 10.0, "stallAtSec" to stall.atSec, "attempt" to attempt)
             Diag.log(ctx(), "sweep_stall", lastCapture.filterKeys { it != "thirdOctaveDb" } + mapOf("output" to state.value.outputName))
             if (attempt >= SWEEP_ATTEMPTS) return m.withFatal(stall.message)
             attempt++
@@ -1395,15 +1401,23 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     /** The reading of one phone sweep, and where the sweep starts in [rec] (for the stall check). */
     private fun analysePhoneSweep(rec: FloatArray, sweep: FloatArray, lead: Int, gateMs: Int): Pair<Measurement, Int> {
         // a "marker" so late that the sweep could not fit after it is the sweep itself (seen with weak beeps)
-        val m = Marker.find(rec, fs)?.takeIf { it + lead + sweep.size <= rec.size }
+        val found = Marker.findTimed(rec, fs)?.takeIf { it.start + lead + sweep.size <= rec.size }
+        val m = found?.start
+        var peakOffsetMs: Double? = null
         val viaMarker = m?.let {
             // locate, then cut: 1 s of quiet before the beeps, the sweep, and 4 s of decay. Nothing longer is transformed.
             val from = max(0, it - fs)
             val to = min(rec.size, it + lead + sweep.size + 4 * fs)
             Analyzer.analyze(rec.copyOfRange(from, to), sweep, fs, calibration, gateMs.toDouble(), expectedStart = it - from + lead, fdwCycles = fdw())
+                // where the direct sound was taken against where the beeps put the sweep: about 0, and +15..25 ms when
+                // a Bluetooth pause made the later part of the sweep the stronger one (the F-150 runs, 2.19.1)
+                .also { r -> peakOffsetMs = Math.round((r.latencyMs - (it - from + lead) * 1000.0 / fs) * 10) / 10.0 }
         }
         val markerGood = viaMarker != null && viaMarker.fatal == null && (viaMarker.snrDb ?: 0.0) >= 30.0
-        lastCapture = lastCapture + mapOf("markerAt" to m?.let { it.toDouble() / fs })
+        lastCapture = lastCapture + mapOf(
+            "markerAt" to m?.let { it.toDouble() / fs }, "beepLateMs" to found?.let { Math.round(it.lateMs * 10) / 10.0 },
+            "peakOffsetMs" to peakOffsetMs,
+        )
         if (markerGood) return viaMarker!! to (m!! + lead)
         // no marker, or a doubtful result through it: search the whole recording and keep the better reading
         val full = Analyzer.analyze(rec, sweep, fs, calibration, gateMs.toDouble(), fdwCycles = fdw())
@@ -2588,6 +2602,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                     appendLine("AutoTune EQ: ${if (st.systemEqOn) "on" else "off"}, source: ${st.eqSource}, suspect: ${st.systemEqSuspect}")
                     st.exportChain?.let { c -> appendLine("EQ in effect: preamp %.2f dB, ".format(c.preampDb) + c.filters.joinToString { f -> "%.0f Hz %+.1f dB Q%.2f".format(f.freqHz, f.gainDb, f.q) }) }
                     SystemEq.chain?.let { c -> appendLine("System EQ chain: preamp %.2f dB, ${c.filters.size} bands; realised as ${SystemEq.applied.size} fixed bands".format(c.preampDb)) }
+                    appendLine("System EQ blocks: ${SystemEq.blockSize} samples at ${SystemEq.sampleRate} Hz (asked for ${DpBins.FRAME_MS} ms frames; the effect reports ${SystemEq.frameMsInEffect()?.let { "$it ms" } ?: "nothing, it is off"})")
                     appendLine("Profiles: " + st.profiles.joinToString { p -> p.name + (if (p.id == st.activeProfileId) " (active)" else "") })
                     appendLine("Automation: ${st.automationOn}, rules ${st.rules.size}")
                 }

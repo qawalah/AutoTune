@@ -110,6 +110,8 @@ analyser searches ±200 ms around the beeps. Run 5's EQ was never judged fairly,
 - `DpBins` + `setPreferredFrameDuration(80)` give 4096-sample blocks; band gains are set per bin; `applied` is what
   the bins really do (`EqChain.peakingAt`). Cost: ~85 ms more output delay with AutoTune EQ on.
 
+- Diagnostics: `chunkLagsMs`, `stallMs`, `beepLateMs` and `peakOffsetMs` on every phone sweep, `system_eq_rebuild` with its reason, and a "System EQ blocks" line in `info.txt` (the frame length the running effect reports confirms 80 ms took).
+
 ## Not verified on the phone (check after 2.19.1)
 - Video lip-sync with the extra ~85 ms.
 - Whether switching DynamicsProcessing on still ticks (the effect may add latency when it starts; a fade can't help).
@@ -129,6 +131,7 @@ It needs numpy. Per recording it prints:
 - where the beeps were found and how late beeps 2 and 3 came;
 - the mic click level;
 - the chunk lags and the stall verdict (the same rule as `SweepCheck.stall`);
-- the bass tone level and THD at the start of the sweep, and the bass wobble.
+- the bass tone level and THD at the start of the sweep, and the bass wobble;
+- from 2.19.1 logs, what the app itself logged: `peakOffsetMs`, `beepLateMs` and `stallMs`.
 
 The recordings exist only when "keep recordings" was on. They are the owner's car audio, so they are not committed.
