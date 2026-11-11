@@ -129,3 +129,8 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 - **The connected device, shown properly, with its Disconnect.** On the phone, Disconnect sits as a loose row between the EQ card and the chart. Show the connected TV or PC in its own deck (its name, output, a lit pilot) with Disconnect in it.
 - **Animate the EQ (response) chart.** The phone's home-theatre chart never plays its arrival animation, unlike the other charts.
 - **Accent colour on the TV.** The TV screen is all grey and depressing; bring in the accent colour (as the phone does: live, playing, EQ on).
+
+## Owner's notes, round 3 (2026-11-11): roadmap
+- **Tune home: Advanced tools in the next step.** The "Advanced tools" card (mic spots, channel, window, left/right, subwoofer) on the Tune home moves to the next step (Set up).
+- **Tune home: the dial graphic in the middle** of the screen.
+- **Rename the TV/PC key** "Speakers on a TV or PC" to "Connect to the companion app on a TV or PC".
