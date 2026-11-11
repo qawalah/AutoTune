@@ -2074,9 +2074,9 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         if (micMissing()) return
         // the stock reference is measured with no EQ at all: AutoTune EQ off, the new test's suggestion in use
         if (state.value.systemEqOn) setSystemEq(false)
-        // the taste remembered for this output goes with its target
-        val mem = state.value.setupMemory
-        newTaste = mem?.takeIf { it.targetIdx == targetIdx }?.let { it.bassDb to it.trebleDb }
+        // a new test takes the taste set in Settings › Defaults for new tests (owner, 2026-11-11: the defaults did not
+        // take effect because the last test's taste on this output won); the test's own taste is changed on its results
+        newTaste = null
         rememberSetup(SetupMemory(
             targetIdx, source.ordinal, positions, gateMs ?: 0,
             newTaste?.first ?: state.value.defBassDb, newTaste?.second ?: state.value.defTrebleDb,

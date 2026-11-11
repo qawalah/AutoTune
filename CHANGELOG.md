@@ -4,7 +4,7 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
-## [2.19.2] - 2026-11-11
+## [2.19.3] - 2026-11-11
 From the owner's diagnostics of 11 Nov (F-150 over Bluetooth): Runs 1, 2 and 5 scored far worse than stock, and a repeat with the same EQ scored 4 points better, because the car's Bluetooth paused the sound for 15-25 ms partway through the sweep.
 ### Fixed
 - **A sweep the Bluetooth paused is measured again.** Each half second of the sweep is timed against the recording; when everything after one point arrives late (or early), the sound paused (or skipped), and the reading would have holes of 15-20 dB. The phone measures once more by itself, and only then says "The sound paused for 20 ms during the sweep (Bluetooth dropped out)" instead of saving a wrong reading. Logged as `sweep_stall`.
@@ -15,6 +15,13 @@ From the owner's diagnostics of 11 Nov (F-150 over Bluetooth): Runs 1, 2 and 5 s
 - **The EQ is applied once.** Players that announce their audio session got a second copy of the EQ on top of the phone-wide one, so music was EQ'd twice while the sweep was EQ'd once.
 ### Added
 - **More in the diagnostics:** every phone sweep logs where each half second of the sweep arrived (`chunkLagsMs`), the pause check's verdict, how late the start beeps came (`beepLateMs`) and how far the direct sound was taken from where the beeps put it (`peakOffsetMs`, about 0 normally). Rebuilds of AutoTune EQ are logged with their reason (`system_eq_rebuild`), and `info.txt` gives the EQ's block size, sample rate and the frame length the running effect reports.
+
+## [2.19.2] - 2026-11-11
+### Fixed
+- **Settings › Defaults for new tests take effect.** A new test starts from the defaults (target, bass and treble to taste, mic spots, analysis window); before, the last test's choices on the same output won. Only the way the sound reaches the speakers is still remembered per output.
+### Added
+- **A cursor on the charts:** touch or drag across a chart to place a line; a bubble reads the frequency and each shown curve's level there, in its colour. Tap it again to clear it.
+- **The full-screen chart turns sideways** with the phone.
 
 ## [2.19.1] - 2026-11-11
 ### Fixed

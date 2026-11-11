@@ -40,6 +40,10 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.runtime.mutableStateOf
 import dev.autotune.ChartData
 import kotlin.math.ln
 
@@ -177,7 +181,7 @@ private fun ZoomedChartView(
         }
         ChartCanvas(data, Modifier.fillMaxWidth().weight(1f).arrival(grow), showTarget, hidden) { grow.value }
         Legend(data, showTarget, onToggleTarget, hidden, toggle, targetLabel)
-        Muted("Tap a name to hide or show its curve. dB from the target, level-matched over 250 Hz-2.5 kHz.")
+        Muted("Touch the chart to read each curve. Tap a name to hide or show it.")
     }
 }
 
@@ -198,7 +202,14 @@ private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean
         data.eq?.let { if ("eq" !in hidden) add(it) }
     }
     val (yMin, yMax) = chartRange(visible, data.freqs)
-    Canvas(modifier) {
+    // the cursor: touch or drag across the chart to read each shown curve at that frequency; a tap on it again clears it
+    var cursor by androidx.compose.runtime.remember(data.freqs.size, data.curves.size) { androidx.compose.runtime.mutableStateOf<Float?>(null) }
+    val bubble = TextStyle(fontFamily = AtFigures, fontSize = 12.sp, color = c.text, fontFeatureSettings = "tnum")
+    Canvas(
+        modifier
+            .pointerInput(data) { detectTapGestures { p -> cursor = if (cursor != null && kotlin.math.abs(cursor!! - p.x) < 24.dp.toPx()) null else p.x } }
+            .pointerInput(data) { detectHorizontalDragGestures(onDragStart = { p -> cursor = p.x }) { change, _ -> cursor = change.position.x } },
+    ) {
         val k = rise().coerceIn(0f, 1f).toDouble()
         val left = 30.dp.toPx()
         val bottom = size.height - 16.dp.toPx()
@@ -258,6 +269,30 @@ private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean
         }
         data.predicted?.let { if ("predicted" !in hidden) curve(it, c.text, 2.5.dp.toPx(), dotted = true, lift = k) }
         data.eq?.let { if ("eq" !in hidden) curve(it, c.signal, 2.5.dp.toPx(), lift = k) }
+
+        // the cursor's line, and a bubble with the frequency and each shown curve's level there, in its colour
+        cursor?.let { cx0 ->
+            val cx = cx0.coerceIn(left, size.width - right)
+            val f = 20.0 * Math.pow(1000.0, ((cx - left) / w).toDouble())
+            drawLine(c.text.copy(alpha = 0.7f), Offset(cx, 0f), Offset(cx, bottom), 1.5.dp.toPx())
+            val rows = buildList {
+                add(dev.autotune.cursorFreqText(f) to c.text)
+                data.curves.forEachIndexed { i, cv -> if ("run:" + cv.label !in hidden) add("${cv.label}  %+.1f".format(dev.autotune.levelAt(data.freqs, cv.values, f)) to runCols[i]) }
+                if (showTarget && "target" !in hidden) add("Target  %+.1f".format(dev.autotune.levelAt(data.freqs, data.target, f)) to c.muted)
+                data.predicted?.let { if ("predicted" !in hidden) add("Predicted  %+.1f".format(dev.autotune.levelAt(data.freqs, it, f)) to c.text) }
+                data.eq?.let { if ("eq" !in hidden) add("${data.eqLabel}  %+.1f".format(dev.autotune.levelAt(data.freqs, it, f)) to c.signal) }
+            }.map { (t, col) -> tm.measure(t, bubble.copy(color = col)) }
+            val pad = 6.dp.toPx()
+            val bw = rows.maxOf { it.size.width } + pad * 2
+            val bh = rows.sumOf { it.size.height } + pad * 2
+            // beside the line, on whichever side has room
+            val bx = if (cx + 8.dp.toPx() + bw < size.width - right) cx + 8.dp.toPx() else cx - 8.dp.toPx() - bw
+            val by = 4.dp.toPx()
+            drawRoundRect(c.panel.copy(alpha = 0.95f), Offset(bx, by), androidx.compose.ui.geometry.Size(bw, bh), androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
+            drawRoundRect(c.line, Offset(bx, by), androidx.compose.ui.geometry.Size(bw, bh), androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()), style = Stroke(hair * 2))
+            var yy = by + pad
+            for (r in rows) { drawText(r, topLeft = Offset(bx + pad, yy)); yy += r.size.height }
+        }
     }
 }
 

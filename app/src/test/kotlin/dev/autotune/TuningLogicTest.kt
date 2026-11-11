@@ -678,4 +678,18 @@ class ConvergenceTest {
         org.junit.Assert.assertFalse(turnsSideways("EQ", pageOpen = false, measuring = true))
         for (t in listOf("TESTS", "MEASURE", "LIVE", "SETTINGS")) org.junit.Assert.assertFalse(turnsSideways(t, false, false))
     }
+
+    @Test
+    fun theCursorReadsBetweenPoints() {
+        val f = doubleArrayOf(20.0, 200.0, 2000.0)
+        val v = doubleArrayOf(0.0, 10.0, -10.0)
+        org.junit.Assert.assertEquals(10.0, levelAt(f, v, 200.0), 1e-9)
+        // halfway on the log axis between 20 and 200 Hz
+        org.junit.Assert.assertEquals(5.0, levelAt(f, v, 63.245553), 1e-3)
+        // outside the curve: its end values
+        org.junit.Assert.assertEquals(0.0, levelAt(f, v, 10.0), 1e-9)
+        org.junit.Assert.assertEquals(-10.0, levelAt(f, v, 20000.0), 1e-9)
+        org.junit.Assert.assertEquals("63 Hz", cursorFreqText(63.2))
+        org.junit.Assert.assertEquals("1.2 kHz", cursorFreqText(1234.0))
+    }
 }

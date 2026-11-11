@@ -162,3 +162,8 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 - **No pinned key on the EQ tab.** The EQ tab pins "Verify this EQ" at the bottom; drop it there (the EQ tab is for setting the EQ, not a step of a test). Verify stays reachable from the tab's Actions deck and from Tune.
 - **Settings: "Mode", not "Show".** The first deck is titled "Show" with "How much to show" over the Simple/Advanced drop-down; call it "Mode" (and the drop-down's label "Mode").
 - **Save diagnostics says nothing.** It saves, but nothing on screen confirms it (the status line it sets isn't shown in Settings). Show a confirmation where it was pressed (a short toast or one status line under the key: "Saved to Downloads · autotune-diagnostics-….zip"), as Export does.
+
+## Owner's notes, round 9 (2026-11-11): done in 2.19.3
+- **The full-screen chart turns sideways.** The "Response" full-screen view (from a chart's expand key) stays upright; let it rotate to landscape (and fill it) like the EQ tab.
+- **A cursor on the charts.** Touch and drag on a chart (full-screen and in place) to place a vertical marker; a bubble by it reads the frequency and each shown curve's level there, in the curve's colour (e.g. "63 Hz · Stock +16.0 · Run 4 +12.1 · Run 7 +12.8 · Target +7.4 dB").
+- **Settings › Defaults for new tests had no effect** (owner, 2026-11-11): the last test's choices on the same output won. Done in 2.19.3: defaults win; only the route is remembered.
