@@ -86,6 +86,33 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
     var bandSet by rememberSaveable { mutableIntStateOf(1) }
     val centres = GRAPHIC_SETS[bandSet].first
     val qOf = GRAPHIC_SETS[bandSet].second
+    // turned sideways: the graph and the faders side by side, filling the screen, and nothing else
+    val conf = androidx.compose.ui.platform.LocalConfiguration.current
+    if (conf.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+        val h = (conf.screenHeightDp - 150).coerceAtLeast(200).dp
+        var lockedL by rememberSaveable { mutableStateOf(false) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.weight(1f)) {
+                Panel(pad = 10.dp) {
+                    s.eqChart?.let { ResponseChart(it, height = h - 70.dp, showTarget = s.showTargetEq, onToggleTarget = { vm.setShowTarget(false, !s.showTargetEq) }) }
+                        ?: Muted("No EQ to draw yet")
+                }
+            }
+            Box(Modifier.weight(1f)) {
+                Panel(pad = 10.dp) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Bands", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                        IconAction(if (lockedL) Ic.LOCK else Ic.UNLOCK, if (lockedL) "Unlock the sliders" else "Lock the sliders") { lockedL = !lockedL }
+                        TextAction("Flat", { vm.editClear() }, enabled = bandCount > 0 && !lockedL, icon = Ic.UNDO)
+                    }
+                    androidx.compose.runtime.CompositionLocalProvider(LocalFaderHeight provides (h - 120.dp).coerceAtLeast(140.dp)) {
+                        GraphicSliders(s, vm, centres, qOf, lockedL)
+                    }
+                }
+            }
+        }
+        return
+    }
 
     val testKind = s.tests.firstOrNull { it.id == s.currentTestId }?.kind
     var locked by rememberSaveable { mutableStateOf(true) }
@@ -700,9 +727,13 @@ internal fun GraphicSliders(s: UiState, vm: TuneViewModel, centres: List<Double>
     }
 }
 
+/** How tall the band faders are: taller in landscape, where the EQ fills the screen. */
+val LocalFaderHeight = androidx.compose.runtime.compositionLocalOf { 176.dp }
+
 /** A vertical slider, +12 dB at the top, in half-dB steps. Drag anywhere along it; double-tap-free: tap sets, drag moves. */
 @Composable
 private fun VSlider(value: Double, onChange: (Double) -> Unit, label: String, enabled: Boolean = true) {
+    val faderH = LocalFaderHeight.current
     val range = 12.0
     val track = At.c.line
     val fill = (if (value < 0) At.c.bad else At.c.signal).let { if (enabled) it else it.copy(alpha = 0.45f) }
@@ -712,7 +743,7 @@ private fun VSlider(value: Double, onChange: (Double) -> Unit, label: String, en
     fun at(y: Float, h: Float): Double = (Math.round((range - 2 * range * (y / h).coerceIn(0f, 1f)) * 2) / 2.0)
     androidx.compose.foundation.Canvas(
         // locked: no touch handling at all, so scrolling past the sliders can never move one
-        Modifier.width(48.dp).height(176.dp)
+        Modifier.width(48.dp).height(faderH)
             .then(if (enabled) Modifier.androidx_pointer(latest, ::at).androidx_semantics(label, value, range) { latest.value(it) } else Modifier.semantics { contentDescription = "$label, locked" }),
     ) {
         val cx = size.width / 2
