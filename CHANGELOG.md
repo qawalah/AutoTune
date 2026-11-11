@@ -4,7 +4,7 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
-## [2.19.2] - 2026-11-11
+## [2.19.3] - 2026-11-11
 From the owner's diagnostics of 11 Nov (F-150 over Bluetooth): Runs 1, 2 and 5 scored far worse than stock, and a repeat with the same EQ scored 4 points better, because the car's Bluetooth paused the sound for 15-25 ms partway through the sweep.
 ### Fixed
 - **A sweep the Bluetooth paused is measured again.** Each half second of the sweep is timed against the recording; when everything after one point arrives late (or early), the sound paused (or skipped), and the reading would have holes of 15-20 dB. The phone measures once more by itself, and only then says "The sound paused for 20 ms during the sweep (Bluetooth dropped out)" instead of saving a wrong reading. Logged as `sweep_stall`.
