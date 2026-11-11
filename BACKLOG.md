@@ -156,3 +156,6 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 - **Change the on/off key.** The small latching "● on" key (Keep the last 12 recordings, AutoTune EQ, and wherever `LatchKey` is used) reads poorly; replace it with a clearer on/off control in the app's look.
 - **Settings › AI assistant:** "Check the key" and "Remove" sit side by side as loose text buttons; make them rows like every other action.
 - **Rename the EQ step to "Refine".** The Tune step where the new EQ is applied (currently "EQ" in the five steps: Set up, Stock, EQ, Verify, Result) is called "Refine", in the step bar, titles and docs.
+
+## Owner's notes, round 8 (2026-11-11): roadmap
+- **Landscape is broken across the app (since 2.18.4 lets it rotate).** Seen on Live: the header (title, mode drop-down, art), a full-height pinned key and the tab bar stay as in portrait, leaving a sliver for the content (an empty "Spectrum" deck); the pinned key runs under the side navigation buttons (side insets not applied). In landscape: the tabs as a rail on the side, the header one thin line, the pinned key compact and inside the safe area, and each tab laid out for the width (Live's spectrum filling the height, the EQ as in 2.18.4). Until each tab has its landscape layout, keep the others in portrait.
