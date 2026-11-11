@@ -69,7 +69,7 @@ import kotlin.math.log10
 import kotlin.math.pow
 
 private const val ABOUT_PHONE =
-    "On the phone, open AutoTune: Tune › Speakers on a TV or PC. Pick this PC and enter the code once.\n\n" +
+    "On the phone, open AutoTune: Tune › Connect to the companion app on a TV or PC. Pick this PC and enter the code once.\n\n" +
         "The phone and this PC must be on the same Wi-Fi. If Windows asks whether AutoTune may use the network, allow it " +
         "on private networks. When the PC is not found, the phone can connect by the address shown here (Advanced)."
 

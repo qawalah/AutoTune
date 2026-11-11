@@ -15,11 +15,11 @@ corrects for the mic's calibration file, and automatically tunes a parametric EQ
   suggested EQ, keep this EQ, keep the best run's EQ, or apply the EQ again when it never arrived), the other choices,
   then Details (charts and diagnostics, closed). Each step has labelled Back and Exit buttons and a named progress bar;
   Exit keeps the place and Continue returns to it. Finishing saves the EQ as a profile and keeps it on. Left/right and
-  subwoofer checks sit under Advanced tools.
+  subwoofer checks sit under Advanced tools in the Set up step.
 - **Tests**: your saved tests; New test starts one. Tap a test for the same summary the Tune screens show, Continue
   tuning, and Details (chart, runs, compare, report card, tonal balance, resonances, distortion, suggested EQ, target,
   notes, manage), each closed until opened.
-- **Speakers on a TV or PC**: three tests, each on its own key. Set the levels (pink noise per speaker, the phone as a live meter), test the distances (one sweep per speaker, the sub's delay included), and test the EQ (every speaker together, one or several seats, one EQ for every speaker). Each home theatre is named and keeps every run, listed on the Tests tab. Install the same app on an Android TV or Google TV: it plays the tests (Dolby Digital 5.1 over HDMI ARC, raw 7.1 over eARC), shows the room, the live meter and each result on the big screen, and can hold the EQ.
+- **Connect to the companion app on a TV or PC**: three tests, each on its own key. Set the levels (pink noise per speaker, the phone as a live meter), test the distances (one sweep per speaker, the sub's delay included), and test the EQ (every speaker together, one or several seats, one EQ for every speaker). Each home theatre is named and keeps every run, listed on the Tests tab. Install the same app on an Android TV or Google TV: it plays the tests (Dolby Digital 5.1 over HDMI ARC, raw 7.1 over eARC), shows the room, the live meter and each result on the big screen, and can hold the EQ.
 - **AutoTune for Windows** (`desktop/`, `AutoTune-X.Y.Z-windows.msi` in each Android release): the same for a PC's speakers. The PC plays front left and right on the output you pick and keeps the EQ in [Equalizer APO](https://sourceforge.net/projects/equalizerapo/), one EQ per channel, for that output only.
 - **EQ**: AutoTune as the EQ, any time. "EQ in use" is one drop-down grouped by test (car / home theatre icon): the next
   suggestion, the EQ of every run with its result, and saved EQs. The power switch applies it. Locked sliders add to it;

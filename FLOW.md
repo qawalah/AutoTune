@@ -80,7 +80,7 @@ flowchart LR
   TU -->|"Ask AI"| AI
   AI -->|"Measure it"| TU
   L -->|"Advanced: Open EQ"| EQ
-  TU -->|"Speakers on a TV or PC"| HT["Home theatre page<br/>over the current tab"]
+  TU -->|"Connect to the companion app on a TV or PC"| HT["Home theatre page<br/>over the current tab"]
   HT -->|"Set the levels: pink noise per speaker,<br/>live meter, next after 3 s level"| TV(("AutoTune on the TV"))
   HT -->|"Test the distances: one sweep per speaker"| TV
   HT -->|"Test the EQ: every speaker together, 1-5 seats,<br/>then Use the EQ (one for every speaker)"| TV

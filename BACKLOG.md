@@ -130,7 +130,7 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 - **Animate the EQ (response) chart.** The phone's home-theatre chart never plays its arrival animation, unlike the other charts.
 - **Accent colour on the TV.** The TV screen is all grey and depressing; bring in the accent colour (as the phone does: live, playing, EQ on).
 
-## Owner's notes, round 3 (2026-11-11): roadmap
+## Owner's notes, round 3 (2026-11-11): done in 2.18.1
 - **Tune home: Advanced tools in the next step.** The "Advanced tools" card (mic spots, channel, window, left/right, subwoofer) on the Tune home moves to the next step (Set up).
 - **Tune home: the dial graphic in the middle** of the screen.
 - **Rename the TV/PC key** "Speakers on a TV or PC" to "Connect to the companion app on a TV or PC".

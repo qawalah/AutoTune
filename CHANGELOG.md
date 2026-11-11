@@ -4,6 +4,10 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.18.1] - 2026-11-11
+### Changed
+- **The Tune screen:** the dial sits in the middle of the screen; Advanced tools (mic spots, channel, window, left/right, subwoofer) moved to the Set up step; the TV and PC key now reads "Connect to the companion app on a TV or PC".
+
 ## [2.18.0] - 2026-11-11
 ### Changed
 - **The TV screen, cleaned up.** The right side is now decks with one job each: the phone (the code until one pairs, then the phone's name with a lit pilot), what is playing or the last result, one big EQ key ("EQ on" lit, "EQ off"), and the speakers' keys under one line on the output. No more loose lines or repeated "5.1"; the accent colours what is live.
