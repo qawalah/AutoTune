@@ -1867,11 +1867,12 @@ fun GroupedPick(label: String, choices: List<dev.autotune.EqChoice>, selectedKey
         ) {
             AtIcon(sel?.let { kindIcon(it.kind) } ?: Ic.EQ, At.c.text, size = 22.dp)
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                // the system's name, then the run's note (or its score and date): never "Run 4" or the target
                 Text(
-                    sel?.let { c -> c.title + (c.db?.let { " · %.1f dB from target".format(it) } ?: "") } ?: emptyText,
+                    sel?.let { c -> c.name ?: (c.title + (c.db?.let { " · %.1f dB from target".format(it) } ?: "")) } ?: emptyText,
                     style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
-                sel?.let { c -> Text(listOfNotNull(c.groupSub, c.groupTitle).joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+                sel?.let { c -> (if (c.name != null) c.sub else listOfNotNull(c.groupSub, c.groupTitle).joinToString(" · "))?.let { line -> Text(line, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) } }
             }
             AtIcon(Ic.CHEVRON_DOWN, At.c.muted, size = 20.dp)
         }

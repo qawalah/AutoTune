@@ -62,6 +62,8 @@ data class SavedTest(
     val trebleDb: Double = 0.0,
     /** No boosts below this frequency: the speakers were measured not to follow them (1.18+). 0 = none. */
     val boostFloorHz: Double = 0.0,
+    /** The output it was tuned on ("F-150", "Soundcore Life Q30"), for naming its EQs; empty when unknown (2.18.3+). */
+    val device: String = "",
 )
 
 /** One text file per test in filesDir/tests, so tests can never overwrite or leak into each other. */
@@ -111,6 +113,7 @@ object TestStore {
         appendLine("gate=${t.gateMs}")
         if (t.bassDb != 0.0 || t.trebleDb != 0.0) appendLine("taste=${t.bassDb},${t.trebleDb}")
         if (t.boostFloorHz > 0.0) appendLine("boostfloor=${t.boostFloorHz}")
+        if (t.device.isNotBlank()) appendLine("device=${t.device.replace('\n', ' ')}")
         t.runs.forEachIndexed { i, r ->
             appendLine("run.$i.when=${r.whenMillis}")
             appendLine("run.$i.label=${r.label.replace('\n', ' ')}")
@@ -177,6 +180,7 @@ object TestStore {
             bassDb = one("taste")?.split(",")?.getOrNull(0)?.toDoubleOrNull() ?: 0.0,
             trebleDb = one("taste")?.split(",")?.getOrNull(1)?.toDoubleOrNull() ?: 0.0,
             boostFloorHz = one("boostfloor")?.toDoubleOrNull() ?: 0.0,
+            device = one("device").orEmpty(),
         )
     }
 

@@ -215,6 +215,9 @@ data class EqChoice(
     /** The group's heading and the line under it in the picker (see [shortTestName]). */
     val groupTitle: String = group,
     val groupSub: String? = null,
+    /** The closed picker's two lines: the system's name ([eqTitle]) and the note or score ([eqSubline]). */
+    val name: String? = null,
+    val sub: String? = null,
 )
 
 data class TestSummary(
@@ -682,8 +685,16 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         val ordered = savedTests.filter { it.runs.isNotEmpty() }.sortedByDescending { it.id == current?.id }
         ordered.forEach { t ->
             val kind = targetKind(Target.ALL.getOrNull(t.targetIdx))
-            val (gt, gs) = shortTestName(t.name, Target.ALL.getOrNull(t.targetIdx)?.name ?: "")
-            fun EqChoice.g() = copy(groupTitle = gt, groupSub = gs)
+            val tgt = Target.ALL.getOrNull(t.targetIdx)?.name ?: ""
+            val gt = eqTitle(t.name, t.device, tgt, false, "")
+            val clash = ordered.count { o -> eqTitle(o.name, o.device, Target.ALL.getOrNull(o.targetIdx)?.name ?: "", false, "") == gt } > 1
+            val title = eqTitle(t.name, t.device, tgt, clash, fmtDate(t.created))
+            // the group is the system; its EQs say which run and how good under it
+            fun EqChoice.g() = copy(groupTitle = title, groupSub = null, name = title, sub = eqSubline(
+                key.substringAfterLast(':').toIntOrNull()?.takeIf { key.startsWith("run:") }?.let { t.runs.getOrNull(it)?.note },
+                db, key.substringAfterLast(':').toIntOrNull()?.takeIf { key.startsWith("run:") }?.let { t.runs.getOrNull(it)?.whenMillis }?.let { fmtDate(it) },
+                this.title,
+            ))
             val withEq = t.runs.indices.drop(1).filter { t.runs[it].eq.isNotEmpty() }
             val best = withEq.minByOrNull { t.runs[it].rmsDb }
             val last = t.runs.last()
@@ -1652,6 +1663,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             created = cur?.created ?: now,
             targetIdx = targetIdx, sourceIdx = source.ordinal, gateMs = gateMs,
             runs = listOf(SavedRun(now, rms, mag, filters, TestStore.STOCK_LABEL, warnings = warnings, calibration = calName(), complete = true)),
+            // the output it was tuned on names its EQs; another device playing it leaves it to the test's name
+            device = cur?.device?.ifBlank { null } ?: state.value.outputName?.takeIf { source == Source.PHONE }.orEmpty(),
             resonances = res.map { doubleArrayOf(it.freqHz, it.prominenceDb, it.q, it.t60Ms ?: Double.NaN, if (it.t60IsLowerBound) 1.0 else 0.0) },
             notes = state.value.testNotes,
             bassDb = cur?.bassDb ?: newTaste?.first ?: state.value.defBassDb, trebleDb = cur?.trebleDb ?: newTaste?.second ?: state.value.defTrebleDb,

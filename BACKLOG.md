@@ -137,3 +137,10 @@ Seen on the owner's Android box: during and after a test the TV shows the room, 
 
 ## Owner's notes, round 4 (2026-11-11): done in 2.18.2
 - **Group actions as much as possible, the Settings tab included.** The EQ tab (Advanced) mixes four looks in a row: folded decks (Dynamic EQ, Saved EQs, More), a bare action line with a tick and an (i) ("Check the EQ reaches the speakers"), a grey filled row ("Export EQ files"), and a loose status line over the pinned key ("Measured with AutoTune EQ on."). Put related actions together in one deck each, in one style (one row per action, as `Actions { }`), and do the same pass over Settings and the other tabs.
+
+## Owner's notes, round 5 (2026-11-11): done in 2.18.3
+- **EQ names: the device, not "Run 4".** An EQ (in use, saved, picked) is titled by the system it is for: the Bluetooth device or car name (or the test's name when there is no device), e.g. "F-150". No target in the name. The line under it: the run's note when there is one, else its score and date ("3.3 dB from target · 11 Nov 17:44"). When two EQs share a device, add the date to tell them apart.
+
+## Owner's notes, round 6 (2026-11-11): roadmap
+- **Rotate with the phone, upside down included.** The app does not autorotate. It should follow the sensor in every direction, upside down too, so the phone's mic (at the bottom edge) can point up while measuring.
+- **The EQ graph and the band sliders fill the screen in landscape.** Turned sideways, the EQ tab's graph and sliders take the whole width and height.
