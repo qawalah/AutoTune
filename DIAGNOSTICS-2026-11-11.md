@@ -87,6 +87,8 @@ analyser searches ±200 ms around the beeps. Run 5's EQ was never judged fairly,
   ~800 Hz (31 bands: below ~400 Hz). 4096 samples (~12 Hz bins) works down to ~100 Hz (61 bands) or ~50 Hz
   (31 bands). 8192 would work down to ~50 Hz for 61 bands, at ~170 ms of delay. The owner chose 4096.
 
+An interactive version of the bins-against-bands picture is `wiki/bins-and-bands.html`.
+
 ## Questions answered on the way
 - **Is a pause needed before the sweep for the mic and the EQ?** No, there's one already. The mic starts at 0 s,
   playback at 0.3 s with 1.5 s of silence, the beeps (0.6 s) at ~1.8 s, then 1 s of silence, then the sweep at

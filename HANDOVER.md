@@ -493,6 +493,7 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - Paparazzi (tools/screenshots, kept out of the build) rendered the TV screens for this release.
 
 ### Bluetooth pauses and EQ clicks (2.19.2)
+- `wiki/bins-and-bands.html` explains slots against bands for users (interactive, same model as `DpBins`), meant for an in-app wiki later; see `wiki/README.md`.
 - The whole investigation (evidence, numbers, Android source references, the owner's questions) is in `DIAGNOSTICS-2026-11-11.md`; `tools/diagnostics/analyse_recordings.py` reruns its checks on any diagnostics zip.
 - From the owner's diagnostics (11 Nov, F-150): 5 of 12 recordings had a 15-25 ms pause in playback partway through the sweep. The analyser took the stronger half as the direct sound and gated the rest away. One pause fell between the start beeps instead.
 - dsp: `SweepCheck.chunkLagsMs` (0.5 s chunks of the sweep from 2 s, envelope of the correlation, ±80 ms) and `stall`/`stallIn` (a split after which EVERY chunk is ≥ `STALL_MS` = 6 ms away from the median before it; size = largest median step). On the real runs the clean recordings score ~0-2 ms, the stalled ones 9.5-20. `SweepCheck.quietStart` silences the first `MIC_SETTLE_SEC` (0.5 s). `Marker.find` lets a beep come up to `LATE_SEC` (60 ms) late and then returns where the first beep would have been. `Measurement.withFatal`. Tests: `StallTest`.
