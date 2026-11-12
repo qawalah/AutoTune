@@ -64,6 +64,8 @@ data class SavedTest(
     val boostFloorHz: Double = 0.0,
     /** The output it was tuned on ("F-150", "Soundcore Life Q30"), for naming its EQs; empty when unknown (2.18.3+). */
     val device: String = "",
+    /** What was tuned ([Equipment] by name, 2.20+); empty in older tests, which take it from the target ([equipmentOf]). */
+    val equipment: String = "",
 )
 
 /** One text file per test in filesDir/tests, so tests can never overwrite or leak into each other. */
@@ -114,6 +116,7 @@ object TestStore {
         if (t.bassDb != 0.0 || t.trebleDb != 0.0) appendLine("taste=${t.bassDb},${t.trebleDb}")
         if (t.boostFloorHz > 0.0) appendLine("boostfloor=${t.boostFloorHz}")
         if (t.device.isNotBlank()) appendLine("device=${t.device.replace('\n', ' ')}")
+        if (t.equipment.isNotBlank()) appendLine("equip=${t.equipment}")
         t.runs.forEachIndexed { i, r ->
             appendLine("run.$i.when=${r.whenMillis}")
             appendLine("run.$i.label=${r.label.replace('\n', ' ')}")
@@ -181,6 +184,7 @@ object TestStore {
             trebleDb = one("taste")?.split(",")?.getOrNull(1)?.toDoubleOrNull() ?: 0.0,
             boostFloorHz = one("boostfloor")?.toDoubleOrNull() ?: 0.0,
             device = one("device").orEmpty(),
+            equipment = one("equip").orEmpty(),
         )
     }
 
