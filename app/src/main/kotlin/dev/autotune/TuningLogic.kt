@@ -524,6 +524,25 @@ fun companionQuestion(e: Equipment): CompanionQuestion? {
 
 data class CompanionQuestion(val label: String, val answers: List<String>, val details: List<String>, val info: String)
 
+/**
+ * The home theatre Set up's names start on the companion's page: the equipment's name, with the test's after it when
+ * both are given ("LG soundbar, sofa"). Null when neither is, so the page opens on the last home theatre.
+ */
+fun companionTheatreName(equipName: String, testName: String): String? {
+    val parts = listOf(equipName.trim(), testName.trim()).filter { it.isNotEmpty() }
+    return parts.joinToString(", ").ifEmpty { null }
+}
+
+/**
+ * A new test's name: the one typed, else the equipment's name and the date ("F-150, 12 Nov"), else the target's
+ * ("Car test, 12 Nov"), as before 2.21.
+ */
+fun newTestName(typed: String, equipName: String, targetName: String, date: String): String = when {
+    typed.isNotBlank() -> typed.trim()
+    equipName.isNotBlank() -> "${equipName.trim()}, $date"
+    else -> "$targetName test, $date"
+}
+
 /** The Tune screen shows a finished tune while the test it finished is open and has no run after it. */
 fun showsTuned(tunedTestId: String?, tunedRuns: Int, openTestId: String?, runCount: Int): Boolean =
     tunedTestId != null && tunedTestId == openTestId && tunedRuns == runCount

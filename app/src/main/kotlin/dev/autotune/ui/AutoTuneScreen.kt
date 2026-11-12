@@ -214,6 +214,8 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     )
     // the home theatre the Tests tab asked the Home theatre page to open
     var theatreOpen by rememberSaveable { mutableStateOf<String?>(null) }
+    // a home theatre to start, named on Tune's Set up (2.21)
+    var theatreNew by rememberSaveable { mutableStateOf<String?>(null) }
     // a tab replaces whatever was open over it; Export opens as a page over the current tab
     val go: (Tab) -> Unit = { t ->
         overlay = OVERLAY_NONE
@@ -379,15 +381,16 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                                     Page.RESULTS -> ResultsPage(s, vm, back, go)
                                     Page.LIVE -> LiveTab(s, live, level, vm, pick, go)
                                     Page.EXPORT -> ExportTab(s, vm, go)
-                                    Page.THEATRE -> TheatrePage(pick, theatreOpen, opened = { theatreOpen = null })
+                                    Page.THEATRE -> TheatrePage(pick, theatreOpen, opened = { theatreOpen = null; theatreNew = null }, newName = theatreNew)
                                 }
                             }
                         } else when (d.tab) {
                             Tab.TESTS -> TestsTab(
                                 s, vm, { id -> vm.openTest(id); openResults() }, continueTest = { id -> vm.openTest(id); vm.tuneContinue(); go(Tab.MEASURE) },
                                 openTheatre = { id -> theatreOpen = id; go(Tab.THEATRE) },
+                                openCompanion = { go(Tab.THEATRE) },
                             )
-                            Tab.MEASURE -> TuneTab(s, vm, sharer, go, openResults, pick)
+                            Tab.MEASURE -> TuneTab(s, vm, sharer, go, openResults, pick, openCompanion = { name -> theatreNew = name; go(Tab.THEATRE) })
                             Tab.EQ -> EqTab(s, vm, go, pick)
                             Tab.LIVE -> LiveTab(s, live, level, vm, pick, go)
                             Tab.SETTINGS -> SettingsTab(s, ai, vm, pick, go)

@@ -274,6 +274,17 @@ class FlowTest {
         assertEquals(2, companionQuestion(Equipment.PC)?.answers?.size)
     }
 
+    /** Set up names the equipment, then the test (owner, 2026-11-12); both carry over to a new home theatre. */
+    @Test
+    fun setUpNamesTheEquipmentThenTheTest() {
+        assertEquals("Driver seat", newTestName(" Driver seat ", "F-150", "Car", "12 Nov"))
+        assertEquals("F-150, 12 Nov", newTestName("", " F-150 ", "Car", "12 Nov"))
+        assertEquals("Car test, 12 Nov", newTestName(" ", "", "Car", "12 Nov"))
+        assertEquals("LG soundbar, sofa", companionTheatreName(" LG soundbar", "sofa "))
+        assertEquals("Sofa", companionTheatreName("", "Sofa"))
+        assertEquals(null, companionTheatreName(" ", ""))
+    }
+
     @Test
     fun theTargetsFollowTheEquipment() {
         // the built-in order: Car, Home theatre, Flat, Harman car, Harman room, then a custom curve

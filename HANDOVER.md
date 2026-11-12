@@ -143,7 +143,7 @@ Before publishing to Google Play:
 
 ## Decisions to keep (and why)
 
-- **Choices are drop-downs, never pills or segmented buttons.** The owner asked for this. Use icons, clean Material, minimal scrolling and taps.
+- **Choices are drop-downs, never pills or segmented buttons.** The owner asked for this. Use icons, clean Material, minimal scrolling and taps. The one exception, also the owner's (2026-11-12): Set up's equipment as four big picture keys (`ui/EquipmentTiles.kt`).
 - **Back returns to where you were (1.19).** A test's results, Live and Export open as pages over the current tab (`Page` in AutoTuneScreen); they never switch tabs. One tap on a test opens its results. The owner asked for this after Back from those screens kept landing on Tests.
 - **Every reading ends the same way:** a short summary, then one recommended action pinned above the tabs (`PinAction` / `BigActionBar`), then the other choices, then Details. The graph is always shown after a reading. This came out of several navigation rounds (1.14, 1.15, 1.17) after the flow confused even the owner.
 - **The stock run is the permanent reference, and each suggestion is a complete EQ fitted from it** (`EqFitter.fitFromStock`, corrected by the measured-vs-predicted difference). Suggestions never stack on top of each other, so a bad run cannot compound.
@@ -516,3 +516,9 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - What follows the equipment, all pure and tested in FlowTest: `startEquipment` (output memory, last pick, car mode, default target's kind), `equipmentTargets`/`equipmentTarget` (index lists into `Target.ALL`; `BUILT_IN` order untouched), `equipmentRoutes`/`equipmentRoute`/`routeLabel` (a PC starts from COMBINED), `stockChecklist` (the (i) on Set up), `equipmentEqWhere` (Refine's "set these bands" label; a PC also gets Save/Share of the EQ files there in Simple).
 - Stored: `SetupMemory` has an optional 8th field (the equipment; older memories read as null), prefs `lastEquipment` and `companion_<EQUIPMENT>`, and `SavedTest.equipment` (`equip=` line, absent in older files; `equipmentOf(saved, targetKind)` fills it from the target). `UiState.equipment` is the open test's.
 - The Tune screen's "Connect to the companion app on a TV or PC" key is gone; the widget's companion key and Tests › a home theatre still open the page directly.
+
+### Picture keys, equipment name, Tests › Connect (2.21.0)
+- Owner, 2026-11-12: "make the equipment choices big buttons with graphics, then equipment name, then test name; after home theatre, the option to connect to a companion; also a separate way to connect, from the Tests page".
+- `ui/EquipmentTiles.kt`: `EquipmentTiles` (2 × 2 `selectable` keys, Role.RadioButton, accent edge on the picked one) and `drawEquipment` (line drawings on a 48 × 26 unit field, 1.5 dp strokes). The only exception to "choices are drop-downs" (CLAUDE.md).
+- Set up order: tiles, "Equipment name" (becomes `SavedTest.device` through `newDevice`, ahead of the output name), "Test name (optional)" (`newTestName`: typed, else "<equipment name>, <date>", else "<target> test, <date>"), the companion drop-down, then the rest.
+- Connect passes `companionTheatreName(equipName, testName)` through `TuneTab(openCompanion)` to `AutoTuneScreen.theatreNew` and `TheatrePage(newName)`, which calls `TheatreViewModel.newTest(name)`; null opens the last home theatre. `TestsTab(openCompanion)` has its own "Connect to AutoTune on a TV or PC" deck at the top.

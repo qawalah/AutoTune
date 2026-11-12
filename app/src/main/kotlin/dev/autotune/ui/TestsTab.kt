@@ -45,7 +45,10 @@ import dev.autotune.dsp.SystemReport
 
 /** The list of tests. One tap on a test opens its results; a new test starts from the button at the bottom. */
 @Composable
-fun TestsTab(s: UiState, vm: TuneViewModel, openResults: (String) -> Unit, continueTest: (String) -> Unit = {}, openTheatre: (String) -> Unit = {}) {
+fun TestsTab(
+    s: UiState, vm: TuneViewModel, openResults: (String) -> Unit, continueTest: (String) -> Unit = {}, openTheatre: (String) -> Unit = {},
+    openCompanion: () -> Unit = {},
+) {
     val readingCount = s.tests.sumOf { it.runCount }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     // the home theatres, read from their files once the tab opens
@@ -56,6 +59,8 @@ fun TestsTab(s: UiState, vm: TuneViewModel, openResults: (String) -> Unit, conti
     var renameText by remember { mutableStateOf("") }
     var deleteId by remember { mutableStateOf<String?>(null) }
     ScreenTitle("Tests", context = if (s.tests.isEmpty()) null else "${s.tests.size} systems · $readingCount readings")
+    // the second way to AutoTune on a TV or a PC, beside Tune › Set up (owner, 2026-11-12)
+    Panel(pad = 6.dp) { Actions { TextAction("Connect to AutoTune on a TV or PC", openCompanion, icon = Ic.HOME) } }
     if (theatres.isNotEmpty()) TheatreList(theatres, openTheatre)
     if (s.tests.isEmpty()) {
         if (theatres.isNotEmpty()) return

@@ -4,6 +4,15 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.21.0] - 2026-11-12
+### Changed
+- **The equipment is four big keys with a drawing each:** a car, a TV between tower speakers, a monitor between desk speakers, and a portable speaker. The one picked has the accent edge.
+- **Set up asks in this order:** the equipment, its name, the test's name, then (for a home theatre or a PC) whether AutoTune is on the TV or the PC, then the rest.
+- **The equipment's name names the EQs** and, when no test name is typed, the test ("F-150, 12 Nov"). Left empty, the output the phone plays to is used as before.
+- **Connect to AutoTune on the TV or PC starts a new home theatre** with the names from Set up ("LG soundbar, sofa"); with no name typed, the page opens on the last one.
+### Added
+- **Tests › Connect to AutoTune on a TV or PC:** a second way to the home-theatre page, beside Tune › Set up.
+
 ## [2.20.0] - 2026-11-12
 ### Changed
 - **Set up starts with the equipment.** Its first question is what you are tuning: Car, Home theatre or soundbar, PC speakers, or Other speakers. Everything after it follows from the answer.

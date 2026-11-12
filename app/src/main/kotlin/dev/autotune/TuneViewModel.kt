@@ -799,6 +799,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     fun newTest() {
         stopRta(); stopClip()
         current = null
+        newDevice = ""
         state.update {
             it.copy(
                 testName = "", currentTestId = null, runs = emptyList(), selectedRuns = emptySet(), runNote = "",
@@ -819,11 +820,15 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Creates the (not yet saved) test the user just named. The test is saved with its first, stock run. */
-    fun startNewTest(name: String, targetIdx: Int, source: Source, equipment: Equipment = equipmentOf(null, targetKind(Target.ALL.getOrNull(targetIdx)))) {
+    fun startNewTest(
+        name: String, targetIdx: Int, source: Source,
+        equipment: Equipment = equipmentOf(null, targetKind(Target.ALL.getOrNull(targetIdx))), equipName: String = "",
+    ) {
         newTest()
         val idx = targetIdx.coerceIn(0, Target.ALL.size - 1)
         pendingPositions.clear()
-        val nm = uniqueName(name.trim().ifBlank { "${Target.ALL[idx].name} test, ${fmtDate(System.currentTimeMillis())}" })
+        newDevice = equipName.trim().replace('\n', ' ')
+        val nm = uniqueName(newTestName(name, equipName, Target.ALL[idx].name, fmtDate(System.currentTimeMillis())))
         state.update {
             it.copy(
                 testName = nm, targetIdx = idx, source = source, equipment = equipment,
@@ -1713,7 +1718,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             targetIdx = targetIdx, sourceIdx = source.ordinal, gateMs = gateMs,
             runs = listOf(SavedRun(now, rms, mag, filters, TestStore.STOCK_LABEL, warnings = warnings, calibration = calName(), complete = true)),
             // the output it was tuned on names its EQs; another device playing it leaves it to the test's name
-            device = cur?.device?.ifBlank { null } ?: state.value.outputName?.takeIf { source == Source.PHONE }.orEmpty(),
+            // the equipment's name typed on Set up wins (2.21)
+            device = cur?.device?.ifBlank { null } ?: newDevice.ifBlank { null } ?: state.value.outputName?.takeIf { source == Source.PHONE }.orEmpty(),
             equipment = cur?.equipment?.ifBlank { null } ?: state.value.equipment.name,
             resonances = res.map { doubleArrayOf(it.freqHz, it.prominenceDb, it.q, it.t60Ms ?: Double.NaN, if (it.t60IsLowerBound) 1.0 else 0.0) },
             notes = state.value.testNotes,
@@ -2084,7 +2090,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
      * Set up is the last stop before the stock reading: the test is created and the reading starts at once. Without
      * microphone access the Stock screen is shown instead, where the permission can be given.
      */
-    fun tuneSetup(name: String, targetIdx: Int, source: Source, positions: Int, gateMs: Int?, equipment: Equipment) {
+    fun tuneSetup(name: String, targetIdx: Int, source: Source, positions: Int, gateMs: Int?, equipment: Equipment, equipName: String = "") {
         if (micMissing()) return
         // the stock reference is measured with no EQ at all: AutoTune EQ off, the new test's suggestion in use
         if (state.value.systemEqOn) setSystemEq(false)
@@ -2098,7 +2104,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         // measured from this phone alone: the next Set up starts the same way, "Not installed" included
         rememberEquipment(equipment, false)
         if (equipment.companion != null) forgetCompanion(equipment)
-        startNewTest(name, targetIdx, source, equipment)
+        startNewTest(name, targetIdx, source, equipment, equipName)
         resetToSuggestion()
         setPositions(positions)
         gateMs?.let { setGate(it) }
@@ -2122,6 +2128,9 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         prefs.edit().putBoolean("companion_${e.name}", false).apply()
         state.update { it.copy(companionInstalled = it.companionInstalled - e) }
     }
+
+    /** The equipment's name typed on Set up for the test being started; it becomes the saved test's [SavedTest.device]. */
+    private var newDevice = ""
 
     /** Saves Set up's choices for the current output. */
     private fun rememberSetup(m: SetupMemory) {
