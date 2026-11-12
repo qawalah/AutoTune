@@ -10,4 +10,5 @@
     android:updatePeriodMillis="0"
     android:widgetCategory="home_screen"
     android:description="@string/widget_companion_desc"
-    android:initialLayout="@layout/widget_companion" />
+    android:initialLayout="@layout/widget_companion"
+    android:previewLayout="@layout/widget_companion" />

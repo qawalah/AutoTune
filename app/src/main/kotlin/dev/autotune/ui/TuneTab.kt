@@ -197,17 +197,19 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
             // either answer goes on to the names; with yes their key connects
             val connect = { viaCompanion = true; dev.autotune.nextSetupPage(equipment, page, true)?.let { page = it }; Unit }
             val phoneOnly = { viaCompanion = false; if (installed) vm.forgetCompanion(equipment); dev.autotune.nextSetupPage(equipment, page, false)?.let { page = it }; Unit }
-            Panel {
-                CardTitle("Is AutoTune on ${equipment.companion}?", count, info = q.info)
-                // the answer not pinned below, as a key of its own
-                Actions {
-                    if (installed) SecondaryButton("No, use this phone only", phoneOnly, Modifier.fillMaxWidth(), icon = Ic.MIC)
-                    else SecondaryButton("Yes, connect to it", connect, Modifier.fillMaxWidth(), icon = Ic.HOME)
+            Panel { CardTitle("Is AutoTune on ${equipment.companion}?", count, info = q.info) }
+            // two equal answers in the middle of the screen, nothing pinned or suggested (owner, 2026-11-12)
+            val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
+            Box(Modifier.fillMaxWidth().heightIn(min = (screenH * 0.42f).dp), contentAlignment = Alignment.Center) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    PictureKey("Yes, AutoTune is on ${equipment.companion}", false, connect, !s.busy, Modifier.weight(1f), minHeight = 160.dp) { ink ->
+                        drawEquipment(equipment, ink)
+                    }
+                    PictureKey("No, use this phone only", false, phoneOnly, !s.busy, Modifier.weight(1f), minHeight = 160.dp) { ink ->
+                        drawPhoneOnly(ink)
+                    }
                 }
             }
-            // the answer given last time is the one pinned
-            if (installed) PinAction("Yes, AutoTune is on ${equipment.companion}", connect, icon = Ic.HOME)
-            else PinAction("Use this phone only", phoneOnly, icon = Ic.NEXT)
         }
 
         dev.autotune.SetupPage.NAMES -> {
