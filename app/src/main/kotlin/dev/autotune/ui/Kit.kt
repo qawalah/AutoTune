@@ -61,6 +61,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.boundsInWindow
 import kotlinx.coroutines.flow.first
 import androidx.compose.ui.draw.drawBehind
@@ -610,7 +613,7 @@ fun ModeSwitch() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
-                Modifier.clip(MaterialTheme.shapes.extraSmall).background(At.c.panelHigh).border(1.dp, At.c.line, MaterialTheme.shapes.extraSmall)
+                (if (At.c.soft) Modifier.keyFace(MaterialTheme.shapes.small) else Modifier.clip(MaterialTheme.shapes.extraSmall).background(At.c.panelHigh).border(1.dp, At.c.line, MaterialTheme.shapes.extraSmall))
                     .padding(start = 10.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -646,10 +649,144 @@ val CardShape = RoundedCornerShape(8.dp)
 /** The colours a deck draws with: the look's deck colours where it has them (Braun's light decks on a dark body). */
 val deckColors: AtColors @Composable get() = At.c.deck ?: At.c
 
+// ---------------------------------------------------------------- soft plastic (the Concept look)
+
+/** A deck's corners in the soft look: moulded plastic. */
+val SoftDeckShape = RoundedCornerShape(20.dp)
+
+private fun lift(c: Color, t: Float) = androidx.compose.ui.graphics.lerp(c, Color.White, t)
+private fun sink(c: Color, t: Float) = androidx.compose.ui.graphics.lerp(c, Color.Black, t)
+
+/**
+ * Soft plastic standing up from what is under it: lighter at the top than at the foot, a light top edge, a darker
+ * foot and a soft shadow. Plates, keys and knobs of the Concept look.
+ */
+fun Modifier.softPlate(c: AtColors, shape: Shape, elevation: Dp = 6.dp, face: Color = c.panel): Modifier {
+    val shade = if (c.dark) Color.Black else Color(0xFF3A2E22)
+    val top = if (c.dark) lift(face, 0.05f) else lift(face, 0.45f)
+    val foot = if (c.dark) sink(face, 0.14f) else sink(face, 0.05f)
+    val rim = Brush.verticalGradient(
+        listOf(Color.White.copy(alpha = if (c.dark) 0.10f else 0.95f), Color.Transparent, Color.Black.copy(alpha = if (c.dark) 0.35f else 0.06f)),
+    )
+    return this.shadow(elevation, shape, clip = false, ambientColor = shade, spotColor = shade)
+        .clip(shape).background(Brush.verticalGradient(listOf(top, foot))).border(1.dp, rim, shape)
+}
+
+/** Soft plastic pressed in: a well, shaded from its top edge, with a light lip at the foot. Fields and pressed keys. */
+fun Modifier.softWell(c: AtColors, shape: Shape, face: Color = c.panelHigh): Modifier {
+    val shade = Color.Black.copy(alpha = if (c.dark) 0.45f else 0.10f)
+    val lip = Brush.verticalGradient(listOf(Color.Black.copy(alpha = if (c.dark) 0.40f else 0.08f), Color.White.copy(alpha = if (c.dark) 0.05f else 0.85f)))
+    return this.clip(shape).background(face)
+        .drawBehind { drawRect(Brush.verticalGradient(0f to shade, 1f to Color.Transparent, startY = 0f, endY = 7.dp.toPx())) }
+        .border(1.dp, lip, shape)
+}
+
+/** A domed round key in [color] (the orange keys of the Concept look): lit from the upper left, pressed in when [down]. */
+fun Modifier.domeKey(color: Color, down: Boolean = false, elevation: Dp = 6.dp): Modifier =
+    this.then(if (down) Modifier else Modifier.shadow(elevation, CircleShape, clip = false, ambientColor = color, spotColor = color))
+        .clip(CircleShape)
+        .drawBehind {
+            val r = size.minDimension / 2
+            if (down) {
+                drawCircle(sink(color, 0.10f), r)
+                drawCircle(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.25f), Color.Transparent), endY = size.height * 0.45f), r)
+            } else {
+                drawCircle(
+                    Brush.radialGradient(listOf(lift(color, 0.30f), color, sink(color, 0.12f)), center = Offset(size.width * 0.4f, size.height * 0.3f), radius = r * 1.4f),
+                    r,
+                )
+            }
+        }
+
+/** A field's face: pressed into the plate in the soft look, a flat key-grey face otherwise. */
+@Composable
+fun Modifier.fieldFace(shape: Shape = MaterialTheme.shapes.small): Modifier {
+    val c = At.c
+    return if (c.soft) softWell(c, shape) else this.clip(shape).background(c.panelHigh)
+}
+
+/** A key's face: raised soft plastic, pressed in while [down], in the soft look; a flat key-grey face otherwise. */
+@Composable
+fun Modifier.keyFace(shape: Shape = MaterialTheme.shapes.medium, down: Boolean = false): Modifier {
+    val c = At.c
+    return when {
+        !c.soft -> this.clip(shape).background(c.panelHigh)
+        down -> softWell(c, shape)
+        else -> softPlate(c, shape, 3.dp)
+    }
+}
+
+/** A pilot light: lit in the accent, with a glow in the soft look; unlit a dot in the rule colour. */
+@Composable
+fun Pilot(on: Boolean, modifier: Modifier = Modifier, size: Dp = 8.dp) {
+    val c = At.c
+    Box(
+        modifier.size(size).drawBehind {
+            val r = this.size.minDimension / 2
+            if (on) {
+                if (c.soft) drawCircle(c.signal.copy(alpha = 0.28f), r * 1.9f)
+                drawCircle(c.signal, r)
+            } else drawCircle(c.line, r)
+        },
+    )
+}
+
+/** Inside an LCD window: figures and their tints take the LCD's ink. */
+val LocalInLcd = androidx.compose.runtime.compositionLocalOf { false }
+
+/**
+ * The readings' window in the Concept look: a grey LCD behind a dark frame, set into the plate, its figures and labels
+ * in the LCD's ink. In the other looks [content] sits on the deck as it is.
+ */
+@Composable
+fun LcdWindow(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val c = At.c
+    val lcd = c.lcd
+    if (lcd == null) { content(); return }
+    val glass = RoundedCornerShape(8.dp)
+    val ink = c.lcdInk
+    Box(
+        modifier.fillMaxWidth().fieldFace(RoundedCornerShape(12.dp)).padding(5.dp)
+            .clip(glass).background(lcd)
+            .drawBehind { drawRect(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.16f), 1f to Color.Transparent, endY = 6.dp.toPx())) }
+            .border(2.dp, if (c.dark) Color(0xFF0E0E0D) else Color(0xFF393936), glass)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        val inLcd = c.copy(
+            text = ink, muted = androidx.compose.ui.graphics.lerp(ink, lcd, 0.28f), line = androidx.compose.ui.graphics.lerp(ink, lcd, 0.4f),
+            target = ink,
+        )
+        androidx.compose.runtime.CompositionLocalProvider(
+            LocalAt provides inLcd, androidx.compose.material3.LocalContentColor provides ink, LocalInLcd provides true,
+        ) { content() }
+    }
+}
+
+/**
+ * A dark screen set into the plate, for the graphs, in the Concept look ([AtColors.screen]): everything in [content]
+ * draws with the screen's colours. In the other looks [content] sits on the deck as it is.
+ */
+@Composable
+fun ScreenWindow(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val c = At.c
+    val s = c.screen
+    if (s == null) { content(); return }
+    val glass = RoundedCornerShape(10.dp)
+    Box(
+        modifier.fillMaxWidth().fieldFace(RoundedCornerShape(14.dp)).padding(5.dp)
+            .clip(glass).background(s.bg).border(2.dp, Color(0xFF2B2B29), glass).padding(6.dp),
+    ) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalAt provides s, androidx.compose.material3.LocalContentColor provides s.text) {
+            MaterialTheme(colorScheme = atScheme(s), typography = MaterialTheme.typography, shapes = MaterialTheme.shapes, content = content)
+        }
+    }
+}
+
 /** The deck's plate: its colour and a hairline edge, plain or, in the Gradient edge look, shaded dark to light. */
 @Composable
 fun Modifier.deckPlate(): Modifier {
     val d = deckColors
+    if (d.soft) return softPlate(d, SoftDeckShape)
     val plate = this.clip(CardShape).background(d.panel)
     val e = d.edge
     return if (e != null) plate.border(1.dp, androidx.compose.ui.graphics.Brush.verticalGradient(e), CardShape)
@@ -739,7 +876,7 @@ class Reading(
  * line and the others share the second, so no figure or box is ever squeezed.
  */
 @Composable
-fun ReadingCells(cells: List<Reading>) {
+fun ReadingCells(cells: List<Reading>) = LcdWindow {
     androidx.compose.ui.layout.Layout(
         content = { cells.forEachIndexed { i, r -> ReadingCell(r, main = i == 0) } },
         modifier = Modifier.fillMaxWidth(),
@@ -783,11 +920,14 @@ fun ReadingCells(cells: List<Reading>) {
 /** One reading: the figure, its unit and its score box on one line (never squeezed), its name and note under it. */
 @Composable
 private fun ReadingCell(r: Reading, main: Boolean) {
+    // on the LCD a tint is mixed into the LCD's ink, so it still reads on the grey glass
+    val inLcd = LocalInLcd.current
     Column(Modifier.settleIn(), horizontalAlignment = Alignment.Start) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 r.value, style = if (main) MaterialTheme.typography.displayMedium else MaterialTheme.typography.displaySmall.copy(fontSize = 24.sp, lineHeight = 30.sp),
-                color = r.tint ?: At.c.text, maxLines = 1, softWrap = false,
+                color = r.tint?.let { if (inLcd) androidx.compose.ui.graphics.lerp(it, At.c.text, 0.35f) else it } ?: At.c.text,
+                maxLines = 1, softWrap = false,
             )
             if (r.unit != null) Text(" ${r.unit}", Modifier.padding(bottom = if (main) 8.dp else 4.dp), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1, softWrap = false)
         }
@@ -795,7 +935,8 @@ private fun ReadingCell(r: Reading, main: Boolean) {
             append(r.name.lowercase())
             if (r.note != null) {
                 append(" · ")
-                withStyle(androidx.compose.ui.text.SpanStyle(color = r.noteTint ?: At.c.muted)) { append(r.note) }
+                val nt = r.noteTint?.let { if (inLcd) androidx.compose.ui.graphics.lerp(it, At.c.text, 0.35f) else it }
+                withStyle(androidx.compose.ui.text.SpanStyle(color = nt ?: At.c.muted)) { append(r.note) }
             }
         }
         // the score in one place for every reading: at the start of the line under its figure, so the figures stay
@@ -1557,6 +1698,7 @@ fun IconAction(kind: Ic, description: String, onClick: () -> Unit) {
 
 @Composable
 fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, icon: Ic? = null) {
+    if (At.c.soft) { SoftButton(text, onClick, modifier, enabled, icon, primary = true); return }
     val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     androidx.compose.material3.Button(
         onClick = onClick, enabled = enabled, interactionSource = src,
@@ -1576,11 +1718,35 @@ private fun ButtonContent(text: String, icon: Ic?, tint: Color) {
         AtIcon(icon, tint, size = 18.dp)
         androidx.compose.foundation.layout.Spacer(Modifier.width(8.dp))
     }
-    Text(text, style = MaterialTheme.typography.labelLarge)
+    Text(text, style = MaterialTheme.typography.labelLarge, color = tint)
+}
+
+/**
+ * A button of the Concept look: a raised plastic key lettered in ink that presses in under the finger; the primary one
+ * has a pilot light lit in the accent before its label.
+ */
+@Composable
+private fun SoftButton(text: String, onClick: () -> Unit, modifier: Modifier, enabled: Boolean, icon: Ic?, primary: Boolean) {
+    val c = At.c
+    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val shape = MaterialTheme.shapes.medium
+    Row(
+        modifier.settleIn().then(if (LocalStacked.current) Modifier.fillMaxWidth() else Modifier).heightIn(min = if (primary) 52.dp else 48.dp)
+            .pressScale(src)
+            .then(if (enabled) Modifier.keyFace(shape, down = pressed) else Modifier.clip(shape).background(c.panelHigh))
+            .clickable(interactionSource = src, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
+    ) {
+        if (primary) { Pilot(enabled); androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp)) }
+        ButtonContent(text, icon, if (enabled) c.text else c.muted)
+    }
 }
 
 @Composable
 fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, icon: Ic? = null) {
+    if (At.c.soft) { SoftButton(text, onClick, modifier, enabled, icon, primary = false); return }
     val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     OutlinedButton(
         onClick = onClick, enabled = enabled, interactionSource = src,
@@ -1598,8 +1764,9 @@ fun TextAction(text: String, onClick: () -> Unit, enabled: Boolean = true, dange
     if (LocalStacked.current) {
         // in a stack: one full-width row per action, the label at the start and a chevron at the end
         val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+        val pressed by src.collectIsPressedAsState()
         Row(
-            Modifier.fillMaxWidth().settleIn().heightIn(min = 52.dp).pressScale(src).clip(MaterialTheme.shapes.medium).background(At.c.panelHigh)
+            Modifier.fillMaxWidth().settleIn().heightIn(min = 52.dp).pressScale(src).keyFace(MaterialTheme.shapes.medium, down = pressed)
                 .clickable(interactionSource = src, indication = androidx.compose.material3.ripple(), enabled = enabled, role = Role.Button, onClick = onClick)
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -1631,7 +1798,7 @@ fun DropSelect(
         if (label != null) InfoLabel(label, info)
         Box {
             Row(
-                Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(MaterialTheme.shapes.small).background(At.c.panelHigh)
+                Modifier.fillMaxWidth().heightIn(min = 52.dp).fieldFace()
                     .clickable(enabled = enabled, role = Role.DropdownList, onClickLabel = "Choose ${label ?: "option"}") { open = true }
                     .padding(start = 14.dp, end = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1713,8 +1880,14 @@ fun PulsingButton(label: String, sub: String?, icon: Ic, enabled: Boolean, onCli
         ) {
             val r = size.minDimension / 2
             val ctr = center
-            drawCircle(c.alu, r)
-            drawCircle(face, r * 0.95f)
+            if (c.soft) {
+                // the Concept look: the grille is cut straight into the plastic, ringed by a faint groove
+                drawCircle(face, r)
+                drawCircle(dot.copy(alpha = 0.14f), r * 0.985f, style = Stroke(1.dp.toPx()))
+            } else {
+                drawCircle(c.alu, r)
+                drawCircle(face, r * 0.95f)
+            }
             // the front of the pulse, from the centre out (read here, so only the drawing repeats)
             val p = pulse.value
             val front = if (p > 0f) dev.autotune.pulseFront(p, r) else 0f
@@ -1744,7 +1917,8 @@ fun PulsingButton(label: String, sub: String?, icon: Ic, enabled: Boolean, onCli
             }
         }
         Box(
-            Modifier.size(112.dp).pressScale(src).clip(CircleShape).background(if (enabled) c.signal else c.panelHigh)
+            Modifier.size(112.dp).pressScale(src)
+                .then(if (c.soft && enabled) Modifier.domeKey(c.signal, elevation = 10.dp) else Modifier.clip(CircleShape).background(if (enabled) c.signal else c.panelHigh))
                 .clickable(interactionSource = src, indication = androidx.compose.material3.ripple(), enabled = enabled, role = Role.Button, onClick = onClick)
                 .semantics { contentDescription = label },
             contentAlignment = Alignment.Center,
@@ -1820,9 +1994,13 @@ fun LatchKey(on: Boolean, onChange: (Boolean) -> Unit, label: String, enabled: B
         val track by androidx.compose.animation.animateColorAsState(
             if (on && enabled) c.signal else c.panelHigh, tween(motionMs(160), easing = EaseArrive), label = "track",
         )
+        val trackShape = RoundedCornerShape(16.dp)
         Box(
-            Modifier.size(58.dp, 32.dp).pressScale(src).clip(RoundedCornerShape(16.dp)).background(track)
-                .border(1.dp, if (on && enabled) c.signal else c.line, RoundedCornerShape(16.dp)),
+            Modifier.size(58.dp, 32.dp).pressScale(src).then(
+                // soft plastic: off, a slot pressed into the plate; on, the slot lit in the accent
+                if (c.soft && !(on && enabled)) Modifier.fieldFace(trackShape)
+                else Modifier.clip(trackShape).background(track).border(1.dp, if (on && enabled) c.signal else c.line, trackShape),
+            ),
         ) {
             Text(
                 if (on) "on" else "off",
@@ -1830,8 +2008,10 @@ fun LatchKey(on: Boolean, onChange: (Boolean) -> Unit, label: String, enabled: B
                 style = MaterialTheme.typography.labelSmall, color = if (on && enabled) c.onSignal else c.muted, maxLines = 1,
             )
             Box(
-                Modifier.align(Alignment.CenterStart).offset(x = 3.dp + 26.dp * knob).size(26.dp).clip(CircleShape)
-                    .background(if (on && enabled) c.onSignal else c.text.copy(alpha = 0.85f)),
+                Modifier.align(Alignment.CenterStart).offset(x = 3.dp + 26.dp * knob).size(26.dp).then(
+                    if (c.soft) Modifier.softPlate(c, CircleShape, 2.dp)
+                    else Modifier.clip(CircleShape).background(if (on && enabled) c.onSignal else c.text.copy(alpha = 0.85f)),
+                ),
             )
         }
     }
@@ -1946,7 +2126,7 @@ fun <T> PickField(
         Text(label, style = MaterialTheme.typography.labelMedium, color = At.c.muted, modifier = Modifier.padding(bottom = 4.dp))
         Box {
             Row(
-                Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(MaterialTheme.shapes.small).background(At.c.panelHigh)
+                Modifier.fillMaxWidth().heightIn(min = 56.dp).fieldFace()
                     .clickable(enabled = enabled, role = Role.DropdownList, onClickLabel = "Choose $label") { open = true }
                     .padding(start = 14.dp, end = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1988,7 +2168,7 @@ fun GroupedPick(label: String, choices: List<dev.autotune.EqChoice>, selectedKey
     Column(Modifier.fillMaxWidth().settleIn()) {
         InfoLabel(label, info)
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(MaterialTheme.shapes.small).background(At.c.panelHigh)
+            Modifier.fillMaxWidth().heightIn(min = 56.dp).fieldFace()
                 .clickable(enabled = choices.isNotEmpty(), role = Role.DropdownList, onClickLabel = "Choose $label") { open = true }
                 .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -2134,9 +2314,11 @@ fun PinAction(text: String, onClick: () -> Unit, icon: Ic? = null, enabled: Bool
 @Composable
 fun BigActionBar(a: PinnedAction) {
     val rule = At.c.line
+    val soft = At.c.soft
     Column(
-        // ruled off from the page, so content scrolling under it reads as passing under, not cut off
-        Modifier.fillMaxWidth().background(At.c.bg).drawBehind { drawLine(rule, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1.dp.toPx()) }
+        // ruled off from the page, so content scrolling under it reads as passing under, not cut off (in the soft
+        // look the raised key stands off the page by its own shadow)
+        Modifier.fillMaxWidth().background(At.c.bg).drawBehind { if (!soft) drawLine(rule, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1.dp.toPx()) }
             .padding(horizontal = 16.dp).padding(top = 10.dp, bottom = 10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -2156,16 +2338,21 @@ fun BigActionBar(a: PinnedAction) {
 @Composable
 fun MainKey(text: String, onClick: () -> Unit, sub: String? = null, enabled: Boolean = true, description: String = text) {
     val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val soft = At.c.soft
+    val pressed by src.collectIsPressedAsState()
+    // the soft look: a raised plastic key lettered in ink; the others: a graphite key lettered in the body's colour
     val keyColor = if (enabled) At.c.text else At.c.panelHigh
-    val onKey = if (enabled) At.c.bg else At.c.muted
+    val onKey = if (enabled) (if (soft) At.c.text else At.c.bg) else At.c.muted
     Box(
-        Modifier.fillMaxWidth().heightIn(min = 64.dp).pressScale(src).clip(MaterialTheme.shapes.medium).background(keyColor)
+        Modifier.fillMaxWidth().heightIn(min = 64.dp).pressScale(src)
+            .then(if (soft && enabled) Modifier.keyFace(MaterialTheme.shapes.large, down = pressed) else Modifier.clip(MaterialTheme.shapes.medium).background(keyColor))
             .clickable(interactionSource = src, indication = androidx.compose.material3.ripple(), enabled = enabled, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description }
             .padding(horizontal = 18.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.align(Alignment.CenterStart).size(12.dp).clip(CircleShape).background(if (enabled) At.c.signal else At.c.line))
+        if (soft) Pilot(enabled, Modifier.align(Alignment.CenterStart), 10.dp)
+        else Box(Modifier.align(Alignment.CenterStart).size(12.dp).clip(CircleShape).background(if (enabled) At.c.signal else At.c.line))
         // a new label slides in, so the change is noticed
         val inMs = motionMs(300)
         val outMs = motionMs(90)

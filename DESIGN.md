@@ -108,7 +108,7 @@ components:
 
 The world lends material, type and a few signature objects. It never replaces Material 3 behaviour: drop-downs for choices, standard switches and dialogs, five tabs.
 
-Every look is a Braun look (`Look` in `ui/Theme.kt`), each with a day and a night version: **Classic** (`Look.BRAUN`: dark body, light decks, teak cheeks, one red), **Graphite** (greys, dark grey accent), **Black** (black and aluminium, orange accent), **White** (a true white body with pale grey decks, always light) and **Gradient edge** (`Look.GRADIENT`, **the default** since the owner's request of 2026-11-09: Classic with each deck outline shaded from ink grey at the top to a light tone at the bottom, `AtColors.edge`, over its own default palette: body Warm white #F3F2EE, deck White #FFFFFF, ink Slate #5E5C57, accent Braun red #BF3C18, hairline Aluminium #B9BAB8, the same by day and by night). The enum names are what the setting stores and stay as they are. A fresh install, and a saved look that is missing, retired or unknown, opens Gradient edge (`DEFAULT_LOOK`, `Look.DEFAULT`); a look saved by name (Classic included) stays as saved. The older colour looks (Dyno sheet, Studio, Mixing console, Hi-fi, Analog VU, Synthwave, Navy) and the wallpaper colours were removed in 2.8; a saved setting that names one opens the default look.
+Every look is a Braun look (`Look` in `ui/Theme.kt`), each with a day and a night version: **Classic** (`Look.BRAUN`: dark body, light decks, teak cheeks, one red), **Graphite** (greys, dark grey accent), **Black** (black and aluminium, orange accent), **White** (a true white body with pale grey decks, always light) and **Gradient edge** (`Look.GRADIENT`, **the default** since the owner's request of 2026-11-09: Classic with each deck outline shaded from ink grey at the top to a light tone at the bottom, `AtColors.edge`, over its own default palette: body Warm white #F3F2EE, deck White #FFFFFF, ink Slate #5E5C57, accent Braun red #BF3C18, hairline Aluminium #B9BAB8, the same by day and by night). **Concept** (`Look.CONCEPT`, since 2.29, after the owner's reference sheet of Braun-style concept objects of 2026-11-12) is the one soft look: see "The Concept look" below. The enum names are what the setting stores and stay as they are. A fresh install, and a saved look that is missing, retired or unknown, opens Gradient edge (`DEFAULT_LOOK`, `Look.DEFAULT`); a look saved by name (Classic included) stays as saved. The older colour looks (Dyno sheet, Studio, Mixing console, Hi-fi, Analog VU, Synthwave, Navy) and the wallpaper colours were removed in 2.8; a saved setting that names one opens the default look.
 
 ## Colours
 
@@ -146,6 +146,19 @@ One column, 16dp margins, 16dp between sections. Five tabs: Tests, EQ, **Tune** 
 ## Surfaces
 
 Flat. A section is a **deck** (`Panel`, `Group`, `Fold`, `RunSheet`): a light plate on the dark body, 8dp corners, a 1dp hairline edge in the deck's rule colour (`deckPlate`; in Gradient edge a vertical gradient from dark to light), no shadow. The header graphic is drawn in the deck's colours, a light device on the dark body. Inside a deck, a nested `Panel`/`Group`/`Fold` draws flat under a hairline (`LocalInCard`). The screen header and the key row are ruled off with 1dp hairlines. Nothing has a drop shadow.
+
+## The Concept look
+
+A family of small off-white devices: moulded plastic, large corners, soft light from above, round orange keys and small displays. It changes the material, not the layout: every screen, key and deck is where it is in the other looks. `AtColors.soft` switches it on; `lcd`/`lcdInk` and `screen` carry its displays.
+
+- **Plates** (`softPlate`, via `deckPlate`): 20dp corners (`SoftDeckShape`), a vertical shade from a lighter top to the foot, a light top edge, a darker foot and a soft shadow (6dp, warm by day, black at night). This is the one look with shadows; the others stay flat.
+- **Fields and pressed keys** (`softWell`, via `fieldFace` and `keyFace(down = true)`): pressed into the plate, shaded from the top edge with a light lip at the foot. Drop-downs, pick fields, the EQ in use, an off switch.
+- **Keys** (`keyFace`): raised plastic that presses in under the finger: buttons, stacked actions, the main key, the Simple / Advanced key, the tab keys (the chosen one pressed in). Buttons and the main key are lettered in ink; the primary button and the main key carry a pilot light (`Pilot`) lit in the accent with a soft glow.
+- **Round keys** (`domeKey`): Tune in the tab row and at the centre of the dial, domed in the accent, lit from the upper left; pressed in while Tune is the tab shown. The dial's grille is cut straight into the plastic, ringed by a faint groove (no aluminium rim).
+- **Displays.** The readings (`ReadingCells`) sit on a grey LCD in a dark frame (`LcdWindow`), lettered in the LCD's ink, Inter as everywhere. The response graph is drawn on a dark screen (`ScreenWindow`, `AtColors.screen`) with its own colours: light text, the dark run inks, the accent.
+- **Switches** (`LatchKey`): the slot is pressed in, the knob is raised plastic; on, the slot is lit in the accent.
+- **Tab row**: a band of plastic, a shade lighter at the top edge, without the hairline; EQ on lights a small pilot on the EQ key.
+- **Colours**: by day body #E8E7E3, plates #F2F1EE, wells #DEDDD8, ink #252523, muted #57564F, accent #D9501A, LCD #C6C8C0 with ink #20221E; at night graphite (body #1D1D1C, plates #292927, wells #20201F) with accent #FF6A2B and a dimmed LCD (#262823, ink #DADDD0). The graph's screen is #151514 by day and night.
 
 ## Components
 
@@ -194,7 +207,7 @@ Short and mechanical. Arrivals ease out (`EaseArrive`), exits are quick (`EaseLe
 - Do open every result with the display.
 
 ### Don't:
-- Don't add shadows anywhere, or borders beyond the deck's hairline edge and the keys' edges.
+- Don't add shadows anywhere, or borders beyond the deck's hairline edge and the keys' edges. The Concept look's soft plastic is the one exception, and only through `softPlate`, `softWell` and `domeKey`.
 - Don't use teak anywhere but the two edge cheeks.
 - Don't put explanations on the page; use a bubble.
 - Don't use pills or segmented buttons for choices.

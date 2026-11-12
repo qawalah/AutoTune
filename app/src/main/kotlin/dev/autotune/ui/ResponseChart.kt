@@ -83,6 +83,8 @@ fun ResponseChart(
     // new curves (another run, a new reading) play the movement again
     val grow = rememberArrival("chart:" + data.curves.joinToString { it.label + it.values.size })
     Column(modifier.settleIn()) {
+        // in the Concept look the graph is drawn on a dark screen set into the plate
+        ScreenWindow {
         Box {
             ChartCanvas(data, Modifier.fillMaxWidth().height(height).arrival(grow), showTarget, hidden) { grow.value }
             Box(Modifier.align(Alignment.TopEnd)) {
@@ -90,6 +92,7 @@ fun ResponseChart(
                     if (zoom != null) zoom.show(me, data, showTarget, onToggleTarget, targetLabel, hiddenState) else big = true
                 }
             }
+        }
         }
         Legend(data, showTarget, onToggleTarget, hidden, toggle, targetLabel)
     }

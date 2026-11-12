@@ -460,8 +460,12 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
 fun AtNavBar(tab: Tab, busy: Boolean, eqOn: Boolean = false, onSelect: (Tab) -> Unit) {
     val c = At.c
     val items = Tab.bar
-    Column(Modifier.fillMaxWidth().background(c.shell)) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
+    // the soft look: a band of plastic, a shade lighter at its top edge, instead of a ruled strip
+    val band = if (c.soft) Modifier.background(
+        androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.lerp(c.shell, androidx.compose.ui.graphics.Color.White, if (c.dark) 0.03f else 0.35f), c.shell)),
+    ) else Modifier.background(c.shell)
+    Column(Modifier.fillMaxWidth().then(band)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(if (c.soft) (if (c.dark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.06f) else androidx.compose.ui.graphics.Color.White) else c.line))
         Row(
             Modifier.align(Alignment.CenterHorizontally).widthIn(max = 520.dp).fillMaxWidth().padding(horizontal = 10.dp).padding(top = 12.dp, bottom = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom,
@@ -486,12 +490,19 @@ fun AtNavBar(tab: Tab, busy: Boolean, eqOn: Boolean = false, onSelect: (Tab) -> 
                             latched -> androidx.compose.ui.graphics.lerp(c.panelHigh, c.line, 0.55f)
                             else -> c.panelHigh
                         }
+                        // the soft look: raised plastic keys; the chosen one is pressed in, and EQ on lights a pilot on its key
+                        val keyShape = RoundedCornerShape(if (c.soft) 12.dp else 4.dp)
                         Box(
-                            Modifier.offset(y = down).size(62.dp, 42.dp).pressScale(src).clip(RoundedCornerShape(4.dp))
-                                .background(face).border(1.dp, if (here) c.text else c.line, RoundedCornerShape(4.dp))
+                            Modifier.offset(y = down).size(62.dp, 42.dp).pressScale(src)
+                                .then(
+                                    if (c.soft) Modifier.keyFace(keyShape, down = here)
+                                    else Modifier.clip(keyShape).background(face).border(1.dp, if (here) c.text else c.line, keyShape),
+                                )
                                 .semantics { if (latched) stateDescription = "AutoTune EQ on" },
                             contentAlignment = Alignment.Center,
                         ) {
+                            if (latched && c.soft) Pilot(true, Modifier.align(Alignment.TopEnd).padding(top = 7.dp, end = 8.dp), 6.dp)
+                            else
                             if (latched) Box(
                                 Modifier.matchParentSize().background(
                                     androidx.compose.ui.graphics.Brush.verticalGradient(
@@ -500,7 +511,7 @@ fun AtNavBar(tab: Tab, busy: Boolean, eqOn: Boolean = false, onSelect: (Tab) -> 
                                     ),
                                 ),
                             )
-                            AtIcon(t.icon, if (here) c.bg else c.text, size = 24.dp)
+                            AtIcon(t.icon, if (here && !c.soft) c.bg else c.text, size = 24.dp)
                         }
                     }
                     Text(
@@ -532,7 +543,13 @@ private fun TuneButton(selected: Boolean, pulse: Boolean, src: androidx.compose.
         if (ring != null) androidx.compose.foundation.Canvas(Modifier.size(62.dp)) {
             drawCircle(c.signal.copy(alpha = 0.5f * (1f - ring)), size.minDimension / 2 * (0.8f + 0.2f * ring), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
         }
-        Box(
+        if (c.soft) {
+            // the Concept look: a domed orange key, pressed in while Tune is the tab shown
+            Box(
+                Modifier.offset(y = down).size(if (selected) 50.dp else 52.dp).pressScale(src).domeKey(c.signal, down = selected),
+                contentAlignment = Alignment.Center,
+            ) { AtIcon(Ic.TUNE, c.onSignal, size = 26.dp) }
+        } else Box(
             Modifier.offset(y = down).size(if (selected) 48.dp else 50.dp).pressScale(src).clip(CircleShape).background(face)
                 .border(if (selected) 2.dp else 0.dp, c.line, CircleShape),
             contentAlignment = Alignment.Center,

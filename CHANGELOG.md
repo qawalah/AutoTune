@@ -4,6 +4,10 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.29.0] - 2026-11-12
+### Added
+- **A new look, Concept** (Settings › Look), after a family of small off-white devices. The plates and keys are soft plastic: rounded corners, lighter at the top than at the foot, with a soft shadow. Fields and drop-downs are pressed into the plate. The round keys (Tune in the tab row and on the dial) are domed orange. The readings of a result sit on a grey LCD in a dark frame, and the response graph is drawn on a dark screen. The tab keys are raised and the chosen one is pressed in; with the AutoTune EQ on, its key carries a lit pilot. The switches are a slot pressed into the plate with a plastic knob, lit orange when on. At night the plastic is graphite and the LCD dimmed. The accent and the palette work over it as over any look. The other looks are unchanged.
+
 ## [2.28.1] - 2026-11-12
 ### Changed
 - **The rest of the screens arrive too:** every text field on a page, each EQ band and profile row, the band sliders, AI issue rows, findings, result headlines and the "Details" heading now settle in like everything else.
