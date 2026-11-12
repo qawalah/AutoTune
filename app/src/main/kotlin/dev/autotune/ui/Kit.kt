@@ -1273,7 +1273,12 @@ fun HeaderArt(key: String, modifier: Modifier, shown: (() -> Boolean)? = null) {
         val r6 = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx())
         val r2 = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
         val hair = 1.dp.toPx()
-        fun deck() = drawRoundRect(plate, Offset.Zero, size, r6)
+        // every drawing sits in its device's box: the plate with a hairline edge, so it reads on a light body too
+        // (owner, 2026-11-12: "the graphics should have an outline box, for example the cassette")
+        fun deck() {
+            drawRoundRect(plate, Offset.Zero, size, r6)
+            drawRoundRect(rule, Offset(hair / 2, hair / 2), Size(w - hair, h - hair), r6, style = Stroke(hair))
+        }
         // the pilot lights last, once the movement has settled
         fun pilot(x: Float, y: Float) = drawCircle(accent.copy(alpha = accent.alpha * ramp(t, 0.6f, 1f)), h * 0.035f, Offset(x, y))
         fun turn(p: Offset, about: Offset, deg: Float): Offset {
@@ -1317,7 +1322,9 @@ fun HeaderArt(key: String, modifier: Modifier, shown: (() -> Boolean)? = null) {
                 }
             }
             "tune" -> {
-                // the round speaker: an aluminium rim, the perforated grille filling in from the centre, the Tune key's pilot
+                // the round speaker in its cabinet: an aluminium rim, the perforated grille filling in from the centre,
+                // the Tune key's pilot
+                deck()
                 val ctr = Offset(w * 0.6f, h * 0.5f); val r = h * 0.48f
                 drawCircle(alu.copy(alpha = 0.55f), r, ctr)
                 drawCircle(plate, r * 0.93f, ctr)
@@ -1390,14 +1397,65 @@ fun HeaderArt(key: String, modifier: Modifier, shown: (() -> Boolean)? = null) {
                 drawRoundRect(slotInk, Offset(w * 0.68f, h * 0.675f), Size(w * 0.25f, h * 0.025f), r2)
                 drawRoundRect(ink, Offset(w * (0.69f + 0.07f * t), h * 0.6f), Size(w * 0.05f, h * 0.17f), r2)
             }
+            "home theatre" -> {
+                // the home theatre the TV or PC plays: the screen between two tower speakers, a soundbar under it; as it
+                // appears the level bars rise on the screen and the sound spreads from the towers
+                deck()
+                val small = h < 56.dp.toPx()
+                val tw = w * 0.12f; val tTop = h * 0.14f; val tH = h * 0.72f
+                for (x in listOf(w * 0.06f, w * 0.94f - tw)) {
+                    drawRoundRect(keyFace, Offset(x, tTop), Size(tw, tH), r2)
+                    drawRoundRect(rule, Offset(x, tTop), Size(tw, tH), r2, style = Stroke(hair))
+                    drawCircle(alu, tw * 0.2f, Offset(x + tw / 2, tTop + tH * 0.16f))
+                    for (q in listOf(0.48f, 0.78f)) {
+                        drawCircle(alu, tw * 0.36f, Offset(x + tw / 2, tTop + tH * q))
+                        drawCircle(Vinyl.copy(alpha = 0.85f), tw * 0.22f, Offset(x + tw / 2, tTop + tH * q))
+                    }
+                }
+                val sx = w * 0.25f; val sw = w * 0.5f; val sy = h * 0.12f; val sh = h * if (small) 0.6f else 0.48f
+                drawRoundRect(ink, Offset(sx, sy), Size(sw, sh), r2)
+                drawRoundRect(Vinyl, Offset(sx + hair * 2, sy + hair * 2), Size(sw - hair * 4, sh - hair * 4), r2)
+                // the level bars on the screen: the companion playing, one bar in the accent
+                val bars = listOf(0.35f, 0.6f, 0.85f, 0.7f, 0.5f, 0.62f, 0.4f)
+                val bw = (sw - hair * 8) / bars.size
+                bars.forEachIndexed { k, v0 ->
+                    val v = v0 * ramp(t, k * 0.05f, k * 0.05f + 0.55f)
+                    val bh = (sh - hair * 10) * v
+                    drawRect(if (k == 2) accent else Color.White.copy(alpha = 0.55f), Offset(sx + hair * 4 + bw * k + bw * 0.25f, sy + sh - hair * 5 - bh), Size(bw * 0.5f, bh))
+                }
+                if (!small) {
+                    drawLine(ink, Offset(w * 0.5f, sy + sh), Offset(w * 0.5f, h * 0.68f), hair * 1.5f)
+                    val bx = w * 0.3f; val by = h * 0.7f; val bwid = w * 0.4f; val bht = h * 0.12f
+                    drawRoundRect(keyFace, Offset(bx, by), Size(bwid, bht), r2)
+                    drawRoundRect(rule, Offset(bx, by), Size(bwid, bht), r2, style = Stroke(hair))
+                    for (q in 1..4) drawCircle(ink.copy(alpha = 0.5f), hair * 1.3f, Offset(bx + bwid * q / 5f, by + bht / 2))
+                    // the sound from the towers, spreading as it appears
+                    val a = ramp(t, 0.3f, 0.9f)
+                    for ((cx, start) in listOf(w * 0.06f + tw to -40f, w * 0.94f - tw to 140f)) for (k in 1..2) {
+                        val r = w * 0.035f * k * (0.6f + 0.4f * a)
+                        drawArc(ink.copy(alpha = 0.45f * a / k), start, 80f, false, Offset(cx - r, tTop + tH * 0.48f - r), Size(2 * r, 2 * r), style = Stroke(hair * 1.3f, cap = StrokeCap.Round))
+                    }
+                    pilot(w * 0.66f, h * 0.76f)
+                }
+            }
             else -> {
-                // a tape deck: two reels turning a little way, the tape between them over the head
+                // a cassette deck: the cassette's shell with its window, two reels turning a little way, the tape
+                // between them over the head
                 deck()
                 // in the folded header the deck is small: just the two reels, larger, without the tape, head and pilot,
                 // which turned into stray marks at that size (owner, 2026-11-11)
                 val small = h < 56.dp.toPx()
+                // the cassette itself: its shell, the window the hubs show through, the reels, the tape over the head
+                val shellTop = h * if (small) 0.06f else 0.07f
+                val shellH = h * if (small) 0.88f else 0.72f
+                drawRoundRect(keyFace, Offset(w * 0.07f, shellTop), Size(w * 0.86f, shellH), r6)
+                drawRoundRect(rule, Offset(w * 0.07f, shellTop), Size(w * 0.86f, shellH), r6, style = Stroke(hair))
+                if (!small) {
+                    drawRoundRect(plate, Offset(w * 0.16f, h * 0.17f), Size(w * 0.68f, h * 0.4f), r2)
+                    drawRoundRect(rule, Offset(w * 0.16f, h * 0.17f), Size(w * 0.68f, h * 0.4f), r2, style = Stroke(hair))
+                }
                 fun reel(cx: Float, spin: Float) {
-                    val ctr = Offset(cx, h * if (small) 0.5f else 0.44f); val r = h * if (small) 0.4f else 0.3f
+                    val ctr = Offset(cx, h * if (small) 0.5f else 0.37f); val r = h * if (small) 0.4f else 0.17f
                     drawCircle(alu.copy(alpha = 0.7f), r, ctr)
                     drawCircle(Vinyl.copy(alpha = 0.85f), r * 0.62f, ctr)
                     drawCircle(keyFace, r * 0.24f, ctr)
@@ -1408,11 +1466,12 @@ fun HeaderArt(key: String, modifier: Modifier, shown: (() -> Boolean)? = null) {
                 }
                 // both reels wind the same way, a turn and a third, then stop with the hubs where they always rest
                 val spin = -480f * (1f - t)
-                reel(w * 0.27f, spin); reel(w * 0.73f, spin)
+                reel(w * if (small) 0.27f else 0.32f, spin); reel(w * if (small) 0.73f else 0.68f, spin)
                 if (!small) {
-                    drawLine(ink.copy(alpha = 0.7f), Offset(w * 0.27f, h * 0.74f), Offset(w * 0.73f, h * 0.74f), hair * 1.5f)
-                    drawRoundRect(keyFace, Offset(w * 0.44f, h * 0.7f), Size(w * 0.12f, h * 0.14f), r2)
-                    pilot(w * 0.9f, h * 0.88f)
+                    drawLine(ink.copy(alpha = 0.7f), Offset(w * 0.2f, h * 0.68f), Offset(w * 0.8f, h * 0.68f), hair * 1.5f)
+                    drawRoundRect(plate, Offset(w * 0.43f, h * 0.63f), Size(w * 0.14f, h * 0.1f), r2)
+                    drawRoundRect(rule, Offset(w * 0.43f, h * 0.63f), Size(w * 0.14f, h * 0.1f), r2, style = Stroke(hair))
+                    pilot(w * 0.9f, h * 0.89f)
                 }
             }
         }
