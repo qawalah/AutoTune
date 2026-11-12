@@ -56,8 +56,8 @@ import kotlin.math.abs
 @Composable
 fun TuneTab(
     s: UiState, vm: TuneViewModel, sharer: Sharer, go: (Tab) -> Unit, openResults: () -> Unit, pick: Pickers,
-    /** Opens the home-theatre page; a name starts a new home theatre there. */
-    openCompanion: (String?) -> Unit = { go(Tab.THEATRE) },
+    /** Opens the home-theatre page, where AutoTune on the TV or the PC is connected. */
+    openCompanion: () -> Unit = { go(Tab.THEATRE) },
 ) {
     // Exit leaves the workflow and keeps the place: Continue comes back to the same step
     val exit = { vm.tuneExit() }
@@ -134,13 +134,14 @@ private fun Check(icon: Ic, text: String) {
 // ------------------------------------------------------------------ 2. set up
 
 /**
- * Set up asks in the order the answers depend on each other (owner, 2026-11-12): what is tuned, as four picture keys;
- * its name; the test's name; then, for a home theatre or a PC, whether AutoTune is on it (the TV or the PC). With the
- * companion the key connects to it; without, the targets, the ways the sound can reach the speakers and the checklist
- * all follow the equipment.
+ * Set up is a few short screens, one question each (owner, 2026-11-12: "separate in steps ... not to overwhelm the
+ * user"; see [dev.autotune.setupPages]): what is tuned, as four picture keys; for a home theatre or a PC, whether
+ * AutoTune is on it (yes leaves for its page); the names; then how the test sound gets to the speakers, whose key
+ * starts the stock reading. Simple never asks the target ([dev.autotune.simpleTarget]); Advanced asks it on the last
+ * screen with the measurement options. Back walks the screens before it leaves Set up.
  */
 @Composable
-private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pickers, exit: () -> Unit, openCompanion: (String?) -> Unit) {
+private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pickers, exit: () -> Unit, openCompanion: () -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
     var equipName by rememberSaveable { mutableStateOf("") }
     // starts from the defaults in Settings (target, spots, window); on an output tuned before only the equipment and
@@ -152,94 +153,122 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
     var equipment by rememberSaveable(out) {
         mutableStateOf(dev.autotune.startEquipment(mem?.equipment, s.lastEquipment, s.carMode, kinds.getOrElse(defIdx) { dev.autotune.TargetKind.CAR }))
     }
-    val companion = dev.autotune.companionQuestion(equipment)
-    var installed by rememberSaveable(equipment) { mutableStateOf(equipment in s.companionInstalled) }
-    val viaCompanion = companion != null && installed
+    var page by rememberSaveable { mutableStateOf(dev.autotune.SetupPage.EQUIPMENT) }
+    val pages = dev.autotune.setupPages(equipment)
 
+    val advanced = isAdvanced()
     val targetIdxs = dev.autotune.equipmentTargets(equipment, kinds)
-    var targetIdx by rememberSaveable(out, equipment) { mutableIntStateOf(dev.autotune.equipmentTarget(equipment, kinds, defIdx, mem?.targetIdx)) }
+    var advTargetIdx by rememberSaveable(out, equipment) { mutableIntStateOf(dev.autotune.equipmentTarget(equipment, kinds, defIdx, mem?.targetIdx)) }
+    // Simple does not ask: Harman-style in a car, the room curve elsewhere
+    val targetIdx = if (advanced) advTargetIdx else Target.ALL.indexOf(dev.autotune.simpleTarget(equipment)).coerceAtLeast(0)
     val routes = dev.autotune.equipmentRoutes(equipment)
     val memSource = mem?.let { m -> Source.entries.getOrNull(m.sourceIdx) }
     var route by rememberSaveable(out, equipment) { mutableStateOf(dev.autotune.equipmentRoute(equipment, memSource ?: s.source)) }
-    val car = equipment == dev.autotune.Equipment.CAR || kinds.getOrNull(targetIdx) == dev.autotune.TargetKind.CAR
+    val car = equipment == dev.autotune.Equipment.CAR
     var spotsIdx by rememberSaveable(car, out) {
         mutableIntStateOf(listOf(1, 3, 5).indexOf(s.defSpots).takeIf { it >= 0 } ?: if (car) 1 else 0)
     }
     var gateIdx by rememberSaveable(out) { mutableIntStateOf(listOf(0, 80, 200, 400, 600).indexOf(s.defGateMs).coerceAtLeast(0)) }
     val spots = listOf(1, 3, 5)
 
-    StepHeader(0, STEPS, "Set up", exit, onBack = vm::tuneBack, names = dev.autotune.STEP_NAMES)
-    Panel {
-        CardTitle("What are you tuning?", info = dev.autotune.stockChecklist(equipment))
-        if (mem?.equipment != null && out != null) Muted("as last time on $out")
-        // 1. the equipment, as four picture keys: everything below follows from it
-        EquipmentTiles(equipment, { equipment = it }, enabled = !s.busy)
-        // 2. its name (it names the EQs), then the test's
-        OutlinedTextField(
-            value = equipName, onValueChange = { equipName = it },
-            label = { Text("Equipment name") }, placeholder = { Text("e.g. " + equipNamePlaceholder(equipment, s.outputName)) },
-            singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-            modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
-        )
-        OutlinedTextField(
-            value = name, onValueChange = { name = it },
-            label = { Text("Test name (optional)") }, placeholder = { Text(namePlaceholder(equipment)) },
-            singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
-        )
-        // 3. a TV or a PC can run AutoTune itself, which plays every speaker and puts the EQ in use there
-        if (companion != null) DropSelect(
-            companion.answers, if (installed) 1 else 0, { installed = it == 1 }, label = companion.label,
-            icon = Ic.HOME, details = companion.details, info = companion.info,
-        )
-        if (!viaCompanion) {
-            DropSelect(
-                targetIdxs.map { s.targetNames[it] }, targetIdxs.indexOf(targetIdx).coerceAtLeast(0), { targetIdx = targetIdxs[it] },
-                label = "Target sound", icons = targetIdxs.map { kindIcon(kinds[it]) },
-                details = targetIdxs.map { targetDetail(Target.ALL.getOrNull(it)) },
+    fun next() { dev.autotune.nextSetupPage(equipment, page)?.let { page = it } }
+    val back: () -> Unit = { dev.autotune.previousSetupPage(equipment, page)?.let { page = it } ?: vm.tuneBack() }
+    // the phone's Back walks the screens too; on the first it is the Tune screen's own Back
+    androidx.activity.compose.BackHandler(enabled = page != dev.autotune.SetupPage.EQUIPMENT && !s.busy) { back() }
+
+    StepHeader(0, STEPS, "Set up", exit, onBack = back, names = dev.autotune.STEP_NAMES)
+    val count = "${pages.indexOf(page) + 1} of ${pages.size}"
+    when (page) {
+        dev.autotune.SetupPage.EQUIPMENT -> {
+            Panel {
+                CardTitle(page.title, count)
+                // a key picks and moves on: the next question follows from it
+                EquipmentTiles(equipment, { equipment = it; next() }, enabled = !s.busy)
+                if (mem?.equipment != null && out != null) Muted("as last time on $out")
+            }
+            PinAction("Next: ${equipment.title.lowercase()}", ::next, icon = Ic.NEXT)
+        }
+
+        dev.autotune.SetupPage.COMPANION -> {
+            val q = dev.autotune.companionQuestion(equipment) ?: return
+            val installed = equipment in s.companionInstalled
+            val connect = { vm.rememberEquipment(equipment, true); openCompanion() }
+            val phoneOnly = { if (installed) vm.forgetCompanion(equipment); next() }
+            Panel {
+                CardTitle("Is AutoTune on ${equipment.companion}?", count, info = q.info)
+                // the answer not pinned below, as a key of its own
+                Actions {
+                    if (installed) SecondaryButton("No, use this phone only", phoneOnly, Modifier.fillMaxWidth(), icon = Ic.MIC)
+                    else SecondaryButton("Yes, connect to it", connect, Modifier.fillMaxWidth(), icon = Ic.HOME)
+                }
+            }
+            // the answer given last time is the one pinned
+            if (installed) PinAction("Connect to AutoTune on ${equipment.companion}", connect, icon = Ic.HOME)
+            else PinAction("Use this phone only", phoneOnly, icon = Ic.NEXT)
+        }
+
+        dev.autotune.SetupPage.NAMES -> {
+            Panel {
+                CardTitle(page.title, count)
+                OutlinedTextField(
+                    value = equipName, onValueChange = { equipName = it },
+                    label = { Text("Equipment name") }, placeholder = { Text("e.g. " + equipNamePlaceholder(equipment, s.outputName)) },
+                    singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
+                )
+                OutlinedTextField(
+                    value = name, onValueChange = { name = it },
+                    label = { Text("Test name (optional)") }, placeholder = { Text(namePlaceholder(equipment)) },
+                    singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
+                )
+            }
+            PinAction("Next", ::next, icon = Ic.NEXT)
+        }
+
+        dev.autotune.SetupPage.SOUND -> {
+            Panel {
+                CardTitle(page.title, count, info = dev.autotune.stockChecklist(equipment))
+                if (advanced) DropSelect(
+                    targetIdxs.map { s.targetNames[it] }, targetIdxs.indexOf(advTargetIdx).coerceAtLeast(0), { advTargetIdx = targetIdxs[it] },
+                    label = "Target sound", icons = targetIdxs.map { kindIcon(kinds[it]) },
+                    details = targetIdxs.map { targetDetail(Target.ALL.getOrNull(it)) },
+                )
+                DropSelect(
+                    routes.map { dev.autotune.routeLabel(equipment, it) }, routes.indexOf(route).coerceAtLeast(0), { route = routes[it] },
+                    label = "How the sound reaches the speakers", icon = Ic.SPEAKER,
+                )
+                if (route == Source.PHONE) {
+                    OutputPicker(s, vm)
+                    Actions { if (s.playing) TextAction("Stop the test sound", vm::stopClip, icon = Ic.STOP) else TextAction("Test sound", vm::testSound, enabled = !s.busy, icon = Ic.PLAY) }
+                } else OtherDeviceSignal(route, vm, sharer)
+                MicLine(s, pick)
+            }
+            // spots and window keep sensible defaults and wait in Advanced
+            if (advanced) Fold("Measurement options", summary = listOf("1 spot", "3 spots", "5 spots")[spotsIdx] + " · " + listOf("auto window", "80 ms", "200 ms", "400 ms", "600 ms")[gateIdx]) {
+                DropSelect(
+                    listOf("1 spot", "3 spots", "5 spots"), spotsIdx, { spotsIdx = it }, label = "Mic spots per reading", icon = Ic.MIC,
+                    details = listOf("Quickest", "Recommended for a car: averages out one unlucky spot", "Most reliable"),
+                )
+                DropSelect(
+                    listOf("Auto (80 ms for a car, 400 ms for a room)", "80 ms", "200 ms", "400 ms", "600 ms"), gateIdx, { gateIdx = it }, label = "Analysis window",
+                )
+            }
+            // the tools for a closer look wait here, in the step they belong to (owner, 2026-11-11), not on the Tune home
+            Adv {
+                Fold("Advanced tools", summary = "Mic spots, channel, window, left/right, subwoofer") {
+                    Settings(s, vm, s.hasPermission)
+                    ExtraChecks(s, vm, s.hasPermission)
+                }
+            }
+            // no stop in between: this key creates the test and starts the stock reading
+            PinAction(
+                "Measure the stock system",
+                { vm.tuneSetup(name, targetIdx, route, spots[spotsIdx], listOf(null, 80, 200, 400, 600)[gateIdx], equipment, equipName) },
+                icon = Ic.MEASURE,
             )
-            DropSelect(
-                routes.map { dev.autotune.routeLabel(equipment, it) }, routes.indexOf(route).coerceAtLeast(0), { route = routes[it] },
-                label = "How the sound reaches the speakers", icon = Ic.SPEAKER,
-            )
-            if (route == Source.PHONE) {
-                OutputPicker(s, vm)
-                Actions { if (s.playing) TextAction("Stop the test sound", vm::stopClip, icon = Ic.STOP) else TextAction("Test sound", vm::testSound, enabled = !s.busy, icon = Ic.PLAY) }
-            } else OtherDeviceSignal(route, vm, sharer)
-            MicLine(s, pick)
         }
     }
-    if (viaCompanion) {
-        // the TV or PC takes it from here: its page finds it, pairs with its code and runs the tests
-        PinAction(
-            "Connect to AutoTune on ${equipment.companion}",
-            { vm.rememberEquipment(equipment, true); openCompanion(dev.autotune.companionTheatreName(equipName, name)) }, icon = Ic.HOME,
-        )
-        return
-    }
-    // the essentials above; spots and window keep sensible defaults and wait in Advanced
-    if (isAdvanced()) Fold("Measurement options", summary = listOf("1 spot", "3 spots", "5 spots")[spotsIdx] + " · " + listOf("auto window", "80 ms", "200 ms", "400 ms", "600 ms")[gateIdx]) {
-        DropSelect(
-            listOf("1 spot", "3 spots", "5 spots"), spotsIdx, { spotsIdx = it }, label = "Mic spots per reading", icon = Ic.MIC,
-            details = listOf("Quickest", "Recommended for a car: averages out one unlucky spot", "Most reliable"),
-        )
-        DropSelect(
-            listOf("Auto (80 ms for a car, 400 ms for a room)", "80 ms", "200 ms", "400 ms", "600 ms"), gateIdx, { gateIdx = it }, label = "Analysis window",
-        )
-    }
-    // the tools for a closer look wait here, in the step they belong to (owner, 2026-11-11), not on the Tune home
-    Adv {
-        Fold("Advanced tools", summary = "Mic spots, channel, window, left/right, subwoofer") {
-            Settings(s, vm, s.hasPermission)
-            ExtraChecks(s, vm, s.hasPermission)
-        }
-    }
-    // no stop in between: this key creates the test and starts the stock reading
-    PinAction(
-        "Measure the stock system",
-        { vm.tuneSetup(name, targetIdx, route, spots[spotsIdx], listOf(null, 80, 200, 400, 600)[gateIdx], equipment, equipName) },
-        icon = Ic.MEASURE,
-    )
 }
 
 /** An example equipment name: the output the phone plays to when there is one, else one for the kind. */

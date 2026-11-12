@@ -525,13 +525,33 @@ fun companionQuestion(e: Equipment): CompanionQuestion? {
 data class CompanionQuestion(val label: String, val answers: List<String>, val details: List<String>, val info: String)
 
 /**
- * The home theatre Set up's names start on the companion's page: the equipment's name, with the test's after it when
- * both are given ("LG soundbar, sofa"). Null when neither is, so the page opens on the last home theatre.
+ * Set up's screens, one question each (owner, 2026-11-12: "separate in steps ... not to overwhelm the user"): what is
+ * tuned; whether AutoTune is on it (a TV or a PC only); the names; then how the sound gets to the speakers, whose key
+ * starts the stock reading. "Installed" on the second screen leaves Set up for the companion's page.
  */
-fun companionTheatreName(equipName: String, testName: String): String? {
-    val parts = listOf(equipName.trim(), testName.trim()).filter { it.isNotEmpty() }
-    return parts.joinToString(", ").ifEmpty { null }
+enum class SetupPage(val title: String) {
+    EQUIPMENT("What are you tuning?"),
+    COMPANION("Is AutoTune on it?"),
+    NAMES("Name it"),
+    SOUND("Play the test sound"),
 }
+
+/** The screens Set up shows for [e], in order: the companion question only where there can be one. */
+fun setupPages(e: Equipment): List<SetupPage> =
+    SetupPage.entries.filter { it != SetupPage.COMPANION || e.companion != null }
+
+/** The screen after [page] for [e]; null on the last. */
+fun nextSetupPage(e: Equipment, page: SetupPage): SetupPage? = setupPages(e).let { p -> p.getOrNull(p.indexOf(page) + 1) }
+
+/** The screen before [page] for [e]; null on the first (Back then leaves Set up). */
+fun previousSetupPage(e: Equipment, page: SetupPage): SetupPage? = setupPages(e).let { p -> p.getOrNull(p.indexOf(page) - 1) }
+
+/**
+ * The target in Simple, where Set up does not ask (owner, 2026-11-12): Harman-style for a car, the room curve for
+ * everything else. Advanced asks, starting from [equipmentTarget].
+ */
+fun simpleTarget(e: Equipment): dev.autotune.dsp.Target =
+    if (e == Equipment.CAR) dev.autotune.dsp.Target.HARMAN_CAR else dev.autotune.dsp.Target.HOME_THEATER
 
 /**
  * A new test's name: the one typed, else the equipment's name and the date ("F-150, 12 Nov"), else the target's
