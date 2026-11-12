@@ -48,21 +48,52 @@ fun EquipmentTiles(selected: Equipment, onPick: (Equipment) -> Unit, enabled: Bo
 }
 
 @Composable
-private fun EquipmentTile(e: Equipment, on: Boolean, onClick: () -> Unit, enabled: Boolean, modifier: Modifier) {
+private fun EquipmentTile(e: Equipment, on: Boolean, onClick: () -> Unit, enabled: Boolean, modifier: Modifier) =
+    PictureKey(e.title, on, onClick, enabled, modifier) { drawEquipment(e, it) }
+
+/**
+ * A big key with a line drawing over its words, the Set up picture keys' shape. [on] gives it the accent edge and
+ * drawing; two keys that are equal answers both pass false.
+ */
+@Composable
+fun PictureKey(
+    title: String, on: Boolean, onClick: () -> Unit, enabled: Boolean = true, modifier: Modifier = Modifier,
+    minHeight: androidx.compose.ui.unit.Dp = 118.dp, draw: DrawScope.(Color) -> Unit,
+) {
     val c = At.c
     val shape = MaterialTheme.shapes.medium
     val ink = if (on) c.signal else c.text
     Column(
-        modifier.heightIn(min = 118.dp).clip(shape).background(c.panelHigh)
+        modifier.heightIn(min = minHeight).clip(shape).background(c.panelHigh)
             .border(if (on) 2.dp else 1.dp, if (on) c.signal else c.line, shape)
-            .selectable(selected = on, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+            .selectable(selected = on, enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
     ) {
-        Canvas(Modifier.fillMaxWidth().height(52.dp)) { drawEquipment(e, ink) }
-        Text(
-            e.title, style = MaterialTheme.typography.labelLarge, color = c.text, textAlign = TextAlign.Center, maxLines = 2,
+        Canvas(Modifier.fillMaxWidth().height(52.dp)) { draw(ink) }
+        Text(title, style = MaterialTheme.typography.labelLarge, color = c.text, textAlign = TextAlign.Center, maxLines = 3)
+    }
+}
+
+/**
+ * The phone on its own, for "No, use this phone only": a phone upright, its speaker slot and camera at the top, the
+ * microphone at the foot, and the sound it hears coming in from both sides.
+ */
+fun DrawScope.drawPhoneOnly(tint: Color) {
+    val u = minOf(size.width / 48f, size.height / 26f)
+    val ox = (size.width - 48f * u) / 2f
+    val oy = (size.height - 26f * u) / 2f
+    val sw = 1.5.dp.toPx()
+    fun p(x: Float, y: Float) = Offset(ox + x * u, oy + y * u)
+    drawRoundRect(tint, p(18.5f, 1.5f), Size(11f * u, 23f * u), CornerRadius(2.2f * u), style = Stroke(sw))
+    drawLine(tint, p(22.5f, 4f), p(25.5f, 4f), sw, StrokeCap.Round)
+    drawCircle(tint, 0.9f * u, p(24f, 21.5f))
+    for (side in listOf(-1f, 1f)) {
+        val cx = 24f + side * 3f
+        for (r in listOf(13f, 17f)) drawArc(
+            tint, if (side < 0) 155f else -25f, 50f, false, p(cx - r, 13f - r), Size(2 * r * u, 2 * r * u),
+            style = Stroke(sw, cap = StrokeCap.Round),
         )
     }
 }

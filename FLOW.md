@@ -1,4 +1,4 @@
-# AutoTune flow maps (2.25.0)
+# AutoTune flow maps (2.25.1)
 
 How a tuning session flows and how you move around the app, drawn from the code. Update this file whenever a Tune step, a pinned action or a link between screens changes (see CLAUDE.md). Code names in brackets point at where each decision lives.
 
@@ -7,7 +7,7 @@ How a tuning session flows and how you move around the app, drawn from the code.
 ```mermaid
 flowchart TD
   K(["Tune key, or New test on Tests"]) --> EQP{"1 Set up, screen 1: What are you tuning?<br/>four picture keys: Car, Home theatre or soundbar,<br/>PC speakers, Other speakers<br/>(a key picks and moves on)"}
-  EQP -->|"Home theatre or PC speakers"| CQ{"screen 2: Is AutoTune on the TV / the PC?<br/>(companionQuestion)"}
+  EQP -->|"Home theatre or PC speakers"| CQ{"screen 2: Is AutoTune on the TV / the PC?<br/>two equal picture keys, nothing pinned<br/>(companionQuestion)"}
   CQ -->|"Yes, AutoTune is on it"| NC["screen: Name it<br/>equipment name, test name"]
   NC -->|"Connect to AutoTune on the TV or PC<br/>(a new home theatre with these names, made once it connects)"| HTP(["Home theatre page<br/>(see the navigation map)"])
   CQ -->|"No: Use this phone only"| NM
@@ -54,7 +54,7 @@ Every measurement starts the moment its key is pressed. Stock and Verify are mea
 
 | Screen | The one key | Other choices |
 |---|---|---|
-| Set up, one question per screen | What are you tuning: Next (a picture key also moves on); Is AutoTune on it: the answer given last time (Connect to AutoTune on the TV/PC, or Use this phone only); Name it: Next; Play the test sound: Measure the stock system | The other answer on the AutoTune screen; route, output, Test sound; Advanced: target, measurement options, tools |
+| Set up, one question per screen | What are you tuning: Next (a picture key also moves on); Is AutoTune on it: nothing pinned, two equal keys (Yes, AutoTune is on the TV/PC; No, use this phone only); Name it: Next; Play the test sound: Measure the stock system | route, output, Test sound; Advanced: target, measurement options, tools |
 | Measuring | See the result (closes itself when all checks pass), or Try again | Measure next spot, Check the level, Ask AI why, Close |
 | EQ, after stock | Use the phone's EQ and measure; Measure the stock again when the stock looks wrong; It's set, measure on equipment | Preview in the app, Set it on my equipment; Advanced: target, sliders, bands, files, AI |
 | Result | Apply the new suggested EQ, Keep this EQ and finish, Keep the EQ of run n, Check the EQ reaches the speakers, Measure again, Set it on my equipment, or Switch on the phone's EQ and measure | The other moves, Measure again, Ask AI, All results, Discard |

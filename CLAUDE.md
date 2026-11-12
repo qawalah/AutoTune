@@ -41,7 +41,7 @@ phone through Obtainium.
   Read it before making larger changes.
 
 ## UI rules (from the owner)
-- Choices are drop-downs, never pills or segmented controls. One exception, asked by the owner (2026-11-12): Set up's equipment is four big picture keys (`EquipmentTiles`).
+- Choices are drop-downs, never pills or segmented controls. Exceptions, asked by the owner (2026-11-12): Set up's equipment is four big picture keys (`EquipmentTiles`), and "Is AutoTune on the TV?" is two equal picture keys in the middle of the screen with nothing pinned (`PictureKey`).
 - Use line icons from `Ic` in `ui/Kit.kt`.
 - Keep to clean Material 3, with minimal scrolling and taps.
 - After every reading, show a short summary, then one recommended action pinned above the tabs (`PinAction`), then the other choices, then Details. The graph is always shown.

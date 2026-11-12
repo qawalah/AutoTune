@@ -4,6 +4,11 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.25.1] - 2026-11-12
+### Changed
+- **"Is AutoTune on the TV?" is two equal choices in the middle of the screen:** "Yes, AutoTune is on the TV" (with the TV or PC drawn) and "No, use this phone only" (a phone), side by side, the same size. Nothing is pinned or suggested below them any more.
+- The "TV or PC" widget shows a live preview in the widget list (Android 12 and later). It is in the list from 2.25.0 on; Settings › About shows the version installed.
+
 ## [2.25.0] - 2026-11-12
 ### Changed
 - **The link to AutoTune on the TV or PC stays up.** It belongs to the app now, not to the home-theatre page, so leaving the page no longer drops it. The phone sends a small keep-alive every 15 seconds, so a dead link is noticed, and when it drops (not by Disconnect) the phone connects again by itself: after 2, 4, 8, 16 s, then every 30 s for ten minutes. It remembers the TV or PC, its address and its code: opening the home-theatre page connects again at once, and finds it by name on the Wi-Fi when its address changed. "connecting to …" shows while it does. Disconnect stops the reconnecting.
