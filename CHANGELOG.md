@@ -4,6 +4,13 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.24.0] - 2026-11-12
+### Added
+- **Refine on the home-theatre page.** After an EQ test, a Refine card shows the suggested EQ (bands and preamp, and whether it is on the TV or PC), "Set it by hand on the home theatre" with the bands, and "Share the EQ files" (ParametricEQ.txt and GraphicEQ.txt). Advanced adds the target (the room curves) and bass and treble to taste, kept for each home theatre; changing them refits the EQ and resends it when it is on.
+### Fixed
+- **Connecting from Tune starts a new home theatre** instead of opening the last one measured on that TV or PC, which could be another system. Set up now goes: equipment, "Is AutoTune on it?", the names, then "Connect to AutoTune on the TV" (or the PC), which makes a home theatre with those names once it connects (named after the TV or PC when no name was typed). While it connects, the last home theatre's results stay out of sight. Tests › Connect to AutoTune on a TV or PC still opens that device's own last home theatre.
+- The home theatre's charts draw its own target.
+
 ## [2.23.0] - 2026-11-12
 From the owner's failed stock reading: the phone speaker played the sweep, the mic clipped, and the reading failed as "Bluetooth dropped out".
 ### Fixed

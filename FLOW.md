@@ -1,4 +1,4 @@
-# AutoTune flow maps (2.23.0)
+# AutoTune flow maps (2.24.0)
 
 How a tuning session flows and how you move around the app, drawn from the code. Update this file whenever a Tune step, a pinned action or a link between screens changes (see CLAUDE.md). Code names in brackets point at where each decision lives.
 
@@ -8,7 +8,8 @@ How a tuning session flows and how you move around the app, drawn from the code.
 flowchart TD
   K(["Tune key, or New test on Tests"]) --> EQP{"1 Set up, screen 1: What are you tuning?<br/>four picture keys: Car, Home theatre or soundbar,<br/>PC speakers, Other speakers<br/>(a key picks and moves on)"}
   EQP -->|"Home theatre or PC speakers"| CQ{"screen 2: Is AutoTune on the TV / the PC?<br/>(companionQuestion)"}
-  CQ -->|"Yes: Connect to AutoTune on the TV or PC"| HTP(["Home theatre page<br/>(see the navigation map)"])
+  CQ -->|"Yes, AutoTune is on it"| NC["screen: Name it<br/>equipment name, test name"]
+  NC -->|"Connect to AutoTune on the TV or PC<br/>(a new home theatre with these names, made once it connects)"| HTP(["Home theatre page<br/>(see the navigation map)"])
   CQ -->|"No: Use this phone only"| NM
   EQP -->|"Car or Other speakers"| NM["screen: Name it<br/>equipment name, test name"]
   NM -->|"Next"| S["screen: Play the test sound (a draft)<br/>route named for the equipment, output, Test sound<br/>target only in Advanced (Simple: Harman car / Home theatre)<br/>warns when the phone EQ may not reach it<br/>key off while it plays on the phone's own speaker<br/>open test and EQ untouched"]
@@ -58,7 +59,7 @@ Every measurement starts the moment its key is pressed. Stock and Verify are mea
 | EQ, after stock | Use the phone's EQ and measure; Measure the stock again when the stock looks wrong; It's set, measure on equipment | Preview in the app, Set it on my equipment; Advanced: target, sliders, bands, files, AI |
 | Result | Apply the new suggested EQ, Keep this EQ and finish, Keep the EQ of run n, Check the EQ reaches the speakers, Measure again, Set it on my equipment, or Switch on the phone's EQ and measure | The other moves, Measure again, Ask AI, All results, Discard |
 | Tune screen after Keep | Use this EQ whenever <device> connects (phone EQ, Bluetooth route), else Open the EQ | Tune (new test), Continue |
-| Home theatre page | Connect; then nothing is pinned between tests: Set the levels, Test the distances and Test the EQ each sit in their own card; Next speaker / Measure seat n / Stop while a test runs | The big EQ on/off key (sends the last EQ or switches it off), Check the EQ reaches the speakers, Disconnect; the home theatre line opens Home theatres (pick, New, Rename, Delete); Advanced: EQ test seats. A TV or PC from 2.14: speaker by speaker |
+| Home theatre page | Connect; then nothing is pinned between tests: Set the levels, Test the distances and Test the EQ each sit in their own card; Next speaker / Measure seat n / Stop while a test runs | The big EQ on/off key (sends the last EQ or switches it off), Check the EQ reaches the speakers, Disconnect; after an EQ test a Refine card (the bands to set by hand, Share the EQ files; Advanced: target, bass and treble, kept per home theatre); the home theatre line opens Home theatres (pick, New, Rename, Delete); Advanced: EQ test seats. A TV or PC from 2.14: speaker by speaker |
 | Test results page | Continue tuning, with the move it leads to on its second line ("next: …") | Open the EQ, AI review (at the bottom, above Details) |
 
 ## Navigation map
