@@ -232,6 +232,8 @@ data class TestSummary(
     val stockRms: Double?,
     val latestRms: Double?,
     val whenText: String,
+    /** What it tunes, for the Tests list's drawing (2.26.1); older tests from their target. */
+    val equipment: Equipment = Equipment.OTHER,
 )
 
 /** The AI assistant: its settings, the review on screen and the follow-up conversation. */
@@ -787,6 +789,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             t.id, t.name, target, targetKind(Target.ALL.getOrNull(t.targetIdx)), src, t.runs.size,
             t.runs.firstOrNull()?.rmsDb, t.runs.lastOrNull()?.rmsDb,
             fmtDate(t.runs.lastOrNull()?.whenMillis ?: t.created),
+            equipmentOf(t.equipment, targetKind(Target.ALL.getOrNull(t.targetIdx))),
         )
     }
 

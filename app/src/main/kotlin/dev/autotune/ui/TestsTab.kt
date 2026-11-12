@@ -75,7 +75,7 @@ fun TestsTab(
     Column(Modifier.fillMaxWidth().deckPlate()) {
         DeckColors {
             s.tests.forEachIndexed { i, t ->
-                if (i > 0) HorizontalDivider(color = At.c.line, modifier = Modifier.padding(start = 52.dp))
+                if (i > 0) HorizontalDivider(color = At.c.line, modifier = Modifier.padding(start = 90.dp))
                 TestRow(
                     t, t.id == s.currentTestId, onOpen = { openResults(t.id) },
                     onContinue = { continueTest(t.id) },
@@ -114,13 +114,13 @@ private fun TheatreList(theatres: List<dev.autotune.theatre.TheatreTest>, open: 
     Column(Modifier.fillMaxWidth().deckPlate()) {
         DeckColors {
             theatres.forEachIndexed { i, t ->
-                if (i > 0) HorizontalDivider(color = At.c.line, modifier = Modifier.padding(start = 52.dp))
+                if (i > 0) HorizontalDivider(color = At.c.line, modifier = Modifier.padding(start = 90.dp))
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClickLabel = "Open ${t.name}", onClick = { open(t.id) })
                         .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(Modifier.padding(end = 12.dp)) { AtIcon(Ic.HOME, At.c.text, size = 26.dp) }
+                    EquipmentBadge(dev.autotune.Equipment.HOME, Modifier.padding(end = 12.dp))
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(t.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         val last = t.runs.lastOrNull()
@@ -144,8 +144,8 @@ private fun TestRow(t: TestSummary, isOpen: Boolean, onOpen: () -> Unit, onConti
             .padding(start = 14.dp, end = 2.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // the kind is lettering, in ink; the open test is marked once, by its pilot light
-        Box(Modifier.padding(end = 12.dp)) { AtIcon(kindIcon(t.kind), At.c.text, size = 26.dp) }
+        // what it tunes, drawn as on Set up; the open test is marked once, by its pilot light
+        EquipmentBadge(t.equipment, Modifier.padding(end = 12.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // an automatic name reads as its date; the target is not repeated on every row
