@@ -396,6 +396,8 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                             Tab.EXPORT, Tab.THEATRE -> Unit
                         }
                     }
+                    // more of the screen below the edge: a fade and a key that scrolls on
+                    MoreBelow(sc, Modifier.align(Alignment.BottomCenter))
                     ScreenHeader(titleSlot, sc, Modifier.align(Alignment.TopCenter))
                     }
                     }

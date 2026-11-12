@@ -395,6 +395,9 @@ data class UiState(
     val micAlsoOutput: Boolean = false,
     /** The sound is (or was) going into the USB mic's own headphone output. */
     val outputToMic: Boolean = false,
+    /** The test sound goes out over Bluetooth (only then can a pause mid-sweep be Bluetooth's), or to the phone's own speaker. */
+    val outputBluetooth: Boolean = false,
+    val outputPhoneSpeaker: Boolean = false,
     /** Another app (screen recorder, cast) is capturing the phone's sound. */
     val audioCaptured: Boolean = false,
     /** AutoTune EQ (the system effect) damaged a measurement on this phone before. */
@@ -1105,11 +1108,22 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 carMode = dev.autotune.audio.LoudEq.carMode(ctx), btRoute = btRouteOf(used),
                 setupMemory = used?.let { o -> SetupMemory.fromText(prefs.getString("setup_" + Outputs.nameOf(o), null)) },
                 outputToMic = Outputs.isTheMic(used, d),
+                outputBluetooth = isBluetooth(used), outputPhoneSpeaker = isPhoneSpeaker(used),
                 audioCaptured = sys?.type == android.media.AudioDeviceInfo.TYPE_REMOTE_SUBMIX,
                 micAlsoOutput = Outputs.micIsAlsoOutput(list, d),
             )
         }
     }
+
+    /** Every kind of Bluetooth output: classic (A2DP, SCO), LE Audio and hearing aids. */
+    private fun isBluetooth(d: android.media.AudioDeviceInfo?): Boolean = d?.type in setOf(
+        android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+        android.media.AudioDeviceInfo.TYPE_HEARING_AID, android.media.AudioDeviceInfo.TYPE_BLE_HEADSET,
+        android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER, android.media.AudioDeviceInfo.TYPE_BLE_BROADCAST,
+    )
+
+    private fun isPhoneSpeaker(d: android.media.AudioDeviceInfo?): Boolean =
+        d?.type == android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER || d?.type == android.media.AudioDeviceInfo.TYPE_BUILTIN_EARPIECE
 
     /** The Bluetooth device behind a media output (its address is what automatic switching matches). */
     private fun btRouteOf(d: android.media.AudioDeviceInfo?): BtRoute? {
@@ -1150,7 +1164,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val toMic = Outputs.isTheMic(d, UsbMic.find(getApplication()))
-        state.update { it.copy(outputName = Outputs.nameOf(d), outputToMic = toMic, audioCaptured = false) }
+        state.update { it.copy(outputName = Outputs.nameOf(d), outputToMic = toMic, audioCaptured = false, outputBluetooth = isBluetooth(d), outputPhoneSpeaker = isPhoneSpeaker(d)) }
         if (toMic) error("The test sound went to the USB mic (it also acts as headphones), not your speakers. Under Plays through, tap Change and pick your car, then measure again.")
     }
 
@@ -1412,9 +1426,19 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 "stallMs" to stall?.let { Math.round(it.ms * 10) / 10.0 }, "stallAtSec" to stall?.atSec,
             )
             if (stall == null) return m
-            Diag.log(ctx(), "sweep_stall", lastCapture.filterKeys { it != "thirdOctaveDb" } + mapOf("output" to state.value.outputName))
-            if (attempt >= SWEEP_ATTEMPTS) return m.withFatal(stall.message)
-            attempt++
+            // in order: a clipped recording cannot be timed, and only Bluetooth pauses the sound (2.23)
+            val bt = state.value.outputBluetooth
+            val clipped = m.warnings.any { "clipped" in it }
+            val verdict = sweepTiming(stalled = true, clipped = clipped, bluetooth = bt, attempt = attempt)
+            Diag.log(ctx(), "sweep_stall", lastCapture.filterKeys { it != "thirdOctaveDb" } + mapOf(
+                "output" to state.value.outputName, "bluetooth" to bt, "clipped" to clipped, "verdict" to verdict.name,
+            ))
+            when (verdict) {
+                TimingVerdict.OK -> return m
+                TimingVerdict.WARN -> return m.withWarnings(m.warnings + stallMessage(stall.ms, bluetooth = false))
+                TimingVerdict.FAIL -> return m.withFatal(stallMessage(stall.ms, bluetooth = true))
+                TimingVerdict.AGAIN -> attempt++
+            }
         }
     }
 
@@ -2007,7 +2031,12 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             listOfNotNull(st.micName, micSrc?.lowercase(), fx).joinToString(" · "),
         )
         if (src == Source.PHONE) {
-            out += CheckItem("Sound output", if (st.outputToMic) 3 else 1, st.outputName ?: "where the phone plays music")
+            out += when {
+                st.outputToMic -> CheckItem("Sound output", 3, st.outputName ?: "the mic")
+                // the phone's own speaker is never the equipment being tuned
+                st.outputPhoneSpeaker -> CheckItem("Sound output", 2, "the phone's own speaker, not the ${st.equipment.title.lowercase()}")
+                else -> CheckItem("Sound output", 1, st.outputName ?: "where the phone plays music")
+            }
             val full = lastCapture["usedFullSearch"] == true
             val marker = lastCapture["markerAt"] != null
             out += CheckItem("Start beeps", if (marker && !full) 1 else 2, if (marker && !full) "found" else "not clear: the sweep was found by searching the whole recording")

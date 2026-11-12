@@ -31,6 +31,9 @@ class FlowTest {
         assertTrue(weak.suspicious)
         assertEquals(2, weak.findings.first().severity)
         assertTrue(analyzeStock(14.0, 5.0, 8, emptyList(), emptyList(), emptyList(), null).suspicious)
+        // a clipped stock reading, or one whose timing moved, is the wrong reference: measured again first (2.23)
+        assertTrue(analyzeStock(4.0, 2.0, 6, emptyList(), emptyList(), listOf("The mic clipped around 2.0 kHz (too loud there). Turn the volume down a few steps and measure again."), null).suspicious)
+        assertTrue(analyzeStock(4.0, 2.0, 6, emptyList(), emptyList(), listOf(stallMessage(-30.0, bluetooth = false)), null).suspicious)
         val fine = analyzeStock(2.0, 1.4, 3, listOf(Region("Bass", 30.0, 120.0, 1.0)), emptyList(), emptyList(), null)
         assertTrue(fine.findings.single().severity == 0)
     }

@@ -717,4 +717,27 @@ class ConvergenceTest {
         org.junit.Assert.assertEquals("63 Hz", cursorFreqText(63.2))
         org.junit.Assert.assertEquals("1.2 kHz", cursorFreqText(1234.0))
     }
+
+    /** 2026-11-12: a phone-speaker reading that clipped failed as "Bluetooth dropped out". Causes come in order. */
+    @Test
+    fun aTimingShiftIsOnlyBlamedOnBluetoothOverBluetooth() {
+        assertEquals(TimingVerdict.OK, sweepTiming(stalled = false, clipped = false, bluetooth = true, attempt = 1))
+        // clipping leads: the shift of a clipped recording is not read
+        assertEquals(TimingVerdict.OK, sweepTiming(stalled = true, clipped = true, bluetooth = true, attempt = 2))
+        // not Bluetooth: noted, never failed
+        assertEquals(TimingVerdict.WARN, sweepTiming(stalled = true, clipped = false, bluetooth = false, attempt = 1))
+        assertEquals(TimingVerdict.AGAIN, sweepTiming(stalled = true, clipped = false, bluetooth = true, attempt = 1))
+        assertEquals(TimingVerdict.FAIL, sweepTiming(stalled = true, clipped = false, bluetooth = true, attempt = SWEEP_ATTEMPTS))
+        assertTrue(stallMessage(-30.0, bluetooth = true).contains("Bluetooth"))
+        assertFalse(stallMessage(-30.0, bluetooth = false).contains("Bluetooth"))
+        assertTrue(stallMessage(-30.0, bluetooth = false).contains("30 ms"))
+    }
+
+    @Test
+    fun theStockReadingNeedsTheSoundOnTheEquipment() {
+        assertNull(phoneSpeakerBlock(Equipment.CAR, phonePlays = true, phoneSpeaker = false))
+        assertNull(phoneSpeakerBlock(Equipment.CAR, phonePlays = false, phoneSpeaker = true)) // another device plays it
+        assertTrue(phoneSpeakerBlock(Equipment.CAR, phonePlays = true, phoneSpeaker = true)!!.contains("car"))
+        assertNotNull(phoneSpeakerBlock(Equipment.OTHER, phonePlays = true, phoneSpeaker = true))
+    }
 }

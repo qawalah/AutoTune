@@ -4,6 +4,16 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.23.0] - 2026-11-12
+From the owner's failed stock reading: the phone speaker played the sweep, the mic clipped, and the reading failed as "Bluetooth dropped out".
+### Fixed
+- **Only Bluetooth is blamed for a pause in the sweep, and only over Bluetooth.** On any other output a shift in the sweep's timing is noted on the reading ("The timing moved 30 ms partway through the sweep"), not failed and not measured again.
+- **Clipping comes first.** A recording that clipped cannot be timed (the overload smears it), so the timing check is skipped and the reading says it is too loud, as it did before 2.19.2.
+- **A clipped stock reading, or one whose timing moved, is measured again first:** it is every run's reference, so Refine pins "Measure the stock again" before any EQ is fitted to it.
+### Changed
+- **Set up checks the test sound reaches the equipment.** When this phone plays it, "Measure the stock system" stays off while the sound goes to the phone's own speaker, with the reason above the key ("connect the phone to the car first"). The measuring screen's "Sound output" check is yellow for the phone's own speaker.
+- **Screens say when there is more below:** a fade at the bottom edge and a small round key with a down arrow that scrolls on, on the measuring screen and on every tab and page.
+
 ## [2.22.0] - 2026-11-12
 ### Changed
 - **Set up is one question per screen** (Back walks them):

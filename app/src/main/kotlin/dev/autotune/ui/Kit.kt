@@ -2067,3 +2067,37 @@ fun MainKey(text: String, onClick: () -> Unit, sub: String? = null, enabled: Boo
         }
     }
 }
+
+/**
+ * "There is more below" (owner, 2026-11-12: the measuring screen's checks ran on under the edge with nothing to say
+ * so): a fade into the body at the bottom of a scrolling screen and a small round key with a down chevron, while
+ * [state] can still scroll on by more than a few lines. The key scrolls most of a screen down. Place it in a Box over
+ * the scrolling content, aligned to the bottom.
+ */
+@Composable
+fun MoreBelow(state: androidx.compose.foundation.ScrollState, modifier: Modifier = Modifier) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val show = state.maxValue - state.value > with(density) { 48.dp.toPx() }
+    androidx.compose.animation.AnimatedVisibility(
+        show, modifier.fillMaxWidth(),
+        enter = androidx.compose.animation.fadeIn(tween(motionMs(200), easing = EaseArrive)),
+        exit = androidx.compose.animation.fadeOut(tween(motionMs(160), easing = EaseLeave)),
+    ) {
+        val bg = At.c.bg
+        Box(
+            Modifier.fillMaxWidth().height(56.dp)
+                .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(bg.copy(alpha = 0f), bg.copy(alpha = 0.92f)))),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Box(
+                Modifier.padding(bottom = 6.dp).size(36.dp).clip(androidx.compose.foundation.shape.CircleShape).background(At.c.panelHigh)
+                    .border(1.dp, At.c.line, androidx.compose.foundation.shape.CircleShape)
+                    .clickable(onClickLabel = "Scroll down") {
+                        scope.launch { state.animateScrollTo(minOf(state.maxValue, state.value + with(density) { 480.dp.toPx() }.toInt())) }
+                    },
+                contentAlignment = Alignment.Center,
+            ) { AtIcon(Ic.CHEVRON_DOWN, At.c.text, size = 20.dp) }
+        }
+    }
+}

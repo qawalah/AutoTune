@@ -262,10 +262,12 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
                 }
             }
             // no stop in between: this key creates the test and starts the stock reading
+            // the last prerequisite: the test sound must reach the equipment, not the phone's own speaker
+            val blocked = dev.autotune.phoneSpeakerBlock(equipment, route == Source.PHONE, s.outputPhoneSpeaker)
             PinAction(
                 "Measure the stock system",
                 { vm.tuneSetup(name, targetIdx, route, spots[spotsIdx], listOf(null, 80, 200, 400, 600)[gateIdx], equipment, equipName) },
-                icon = Ic.MEASURE,
+                icon = Ic.MEASURE, enabled = blocked == null, hint = blocked,
             )
         }
     }

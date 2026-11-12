@@ -529,3 +529,10 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - `simpleTarget(e)`: HARMAN_CAR for a car, HOME_THEATER otherwise; Simple uses it, Advanced shows the target drop-down (from `equipmentTarget`) on the SOUND screen.
 - The 2.21 name hand-over to the home-theatre page (`companionTheatreName`, `TheatrePage(newName)`, `theatreNew`) is gone: the names screen comes after the companion question.
 
+### Prerequisites in order, more below (2.23.0)
+- Owner, 2026-11-12, on a failed stock reading (Sound output: Phone speaker; No clipping: red; failed "Bluetooth dropped out"): "there was no Bluetooth involvement ... review all process predecessors and prerequisites; the page should indicate there is a part below".
+- `sweepTiming(stalled, clipped, bluetooth, attempt)` (TuningLogic, tested) replaces the unconditional stall retry/fail in `phoneSweep`: clipped → OK (a clipped recording smears `chunkLagsMs`), not Bluetooth → WARN (`stallMessage(ms, false)` added as a warning), Bluetooth → AGAIN then FAIL (`stallMessage(ms, true)`, the old wording). `sweep_stall` logs `bluetooth`, `clipped`, `verdict`. `SweepCheck.Stall.message` in dsp is no longer used by the app.
+- `UiState.outputBluetooth` / `outputPhoneSpeaker`, set in `refreshMic` and `routed` (`isBluetooth`: A2DP, SCO, hearing aid, BLE headset/speaker/broadcast; `isPhoneSpeaker`: built-in speaker or earpiece). `phoneSpeakerBlock(equipment, phonePlays, phoneSpeaker)` disables Set up's "Measure the stock system" with its reason as the pin's hint. The "Sound output" check is state 2 for the phone's own speaker.
+- `analyzeStock` counts "clipped" and "timing moved" warnings as a bad reading (`suspicious`), so Refine pins "Measure the stock again".
+- `MoreBelow(scrollState)` (ui/Kit.kt): a bottom fade and a round chevron key (scrolls 480 dp on) while more than 48 dp is left; in `MeasureOverlay` (its scroll state hoisted, the column in a Box) and over every tab and page in `AutoTuneScreen`.
+

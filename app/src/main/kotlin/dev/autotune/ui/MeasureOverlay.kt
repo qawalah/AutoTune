@@ -114,10 +114,11 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
         else -> v.message.takeIf { it.isNotBlank() }
     }
 
+    val scroll = rememberScrollState()
     androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides At.c.text) {
+    Box(Modifier.fillMaxSize().background(At.c.bg).statusBarsPadding().navigationBarsPadding()) {
     Column(
-        Modifier.fillMaxSize().background(At.c.bg).statusBarsPadding().navigationBarsPadding()
-            .verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+        Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         // the device header: the wordmark and what is being measured
@@ -189,6 +190,9 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
             else -> PrimaryButton("See the result", vm::closeMeasureView, Modifier.fillMaxWidth(), icon = Ic.NEXT)
         }
         Spacer(Modifier.height(8.dp))
+    }
+    // the checks and the keys can run on under the edge: say so
+    MoreBelow(scroll, Modifier.align(Alignment.BottomCenter))
     }
     }
 }
