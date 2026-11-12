@@ -90,10 +90,12 @@ private const val ABOUT_EQ =
 
 /** Tune a home theatre (or a PC's speakers) with the TV or PC playing each speaker and the phone listening. A page over the current tab. */
 @Composable
-fun TheatrePage(pick: Pickers, openId: String? = null, opened: () -> Unit = {}) {
+fun TheatrePage(pick: Pickers, openId: String? = null, opened: () -> Unit = {}, newName: String? = null, sharer: Sharer? = null) {
     val vm: TheatreViewModel = viewModel()
     val u by vm.ui.collectAsState()
     LaunchedEffect(openId) { openId?.let { vm.selectTest(it); opened() } }
+    // from Tune › Set up: a new home theatre once connected, never the last one measured (2.24)
+    LaunchedEffect(newName) { newName?.let { vm.startNew(it); opened() } }
     DisposableEffect(Unit) { vm.start(); onDispose { vm.pause() } }
     LaunchedEffect(u.needsMic) { if (u.needsMic) { vm.micGranted(true); pick.permission() } }
 
@@ -105,15 +107,16 @@ fun TheatrePage(pick: Pickers, openId: String? = null, opened: () -> Unit = {}) 
     ScreenTitle("Home theatre", context = u.tv ?: "not connected", contextIcon = Ic.HOME)
     if (u.tv == null) {
         Connect(u, vm)
-        // the open home theatre's last results stay readable while nothing is connected
-        if (u.test != null) {
+        // the open home theatre's last results stay readable while nothing is connected; not when Tune's Set up
+        // started a new one, which is made as soon as it connects
+        if (u.test != null && !u.startingNew) {
             TheatreLine(u) { managing = true }
             LevelsResult(u)
             DistancesResult(u)
             EqResult(u)
             RunsDetails(u, vm)
         }
-    } else if (u.threeTests) ThreeTests(u, vm) { managing = true } else Connected(u, vm)
+    } else if (u.threeTests) ThreeTests(u, vm, sharer) { managing = true } else Connected(u, vm)
 }
 
 @Composable
@@ -244,7 +247,7 @@ private fun Details(r: TheatreReport, u: TheatreUi, showEq: Boolean = true) {
             val sm = grid.smoothOctave(rd.magDb!!, 6.0)
             Curve(rd.speaker.title, DoubleArray(sm.size) { sm[it] - ref }, rd.speaker.ordinal + 1)
         }
-        ResponseChart(ChartData(grid.freqs, curves, DoubleArray(grid.size) { Target.HOME_THEATER.dbAt(grid.freqs[it]) }, null, ""), targetLabel = "Home theatre")
+        ResponseChart(ChartData(grid.freqs, curves, DoubleArray(grid.size) { u.target.dbAt(grid.freqs[it]) }, null, ""), targetLabel = u.target.name)
     }
     if (showEq) DetailsHeading()
     Fold("Per speaker", summary = "level, distance, from target", startOpen = true, info = ABOUT_RESULT) {
@@ -277,7 +280,7 @@ private fun Details(r: TheatreReport, u: TheatreUi, showEq: Boolean = true) {
 // ---- the three tests (2.16): levels, distances and the EQ, each on its own, saved as runs of a named test
 
 @Composable
-private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel, manage: () -> Unit) {
+private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel, sharer: Sharer?, manage: () -> Unit) {
     val lv = u.level
     val level by LiveCapture.level.collectAsState()
     val ring = if (u.playing != null || u.allPlaying) ((level + 60f) / 50f).coerceIn(0f, 1f) else null
@@ -319,6 +322,8 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel, manage: () -> Unit) {
                     )
                 }
             }
+            // what the phone's Refine step offers, once there is an EQ to refine
+            if (u.eq?.eq?.isNotEmpty() == true) RefineDeck(u, vm, sharer)
         }
     }
 
@@ -560,7 +565,7 @@ private fun RunsDetails(u: TheatreUi, vm: TheatreViewModel) {
             val ref = TheatreJudge.level(m, dev.autotune.dsp.Speaker.FL, grid)
             Curve(whenText(r.whenMillis) ?: "EQ test", DoubleArray(sm.size) { sm[it] - ref }, if (r === t.eqStock) 0 else k + 1)
         }
-        ResponseChart(ChartData(grid.freqs, curves, DoubleArray(grid.size) { Target.HOME_THEATER.dbAt(grid.freqs[it]) }, null, ""), targetLabel = "Home theatre")
+        ResponseChart(ChartData(grid.freqs, curves, DoubleArray(grid.size) { u.target.dbAt(grid.freqs[it]) }, null, ""), targetLabel = u.target.name)
     }
     DetailsHeading()
     Fold("EQ runs", summary = "${eqRuns.size} saved", startOpen = false, info = "Every EQ test of this home theatre, newest first. Tick runs to draw them together on the graph; the first one is the reference every EQ is fitted from. Levels and distances keep their own cards.") {
@@ -620,6 +625,46 @@ private fun LevelDeck(lv: dev.autotune.theatre.LevelState) {
                 }
                 ReadingCells(listOf(Reading(if (ok) "0.0" else "%+.1f".format(ch), "dB", word, if (ok) c.good else c.warn)))
             }
+        }
+    }
+}
+
+private const val ABOUT_REFINE =
+    "The EQ the last EQ test suggests, fitted from this home theatre's first EQ test so EQs never stack.\n\n" +
+        "Use it on the TV or PC with the EQ key above, or set the bands by hand in the home theatre's own EQ (or its app), " +
+        "with the preamp first. The files are for Equalizer APO (ParametricEQ.txt) and graphic EQ apps (GraphicEQ.txt).\n\n" +
+        "Then test the EQ again, with the EQ on, to see what it did."
+
+/**
+ * Refine on the home-theatre page (owner, 2026-11-12: "I don't see refine options when connected to companion"): the
+ * suggested EQ's bands to set by hand and its files; Advanced adds the target and the taste, kept per home theatre,
+ * which refit the EQ (and resend it when it is on). The EQ key above stays the way to use it there.
+ */
+@Composable
+private fun RefineDeck(u: TheatreUi, vm: TheatreViewModel, sharer: Sharer?) {
+    val eq = u.eq?.eq?.sortedBy { it.freqHz }.orEmpty()
+    val chain = dev.autotune.dsp.EqChain(eq, dev.autotune.dsp.EqChain.withSafePreamp(eq).preampDb)
+    var bands by rememberSaveable(u.test?.id) { mutableStateOf(false) }
+    Group("Refine", info = ABOUT_REFINE) {
+        Muted("${eq.size} bands · preamp %.1f dB".format(chain.preampDb) + if (u.tvEqOn) " · on the ${u.device}" else "")
+        if (isAdvanced()) {
+            // room curves only: this is a home theatre or a PC's speakers
+            val kinds = Target.ALL.map { dev.autotune.targetKind(it) }
+            val idxs = dev.autotune.equipmentTargets(dev.autotune.Equipment.HOME, kinds)
+            val cur = idxs.indexOfFirst { Target.ALL[it].name == u.targetName }.coerceAtLeast(0)
+            DropSelect(
+                idxs.map { Target.ALL[it].name }, cur, { vm.setTarget(Target.ALL[idxs[it]].name) }, label = "Target sound",
+                icons = idxs.map { kindIcon(kinds[it]) }, details = idxs.map { targetDetail(Target.ALL[it]) },
+            )
+            DropSelect(BASS_STEPS.map(::db), BASS_STEPS.indexOf(u.bassDb).let { if (it < 0) 1 else it }, { vm.setTaste(BASS_STEPS[it], u.trebleDb) }, label = "Bass to taste", icon = Ic.BASS)
+            DropSelect(TREBLE_STEPS.map(::db), TREBLE_STEPS.indexOf(u.trebleDb).let { if (it < 0) 3 else it }, { vm.setTaste(u.bassDb, TREBLE_STEPS[it]) }, label = "Treble to taste", icon = Ic.TREBLE)
+        }
+        Actions {
+            TextAction(if (bands) "Hide the bands" else "Set it by hand on the home theatre", { bands = !bands }, icon = Ic.EDIT)
+        }
+        if (bands) BandTable(filterLines(chain, null), chain.preampDb, compared = false)
+        if (sharer != null) Actions {
+            TextAction("Share the EQ files", { vm.eqFiles()?.let { sharer.files(it, "text/plain", "Share the EQ files") } }, icon = Ic.SHARE)
         }
     }
 }

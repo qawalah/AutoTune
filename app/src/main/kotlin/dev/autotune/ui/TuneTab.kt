@@ -56,8 +56,8 @@ import kotlin.math.abs
 @Composable
 fun TuneTab(
     s: UiState, vm: TuneViewModel, sharer: Sharer, go: (Tab) -> Unit, openResults: () -> Unit, pick: Pickers,
-    /** Opens the home-theatre page, where AutoTune on the TV or the PC is connected. */
-    openCompanion: () -> Unit = { go(Tab.THEATRE) },
+    /** Opens the home-theatre page to connect AutoTune on the TV or the PC and start a new home theatre named this. */
+    openCompanion: (String) -> Unit = { go(Tab.THEATRE) },
 ) {
     // Exit leaves the workflow and keeps the place: Continue comes back to the same step
     val exit = { vm.tuneExit() }
@@ -141,7 +141,7 @@ private fun Check(icon: Ic, text: String) {
  * screen with the measurement options. Back walks the screens before it leaves Set up.
  */
 @Composable
-private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pickers, exit: () -> Unit, openCompanion: () -> Unit) {
+private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pickers, exit: () -> Unit, openCompanion: (String) -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
     var equipName by rememberSaveable { mutableStateOf("") }
     // starts from the defaults in Settings (target, spots, window); on an output tuned before only the equipment and
@@ -154,7 +154,9 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
         mutableStateOf(dev.autotune.startEquipment(mem?.equipment, s.lastEquipment, s.carMode, kinds.getOrElse(defIdx) { dev.autotune.TargetKind.CAR }))
     }
     var page by rememberSaveable { mutableStateOf(dev.autotune.SetupPage.EQUIPMENT) }
-    val pages = dev.autotune.setupPages(equipment)
+    // the answer on the AutoTune screen; with it the names screen is the last and its key connects
+    var viaCompanion by rememberSaveable(equipment) { mutableStateOf(equipment.companion != null && equipment in s.companionInstalled) }
+    val pages = dev.autotune.setupPages(equipment, viaCompanion)
 
     val advanced = isAdvanced()
     val targetIdxs = dev.autotune.equipmentTargets(equipment, kinds)
@@ -171,8 +173,8 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
     var gateIdx by rememberSaveable(out) { mutableIntStateOf(listOf(0, 80, 200, 400, 600).indexOf(s.defGateMs).coerceAtLeast(0)) }
     val spots = listOf(1, 3, 5)
 
-    fun next() { dev.autotune.nextSetupPage(equipment, page)?.let { page = it } }
-    val back: () -> Unit = { dev.autotune.previousSetupPage(equipment, page)?.let { page = it } ?: vm.tuneBack() }
+    fun next() { dev.autotune.nextSetupPage(equipment, page, viaCompanion)?.let { page = it } }
+    val back: () -> Unit = { dev.autotune.previousSetupPage(equipment, page, viaCompanion)?.let { page = it } ?: vm.tuneBack() }
     // the phone's Back walks the screens too; on the first it is the Tune screen's own Back
     androidx.activity.compose.BackHandler(enabled = page != dev.autotune.SetupPage.EQUIPMENT && !s.busy) { back() }
 
@@ -192,8 +194,9 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
         dev.autotune.SetupPage.COMPANION -> {
             val q = dev.autotune.companionQuestion(equipment) ?: return
             val installed = equipment in s.companionInstalled
-            val connect = { vm.rememberEquipment(equipment, true); openCompanion() }
-            val phoneOnly = { if (installed) vm.forgetCompanion(equipment); next() }
+            // either answer goes on to the names; with yes their key connects
+            val connect = { viaCompanion = true; dev.autotune.nextSetupPage(equipment, page, true)?.let { page = it }; Unit }
+            val phoneOnly = { viaCompanion = false; if (installed) vm.forgetCompanion(equipment); dev.autotune.nextSetupPage(equipment, page, false)?.let { page = it }; Unit }
             Panel {
                 CardTitle("Is AutoTune on ${equipment.companion}?", count, info = q.info)
                 // the answer not pinned below, as a key of its own
@@ -203,7 +206,7 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
                 }
             }
             // the answer given last time is the one pinned
-            if (installed) PinAction("Connect to AutoTune on ${equipment.companion}", connect, icon = Ic.HOME)
+            if (installed) PinAction("Yes, AutoTune is on ${equipment.companion}", connect, icon = Ic.HOME)
             else PinAction("Use this phone only", phoneOnly, icon = Ic.NEXT)
         }
 
@@ -223,7 +226,11 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
                     modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
                 )
             }
-            PinAction("Next", ::next, icon = Ic.NEXT)
+            // with AutoTune on the TV or PC this is the last screen: a new home theatre with these names
+            if (viaCompanion && equipment.companion != null) PinAction(
+                "Connect to AutoTune on ${equipment.companion}",
+                { vm.rememberEquipment(equipment, true); openCompanion(dev.autotune.companionTheatreName(equipName, name)) }, icon = Ic.HOME,
+            ) else PinAction("Next", ::next, icon = Ic.NEXT)
         }
 
         dev.autotune.SetupPage.SOUND -> {

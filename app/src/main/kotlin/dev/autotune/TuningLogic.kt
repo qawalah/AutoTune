@@ -528,7 +528,8 @@ data class CompanionQuestion(val label: String, val answers: List<String>, val d
 /**
  * Set up's screens, one question each (owner, 2026-11-12: "separate in steps ... not to overwhelm the user"): what is
  * tuned; whether AutoTune is on it (a TV or a PC only); the names; then how the sound gets to the speakers, whose key
- * starts the stock reading. "Installed" on the second screen leaves Set up for the companion's page.
+ * starts the stock reading. With AutoTune on the TV or PC the names screen is the last: its key connects and starts a
+ * new home theatre with those names (2.24: the last one measured opened, which could be another system).
  */
 enum class SetupPage(val title: String) {
     EQUIPMENT("What are you tuning?"),
@@ -537,15 +538,35 @@ enum class SetupPage(val title: String) {
     SOUND("Play the test sound"),
 }
 
-/** The screens Set up shows for [e], in order: the companion question only where there can be one. */
-fun setupPages(e: Equipment): List<SetupPage> =
-    SetupPage.entries.filter { it != SetupPage.COMPANION || e.companion != null }
+/**
+ * The screens Set up shows for [e], in order: the companion question only where there can be one, and the sound
+ * screen only when this phone measures alone ([viaCompanion] false).
+ */
+fun setupPages(e: Equipment, viaCompanion: Boolean = false): List<SetupPage> {
+    val companion = e.companion != null
+    return SetupPage.entries.filter {
+        when (it) {
+            SetupPage.COMPANION -> companion
+            SetupPage.SOUND -> !(companion && viaCompanion)
+            else -> true
+        }
+    }
+}
 
 /** The screen after [page] for [e]; null on the last. */
-fun nextSetupPage(e: Equipment, page: SetupPage): SetupPage? = setupPages(e).let { p -> p.getOrNull(p.indexOf(page) + 1) }
+fun nextSetupPage(e: Equipment, page: SetupPage, viaCompanion: Boolean = false): SetupPage? =
+    setupPages(e, viaCompanion).let { p -> p.getOrNull(p.indexOf(page) + 1) }
 
 /** The screen before [page] for [e]; null on the first (Back then leaves Set up). */
-fun previousSetupPage(e: Equipment, page: SetupPage): SetupPage? = setupPages(e).let { p -> p.getOrNull(p.indexOf(page) - 1) }
+fun previousSetupPage(e: Equipment, page: SetupPage, viaCompanion: Boolean = false): SetupPage? =
+    setupPages(e, viaCompanion).let { p -> p.getOrNull(p.indexOf(page) - 1) }
+
+/**
+ * The name of the new home theatre Set up starts on the companion's page: the equipment's name, with the test's after
+ * it when both are given ("LG soundbar, sofa"); empty when neither is, and it is named after the TV or PC.
+ */
+fun companionTheatreName(equipName: String, testName: String): String =
+    listOf(equipName.trim(), testName.trim()).filter { it.isNotEmpty() }.joinToString(", ")
 
 /**
  * The target in Simple, where Set up does not ask (owner, 2026-11-12): Harman-style for a car, the room curve for

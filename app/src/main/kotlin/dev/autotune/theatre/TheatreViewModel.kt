@@ -98,7 +98,16 @@ data class TheatreUi(
     val level: LevelState? = null,
     /** Every speaker is playing at once (the system test's last sweep). */
     val allPlaying: Boolean = false,
+    /** The open home theatre's target and taste, which its EQ is fitted to (2.24; Home theatre and none before). */
+    val targetName: String = Target.HOME_THEATER.name,
+    val bassDb: Double = 0.0,
+    val trebleDb: Double = 0.0,
+    /** Tune › Set up asked for a new home theatre: until it connects, the last one's results stay out of sight. */
+    val startingNew: Boolean = false,
 ) {
+    /** The curve the EQ is fitted to: the target with the taste on top. */
+    val target: Target get() = theatreTarget(targetName, bassDb, trebleDb)
+
     /** The word for what plays, in keys and messages: "TV" or "PC". */
     val device: String get() = if (kind == Msg.KIND_PC) "PC" else "TV"
 
@@ -124,7 +133,9 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
     private var job: Job? = null
     private var nextId = 0
     private var stock: TheatreSession? = null
-    private val target: Target get() = Target.HOME_THEATER
+    private val target: Target get() = _ui.value.target
+    /** A new home theatre to start once connected (from Tune › Set up), named this ("" = after the TV or PC). */
+    private var pendingNew: String? = null
 
     init {
         stock = TheatreStore.load(dir, "stock")
@@ -175,8 +186,11 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
                         threeTests = w["caps"].orEmpty().split(',').containsAll(listOf("noise", "distances", "eqtest")),
                         pretend = w["pretend"] == "1", real = w["real"])
                 }
-                // this TV's or PC's own home theatre, never another device's results
-                if (_ui.value.threeTests) openTestFor(tvName)
+                // a new one when Tune's Set up asked for it, else this TV's or PC's own, never another device's results
+                val fresh = pendingNew
+                pendingNew = null
+                _ui.update { it.copy(startingNew = false) }
+                if (_ui.value.threeTests) { if (fresh != null) newTest(fresh.ifBlank { tvName }) else openTestFor(tvName) }
                 if (_ui.value.threeTests) sendResult(_ui.value.focus) else _ui.value.report?.let(::show)
                 Diag.log(ctx, "theatre_connected", mapOf("method" to method.name, "output" to w["out"], "kind" to (w["kind"] ?: Msg.KIND_TV)))
             } catch (e: Exception) {
@@ -436,8 +450,57 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
     private fun openTest(t: TheatreTest) {
         prefs.edit().putString("theatreTest", t.id).apply()
         val layout = t.runs.lastOrNull()?.layout ?: _ui.value.layout
-        _ui.update { it.copy(test = t, layout = if (it.method == null || layout in it.method.layouts) layout else it.layout, compare = emptySet(), eqReached = null) }
+        val taste = prefs.getString("theatreTaste_${t.id}", null)?.split(',')
+        _ui.update {
+            it.copy(
+                test = t, layout = if (it.method == null || layout in it.method.layouts) layout else it.layout, compare = emptySet(), eqReached = null,
+                targetName = prefs.getString("theatreTarget_${t.id}", null) ?: Target.HOME_THEATER.name,
+                bassDb = taste?.getOrNull(0)?.toDoubleOrNull() ?: 0.0, trebleDb = taste?.getOrNull(1)?.toDoubleOrNull() ?: 0.0,
+            )
+        }
         judgeTest()
+    }
+
+    /**
+     * Tune › Set up › Connect (2.24): a new home theatre named [name] ("" = after the TV or PC), never the last one
+     * measured, which may be another system. Started at once when connected, else as soon as it connects.
+     */
+    fun startNew(name: String) {
+        if (_ui.value.tv != null && _ui.value.threeTests) newTest(name.ifBlank { _ui.value.tv.orEmpty() })
+        else { pendingNew = name; _ui.update { it.copy(startingNew = true) } }
+    }
+
+    /** Refine: the target the open home theatre's EQ is fitted to. The EQ in use on the TV or PC follows. */
+    fun setTarget(name: String) {
+        val id = _ui.value.test?.id ?: return
+        prefs.edit().putString("theatreTarget_$id", name).apply()
+        _ui.update { it.copy(targetName = name) }
+        refit()
+    }
+
+    /** Refine: bass and treble to taste on top of the target. */
+    fun setTaste(bassDb: Double, trebleDb: Double) {
+        val id = _ui.value.test?.id ?: return
+        prefs.edit().putString("theatreTaste_$id", "$bassDb,$trebleDb").apply()
+        _ui.update { it.copy(bassDb = bassDb, trebleDb = trebleDb) }
+        refit()
+    }
+
+    private fun refit() {
+        judgeTest()
+        // the EQ playing there is the old fit: send the new one
+        if (_ui.value.tvEqOn && _ui.value.tv != null) useEq()
+    }
+
+    /** The EQ as files for the home theatre's own EQ or Equalizer APO, written for sharing; null with no EQ yet. */
+    fun eqFiles(): List<File>? {
+        val eq = _ui.value.eq?.eq?.sortedBy { it.freqHz }?.takeIf { it.isNotEmpty() } ?: return null
+        val chain = EqChain(eq, EqChain.withSafePreamp(eq).preampDb)
+        val base = "AutoTune_" + (_ui.value.test?.name ?: "Home theatre").replace(Regex("[^A-Za-z0-9._-]+"), "_")
+        return listOf(
+            File(ctx.cacheDir, "${base}_ParametricEQ.txt").also { it.writeText(dev.autotune.dsp.Export.parametricText(chain)) },
+            File(ctx.cacheDir, "${base}_GraphicEQ.txt").also { it.writeText(dev.autotune.dsp.Export.graphicEqLine(chain) + "\n") },
+        )
     }
 
     /**
@@ -724,3 +787,8 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         super.onCleared()
     }
 }
+
+/** A home theatre's target by name (Home theatre when the name is unknown), with the taste on top. */
+fun theatreTarget(name: String, bassDb: Double, trebleDb: Double): Target =
+    (Target.ALL.firstOrNull { it.name == name } ?: Target.HOME_THEATER).withTaste(bassDb, trebleDb)
+

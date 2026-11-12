@@ -296,6 +296,18 @@ class FlowTest {
         assertEquals(SetupPage.COMPANION, previousSetupPage(Equipment.HOME, SetupPage.NAMES))
         assertEquals(SetupPage.EQUIPMENT, previousSetupPage(Equipment.CAR, SetupPage.NAMES))
         assertEquals(null, previousSetupPage(Equipment.CAR, SetupPage.EQUIPMENT))
+        // with AutoTune on the TV the names come last: their key connects (2.24)
+        assertEquals(listOf(SetupPage.EQUIPMENT, SetupPage.COMPANION, SetupPage.NAMES), setupPages(Equipment.HOME, viaCompanion = true))
+        assertEquals(null, nextSetupPage(Equipment.PC, SetupPage.NAMES, viaCompanion = true))
+        assertEquals(SetupPage.SOUND, nextSetupPage(Equipment.PC, SetupPage.NAMES, viaCompanion = false))
+        // a car has no companion: the flag changes nothing
+        assertEquals(setupPages(Equipment.CAR), setupPages(Equipment.CAR, viaCompanion = true))
+        assertEquals("LG soundbar, sofa", companionTheatreName(" LG soundbar", "sofa "))
+        assertEquals("", companionTheatreName(" ", ""))
+        // a home theatre's target with its taste; an unknown name falls back to Home theatre
+        assertEquals(dev.autotune.dsp.Target.HARMAN_ROOM.name, dev.autotune.theatre.theatreTarget(dev.autotune.dsp.Target.HARMAN_ROOM.name, 0.0, 0.0).name)
+        assertEquals(dev.autotune.dsp.Target.HOME_THEATER.dbAt(1000.0), dev.autotune.theatre.theatreTarget("gone", 0.0, 0.0).dbAt(1000.0), 1e-9)
+        assertTrue(dev.autotune.theatre.theatreTarget("gone", 3.0, 0.0).dbAt(30.0) > dev.autotune.dsp.Target.HOME_THEATER.dbAt(30.0) + 2.0)
         // Simple does not ask the target: Harman-style in a car, the room curve elsewhere
         assertEquals(dev.autotune.dsp.Target.HARMAN_CAR, simpleTarget(Equipment.CAR))
         assertEquals(dev.autotune.dsp.Target.HOME_THEATER, simpleTarget(Equipment.PC))
