@@ -4,6 +4,17 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.22.0] - 2026-11-12
+### Changed
+- **Set up is one question per screen** (Back walks them):
+  1. **What are you tuning?** The four picture keys; tapping one picks it and moves on.
+  2. **Is AutoTune on the TV?** (or the PC), only for a home theatre or PC speakers. "Yes, connect to it" opens the home-theatre page; "Use this phone only" goes on. The answer given last time is the pinned one.
+  3. **Name it:** the equipment's name and the test's.
+  4. **Play the test sound:** how the sound reaches the speakers, where it plays and Test sound, then Measure the stock system. Only reached without AutoTune on the TV or PC.
+- **Simple no longer asks the target.** A car gets Harman car; a home theatre, a PC and other speakers get Home theatre. Advanced asks it on the last screen.
+### Removed
+- Connect no longer names a new home theatre from Set up (the names come after the question now); the page opens on the last one, where New names one.
+
 ## [2.21.0] - 2026-11-12
 ### Changed
 - **The equipment is four big keys with a drawing each:** a car, a TV between tower speakers, a monitor between desk speakers, and a portable speaker. The one picked has the accent edge.

@@ -280,9 +280,22 @@ class FlowTest {
         assertEquals("Driver seat", newTestName(" Driver seat ", "F-150", "Car", "12 Nov"))
         assertEquals("F-150, 12 Nov", newTestName("", " F-150 ", "Car", "12 Nov"))
         assertEquals("Car test, 12 Nov", newTestName(" ", "", "Car", "12 Nov"))
-        assertEquals("LG soundbar, sofa", companionTheatreName(" LG soundbar", "sofa "))
-        assertEquals("Sofa", companionTheatreName("", "Sofa"))
-        assertEquals(null, companionTheatreName(" ", ""))
+    }
+
+    /** One question per screen; the companion question only for a TV or a PC. */
+    @Test
+    fun setUpIsOneQuestionPerScreen() {
+        assertEquals(listOf(SetupPage.EQUIPMENT, SetupPage.NAMES, SetupPage.SOUND), setupPages(Equipment.CAR))
+        assertEquals(SetupPage.entries.toList(), setupPages(Equipment.HOME))
+        assertEquals(SetupPage.COMPANION, nextSetupPage(Equipment.PC, SetupPage.EQUIPMENT))
+        assertEquals(SetupPage.NAMES, nextSetupPage(Equipment.OTHER, SetupPage.EQUIPMENT))
+        assertEquals(null, nextSetupPage(Equipment.CAR, SetupPage.SOUND))
+        assertEquals(SetupPage.COMPANION, previousSetupPage(Equipment.HOME, SetupPage.NAMES))
+        assertEquals(SetupPage.EQUIPMENT, previousSetupPage(Equipment.CAR, SetupPage.NAMES))
+        assertEquals(null, previousSetupPage(Equipment.CAR, SetupPage.EQUIPMENT))
+        // Simple does not ask the target: Harman-style in a car, the room curve elsewhere
+        assertEquals(dev.autotune.dsp.Target.HARMAN_CAR, simpleTarget(Equipment.CAR))
+        assertEquals(dev.autotune.dsp.Target.HOME_THEATER, simpleTarget(Equipment.PC))
     }
 
     @Test

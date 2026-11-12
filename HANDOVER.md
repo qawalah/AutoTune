@@ -521,4 +521,11 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - Owner, 2026-11-12: "make the equipment choices big buttons with graphics, then equipment name, then test name; after home theatre, the option to connect to a companion; also a separate way to connect, from the Tests page".
 - `ui/EquipmentTiles.kt`: `EquipmentTiles` (2 × 2 `selectable` keys, Role.RadioButton, accent edge on the picked one) and `drawEquipment` (line drawings on a 48 × 26 unit field, 1.5 dp strokes). The only exception to "choices are drop-downs" (CLAUDE.md).
 - Set up order: tiles, "Equipment name" (becomes `SavedTest.device` through `newDevice`, ahead of the output name), "Test name (optional)" (`newTestName`: typed, else "<equipment name>, <date>", else "<target> test, <date>"), the companion drop-down, then the rest.
-- Connect passes `companionTheatreName(equipName, testName)` through `TuneTab(openCompanion)` to `AutoTuneScreen.theatreNew` and `TheatrePage(newName)`, which calls `TheatreViewModel.newTest(name)`; null opens the last home theatre. `TestsTab(openCompanion)` has its own "Connect to AutoTune on a TV or PC" deck at the top.
+- Connect went through `TuneTab(openCompanion)` (until 2.22 with a new home theatre's name). `TestsTab(openCompanion)` has its own "Connect to AutoTune on a TV or PC" deck at the top.
+
+### Set up, one question per screen (2.22.0)
+- Owner, 2026-11-12, on a screenshot of 2.21's Set up: the output and Test sound "should only appear after choosing no companion, and separate in steps, equipment first then companion if applicable; in Simple make Harman the default for cars and hide it; don't overwhelm the user with a lot of options at once".
+- `SetupPage` (TuningLogic: EQUIPMENT, COMPANION, NAMES, SOUND) with `setupPages(e)` (COMPANION only when `e.companion != null`), `nextSetupPage`, `previousSetupPage`, all tested. `SetupStep` keeps the page in `rememberSaveable`; its `BackHandler` (enabled past the first screen) and the header's Back go to `previousSetupPage`, else `tuneBack()`.
+- `simpleTarget(e)`: HARMAN_CAR for a car, HOME_THEATER otherwise; Simple uses it, Advanced shows the target drop-down (from `equipmentTarget`) on the SOUND screen.
+- The 2.21 name hand-over to the home-theatre page (`companionTheatreName`, `TheatrePage(newName)`, `theatreNew`) is gone: the names screen comes after the companion question.
+

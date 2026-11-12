@@ -90,12 +90,10 @@ private const val ABOUT_EQ =
 
 /** Tune a home theatre (or a PC's speakers) with the TV or PC playing each speaker and the phone listening. A page over the current tab. */
 @Composable
-fun TheatrePage(pick: Pickers, openId: String? = null, opened: () -> Unit = {}, newName: String? = null) {
+fun TheatrePage(pick: Pickers, openId: String? = null, opened: () -> Unit = {}) {
     val vm: TheatreViewModel = viewModel()
     val u by vm.ui.collectAsState()
     LaunchedEffect(openId) { openId?.let { vm.selectTest(it); opened() } }
-    // Set up's names start a new home theatre (2.21): the equipment's name, then the test's
-    LaunchedEffect(newName) { newName?.let { vm.newTest(it); opened() } }
     DisposableEffect(Unit) { vm.start(); onDispose { vm.pause() } }
     LaunchedEffect(u.needsMic) { if (u.needsMic) { vm.micGranted(true); pick.permission() } }
 
