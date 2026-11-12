@@ -1,0 +1,131 @@
+0	0	shot	Someone told me to get this app for my truck speakers, so I'm opening it to see what it is. Let me look at the screen first.
+1	1	tap 270 1105	It says tune your speakers, that's what I want. But 'fits an EQ' - I don't know what an EQ is. There's a Next button at the bottom, I'll press that.
+2	1	tap 270 1105	Measure the stock sound, put the mic where I sit. Sweep? I don't know what a sweep is, but it says the phone plays it, so it must be a sound. Mic is on my head already. Next.
+3	2	tap 270 1105	Get a suggested EQ, with sliders. 'Target curve' and 'close the gap' - I have no idea what those are. The sliders look like a stereo's equalizer, so maybe it moves my bass and treble. Next.
+4	2	tap 270 1105	Verify it. A number, 1.3 dB from target. What's a dB? And a target? I'm lost on the numbers but the pictures are clearer - a dashed line and a solid line. Next.
+5	2	tap 270 1105	Keep it. Save the EQ, plays on the whole phone, switches on when my car connects. Car picture, Bluetooth, an off switch. That part makes sense. Get started.
+6	1	tap 270 1095	Now I'm in. The middle red button says Tune, that's probably the one I want. The 'No tests yet' and 'New test' stuff I'm not sure about. Tapping Tune.
+7	2	tap 270 852	It says microphone access needed, with a button to allow it. The app needs my mic, that makes sense. But it also says 'USB microphone: Phone microphone' and I don't have a USB mic. Allowing the microphone.
+8	2	tap 270 338	The popup asked to record audio and it's gone, now it says phone mic and eq off in small grey words. The big Tune circle is still there. I'll press Tune, that's what I came for.
+9	1	tap 150 325	Set up. What are you tuning? I have a truck, so Car. It's already highlighted in red. Tapping Car.
+10	2	tap 270 295	Name it. Equipment name, I'll call it my Ford truck. Test name is optional, I'll skip that. Tapping the first box.
+11	1	type Ford truck	I tapped the box, I'll type the name of my truck now.
+12	1	tap 270 985	Ford truck is in the box now. Next button says suggested, so I'll press it.
+13	3	tap 270 985	Play the test sound. 'This phone plays it' - that's right, I'm on Bluetooth. 'Plays through: same as music' - ok. Then a button 'Measure the stock system' and I don't know what 'stock' means, but it says suggested. There's also a 'Test sound' row, I'm not sure if that's a test of my speakers or a real measure. I'll press the suggested one, the big bottom button.
+14	2	wait 15	It's measuring now. Spot 1 of 3, it says keep still and quiet while the sweep plays. I'm sitting still. There's a list of checks with dots, and the first one is pink. I'll wait for it.
+15	2	wait 15	Now there's a number, minus 21, with 'dbfs mic level' under it. I don't know what dbfs means. There's a wiggly bar going on. The checks are still not done, so I'll keep waiting.
+16	2	tap 270 1026	Spot 1 of 3 done. It says move the mic a hand's width to the next spot. I'll pretend I moved it, and the big button says Measure spot 2. All the checks are green now, which is nice. Pressing Measure spot 2.
+17	2	wait 20	Measuring spot 2 now. Same sweep again, keep still and quiet.
+18	2	tap 270 1026	Spot 2 of 3 done, same as before. Measure spot 3 is the button now. I'll keep going the same way.
+19	2	wait 20	Spot 3 measuring, keeping still and quiet.
+20	2	wait 20	Spot 3 is running, same sweep. Waiting more.
+21	2	tap 270 985	Refine. Ford truck, stock reading. 2.9 dB, 63 out of 100, 'stock from target' - my truck is 63 out of 100 from target, I think that means not great. Then 'the EQ should bring it to 1.2'. There's a warning triangle I don't understand. The chart is a mess of lines, I'll ignore it. The button says use the phone's EQ and measure, suggested. Tapping it.
+22	2	wait 25	Run 1, spot 1 of 3, it's measuring again with the EQ on. I'm just waiting, keeping still.
+23	2	tap 270 1026	Spot 1 done again. Measure spot 2, pressing it.
+24	2	wait 25	Spot 2 of the EQ run, waiting for the sweep.
+25	2	tap 270 1026	Spot 2 done. Measure spot 3, same as before.
+26	2	wait 30	Spot 3 with the EQ on, waiting for it to finish.
+27	2	tap 270 985	Result. Run 1 is 84 out of 100 now, was 63. 1.3 dB from target, better than 2.9. Good. There's still a red 'suggested EQ not applied yet' line, and a warning triangle I still don't get. The big button says keep this EQ and finish. Yes, pressing it.
+28	2	tap 150 995	Tuned. 84 out of 100 now, EQ is on. The bottom button says Continue Ford truck, but it looks faded, like I can't press it. Trying it anyway on the left side where the arrow is.
+29	2	tap 470 210	Hm, I'm back on the result page with the same big button. I'm not sure if I'm finished or not. I'll try the yellow warning triangle to find out what it's warning me about.
+30	1	tap 296 178	Notes on this reading: averaged 3 mic positions. Okay, that's just where I put the mic three times. Got it.
+31	1	swipe 270 800 270 300	Okay I got it. Let me scroll down to see what else is on this result page, there's more under the graph.
+32	2	tap 270 676	There's 'Another round with the new suggested EQ' under other choices, and 'Discard this run' in red, which sounds bad. The big bottom button is still keep this EQ and finish. I'm not sure what 'another round' means, but I want it to sound better, so I'll try another round to see.
+33	2	wait 30	Run 2, spot 1 of 3. Minus 26 now. I'm keeping still and quiet, waiting.
+34	2	tap 270 1026	Spot 1 done. Measure spot 2 again.
+35	2	wait 30	Spot 2 of run 2, waiting.
+36	2	tap 270 1026	Spot 2 done. Measure spot 3.
+37	2	wait 35	Spot 3 of run 2, waiting for it to finish.
+38	3	tap 270 985	Run 2 result. 87 out of 100, that's higher than 84. But underneath it says '1.3 dB, 84 out of 100, best, run 1'. So which is best? Run 2 is higher but it says run 1 is best. I'm confused now. The big button still says keep this EQ and finish, suggested. I'll go with that.
+39	2	tap 55 1105	Tuned screen says 1.3 and 84 out of 100, so it kept the best one, run 1. Good I think. The Continue button is still faded and the little arrow thing is in the way. I'll leave it and look around the other tabs now. Tests first.
+40	2	tap 240 257	Tests list. My Ford truck test, 3 readings. It says 2.9 to 1.4, 1.5 closer. But the tuned screen said 1.3. Why does this say 1.4? Maybe it's the last one, not the best. Opening the test to see.
+41	2	swipe 270 800 270 300	Inside the test. It's the Run 2 result again, with the cassette picture. Continue tuning, next: keep this EQ and finish. I'm not sure I want to continue tuning, I think it's done. I'll scroll down to see the rest of this page.
+42	2	swipe 270 800 270 400	There's a Runs list with tick boxes. Stock is ticked, Run 1 isn't. I guess ticks decide which lines are on the chart. There's a trash can next to each one, I won't touch that. Scrolling more.
+43	2	tap 121 364	Runs list: Stock, Run 1 with 84, Run 2 with 87. Run 2 has a higher number but Run 1 was the one kept. There's a small info circle next to Runs. Maybe it explains the numbers. Tapping it.
+44	3	tap 468 343	It says tick the runs to draw on the graph. The EQ follows the latest ticked run. The score rates the system. Honestly that's a lot of words. I ticked Run 2 is the last one, so the EQ should be run 2? But the big screen said Run 1 84 kept. That doesn't add up for me. Got it.
+45	2	tap 270 713	Bubble gone. Now 'Open the EQ' - I want to see what the equalizer shows, it's the thing I'm supposed to have on.
+46	2	tap 457 461	EQ page. AutoTune EQ, On, with a switch. EQ in use says Ford truck, 1.4 dB from target. Flavour, As tuned, that's a word I don't know. Adjust bands with numbers and sliders. I'll test the switch to see what it does, then switch it back on.
+47	2	tap 457 461	Now it says Off, and EQ off. So the switch is the on and off for the EQ. Switching it back on.
+48	2	tap 270 755	Back to on. Now the Flavour drop-down, As tuned. I want to see what the other choices are.
+49	2	tap 220 280	Flavour list: as tuned, more bass, rock, pop, electronic, acoustic, speech. Each has a little explanation. I like bass, my truck is a bit boomy. Trying more bass.
+50	2	swipe 270 800 270 400	More bass is picked. The line under says 'On: Ford truck, Run 2'. But after tuning it said run 1 was kept as best. So the EQ on now is run 2? I really don't know which one is on. Scrolling down to see the bands.
+51	2	tap 270 877	Adjust bands: eleven sliders with numbers, 31.5 up to 16k. There's a padlock, a Flat button and a Save button. A grey bar says '1 note, if your EQ app has no preamp setting'. I don't know what that means, so I'll open it.
+52	2	tap 468 198	About this EQ: if your EQ app has no preamp setting, lower its output level by 3.3 dB. I have no EQ app, so I don't know what to lower. Got it, I'll move on.
+53	2	tap 263 525	Got it closed. Now the little padlock above the sliders. I guess it locks the sliders so I don't move them by accident. Tapping it.
+54	2	swipe 60 700 60 640	The lock changed to an open padlock, so it's now unlocked, I think. Now I'll try pushing the 31.5 slider up to see if I can change the sound by hand.
+55	3	tap 190 985	Oops, the 31.5 slider jumped up to plus 11, and now it says '+ your slider changes' and '4 notes, the EQ boosts by up to 11.5 dB'. That sounds dangerous for my speakers. I want my tuned EQ back. There's 'Remove my slider changes' at the bottom, tapping that.
+56	2	swipe 270 800 270 400	Good, the slider is back to where it was and the note is gone. I won't press Flat, I'd guess that wipes the whole EQ. Scrolling down to see the graph under the sliders.
+57	3	tap 190 985	Ugh, my scroll went onto a slider and the 1k one jumped to plus 12. That's scary, it says the EQ boosts by 12.2 dB. Two times now the sliders moved when I only wanted to scroll. I'm putting it back with Remove my slider changes.
+58	2	swipe 528 900 528 500	Back to the original sliders. I'll scroll from the far right edge, away from the sliders, to be safe.
+59	2	tap 489 37	Now the graph: Run 2 line, target line, predicted with EQ dotted, AutoTune EQ red. Predicted is a word I'm not sure of. Trying the little picture icon at the top right of the EQ page.
+60	2	tap 220 168	It opened the same flavour list, with More bass ticked. So that icon is a shortcut to the flavour choice. I'll leave it on More bass for now.
+61	2	tap 377 1105	Keeping More bass. Next tab, Live. The word live I think means it plays the sound right now, so I'm curious.
+62	2	tap 270 985	Live page, standby, press Start to read the level. Start is suggested. Pressing it.
+63	2	wait 6	Watching what it does now. Waiting a few seconds to see the level.
+64	2	swipe 528 900 528 500	Live bars, green, some yellow, some red at the far right. The text says teal is within 2 dB, yellow within 4, red further away. But they look green to me, not teal. Also there's a minus 32.9 number and some small words I can't read at the bottom. I'll scroll from the right edge to read more.
+65	2	tap 270 850	There's a big number minus 52.3 dBFS, with 'no dB SPL with the phone mic' next to it, which is nothing I understand. A Sound section says 'With AutoTune EQ on', and a drop-down 'Play from the phone: Off'. I'll open the drop-down to see what it can play.
+66	2	tap 105 927	Options: pink noise, sweep, off. Pink noise sounds like a hiss, so I could hear my speakers with the EQ on. Picking pink noise.
+67	2	wait 5	Pink noise is picked. Let it play for a bit and see what the bars do.
+68	2	tap 270 985	Pink noise playing, the bars move with the hiss. Good. Now I'll stop it so it doesn't keep going, with the suggested Stop button.
+69	2	tap 270 798	Stopped. It says standby and Start again. But the drop-down still says Pink noise, I'm not sure if the noise is still going. I'll set it back to Off to be safe.
+70	2	tap 105 1000	Pick Off from the list.
+71	2	tap 484 1105	Sound set to Off. Now the Settings tab, the gear icon at the far right. I want to look at what I can change.
+72	2	tap 128 462	Settings. Mode: Simple. Under Microphone it says plug in a USB mic for better accuracy, and 'no calibration loaded' with an Import calibration button. Calibration is a word I don't know and I'm not going to import a file. I'll tap the little i next to Mode to see what it says.
+73	2	tap 468 259	Mode explained: simple keeps the main choices, advanced adds explanations and every option, and the switch at the top changes the same thing. Okay, that's clear enough. Got it.
+74	2	tap 270 37	Got it closed. Now I'll try the simple drop-down at the top to switch to advanced, like the info said, so I can see what changes.
+75	2	tap 277 175	A menu with Simple, less text, the main choices, and Advanced, every option and explanation. Advanced sounds like what I want to try now.
+76	2	swipe 528 900 528 500	Advanced is on now, and the top says advanced. The settings page looks mostly the same, the difference seems to be extra words. Scrolling down to see the rest of settings, from the right edge.
+77	2	swipe 528 900 528 500	EQ files section: Export EQ files, saved to Downloads/AutoTune, and Choose a folder. Export might be how I get the EQ onto my car stereo or another app, so I'll note it. Scrolling on to the next part, Defaults for new tests.
+78	2	tap 290 638	Defaults for new tests: Target curve, Car. Bass to taste, treble to taste, both 'as the curve'. Target curve again. I'll tap the info next to Defaults to learn what a target curve is.
+79	2	tap 468 231	This bubble says what the set up step starts with. It doesn't tell me what a target curve is. Got it. Opening the Target curve drop-down to see the choices.
+80	2	tap 270 748	Bubble closed. Now the Target curve drop-down.
+81	2	tap 220 195	Target curve choices with explanations: car, home theatre, flat, car Harman, room Harman. Now I understand a bit more: it's the sound shape you want. Car is already ticked and it's a truck, so I'll keep Car.
+82	2	swipe 528 900 528 450	Car kept. Scrolling on through the rest of the settings.
+83	2	swipe 528 900 528 450	Mic spots per reading, automatic. Analysis window, automatic, in ms. I don't know what those are and I'd leave them alone. Now a section called AutoTune EQ with Band resolution, 31 bands. Scrolling more.
+84	2	tap 279 878	AI assistant: AI, Claude. Then 'where the key comes from' and a box for a Claude API key. I don't have a key and I have no idea what that is. I'm not typing anything in there. I'll tap the little i to see what it means.
+85	3	tap 468 259	Paste a Claude API key from some website, settings, API keys. It says the requests are charged to that key's account. I don't have one and I don't want to be charged money. So I'm skipping that. Got it.
+86	2	swipe 528 900 528 450	Skipping the key box. Scrolling further down to see what else settings has.
+87	2	tap 189 857	Model: Claude Sonnet. Then Diagnostics, keep the last 12 recordings, switched on. Recordings sounds like it's recording me and my truck, which worries me a bit. I'll tap the info on Diagnostics to see if they leave my phone.
+88	2	tap 468 287	Diagnostics: a record of measurements, EQ changes, failures, plus the last recordings. It stays on this phone until I share it. That's reassuring. Got it.
+89	2	swipe 528 900 528 450	Good, that's reassuring, it stays on the phone. Scrolling on to the end of settings.
+90	2	swipe 528 900 528 450	Diagnostics has Save, Send, and a red Clear. I won't press those, I'd be sending or deleting things. TV screen: use this device as the TV. I don't have a TV, that's not for me. Scrolling on.
+91	2	tap 270 748	Appearance. Look: Gradient edge, with some little coloured squares under it. Accent, as the look. Light or dark, system. I'm going to change the look for fun, to see what it's like, starting with the Look drop-down.
+92	2	tap 200 488	Look choices: classic, graphite, black, white, and gradient edge which is the default. The words are clear enough. I'll pick Black to see the difference.
+93	2	swipe 528 900 528 450	Black look is very dark grey, the whole page changed. Readable enough but I liked the warm one better. I'll switch it back later. Scrolling to see Light or dark and the rest.
+94	2	swipe 528 900 528 450	Light or dark: system. Then a Palette section with Body, Deck, Ink, all as the look. That's a lot of words I don't know, Ink, Deck, Body. Scrolling on.
+95	2	swipe 528 900 528 450	Palette: body, deck, ink, accent, hairline, all as the look, and reset palette. Way too many things to fiddle with. I'm not changing these. Scrolling down to the bottom.
+96	2	swipe 528 900 528 450	Target curves: import a curve file, no saved curves yet. About: AutoTune 2.26.1, and a note about a font called Inter. Scrolling to the end.
+97	2	tap 270 862	About ends with 'Replay the tutorial'. I'd like to see the intro screens again to see if they make more sense now that I've used it. Tapping it.
+98	2	tap 490 37	The tutorial again, same words as before. I already know the story, so I'll press Skip.
+99	2	shot	Skipped. Back to the settings I think. Let me see where I am.
+100	2	swipe 528 400 528 900	Back on settings, it's the dark look. I'll set the look back to Gradient edge, the warm one I started with. Scrolling up to the Look choice.
+101	2	swipe 528 400 528 900	Scrolling up more to find the Look box.
+102	2	tap 270 229	Found the Look box, it says Black. Opening it to switch back to Gradient edge.
+103	2	tap 200 645	Gradient edge is at the bottom of the list. Tapping it.
+104	2	tap 55 1105	Look is back to the warm gradient. Now I want to see the Tests tab again, and the menu with the three dots on my truck test.
+105	2	tap 484 257	Tests tab. Tapping the three dots on the truck test row.
+106	2	tap 396 457	Menu: open results, continue tuning, rename, delete. Rename is harmless, I'll look at it and then back out without changing the name.
+107	2	tap 375 227	Rename box with the old name. Cancel, I don't want to change it.
+108	2	tap 432 983	Cancelled. Now the New test button. I'll see what it does, and back out if it starts anything I don't want.
+109	2	tap 475 32	A new set up, same first question, what are you tuning. In advanced mode the top says advanced. I don't want to start a new test by accident, so I'll press Exit.
+110	2	tap 55 1105	Tune page now says 'EQ currently in use: Ford truck, Run 2', but the Tuned card says 1.3 from run 1. Two different answers again. Going to Tests to look at the Connect to a TV or PC row.
+111	2	tap 270 138	Tapping the Connect to AutoTune on a TV or PC row to see what it asks.
+112	2	tap 37 37	Home theatre? It says find the TV or PC, looking on this wi-fi, nothing found yet, and it wants a code from its screen. I don't have a TV or PC here, and the title said Home t..., which I don't get. Going back.
+113	2	tap 162 1105	Back on Tests. Next the EQ tab's Save button, next to the Flat, to see what it saves.
+114	2	swipe 528 400 528 900	Advanced EQ page: Preamp Safe, a 10 bands drop-down, sliders, and a faded frequency response graph. The graph looks faded, I wonder if the EQ got switched off. I'll scroll back to the top to check the switch.
+115	2	tap 270 630	It's still on. Advanced adds a Preamp box, currently Safe. The line says 9 bands, but the drop-down under the sliders says 10 bands. I'm not sure which is right. Opening Preamp to see the choices.
+116	2	tap 200 710	Preamp choices: safe, balanced, off, manual, each with a line about clipping and loudness. I'd keep Safe, it says never clips. Tapping Safe to keep it.
+117	2	tap 446 753	Safe kept. Now the Save button over the bands, I'll see what it asks.
+118	2	tap 266 237	Save as a profile, with a name box. A profile sounds like a saved sound for later, but I don't know if it's the same as the test. I'll cancel, I don't want to make something I can't explain.
+119	2	tap 484 1105	Cancelled. Last thing I want to check is the Export EQ files button in settings, to see if I can get the sound to another device.
+120	2	swipe 528 900 528 500	Settings again. Scrolling down to the EQ files section.
+121	2	swipe 528 400 528 900	Palette now shows named colours: warm white, white, slate, braun red, aluminium. That's nicer, but I only understand the colour names. I went too far down, scrolling back up to find EQ files.
+122	2	swipe 528 400 528 800	Still too far, scrolling up a bit more.
+123	2	swipe 528 400 528 800	Almost there, scrolling once more upward.
+124	2	swipe 528 300 528 900	Export is further up, above the AI part. Scrolling up.
+125	2	swipe 528 300 528 900	Still going up.
+126	2	swipe 528 300 528 800	Nearly there, the EQ files part is just above the Target curve bit.
+127	2	swipe 528 300 528 800	One more push up.
+128	2	tap 270 692	Found EQ files. Export EQ files, saved to Downloads/AutoTune. I'll tap Export to see what happens.
+129	2	tap 270 298	Export page: which EQ, Ford truck. For: Poweramp, Equalizer APO. Save to Downloads, or Share. I don't know what Poweramp or Equalizer APO are. Opening the For list to see what's there.
+130	2	tap 200 380	Four choices, each with a file name I don't understand, ParametricEQ.txt and GraphicEQ.txt. I'll keep the first one, I have no app to load it into. Closing the list.
