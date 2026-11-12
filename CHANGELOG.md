@@ -4,6 +4,14 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.26.0] - 2026-11-12
+### Changed
+- **No key that repeats what is on the screen.** "Next: car" (and the rest) is gone from "What are you tuning?": a picture key picks and moves on. Also gone: "Open the EQ" on the Tune screen after a finished tune (the EQ tab is right under it) and "Back to the EQ" on an empty Result (the back arrow does it).
+- **Every header drawing sits in an outlined box,** so it reads as a device on the light looks too: the record player, the faders, the radio, the controls, and the round speaker in a cabinet.
+- **The tape deck is a cassette:** its shell, the window the reels turn in, the tape over the head.
+### Added
+- **The home-theatre page has its own drawing:** a TV between two tower speakers with a soundbar; as it appears the level bars rise on the screen and the sound spreads from the towers.
+
 ## [2.25.1] - 2026-11-12
 ### Changed
 - **"Is AutoTune on the TV?" is two equal choices in the middle of the screen:** "Yes, AutoTune is on the TV" (with the TV or PC drawn) and "No, use this phone only" (a phone), side by side, the same size. Nothing is pinned or suggested below them any more.

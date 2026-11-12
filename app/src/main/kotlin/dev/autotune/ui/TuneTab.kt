@@ -188,7 +188,7 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
                 EquipmentTiles(equipment, { equipment = it; next() }, enabled = !s.busy)
                 if (mem?.equipment != null && out != null) Muted("as last time on $out")
             }
-            PinAction("Next: ${equipment.title.lowercase()}", ::next, icon = Ic.NEXT)
+            // no key below: a picture key picks and moves on (owner, 2026-11-12: "this button is not necessary")
         }
 
         dev.autotune.SetupPage.COMPANION -> {
@@ -444,8 +444,8 @@ private fun ResultStep(s: UiState, vm: TuneViewModel, pick: Pickers, openResults
 
     StepHeader(4, STEPS, "Result", exit, onBack = vm::tuneBack, names = dev.autotune.STEP_NAMES)
     if (stock == null || latest == null || runs.size < 2) {
+        // the header's back arrow returns to the EQ; no pinned key repeats it
         Muted("No run with the EQ yet.")
-        PinAction("Back to the EQ", { vm.tuneGo(TuneStep.APPLY) }, icon = Ic.BACK)
         return
     }
     ResultSummary(s)
@@ -547,7 +547,8 @@ private fun TunedPanel(s: UiState, vm: TuneViewModel, pick: Pickers, go: (Tab) -
     val route = s.btRoute
     if (route != null && dev.autotune.offerAutoSwitch(route, playsOnPhone, s.tunedProfileId, s.rules, s.automationOn)) {
         PinAction("Use this EQ whenever ${route.name} connects", { pick.bluetooth(); vm.autoSwitchToTuned() }, icon = Ic.BLUETOOTH)
-    } else PinAction("Open the EQ", { go(Tab.EQ) }, icon = Ic.EQ)
+    }
+    // no "Open the EQ" key: the EQ tab is right under it
 }
 
 /** Advanced: a note saved with the next run (what was changed for it). */
