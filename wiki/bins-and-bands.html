@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bins and Bands</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
+<style>
+/* Layout: one column of decks on the device body, like a Braun panel; figures run full deck width. */
+:root {
+  --body: #E9E7E1;      /* device body */
+  --deck: #F3F2EE;      /* light plate */
+  --key: #E4E2DC;       /* keys, inactive fills */
+  --rule: #C9C7C0;      /* hairlines */
+  --ink: #232321;
+  --muted: #5E5C57;
+  --accent: #BF3C18;    /* Braun red: only what is live / in use */
+  --good: #3D7F3A;
+  --warn: #805C00;
+  --warn-soft: rgba(128, 92, 0, 0.10);
+  --band-a: #B9BAB8;    /* aluminium */
+  --band-b: #8E8F8C;
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --body: #121211; --deck: #1C1C1B; --key: #262624; --rule: #3A3A36;
+    --ink: #ECEAE4; --muted: #A3A19A; --accent: #F0663A; --good: #6CB866; --warn: #E9C14A;
+    --warn-soft: rgba(233, 193, 74, 0.10); --band-a: #5A5B58; --band-b: #82837F;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --body: #121211; --deck: #1C1C1B; --key: #262624; --rule: #3A3A36;
+  --ink: #ECEAE4; --muted: #A3A19A; --accent: #F0663A; --good: #6CB866; --warn: #E9C14A;
+  --warn-soft: rgba(233, 193, 74, 0.10); --band-a: #5A5B58; --band-b: #82837F;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--body); color: var(--ink); font-family: var(--font); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 56px; font-variant-numeric: tabular-nums;
+}
+.wrap { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; flex-direction: column; gap: 6px; padding-block: 4px 6px; }
+.eyebrow { font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: lowercase; color: var(--muted); }
+h1 { font-size: clamp(34px, 7vw, 46px); font-weight: 300; line-height: 1.08; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-size: 19px; font-weight: 500; margin: 0; text-wrap: balance; }
+p { margin: 0; max-width: 64ch; }
+.lead { font-size: 16.5px; color: var(--ink); }
+.muted { color: var(--muted); }
+
+.deck { background: var(--deck); border: 1px solid var(--rule); border-radius: 6px; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.deck > .head { display: flex; flex-direction: column; gap: 4px; }
+
+/* controls: drop-downs, as in the app */
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.field label { font-size: 11px; font-weight: 500; letter-spacing: 0.06em; color: var(--muted); text-transform: lowercase; }
+select {
+  font: inherit; font-size: 14px; color: var(--ink); background: var(--key); border: 1px solid var(--rule); border-radius: 4px;
+  padding: 9px 30px 9px 10px; appearance: none; width: 100%; min-width: 0;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 52%, calc(100% - 11px) 52%; background-size: 5px 5px; background-repeat: no-repeat;
+}
+select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* readings: large and light, labels small and lowercase */
+.cells { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); border-top: 1px solid var(--rule); }
+.cell { padding: 12px 12px 4px 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cell .v { font-size: 30px; font-weight: 300; line-height: 1.1; white-space: nowrap; }
+.cell .v small { font-size: 14px; font-weight: 400; color: var(--muted); margin-left: 3px; }
+.cell .l { font-size: 11px; font-weight: 500; letter-spacing: 0.06em; color: var(--muted); text-transform: lowercase; }
+.cell.live .v { color: var(--accent); }
+
+.figure { overflow-x: auto; margin-inline: -4px; }
+svg { display: block; width: 100%; height: auto; min-width: 520px; }
+svg text { font-family: var(--font); font-size: 11px; fill: var(--muted); }
+svg .ink { fill: var(--ink); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.sw { width: 16px; height: 10px; border-radius: 2px; display: inline-block; border: 1px solid var(--rule); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; }
+.ln { width: 18px; height: 0; display: inline-block; border-top: 2px solid; }
+
+.note { font-size: 13.5px; color: var(--muted); border-left: 2px solid var(--rule); padding-left: 10px; max-width: 64ch; }
+.status { font-size: 13.5px; }
+.status b { font-weight: 500; }
+.status.good b { color: var(--good); }
+.status.warn b { color: var(--warn); }
+
+/* table */
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 600px; font-size: 13.5px; }
+th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { font-size: 11px; font-weight: 500; letter-spacing: 0.05em; color: var(--muted); text-transform: lowercase; }
+tr.sel td { background: var(--key); }
+.chip { display: inline-block; font-size: 10.5px; font-weight: 500; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 3px; border: 1px solid var(--rule); color: var(--muted); margin-left: 6px; vertical-align: 1px; }
+.chip.on { border-color: var(--accent); color: var(--accent); }
+.bad { color: var(--warn); }
+
+ul.points { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; max-width: 66ch; }
+ul.points li::marker { color: var(--muted); }
+dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; }
+dt { font-weight: 500; }
+dd { margin: 0; color: var(--muted); min-width: 0; }
+@media (max-width: 520px) { dl { grid-template-columns: 1fr; gap: 2px; } dd { margin-bottom: 8px; } }
+@media (prefers-reduced-motion: no-preference) { .curve { transition: d 0.25s ease; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">autotune · how it works</div>
+    <h1>Bins and bands</h1>
+    <p class="lead">AutoTune EQ runs on Android's own equaliser. It splits the sound into <b>slots</b> that are all the same width in Hz. AutoTune's <b>bands</b> grow with frequency: narrow in the bass, wide in the treble. A band only does its job when it is at least one slot wide.</p>
+  </header>
+
+  <section class="deck" aria-labelledby="settings-h">
+    <div class="head">
+      <h2 id="settings-h">Settings</h2>
+      <p class="muted">Change them and watch the pictures below. They start on what AutoTune uses.</p>
+    </div>
+    <div class="controls">
+      <div class="field"><label for="block">block size, samples</label>
+        <select id="block">
+          <option value="512">512 (Android default)</option>
+          <option value="1024">1024</option>
+          <option value="2048">2048</option>
+          <option value="4096" selected>4096 (AutoTune)</option>
+          <option value="8192">8192</option>
+          <option value="16384">16384 (largest)</option>
+        </select></div>
+      <div class="field"><label for="bands">bands</label>
+        <select id="bands">
+          <option value="61" selected>1/6 octave, 60 bands</option>
+          <option value="31">1/3 octave, 31 bands</option>
+        </select></div>
+      <div class="field"><label for="rate">sample rate</label>
+        <select id="rate">
+          <option value="48000" selected>48 kHz</option>
+          <option value="44100">44.1 kHz</option>
+        </select></div>
+      <div class="field"><label for="view">view</label>
+        <select id="view">
+          <option value="bass" selected>Bass to 500 Hz</option>
+          <option value="mid">Up to 2 kHz</option>
+          <option value="all">20 Hz to 20 kHz</option>
+        </select></div>
+    </div>
+    <div class="cells" id="cells"></div>
+  </section>
+
+  <section class="deck" aria-labelledby="ruler-h">
+    <div class="head">
+      <h2 id="ruler-h">Two rulers</h2>
+      <p class="muted">Top: AutoTune's bands. Bottom: Android's slots, each coloured like the band that sets it.</p>
+    </div>
+    <div class="figure"><svg id="ruler" viewBox="0 0 720 196" role="img" aria-label="Bands against slots on a frequency scale"></svg></div>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--band-a)"></i><i class="sw" style="background:var(--band-b);margin-left:-4px"></i> band with its own slot</span>
+      <span><i class="sw" style="background:transparent;border:1px dashed var(--warn)"></i> band that gets no slot</span>
+      <span><i class="sw" style="background:var(--warn-soft);border-color:transparent"></i> bands merged here</span>
+    </div>
+    <p class="status" id="rulerStatus"></p>
+    <p class="note">On a picture of sound, low notes get as much room as high ones (each octave is the same width). The slots are the same width in Hz. So on this scale they look wide in the bass and crowd together in the treble.</p>
+  </section>
+
+  <section class="deck" aria-labelledby="eq-h">
+    <div class="head">
+      <h2 id="eq-h">What your EQ becomes</h2>
+      <p class="muted">The EQ AutoTune asks for, and what the phone can do with these slots.</p>
+    </div>
+    <div class="controls">
+      <div class="field"><label for="example">example eq</label>
+        <select id="example">
+          <option value="run4" selected>F-150, Run 4 (a real tune)</option>
+          <option value="notch">Narrow cut, 60 Hz −8 dB</option>
+          <option value="lift">Bass lift, 40 Hz +6 dB</option>
+        </select></div>
+    </div>
+    <div class="figure"><svg id="eqplot" viewBox="0 0 720 280" role="img" aria-label="Wanted EQ against what the phone applies"></svg></div>
+    <div class="legend">
+      <span><i class="ln" style="border-color:var(--ink)"></i> what AutoTune asks for</span>
+      <span><i class="ln" style="border-color:var(--accent)"></i> what the phone applies</span>
+      <span><i class="dot"></i> one slot</span>
+    </div>
+    <p class="status" id="eqStatus"></p>
+  </section>
+
+  <section class="deck" aria-labelledby="table-h">
+    <div class="head">
+      <h2 id="table-h">Every block size side by side</h2>
+      <p class="muted">For the bands, sample rate and example EQ chosen above.</p>
+    </div>
+    <div class="tablewrap"><table id="table"></table></div>
+    <p class="note">"Works from" is the frequency above which every band has a slot of its own. "Bass error" is the largest gap between the wanted EQ and what the phone applies, between 50 and 200 Hz.</p>
+  </section>
+
+  <section class="deck" aria-labelledby="vars-h">
+    <div class="head"><h2 id="vars-h">What each setting changes</h2></div>
+    <ul class="points">
+      <li><b>Bigger blocks</b> give narrower slots, so the bass bands work. The cost is delay: the phone holds back one block of sound before it plays (4096 samples is about 85 ms). Changes to the EQ also take effect in steps of half a block.</li>
+      <li><b>Smaller blocks</b> play sooner, but the slots get wide. At 512 samples a slot is 94 Hz, so everything below about 140 Hz is just two slots. The bass is smeared and the 45 Hz band sets everything from 47 to 140 Hz.</li>
+      <li><b>More bands</b> (1/6 octave instead of 1/3; the app calls it the 61-band setting) can follow narrower cuts, but each band is narrower too, so they need finer slots before they work in the bass.</li>
+      <li><b>Sample rate</b> moves the slots a little. A slot is the sample rate divided by the block size, so at 44.1 kHz slots are about 8% narrower than at 48 kHz. Android rounds the block up to a power of two, so AutoTune's request of 80 ms gives 4096 samples at both rates.</li>
+      <li><b>The truck itself</b> sets a floor no setting can fix: below about 30 Hz its speakers barely play, and what you hear there is mostly overtones and rattle.</li>
+    </ul>
+  </section>
+
+  <section class="deck" aria-labelledby="words-h">
+    <div class="head"><h2 id="words-h">Words used here</h2></div>
+    <dl>
+      <dt>Slot (bin)</dt><dd>One of the equal-width pieces Android splits the sound into. Each slot gets one gain.</dd>
+      <dt>Band</dt><dd>One of AutoTune's EQ controls. Android hands each slot to the first band whose edge reaches it.</dd>
+      <dt>Octave</dt><dd>A doubling of frequency, such as 50 to 100 Hz or 1 to 2 kHz. A 1/6-octave band is about 12% of its frequency wide: 5 Hz at 40 Hz, 116 Hz at 1 kHz.</dd>
+      <dt>Block</dt><dd>How many samples Android processes at once. Slot width = sample rate ÷ block.</dd>
+      <dt>Sample rate</dt><dd>Samples per second of the phone's output, usually 48 000.</dd>
+      <dt>Delay</dt><dd>How much later the sound comes out with AutoTune EQ on. About one block.</dd>
+    </dl>
+  </section>
+</div>
+
+<script>
+(function () {
+  // ---- the same model as DpBins.kt in the app (AOSP DPFrequency) ----
+  const COARSE = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000,
+    2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000];
+  const FINE = Array.from({ length: 61 }, (_, i) => 20 * Math.pow(2, i / 6)).filter(f => f <= 20000);
+  function layout(n) {
+    const centres = n === 31 ? COARSE : FINE;
+    const half = n === 31 ? Math.pow(2, 1 / 6) : Math.pow(2, 1 / 12);
+    const edges = centres.map(c => Math.min(c * half, 21000));
+    const lows = centres.map((c, i) => i === 0 ? c / half : edges[i - 1]);
+    return { centres, edges, lows, widthFactor: half - 1 / half };
+  }
+  function owners(edges, block, fs) {
+    const halfN = block / 2 + 1; let next = 0;
+    return edges.map(e => {
+      const stop = Math.floor(0.5 + e * block / fs);
+      const r = (stop >= next && next < halfN) ? [next, Math.min(stop, halfN - 1)] : null;
+      next = stop + 1; return r;
+    });
+  }
+  function peakingDb(f, fc, g, q, fs) {
+    const A = Math.pow(10, g / 40), w0 = 2 * Math.PI * fc / fs, al = Math.sin(w0) / (2 * q), cw = Math.cos(w0);
+    const a0 = 1 + al / A, b0 = (1 + al * A) / a0, b1 = -2 * cw / a0, b2 = (1 - al * A) / a0, a1 = -2 * cw / a0, a2 = (1 - al / A) / a0;
+    const w = 2 * Math.PI * f / fs;
+    const nr = b0 + b1 * Math.cos(w) + b2 * Math.cos(2 * w), ni = -(b1 * Math.sin(w) + b2 * Math.sin(2 * w));
+    const dr = 1 + a1 * Math.cos(w) + a2 * Math.cos(2 * w), di = -(a1 * Math.sin(w) + a2 * Math.sin(2 * w));
+    return 10 * Math.log10((nr * nr + ni * ni) / (dr * dr + di * di) + 1e-30);
+  }
+  const EXAMPLES = {
+    run4: { pre: -3.3, f: [[30.4, 2.5, 2.22], [46.5, -7.48, 0.86], [204.5, 3, 2.5], [246.8, -6.11, 4], [472.6, 3, 2.5], [652.8, -8.51, 2.75], [1483, 3, 2.5], [9476, 3, 0.88]] },
+    notch: { pre: 0, f: [[60, -8, 4]] },
+    lift: { pre: -6, f: [[40, 6, 1.0]] },
+  };
+  const want = (ex, f) => ex.pre + ex.f.reduce((s, b) => s + peakingDb(f, b[0], b[1], b[2], 48000), 0);
+  function applied(ex, L, block, fs) {
+    const own = owners(L.edges, block, fs), binHz = fs / block;
+    const gains = L.edges.map((_, b) => {
+      const r = own[b];
+      if (!r) return want(ex, L.centres[b]);
+      let s = 0; for (let k = r[0]; k <= r[1]; k++) s += want(ex, Math.max(k * binHz, 5)); return s / (r[1] - r[0] + 1);
+    }).map(g => Math.max(-30, Math.min(15, g)));
+    const bins = new Array(block / 2 + 1).fill(0);
+    own.forEach((r, b) => { if (r) for (let k = r[0]; k <= r[1]; k++) bins[k] = gains[b]; });
+    const at = f => { const p = Math.min(Math.max(f * block / fs, 0), bins.length - 1); const k = Math.min(Math.floor(p), bins.length - 2), t = p - k; return bins[k] * (1 - t) + bins[k + 1] * t; };
+    return { bins, at, own, binHz };
+  }
+  function worksFrom(own, L) { // every band from this one up has a slot
+    let i = own.length - 1; while (i > 0 && own[i - 1]) i--; return L.lows[i];
+  }
+  function bassError(ex, L, block, fs) {
+    const a = applied(ex, L, block, fs); let worst = 0;
+    for (let f = 50; f <= 200; f *= 1.01) worst = Math.max(worst, Math.abs(a.at(f) - want(ex, f)));
+    return worst;
+  }
+
+  // ---- drawing helpers ----
+  const $ = id => document.getElementById(id);
+  const NS = 'http://www.w3.org/2000/svg';
+  function el(name, attrs, parent) { const e = document.createElementNS(NS, name); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+  const VIEWS = { bass: [20, 500], mid: [20, 2000], all: [20, 20000] };
+  const fmtHz = f => f >= 1000 ? (Math.round(f / 100) / 10).toString().replace(/\.0$/, '') + ' kHz' : Math.round(f) + ' Hz';
+  const TICKS = [20, 30, 50, 100, 200, 300, 500, 1000, 2000, 5000, 10000, 20000];
+  function xScale(lo, hi, x0, x1) { const a = Math.log(lo), b = Math.log(hi); return f => x0 + (Math.log(f) - a) / (b - a) * (x1 - x0); }
+
+  function state() { return { block: +$('block').value, n: +$('bands').value, fs: +$('rate').value, view: VIEWS[$('view').value], ex: EXAMPLES[$('example').value] }; }
+
+  function drawCells(s, L, own) {
+    const binHz = s.fs / s.block, delay = s.block / s.fs * 1000;
+    const withSlot = own.filter(Boolean).length;
+    const from = worksFrom(own, L);
+    const cells = [
+      ['slot width', binHz.toFixed(binHz < 20 ? 1 : 0), 'Hz', true],
+      ['extra delay', Math.round(delay), 'ms', false],
+      ['bands with a slot', withSlot, 'of ' + L.edges.length, false],
+      ['every band works from', fmtHz(from).split(' ')[0], fmtHz(from).split(' ')[1], false],
+    ];
+    $('cells').innerHTML = cells.map(c => `<div class="cell${c[3] ? ' live' : ''}"><span class="v">${c[1]}<small>${c[2]}</small></span><span class="l">${c[0]}</span></div>`).join('');
+  }
+
+  function drawRuler(s, L, own) {
+    const svg = $('ruler'); svg.innerHTML = '';
+    const [lo, hi] = s.view, X0 = 14, X1 = 706, x = xScale(lo, hi, X0, X1);
+    const clamp = v => Math.max(X0, Math.min(X1, v));
+    const binHz = s.fs / s.block, from = worksFrom(own, L);
+    // merged region
+    if (from > lo) el('rect', { x: X0, y: 22, width: clamp(x(from)) - X0, height: 128, fill: 'var(--warn-soft)' }, svg);
+    el('text', { x: X0, y: 15 }, svg).textContent = 'bands';
+    el('text', { x: X0, y: 97 }, svg).textContent = 'slots';
+    // bands
+    L.edges.forEach((e, i) => {
+      const a = L.lows[i], b = e; if (b < lo || a > hi) return;
+      const xa = clamp(x(a)), xb = clamp(x(b)); if (xb - xa < 0.3) return;
+      const has = !!own[i];
+      el('rect', has ? { x: xa, y: 24, width: xb - xa, height: 48, fill: i % 2 ? 'var(--band-b)' : 'var(--band-a)' }
+        : { x: xa + 0.5, y: 24.5, width: Math.max(0, xb - xa - 1), height: 47, fill: 'none', stroke: 'var(--warn)', 'stroke-dasharray': '3 2' }, svg);
+    });
+    // slots, coloured like the band that sets them
+    const ownerOf = []; own.forEach((r, b) => { if (r) for (let k = r[0]; k <= r[1]; k++) ownerOf[k] = b; });
+    const kMax = Math.ceil(hi / binHz) + 1;
+    for (let k = 0; k <= Math.min(kMax, s.block / 2); k++) {
+      const a = Math.max(lo, (k - 0.5) * binHz), b = (k + 0.5) * binHz; if (b < lo || a > hi) continue;
+      const xa = clamp(x(Math.max(a, lo))), xb = clamp(x(Math.min(b, hi)));
+      if (xb - xa < 1.6) { // too dense to draw one by one: fill the rest
+        el('rect', { x: xa, y: 102, width: X1 - xa, height: 48, fill: 'var(--band-a)' }, svg);
+        el('text', { x: X1 - 4, y: 166, 'text-anchor': 'end' }, svg).textContent = 'slots too close to draw one by one';
+        break;
+      }
+      const ob = ownerOf[k];
+      el('rect', { x: xa, y: 102, width: xb - xa, height: 48, fill: ob === undefined ? 'var(--key)' : (ob % 2 ? 'var(--band-b)' : 'var(--band-a)'), stroke: 'var(--deck)', 'stroke-width': xb - xa > 4 ? 1 : 0 }, svg);
+    }
+    // where every band works
+    if (from > lo && from < hi) {
+      const xf = x(from);
+      el('line', { x1: xf, x2: xf, y1: 18, y2: 156, stroke: 'var(--ink)', 'stroke-width': 1 }, svg);
+      const t = el('text', { x: xf + 5, y: 89, class: 'ink' }, svg); t.textContent = 'all bands work from ' + fmtHz(from);
+      if (xf > 520) { t.setAttribute('x', xf - 5); t.setAttribute('text-anchor', 'end'); }
+    }
+    // axis
+    el('line', { x1: X0, x2: X1, y1: 172, y2: 172, stroke: 'var(--rule)' }, svg);
+    TICKS.filter(f => f >= lo && f <= hi).forEach(f => {
+      el('line', { x1: x(f), x2: x(f), y1: 172, y2: 177, stroke: 'var(--muted)' }, svg);
+      el('text', { x: x(f), y: 191, 'text-anchor': f === lo ? 'start' : f === hi ? 'end' : 'middle' }, svg).textContent = fmtHz(f);
+    });
+    const withSlot = own.filter(Boolean).length, total = own.length;
+    const st = $('rulerStatus');
+    st.className = 'status ' + (from <= 60 ? 'good' : 'warn');
+    st.innerHTML = withSlot === total
+      ? `<b>Every band has its own slot.</b> Slots are ${binHz.toFixed(1)} Hz apart.`
+      : `<b>${total - withSlot} of ${total} bands get no slot</b>: below ${fmtHz(from)} several bands share one slot, and the first band to reach it decides its gain.`;
+  }
+
+  function drawEq(s, L) {
+    const svg = $('eqplot'); svg.innerHTML = '';
+    const [lo, hi] = s.view, X0 = 40, X1 = 706, Y0 = 14, Y1 = 248, x = xScale(lo, hi, X0, X1);
+    const a = applied(s.ex, L, s.block, s.fs);
+    const fs = []; for (let f = lo; f <= hi * 1.0001; f *= 1.005) fs.push(f);
+    const w = fs.map(f => want(s.ex, f)), p = fs.map(f => a.at(f));
+    let mn = Math.min(...w, ...p), mx = Math.max(...w, ...p);
+    mn = Math.floor((mn - 1) / 3) * 3; mx = Math.ceil((mx + 1) / 3) * 3; if (mx - mn < 12) { const c = (mx + mn) / 2; mn = Math.floor((c - 6) / 3) * 3; mx = mn + 12; }
+    const y = v => Y1 - (v - mn) / (mx - mn) * (Y1 - Y0);
+    for (let v = mn; v <= mx; v += 3) {
+      el('line', { x1: X0, x2: X1, y1: y(v), y2: y(v), stroke: 'var(--rule)', 'stroke-width': v === 0 ? 1.2 : 0.6 }, svg);
+      el('text', { x: X0 - 6, y: y(v) + 4, 'text-anchor': 'end' }, svg).textContent = (v > 0 ? '+' : '') + v;
+    }
+    el('text', { x: 4, y: Y0 - 2 }, svg).textContent = 'dB';
+    TICKS.filter(f => f >= lo && f <= hi).forEach(f => {
+      el('line', { x1: x(f), x2: x(f), y1: Y0, y2: Y1, stroke: 'var(--rule)', 'stroke-width': 0.4 }, svg);
+      el('text', { x: x(f), y: Y1 + 18, 'text-anchor': f === lo ? 'start' : f === hi ? 'end' : 'middle' }, svg).textContent = fmtHz(f);
+    });
+    const path = arr => arr.map((v, i) => (i ? 'L' : 'M') + x(fs[i]).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
+    el('path', { d: path(w), fill: 'none', stroke: 'var(--ink)', 'stroke-width': 1.6, class: 'curve' }, svg);
+    el('path', { d: path(p), fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2.2, class: 'curve' }, svg);
+    // the slots themselves, when there are few enough to see
+    const visible = [];
+    for (let k = 1; k * a.binHz <= hi; k++) if (k * a.binHz >= lo) visible.push(k);
+    if (visible.length <= 70) visible.forEach(k => el('circle', { cx: x(k * a.binHz), cy: y(a.bins[k]), r: 3, fill: 'var(--accent)' }, svg));
+    const err = bassError(s.ex, L, s.block, s.fs);
+    const st = $('eqStatus');
+    st.className = 'status ' + (err < 1 ? 'good' : 'warn');
+    st.innerHTML = err < 1
+      ? `<b>Within ${err.toFixed(1)} dB of what was asked</b> between 50 and 200 Hz.`
+      : `<b>Up to ${err.toFixed(1)} dB off</b> between 50 and 200 Hz: the slots are too wide for these bands.`;
+  }
+
+  function drawTable(s, L) {
+    const rows = [512, 1024, 2048, 4096, 8192, 16384];
+    const head = '<tr><th>block</th><th>slot width</th><th>delay</th><th>1/3 octave works from</th><th>1/6 octave works from</th><th>bass error</th></tr>';
+    const L31 = layout(31), L61 = layout(61);
+    const body = rows.map(b => {
+      const binHz = s.fs / b;
+      const f31 = worksFrom(owners(L31.edges, b, s.fs), L31), f61 = worksFrom(owners(L61.edges, b, s.fs), L61);
+      const err = bassError(s.ex, L, b, s.fs);
+      const chip = b === 4096 ? '<span class="chip on">autotune</span>' : b === 512 ? '<span class="chip">android default</span>' : '';
+      return `<tr class="${b === s.block ? 'sel' : ''}"><td>${b}${chip}</td><td>${binHz.toFixed(binHz < 20 ? 1 : 0)} Hz</td><td>${Math.round(b / s.fs * 1000)} ms</td>` +
+        `<td>${fmtHz(f31)}</td><td>${fmtHz(f61)}</td><td class="${err >= 1 ? 'bad' : ''}">${err.toFixed(1)} dB</td></tr>`;
+    }).join('');
+    $('table').innerHTML = '<thead>' + head + '</thead><tbody>' + body + '</tbody>';
+  }
+
+  function render() {
+    const s = state(), L = layout(s.n), own = owners(L.edges, s.block, s.fs);
+    drawCells(s, L, own); drawRuler(s, L, own); drawEq(s, L); drawTable(s, L);
+  }
+  ['block', 'bands', 'rate', 'view', 'example'].forEach(id => $(id).addEventListener('change', render));
+  render();
+})();
+</script>
+</body>
+</html>

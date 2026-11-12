@@ -444,6 +444,31 @@ class ConvergenceTest {
         assertEquals(2, SWEEP_ATTEMPTS)
     }
 
+    /** 2.19.4: the EQ was rebuilt a second after every switch-on, because Android lists all devices again on registering. */
+    @Test
+    fun onlyAMovedMediaRouteRebuildsTheEq() {
+        val car = setOf("Bluetooth: Ford F-150")
+        assertFalse("the same devices listed again", routeMoved(car, car))
+        assertTrue(routeMoved(car, setOf("Phone speaker")))
+        assertTrue("the first route after none was known", routeMoved(emptySet(), car))
+        assertFalse("the phone could not say", routeMoved(car, emptySet()))
+    }
+
+    /** 2.19.4: switching the EQ off mid-song ticked; it now stays in place, flat, until the music stops. */
+    @Test
+    fun anOffEqIsLetGoOnlyWhenNothingPlays() {
+        assertFalse(letGoOfEq(parked = true, musicPlaying = true))
+        assertTrue(letGoOfEq(parked = true, musicPlaying = false))
+        assertFalse(letGoOfEq(parked = false, musicPlaying = false))
+    }
+
+    @Test
+    fun aStoppedMicrophoneSaysWhatToCheck() {
+        assertTrue(micStopped(-3, usbMic = true).contains("plug"))
+        assertTrue(micStopped(-3, usbMic = true).contains("-3"))
+        assertFalse(micStopped(-6, usbMic = false).contains("USB"))
+    }
+
     /**
      * Reported again after 2.9.0 (by day): a dark ink never reached Classic's dark body, and on its light decks it was
      * as dark as the ink already there, so nothing changed. Each surface now takes the version the ink reads on.

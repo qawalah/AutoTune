@@ -163,7 +163,7 @@ object MeasurementRunner {
                     var got = 0
                     while (got < minOf(cap, stopAt.get()) && isActive) {
                         val r = recorder.read(result, got, minOf(4096, minOf(cap, stopAt.get()) - got), AudioRecord.READ_BLOCKING)
-                        if (r < 0) throw IllegalStateException("Microphone read failed (code $r)")
+                        if (r < 0) throw IllegalStateException(dev.autotune.micStopped(r, usbMic = mic != null))
                         LiveCapture.feed(result, got, r)
                         got += r
                         gotA.set(got)
@@ -213,7 +213,7 @@ object MeasurementRunner {
                 var lastSec = 0
                 while (got < total && isActive) {
                     val r = rec.read(out, got, minOf(4096, total - got), AudioRecord.READ_BLOCKING)
-                    if (r < 0) throw IllegalStateException("Microphone read failed (code $r)")
+                    if (r < 0) throw IllegalStateException(dev.autotune.micStopped(r, usbMic = mic != null))
                     LiveCapture.feed(out, got, r)
                     got += r
                     val sec = got / fs

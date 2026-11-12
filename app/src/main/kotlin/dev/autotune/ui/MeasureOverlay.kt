@@ -106,7 +106,9 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
         else -> At.c.signal
     }
     val sub = when (v.stage) {
-        MeasureStage.MEASURING -> if (v.phoneRoute) "Keep still and quiet while the sweep plays." else "Play the file on the other device now."
+        // a status of its own while measuring (the second sweep after a Bluetooth pause) comes before the standing hint
+        MeasureStage.MEASURING -> v.message.takeIf { it.isNotBlank() }
+            ?: if (v.phoneRoute) "Keep still and quiet while the sweep plays." else "Play the file on the other device now."
         MeasureStage.ANALYSING -> "Finding the sweep and checking the reading"
         MeasureStage.SAVED -> v.result
         else -> v.message.takeIf { it.isNotBlank() }

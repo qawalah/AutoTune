@@ -1394,6 +1394,25 @@ fun playbackStarted(before: Int, now: Int): Boolean = now > before
 fun rebuildOnPlayback(started: Boolean, routeChangedSinceBuild: Boolean, effectRunning: Boolean): Boolean =
     started && (routeChangedSinceBuild || !effectRunning)
 
+/**
+ * True when media now plays on other outputs than the EQ was built on. Android lists every device again whenever the
+ * EQ's service registers for device changes, and a USB mic coming or going changes the list without moving the music;
+ * neither is a reason to rebuild (2.19.2 rebuilt on both: 45 rebuilds in an hour, each a short dropout). An empty
+ * [now] means the phone could not say, which is not a move.
+ */
+fun routeMoved(before: Set<String>, now: Set<String>): Boolean = now.isNotEmpty() && before != now
+
+/**
+ * Whether AutoTune EQ, switched off but still running flat ([parked]), can be taken away now. Only with no music
+ * playing: taking it away mid-song ticks (2.19.4, owner's report), since the long blocks hold ~85 ms of sound.
+ */
+fun letGoOfEq(parked: Boolean, musicPlaying: Boolean): Boolean = parked && !musicPlaying
+
+/** What to say when the microphone stops delivering sound mid-measurement ([code] is AudioRecord.read's error). */
+fun micStopped(code: Int, usbMic: Boolean): String =
+    if (usbMic) "The USB microphone stopped during the measurement (code $code). Its plug may have come loose: check it and measure again."
+    else "The microphone stopped during the measurement (code $code). Another app may have taken it: close that app and measure again."
+
 /** Sweeps tried for one phone reading when Bluetooth pauses the sound mid-sweep (2.19.2). */
 const val SWEEP_ATTEMPTS = 2
 

@@ -62,6 +62,22 @@ object SystemEq {
     private val fader = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "autotune-eq-fade").apply { isDaemon = true } }
     private var fadeId = 0
 
+    /**
+     * True while AutoTune EQ is off but its effect still runs, flat. Taking the effect away while music plays ticks:
+     * with long blocks the new chain plays silence until a block is ready, and the effect's held sound is lost. So "off"
+     * fades to flat and keeps the effect until no music plays ([releaseIfParked]); "on" fades back in on the same effect.
+     */
+    @Volatile
+    var parked = false
+        private set
+
+    /** Whether music plays now (the service sets it from AudioManager); a parked effect is released only when not. */
+    @Volatile
+    var musicPlaying: () -> Boolean = { true }
+
+    /** The safety limiter: on with an EQ, out of the way (0 dBFS) while parked, so "off" changes nothing. */
+    private fun limiter(on: Boolean) = DynamicsProcessing.Limiter(true, true, 0, 1f, 60f, 10f, if (on) -2f else 0f, 0f)
+
     // 31 bands at 1/3 octave, or 61 at 1/6 octave (finer cuts, more work for the phone)
     private val coarse = Rta.CENTERS
     private val fineCentres = DoubleArray(61) { 20.0 * Math.pow(2.0, it / 6.0) }.filter { it <= 20000.0 }.toDoubleArray()
@@ -123,7 +139,7 @@ object SystemEq {
         try {
             for (i in edges.indices) dp.setPreEqBandAllChannelsTo(i, DynamicsProcessing.EqBand(true, edges[i], 0f))
             // a safety limiter so boosts can never clip hard
-            dp.setLimiterAllChannelsTo(DynamicsProcessing.Limiter(true, true, 0, 1f, 60f, 10f, -2f, 0f))
+            dp.setLimiterAllChannelsTo(limiter(true))
             dp.enabled = true
         } catch (e: Exception) {
             runCatching { dp.release() }
@@ -145,6 +161,7 @@ object SystemEq {
         return try {
             global?.takeIf { it.edges.size != centers.size }?.let { retire(it); global = null }
             val g = global ?: create(0).also { global = it }
+            if (parked) { runCatching { g.dp.setLimiterAllChannelsTo(limiter(true)) }; parked = false }
             g.goal = goals(c)
             chain = c
             applied = realised(c)
@@ -174,13 +191,31 @@ object SystemEq {
     @Synchronized
     fun running(): Boolean = global?.let { runCatching { it.dp.enabled && it.dp.hasControl() }.getOrDefault(false) } ?: false
 
+    /** Switches the EQ off: it fades to flat and stays in place, flat, until no music plays (see [parked]). */
     @Synchronized
     fun off() {
-        global?.let { retire(it) }
-        global = null
+        global?.let { g ->
+            g.goal = FloatArray(g.edges.size)
+            runCatching { g.dp.setLimiterAllChannelsTo(limiter(false)) }
+            parked = true
+        }
         chain = null
         applied = emptyList()
         fade()
+    }
+
+    /** Takes a parked effect away (nothing to hear while no music plays). True when one was released. */
+    @Synchronized
+    fun releaseIfParked(): Boolean {
+        val g = global ?: return false
+        if (!parked || chain != null) return false
+        fadeId++ // a fade still running must not touch it
+        runCatching { g.dp.release() }
+        global = null
+        parked = false
+        leaving.forEach { runCatching { it.dp.release() } }
+        leaving.clear()
+        return true
     }
 
     /** Moves every effect's bands to their goals in [EqRamp.STEPS] steps; a newer fade takes over from where this one got to. */
@@ -200,6 +235,8 @@ object SystemEq {
                 leaving.forEach { runCatching { it.dp.release() } }
                 leaving.clear()
             }
+            // switched off with nothing playing: nothing to hear, so the flat effect can go now
+            if (dev.autotune.letGoOfEq(parked, musicPlaying())) releaseIfParked()
         }
     }
 
@@ -222,7 +259,7 @@ class SystemEqService : Service() {
         val skipped = SystemEq.measuring
         val wasRunning = SystemEq.running()
         if (!skipped) SystemEq.rebuild()
-        dev.autotune.Diag.log(this, "system_eq_rebuild", mapOf("reason" to rebuildReason, "wasRunning" to wasRunning, "skipped" to skipped))
+        dev.autotune.Diag.log(this, "system_eq_rebuild", mapOf("reason" to rebuildReason, "wasRunning" to wasRunning, "skipped" to skipped, "route" to route.sorted()))
     }
     private var activePlayers = 0
 
@@ -234,23 +271,63 @@ class SystemEqService : Service() {
         handler.postDelayed(rebuildNow, 600)
     }
 
-    private val deviceCallback = object : android.media.AudioDeviceCallback() {
-        override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>) { if (addedDevices.any { it.isSink }) routeMoved() }
-        override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>) { if (removedDevices.any { it.isSink }) routeMoved() }
+    /** The outputs media plays on (Android 13+; before that, every output). The effect is rebuilt when this moves. */
+    private fun mediaRoute(): Set<String> {
+        val am = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        return runCatching {
+            if (Build.VERSION.SDK_INT >= 33) {
+                val media = android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA).setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build()
+                am.getAudioDevicesForAttributes(media).map { Outputs.nameOf(it) }
+            } else am.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS).map { Outputs.nameOf(it) }
+        }.getOrDefault(emptyList()).toSet()
     }
 
-    private fun routeMoved() {
-        SystemEq.routeChanged = true
-        scheduleRebuild("output changed")
+    /** The media route the effect was last built on. */
+    private var route: Set<String> = emptySet()
+    /** False until Android has sent the list it sends on registering: every device, which is not a change. */
+    private var devicesListed = false
+
+    /** Rebuilds when media has moved to other outputs; a device coming or going that leaves the music where it was does nothing. */
+    private val checkRoute = Runnable {
+        val now = mediaRoute()
+        if (dev.autotune.routeMoved(route, now)) {
+            dev.autotune.Diag.log(this, "media_route", mapOf("was" to route.sorted(), "now" to now.sorted()))
+            route = now
+            SystemEq.routeChanged = true
+            scheduleRebuild("output changed")
+        }
+    }
+
+    private fun label(d: android.media.AudioDeviceInfo): String =
+        if (d.isSink) "out " + Outputs.nameOf(d) else "in " + d.productName?.toString().orEmpty().ifBlank { "?" } + " #" + d.type
+
+    private fun devicesChanged(what: String, devices: Array<out android.media.AudioDeviceInfo>) {
+        // named in the log: a USB mic that drops out mid-measurement shows here
+        if (devicesListed) dev.autotune.Diag.log(this, "audio_devices", mapOf(what to devices.map { label(it) }))
+        devicesListed = true
+        // the route settles a moment after the list changes
+        handler.removeCallbacks(checkRoute)
+        handler.postDelayed(checkRoute, 400)
+    }
+
+    private val deviceCallback = object : android.media.AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>) = devicesChanged("added", addedDevices)
+        override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>) = devicesChanged("removed", removedDevices)
     }
 
     private val playbackCallback = object : android.media.AudioManager.AudioPlaybackCallback() {
         override fun onPlaybackConfigChanged(configs: MutableList<android.media.AudioPlaybackConfiguration>) {
             val started = dev.autotune.playbackStarted(activePlayers, configs.size)
             activePlayers = configs.size
+            if (configs.isEmpty() && SystemEq.parked) { handler.removeCallbacks(releaseQuiet); handler.postDelayed(releaseQuiet, 1500) }
+            // (a measurement's own sweep starting leaves everything for the next player)
+            if (!started || SystemEq.measuring) return
+            // the route can also move without a device coming or going: look again when a player starts
+            handler.removeCallbacks(checkRoute)
+            checkRoute.run()
             // not on every song: that rebuild clicked. Only the first player on a new output, or an effect that stopped.
-            // (a measurement's own sweep starting leaves the flag for the next player)
-            if (!SystemEq.measuring && dev.autotune.rebuildOnPlayback(started, SystemEq.routeChanged, SystemEq.running())) {
+            if (dev.autotune.rebuildOnPlayback(true, SystemEq.routeChanged, SystemEq.running())) {
                 val reason = if (SystemEq.routeChanged) "first player after an output change" else "effect stopped"
                 SystemEq.routeChanged = false
                 scheduleRebuild(reason)
@@ -259,9 +336,16 @@ class SystemEqService : Service() {
     }
     private var routeWatched = false
 
+    /** A parked (flat, off) EQ is taken away once no music plays; then the service can stop. */
+    private val releaseQuiet = Runnable {
+        if (dev.autotune.letGoOfEq(SystemEq.parked, SystemEq.musicPlaying())) { SystemEq.releaseIfParked(); refreshNotification() }
+    }
+
     private fun watchRoute() {
         if (routeWatched) return
         val am = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        SystemEq.musicPlaying = { am.isMusicActive }
+        route = mediaRoute() // before registering: Android answers a registration with every device it has
         am.registerAudioDeviceCallback(deviceCallback, handler)
         am.registerAudioPlaybackCallback(playbackCallback, handler)
         routeWatched = true
@@ -386,6 +470,11 @@ class SystemEqService : Service() {
             )
             wanted -> notify("Open AutoTune to switch it on", "EQ waiting")
             automationOn() -> notify("For your Bluetooth devices", "Watching")
+            // off, but still in place flat until the music stops (taking it away mid-song ticks)
+            SystemEq.parked -> {
+                notify("Off · let go when the music stops", "EQ off")
+                handler.removeCallbacks(releaseQuiet); handler.postDelayed(releaseQuiet, 400)
+            }
             else -> stopSelf()
         }
     }
@@ -400,7 +489,7 @@ class SystemEqService : Service() {
         }
         if (intent?.action == ACTION_STOP) {
             SystemEq.off()
-            if (automationOn()) { refreshNotification(); return START_STICKY }
+            if (automationOn() || SystemEq.parked) { refreshNotification(); return START_STICKY }
             stopSelf()
             return START_NOT_STICKY
         }
@@ -419,6 +508,8 @@ class SystemEqService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(rebuildNow)
+        handler.removeCallbacks(checkRoute)
+        handler.removeCallbacks(releaseQuiet)
         if (routeWatched) {
             val am = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
             runCatching { am.unregisterAudioDeviceCallback(deviceCallback) }
@@ -432,6 +523,7 @@ class SystemEqService : Service() {
         meter = null
         LoudEq.meterOff(this)
         SystemEq.off()
+        if (dev.autotune.letGoOfEq(SystemEq.parked, SystemEq.musicPlaying())) SystemEq.releaseIfParked()
         super.onDestroy()
     }
 

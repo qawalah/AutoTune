@@ -1194,6 +1194,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 block()
             } catch (e: CancellationException) {
+                Diag.log(ctx(), "measure_cancelled", mapOf("step" to state.value.tuneStep, "stage" to state.value.measureView?.stage, "attempt" to lastCapture["attempt"]))
                 state.update { it.copy(status = "Cancelled.", measureView = null) }
                 leaveMeasuring()
                 throw e
@@ -1377,7 +1378,11 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         for (x in played) playedPeak = maxOf(playedPeak, abs(x))
         var attempt = 1
         while (true) {
-            state.update { it.copy(status = if (attempt == 1) "Playing a sweep and recording..." else "The sound paused. Measuring again...") }
+            state.update {
+                // the second sweep says why it plays: without this line the screen just started over (and was stopped, 2.19.2)
+                if (attempt == 1) it.copy(status = "Playing a sweep and recording...")
+                else it.copy(status = "The sound paused. Measuring again...", measureView = it.measureView?.copy(message = "Bluetooth paused the sound. Measuring once more."))
+            }
             val raw = MeasurementRunner.capture(UsbMic.find(getApplication()), played, fs, channel, currentOutput(), ::routed)
             lastRecordingSeconds = raw.size / fs
             // nothing plays this early: the USB mic's switch-on click must not count as the sound (or as its peak)
