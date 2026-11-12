@@ -41,6 +41,9 @@ class LinkClient(private val ctx: Context, private val scope: CoroutineScope) {
 
     private var socket: Socket? = null
     private var out: PrintWriter? = null
+    /** Where the last pairing reached it, so it can be found again without searching (2.25). */
+    @Volatile var lastHost: String? = null; private set
+    @Volatile var lastPort: Int = LINK_PORT; private set
     private var discovery: NsdManager.DiscoveryListener? = null
 
     fun discover() {
@@ -90,6 +93,7 @@ class LinkClient(private val ctx: Context, private val scope: CoroutineScope) {
         val s = Socket()
         try {
             s.connect(InetSocketAddress(host, port), 5000)
+            s.keepAlive = true
             s.soTimeout = 0
             val w = PrintWriter(s.getOutputStream().bufferedWriter(), true)
             val r = BufferedReader(InputStreamReader(s.getInputStream()))
@@ -100,6 +104,7 @@ class LinkClient(private val ctx: Context, private val scope: CoroutineScope) {
             if (first.type == Msg.DENIED) error(first["reason"] ?: "It refused the code.")
             if (first.type != Msg.WELCOME) error("It sent something unexpected.")
             socket = s; out = w
+            lastHost = host; lastPort = port
             _open.value = true
             scope.launch(Dispatchers.IO) {
                 try {
@@ -127,7 +132,12 @@ class LinkClient(private val ctx: Context, private val scope: CoroutineScope) {
 
     fun send(m: LinkMsg) {
         val w = out ?: return
-        writer.execute { runCatching { w.println(m.encode()) } }
+        val s = socket
+        writer.execute {
+            runCatching { w.println(m.encode()) }
+            // a line that could not go out means the link has gone: closing ends the reader, which says so
+            if (w.checkError()) runCatching { s?.close() }
+        }
     }
 
     fun close() {

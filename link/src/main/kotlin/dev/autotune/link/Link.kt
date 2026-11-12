@@ -54,6 +54,8 @@ object Msg {
     const val EQ = "eq"
     const val EQ_OFF = "eqoff"
     const val BYE = "bye"
+    /** The phone's keep-alive (2.25): no answer is needed; a write that fails shows the link has gone. Ignored by older TVs and PCs. */
+    const val PING = "ping"
     /** Pink noise on one speaker, looping until [QUIET], for setting its level (2.15). */
     const val NOISE = "noise"
     const val QUIET = "quiet"
@@ -176,6 +178,7 @@ object Msg {
         LinkMsg(SHOW, mapOf("layout" to layout, "headline" to headline, "rows" to rowsText(rows)))
     fun eq(chains: Map<Speaker, EqChain>) = LinkMsg(EQ, mapOf("chains" to chainsText(chains)))
     fun eqOff() = LinkMsg(EQ_OFF)
+    fun ping() = LinkMsg(PING)
     fun eqState(on: Boolean, error: String? = null) =
         LinkMsg(EQ_STATE, buildMap { put("on", if (on) "1" else "0"); error?.let { put("error", it) } })
     fun bye() = LinkMsg(BYE)

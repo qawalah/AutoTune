@@ -144,8 +144,8 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
         )
         if (s.sliderLayer.isNotEmpty()) Muted("+ your slider changes")
         s.systemEqMessage?.let { Muted(it) }
-        // Simple: on/off and which EQ; the rest of the sound options wait in Advanced
-        if (isAdvanced()) FlavourAndPreamp(s, vm)
+        // Simple: on/off, which EQ and the flavour (owner, 2026-11-12: "I don't see flavour/genre"); the preamp waits in Advanced
+        FlavourAndPreamp(s, vm, preamp = isAdvanced())
     }
 
     // ---- equaliser: classic sliders

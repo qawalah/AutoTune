@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="widget_companion_desc">AutoTune on your TV or PC: its EQ on or off, and the flavour</string>
     <string name="widget_panel_desc">Tune, EQ and automatic switching in one row</string>
     <string name="widget_eq_desc">Switch the AutoTune EQ on or off</string>
     <string name="widget_auto_desc">Switch automatic profile switching on or off</string>

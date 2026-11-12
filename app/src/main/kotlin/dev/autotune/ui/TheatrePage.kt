@@ -47,6 +47,7 @@ import dev.autotune.dsp.FreqGrid
 import dev.autotune.dsp.Target
 import dev.autotune.dsp.TheatreJudge
 import dev.autotune.dsp.TheatreReport
+import dev.autotune.theatre.CompanionLink
 import dev.autotune.theatre.TheatreUi
 import dev.autotune.theatre.TheatreViewModel
 import dev.autotune.theatre.RunKind
@@ -125,7 +126,14 @@ private fun Connect(u: TheatreUi, vm: TheatreViewModel) {
     val tvName = u.found.getOrNull(tvIdx.coerceAtMost((u.found.size - 1).coerceAtLeast(0)))
     var code by rememberSaveable(tvName) { mutableStateOf(tvName?.let { u.codes[it] }.orEmpty()) }
     var address by rememberSaveable { mutableStateOf("") }
-    RunSheet("Find the TV or PC", if (u.found.isEmpty()) "looking on this wi-fi" else "${u.found.size} found") {
+    // the remembered TV or PC is connected again by itself (2.25): say so while it is
+    val remembered = CompanionLink.rememberedName(androidx.compose.ui.platform.LocalContext.current)
+    val sub = when {
+        (u.connecting || u.reconnecting) && remembered != null -> "connecting to $remembered"
+        u.found.isEmpty() -> "looking on this wi-fi"
+        else -> "${u.found.size} found"
+    }
+    RunSheet("Find the TV or PC", sub) {
         if (u.found.isEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Nothing found yet", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
             InfoButton("Find the TV or PC", ABOUT_TV, small = true)
@@ -300,6 +308,13 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel, sharer: Sharer?, mana
     }
     // whether the TV's EQ is on, as a big key you can't miss: on sends the EQ, off switches it off
     EqKey(u, vm)
+    // what plays on top of the EQ there, in both modes; never measured
+    val flavours = dev.autotune.Flavour.entries
+    DropSelect(
+        flavours.map { it.title }, flavours.indexOf(u.flavour), { vm.setFlavour(flavours[it]) }, label = "Flavour", enabled = !u.busy,
+        details = flavours.map { it.detail }, icons = flavours.map { flavourIcon(it) },
+        info = "A flavour plays on top of the EQ on the ${u.device}. It only plays: every test that plays through the ${u.device}'s EQ gets the EQ alone, and the flavour comes back after it. The widget can change it too.",
+    )
     u.error?.let { Alerts(listOf(it), title = "The ${u.device}") }
 
     when {
