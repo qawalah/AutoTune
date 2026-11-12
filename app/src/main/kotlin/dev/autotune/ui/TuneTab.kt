@@ -54,7 +54,11 @@ import kotlin.math.abs
  * Back goes to the previous screen; the cross leaves the workflow. Nothing in the loop needs another tab.
  */
 @Composable
-fun TuneTab(s: UiState, vm: TuneViewModel, sharer: Sharer, go: (Tab) -> Unit, openResults: () -> Unit, pick: Pickers) {
+fun TuneTab(
+    s: UiState, vm: TuneViewModel, sharer: Sharer, go: (Tab) -> Unit, openResults: () -> Unit, pick: Pickers,
+    /** Opens the home-theatre page; a name starts a new home theatre there. */
+    openCompanion: (String?) -> Unit = { go(Tab.THEATRE) },
+) {
     // Exit leaves the workflow and keeps the place: Continue comes back to the same step
     val exit = { vm.tuneExit() }
     val anim = animationsOn()
@@ -74,7 +78,7 @@ fun TuneTab(s: UiState, vm: TuneViewModel, sharer: Sharer, go: (Tab) -> Unit, op
                 // Done is the Tune screen showing the finished tune
                 TuneStep.HOME, TuneStep.DONE -> TuneHome(s, vm, pick, go)
                 // five steps: the fresh start is part of Tune itself, and the stock review heads the EQ step
-                TuneStep.FRESH, TuneStep.SETUP -> SetupStep(s, vm, sharer, pick, exit, go)
+                TuneStep.FRESH, TuneStep.SETUP -> SetupStep(s, vm, sharer, pick, exit, openCompanion)
                 TuneStep.STOCK_RESULT, TuneStep.APPLY, TuneStep.STOCK, TuneStep.VERIFY -> ApplyStep(s, vm, pick, exit)
                 TuneStep.RESULT -> ResultStep(s, vm, pick, openResults, exit)
             }
@@ -130,20 +134,21 @@ private fun Check(icon: Ic, text: String) {
 // ------------------------------------------------------------------ 2. set up
 
 /**
- * Set up asks in the order the answers depend on each other (owner, 2026-11-12): what is tuned, then whether AutoTune
- * is on it (the TV or the PC) where it can be, then only what that leaves: with the companion the key connects to it;
- * without, the targets, the ways the sound can reach the speakers and the checklist all follow the equipment.
+ * Set up asks in the order the answers depend on each other (owner, 2026-11-12): what is tuned, as four picture keys;
+ * its name; the test's name; then, for a home theatre or a PC, whether AutoTune is on it (the TV or the PC). With the
+ * companion the key connects to it; without, the targets, the ways the sound can reach the speakers and the checklist
+ * all follow the equipment.
  */
 @Composable
-private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pickers, exit: () -> Unit, go: (Tab) -> Unit) {
+private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pickers, exit: () -> Unit, openCompanion: (String?) -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
+    var equipName by rememberSaveable { mutableStateOf("") }
     // starts from the defaults in Settings (target, spots, window); on an output tuned before only the equipment and
     // the way the sound reaches the speakers are taken from last time, so a changed default always takes effect
     val mem = s.setupMemory?.takeIf { it.targetIdx in s.targetNames.indices }
     val kinds = s.targetNames.indices.map { dev.autotune.targetKind(Target.ALL.getOrNull(it)) }
     val defIdx = Target.ALL.indexOfFirst { it.name == s.defTarget }.takeIf { it >= 0 } ?: mem?.targetIdx ?: s.targetIdx
     val out = s.outputName
-    val equipments = dev.autotune.Equipment.entries
     var equipment by rememberSaveable(out) {
         mutableStateOf(dev.autotune.startEquipment(mem?.equipment, s.lastEquipment, s.carMode, kinds.getOrElse(defIdx) { dev.autotune.TargetKind.CAR }))
     }
@@ -167,23 +172,27 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
     Panel {
         CardTitle("What are you tuning?", info = dev.autotune.stockChecklist(equipment))
         if (mem?.equipment != null && out != null) Muted("as last time on $out")
-        // 1. the equipment: everything below follows from it
-        DropSelect(
-            equipments.map { it.title }, equipments.indexOf(equipment), { equipment = equipments[it] }, label = "Equipment",
-            icons = equipments.map { equipmentIcon(it) }, details = equipments.map { it.detail },
+        // 1. the equipment, as four picture keys: everything below follows from it
+        EquipmentTiles(equipment, { equipment = it }, enabled = !s.busy)
+        // 2. its name (it names the EQs), then the test's
+        OutlinedTextField(
+            value = equipName, onValueChange = { equipName = it },
+            label = { Text("Equipment name") }, placeholder = { Text("e.g. " + equipNamePlaceholder(equipment, s.outputName)) },
+            singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
         )
-        // 2. a TV or a PC can run AutoTune itself, which plays every speaker and puts the EQ in use there
+        OutlinedTextField(
+            value = name, onValueChange = { name = it },
+            label = { Text("Test name (optional)") }, placeholder = { Text(namePlaceholder(equipment)) },
+            singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
+        )
+        // 3. a TV or a PC can run AutoTune itself, which plays every speaker and puts the EQ in use there
         if (companion != null) DropSelect(
             companion.answers, if (installed) 1 else 0, { installed = it == 1 }, label = companion.label,
             icon = Ic.HOME, details = companion.details, info = companion.info,
         )
         if (!viaCompanion) {
-            OutlinedTextField(
-                value = name, onValueChange = { name = it },
-                label = { Text("Name (optional)") }, placeholder = { Text(namePlaceholder(equipment)) },
-                singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
-            )
             DropSelect(
                 targetIdxs.map { s.targetNames[it] }, targetIdxs.indexOf(targetIdx).coerceAtLeast(0), { targetIdx = targetIdxs[it] },
                 label = "Target sound", icons = targetIdxs.map { kindIcon(kinds[it]) },
@@ -204,7 +213,7 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
         // the TV or PC takes it from here: its page finds it, pairs with its code and runs the tests
         PinAction(
             "Connect to AutoTune on ${equipment.companion}",
-            { vm.rememberEquipment(equipment, true); go(Tab.THEATRE) }, icon = Ic.HOME,
+            { vm.rememberEquipment(equipment, true); openCompanion(dev.autotune.companionTheatreName(equipName, name)) }, icon = Ic.HOME,
         )
         return
     }
@@ -228,24 +237,24 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
     // no stop in between: this key creates the test and starts the stock reading
     PinAction(
         "Measure the stock system",
-        { vm.tuneSetup(name, targetIdx, route, spots[spotsIdx], listOf(null, 80, 200, 400, 600)[gateIdx], equipment) },
+        { vm.tuneSetup(name, targetIdx, route, spots[spotsIdx], listOf(null, 80, 200, 400, 600)[gateIdx], equipment, equipName) },
         icon = Ic.MEASURE,
     )
 }
 
-/** The line icon for each kind of equipment. */
-private fun equipmentIcon(e: dev.autotune.Equipment): Ic = when (e) {
-    dev.autotune.Equipment.CAR -> kindIcon(dev.autotune.TargetKind.CAR)
-    dev.autotune.Equipment.HOME -> kindIcon(dev.autotune.TargetKind.HOME)
-    dev.autotune.Equipment.PC -> Ic.SPEAKER
-    dev.autotune.Equipment.OTHER -> Ic.BLUETOOTH
+/** An example equipment name: the output the phone plays to when there is one, else one for the kind. */
+private fun equipNamePlaceholder(e: dev.autotune.Equipment, output: String?) = output?.takeIf { e != dev.autotune.Equipment.PC } ?: when (e) {
+    dev.autotune.Equipment.CAR -> "F-150"
+    dev.autotune.Equipment.HOME -> "LG soundbar"
+    dev.autotune.Equipment.PC -> "Desk speakers"
+    dev.autotune.Equipment.OTHER -> "Kitchen speaker"
 }
 
 private fun namePlaceholder(e: dev.autotune.Equipment) = when (e) {
-    dev.autotune.Equipment.CAR -> "e.g. F-150 driver seat"
-    dev.autotune.Equipment.HOME -> "e.g. Living room sofa"
-    dev.autotune.Equipment.PC -> "e.g. Desk speakers"
-    dev.autotune.Equipment.OTHER -> "e.g. Kitchen speaker"
+    dev.autotune.Equipment.CAR -> "e.g. Driver seat"
+    dev.autotune.Equipment.HOME -> "e.g. Sofa, middle seat"
+    dev.autotune.Equipment.PC -> "e.g. Desk chair"
+    dev.autotune.Equipment.OTHER -> "e.g. Kitchen table"
 }
 
 // ------------------------------------------------------------------ 3 / 5. measure
