@@ -131,7 +131,21 @@ object LiveCapture {
     fun reset() { level.value = -120f; wave.value = FloatArray(0); playStartMs = 0L }
 }
 
+/**
+ * A pretend car for tests and demos: it stands in for the speaker, the cabin and the microphone, so the whole app can run
+ * with no audio hardware. It is null in the real app; nothing here changes how the phone records.
+ */
+interface AudioSimulator {
+    /** What the mic hears while [played] (mono, pre-roll included) goes out on [channel]. */
+    fun hear(played: FloatArray, fs: Int, channel: OutChannel): FloatArray
+    /** What the mic hears for [seconds] when another device (the head unit) plays the test file, or nothing plays. */
+    fun listen(seconds: Double, fs: Int): FloatArray
+}
+
 object MeasurementRunner {
+    /** Set by tests and demos only. */
+    @Volatile var simulator: AudioSimulator? = null
+
     private const val LEAD_MS = 300L
     /** Silence played before the test sound: wakes a sleeping Bluetooth link so the start of the sweep is not lost. */
     const val PREROLL_SEC = 1.5
@@ -148,7 +162,25 @@ object MeasurementRunner {
         mic: AudioDeviceInfo?, played: FloatArray, fs: Int, channel: OutChannel, output: AudioDeviceInfo? = null,
         onRouted: (AudioDeviceInfo?) -> Unit = {},
     ): FloatArray =
-        coroutineScope {
+        simulator?.let { sim ->
+            val pre = (PREROLL_SEC * fs).toInt()
+            val withPre = FloatArray(pre + played.size)
+            System.arraycopy(played, 0, withPre, pre, played.size)
+            delay(LEAD_MS)
+            LiveCapture.playStartMs = System.currentTimeMillis()
+            lastMicSource = "UNPROCESSED"; lastMicEffects = "no voice processing attached"
+            val heard = withContext(Dispatchers.Default) { sim.hear(withPre, fs, channel) }
+            // the sound takes as long as the clip: show the level moving, as a real sweep would
+            var at = 0
+            val block = fs / 4
+            while (at < heard.size && at < withPre.size) {
+                LiveCapture.feed(heard, at, minOf(block, heard.size - at))
+                at += block
+                delay(250)
+            }
+            LiveCapture.playStartMs = 0L
+            heard
+        } ?: coroutineScope {
             val pre = (PREROLL_SEC * fs).toInt()
             val cap = (LEAD_MS * fs / 1000).toInt() + pre + played.size + ((TAIL_SEC + 8.0) * fs).toInt()
             val result = FloatArray(cap)
@@ -203,7 +235,23 @@ object MeasurementRunner {
         stopWhen: ((FloatArray, Int) -> Boolean)? = null,
         onSecond: (Int) -> Unit,
     ): FloatArray =
-        withContext(Dispatchers.IO) {
+        simulator?.let { sim ->
+            val out = withContext(Dispatchers.Default) { sim.listen(seconds.toDouble(), fs) }
+            var got = 0
+            var lastSec = 0
+            while (got < out.size) {
+                val n = minOf(fs / 4, out.size - got)
+                LiveCapture.feed(out, got, n)
+                got += n
+                delay(250)
+                val sec = got / fs
+                if (sec != lastSec) {
+                    lastSec = sec; onSecond(sec)
+                    if (stopWhen != null && stopWhen(out, got)) return@let out.copyOf(got)
+                }
+            }
+            out
+        } ?: withContext(Dispatchers.IO) {
             val total = seconds * fs
             val out = FloatArray(total)
             val rec = buildRecorder(fs, mic)
@@ -409,6 +457,21 @@ class RtaRunner {
         onLevel: (Double, Double) -> Unit = { _, _ -> },
     ) {
         stop()
+        val sim = MeasurementRunner.simulator
+        if (sim != null) {
+            job = scope.launch(Dispatchers.Default) {
+                val analyzer = RtaAnalyzer(fs, cal)
+                try {
+                    while (isActive) {
+                        val buf = sim.listen(2048.0 / fs, fs)
+                        onLevel(10.0 * kotlin.math.log10(buf.sumOf { it.toDouble() * it } / buf.size + 1e-12), 20.0 * kotlin.math.log10((buf.maxOfOrNull { kotlin.math.abs(it) } ?: 0f) + 1e-6))
+                        if (analyzer.push(buf, buf.size)) onBars(analyzer.bandsDb())
+                        delay(43)
+                    }
+                } finally { onStopped(null) }
+            }
+            return
+        }
         job = scope.launch(Dispatchers.IO) {
             val rec = try {
                 MeasurementRunner.buildRecorder(fs, mic)

@@ -23,7 +23,23 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    testOptions { unitTests.isReturnDefaultValues = true }
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            // the walk-through driver waits for commands: it runs only when asked for with -Dwalk.dir=... (tools/walk/start.sh)
+            val walk = System.getProperty("walk.dir")
+            if (walk == null) it.exclude("**/WalkDriver*") else {
+                it.systemProperty("walk.dir", walk)
+                System.getProperty("robolectric.dependency.dir")?.let { d ->
+                    it.systemProperty("robolectric.dependency.dir", d); it.systemProperty("robolectric.offline", "true")
+                }
+                it.outputs.upToDateWhen { false }
+                it.maxHeapSize = "3g"
+                it.testLogging.showStandardStreams = true
+            }
+        }
+    }
 
     applicationVariants.all {
         outputs.all {
@@ -45,4 +61,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     testImplementation("junit:junit:4.13.2")
+    // the first-time-user walk-through (app/src/test/.../walk): the real screens on the JVM, with a pretend car
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("androidx.test:core:1.6.1")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
