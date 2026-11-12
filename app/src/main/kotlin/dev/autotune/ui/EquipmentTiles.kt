@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -165,3 +167,17 @@ fun DrawScope.drawEquipment(e: Equipment, tint: Color) {
         }
     }
 }
+
+/**
+ * A small boxed drawing of what a test tunes, for the Tests list (owner, 2026-11-12: "the tests page should also have
+ * the new graphics"): Set up's drawing on the key face, in a box with a hairline edge.
+ */
+@Composable
+fun EquipmentBadge(e: Equipment, modifier: Modifier = Modifier) {
+    val c = At.c
+    val shape = MaterialTheme.shapes.small
+    androidx.compose.foundation.layout.Box(
+        modifier.size(64.dp, 40.dp).clip(shape).background(c.panelHigh).border(1.dp, c.line, shape).padding(horizontal = 5.dp, vertical = 5.dp),
+    ) { Canvas(Modifier.fillMaxSize()) { drawEquipment(e, c.text) } }
+}
+

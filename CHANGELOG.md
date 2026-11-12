@@ -4,6 +4,10 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.26.1] - 2026-11-12
+### Changed
+- **The Tests list draws what each test tunes,** as Set up does: a car, a TV between tower speakers, a monitor between desk speakers, or a portable speaker, each in a small box with a hairline edge. Home theatres show the TV. Tests made before 2.20 take theirs from their target (a car curve is a car, a room curve a home theatre).
+
 ## [2.26.0] - 2026-11-12
 ### Changed
 - **No key that repeats what is on the screen.** "Next: car" (and the rest) is gone from "What are you tuning?": a picture key picks and moves on. Also gone: "Open the EQ" on the Tune screen after a finished tune (the EQ tab is right under it) and "Back to the EQ" on an empty Result (the back arrow does it).
