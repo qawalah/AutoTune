@@ -18,7 +18,7 @@ object AutoTuneWidgets {
     // the app's colours: white lettering on the accent while on, ink on the white keys while off
     private const val ON_TEXT = 0xFFFFFFFF.toInt()
     private const val OFF_TEXT = 0xFF2E2E2B.toInt()
-    private val providers = listOf(PanelWidget::class.java, EqWidget::class.java, AutoWidget::class.java, ProfileWidget::class.java)
+    private val providers = listOf(PanelWidget::class.java, EqWidget::class.java, AutoWidget::class.java, ProfileWidget::class.java, CompanionWidget::class.java)
 
     fun update(ctx: Context) {
         val mgr = AppWidgetManager.getInstance(ctx)
@@ -74,6 +74,27 @@ object AutoTuneWidgets {
         return v
     }
 
+    /**
+     * The Companion widget (2.25): the TV or PC by name (opens the home-theatre page) and whether it is connected, its
+     * EQ on or off, and the flavour (each tap the next). The keys work with the app closed ([dev.autotune.theatre.CompanionActions]).
+     */
+    private fun companion(ctx: Context): RemoteViews {
+        val p = ProfileController.prefs(ctx)
+        val v = RemoteViews(ctx.packageName, R.layout.widget_companion)
+        val name = p.getString(dev.autotune.theatre.CompanionLink.PREF_NAME, null)
+        val connected = dev.autotune.theatre.CompanionLink.open
+        v.setTextViewText(R.id.chip_cmp_title, name ?: "TV or PC")
+        v.setTextViewText(R.id.chip_cmp_state, if (name == null) "Connect" else if (connected) "Connected" else "Not connected")
+        v.setOnClickPendingIntent(R.id.chip_cmp, openApp(ctx, "theatre"))
+        val eqOn = p.getBoolean(dev.autotune.theatre.CompanionLink.PREF_EQ_ON, false)
+        chip(v, R.id.chip_cmp_eq, R.id.chip_cmp_eq_title, R.id.chip_cmp_eq_state, eqOn, if (eqOn) "On" else "Off")
+        v.setOnClickPendingIntent(R.id.chip_cmp_eq, act(ctx, dev.autotune.theatre.CompanionActions.ACTION_EQ, 20))
+        val f = dev.autotune.Flavour.of(p.getString(dev.autotune.theatre.CompanionLink.PREF_FLAVOUR, null))
+        chip(v, R.id.chip_cmp_flavour, R.id.chip_cmp_flavour_title, R.id.chip_cmp_flavour_state, f != dev.autotune.Flavour.NONE, f.title)
+        v.setOnClickPendingIntent(R.id.chip_cmp_flavour, act(ctx, dev.autotune.theatre.CompanionActions.ACTION_FLAVOUR, 21))
+        return v
+    }
+
     private fun single(ctx: Context, title: String, sub: String, on: Boolean, tap: PendingIntent): RemoteViews {
         val v = RemoteViews(ctx.packageName, R.layout.widget_chip)
         v.setTextViewText(R.id.chip_title, title)
@@ -89,6 +110,7 @@ object AutoTuneWidgets {
                 if (Build.VERSION.SDK_INT >= 31) RemoteViews(mapOf(SizeF(110f, 40f) to panel(ctx, false, st), SizeF(110f, 100f) to panel(ctx, true, st)))
                 else panel(ctx, false, st)
             EqWidget::class.java -> single(ctx, "EQ", if (st.eqOn) "On" else "Off", st.eqOn, act(ctx, ProfileController.ACTION_TOGGLE_EQ, 1))
+            CompanionWidget::class.java -> companion(ctx)
             AutoWidget::class.java -> single(ctx, "Auto", if (st.autoOn) "On" else "Off", st.autoOn, act(ctx, ProfileController.ACTION_TOGGLE_AUTO, 2))
             else -> single(ctx, "Profile", st.profile ?: "None", st.eqOn && st.profile != null, act(ctx, ProfileController.ACTION_NEXT_PROFILE, 4))
         }
@@ -105,3 +127,4 @@ class PanelWidget : BaseWidget()
 class EqWidget : BaseWidget()
 class AutoWidget : BaseWidget()
 class ProfileWidget : BaseWidget()
+class CompanionWidget : BaseWidget()

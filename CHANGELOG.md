@@ -4,6 +4,14 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.25.0] - 2026-11-12
+### Changed
+- **The link to AutoTune on the TV or PC stays up.** It belongs to the app now, not to the home-theatre page, so leaving the page no longer drops it. The phone sends a small keep-alive every 15 seconds, so a dead link is noticed, and when it drops (not by Disconnect) the phone connects again by itself: after 2, 4, 8, 16 s, then every 30 s for ten minutes. It remembers the TV or PC, its address and its code: opening the home-theatre page connects again at once, and finds it by name on the Wi-Fi when its address changed. "connecting to …" shows while it does. Disconnect stops the reconnecting.
+- **Flavour in Simple on the EQ tab** (the preamp stays in Advanced).
+### Added
+- **Flavour for the TV or PC.** A flavour drop-down under the EQ key on the home-theatre page plays on top of the EQ there (More bass, Rock, Pop and the rest) and is sent at once while the EQ is on. It is never measured: a test that plays through the TV's EQ gets the plain EQ, and the flavour comes back after it.
+- **A "TV or PC" widget:** the TV or PC by name and whether it is connected (opens the home-theatre page), its EQ on or off, and the flavour (each tap the next). The keys work with the app closed: they connect to the remembered TV or PC first, and send the home theatre's last EQ with the flavour.
+
 ## [2.24.1] - 2026-11-12
 ### Changed
 - **The home theatre's target is on its EQ card, in Simple too**, before the first EQ test as well, so the first EQ is fitted to it. It was only in Advanced, in the Refine card, which appears after an EQ test. Bass and treble to taste stay in Refine (Advanced).

@@ -97,6 +97,10 @@
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_profile_info" />
         </receiver>
+        <receiver android:name=".audio.CompanionWidget" android:exported="true" android:label="AutoTune TV or PC">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_companion_info" />
+        </receiver>
         <!-- widget taps and notification actions (explicit intents only) -->
         <receiver android:name=".audio.EqActionReceiver" android:exported="false" />
         <receiver android:name=".audio.BootReceiver" android:exported="true">

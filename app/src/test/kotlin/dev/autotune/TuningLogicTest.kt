@@ -740,4 +740,32 @@ class ConvergenceTest {
         assertTrue(phoneSpeakerBlock(Equipment.CAR, phonePlays = true, phoneSpeaker = true)!!.contains("car"))
         assertNotNull(phoneSpeakerBlock(Equipment.OTHER, phonePlays = true, phoneSpeaker = true))
     }
+
+    /** The companion's EQ: the base plus a flavour under one safe preamp; the plain base for every measurement. */
+    @Test
+    fun theCompanionEqCarriesTheFlavourOnlyForPlaying() {
+        val base = listOf(EqFilter(63.0, -4.0, 3.0), EqFilter(2500.0, 2.0, 1.4))
+        assertEquals(base.sortedBy { it.freqHz }, companionChain(base, Flavour.NONE).filters)
+        val rock = companionChain(base, Flavour.ROCK)
+        assertEquals(base.size + Flavour.ROCK.filters.size, rock.filters.size)
+        assertTrue("the preamp makes room for the flavour's boosts", rock.preampDb <= companionChain(base, Flavour.NONE).preampDb)
+        // kept as text for the widget, read back the same
+        val back = filtersFrom(filtersText(base))
+        assertEquals(base.size, back.size)
+        assertEquals(63.0, back[0].freqHz, 1e-6); assertEquals(-4.0, back[0].gainDb, 1e-6); assertEquals(3.0, back[0].q, 1e-6)
+        assertTrue(filtersFrom(null).isEmpty())
+        assertTrue(filtersFrom("x;1,2").isEmpty())
+        // the widget steps through the flavours and comes back to as tuned
+        assertEquals(Flavour.BASS, nextFlavour(Flavour.NONE))
+        assertEquals(Flavour.NONE, nextFlavour(Flavour.entries.last()))
+    }
+
+    @Test
+    fun aDroppedLinkIsTriedAgainThenLeftAlone() {
+        assertEquals(2_000L, reconnectDelayMs(0, 0))
+        assertEquals(16_000L, reconnectDelayMs(3, 10_000))
+        assertEquals(30_000L, reconnectDelayMs(4, 60_000))
+        assertEquals(30_000L, reconnectDelayMs(9, 60_000))
+        assertNull(reconnectDelayMs(5, 10 * 60_000L))
+    }
 }

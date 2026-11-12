@@ -104,6 +104,10 @@ data class TheatreUi(
     val trebleDb: Double = 0.0,
     /** Tune › Set up asked for a new home theatre: until it connects, the last one's results stay out of sight. */
     val startingNew: Boolean = false,
+    /** The link dropped and the phone is trying the TV or PC again by itself (2.25). */
+    val reconnecting: Boolean = false,
+    /** The flavour played on top of the EQ on the TV or PC, never measured (2.25). */
+    val flavour: dev.autotune.Flavour = dev.autotune.Flavour.NONE,
 ) {
     /** The curve the EQ is fitted to: the target with the taste on top. */
     val target: Target get() = theatreTarget(targetName, bassDb, trebleDb)
@@ -127,7 +131,8 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
     private val fs = ChannelClip.FS
     private val dir get() = File(ctx.filesDir, "theatre")
     private val prefs = ctx.getSharedPreferences("autotune_prefs", Context.MODE_PRIVATE)
-    val link = LinkClient(ctx, viewModelScope)
+    /** The app-wide link (2.25): it outlives this page, keeps itself alive and reconnects ([CompanionLink]). */
+    val link: LinkClient get() = CompanionLink.link
     private val _ui = MutableStateFlow(TheatreUi())
     val ui: StateFlow<TheatreUi> = _ui
     private var job: Job? = null
@@ -138,6 +143,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
     private var pendingNew: String? = null
 
     init {
+        CompanionLink.init(ctx)
         stock = TheatreStore.load(dir, "stock")
         val latest = TheatreStore.load(dir, "latest")
         val codes = prefs.all.filterKeys { it.startsWith("tvCode_") }.mapNotNull { (k, v) -> (v as? String)?.let { k.removePrefix("tvCode_") to it } }.toMap()
@@ -153,23 +159,34 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { link.found.collect { f -> _ui.update { it.copy(found = f.map { t -> t.name }) } } }
         viewModelScope.launch { link.open.collect { open -> if (!open) _ui.update { it.copy(tv = null, playing = null) } } }
         viewModelScope.launch { link.incoming.collect(::onMessage) }
+        // every pairing, first or again after a drop, by this page or by the widget, comes through here
+        viewModelScope.launch { CompanionLink.welcome.collect { p -> p?.let { (name, w) -> onWelcome(name, w) } } }
+        viewModelScope.launch { CompanionLink.reconnecting.collect { r -> _ui.update { it.copy(reconnecting = r) } } }
+        _ui.update { it.copy(flavour = dev.autotune.Flavour.of(prefs.getString(CompanionLink.PREF_FLAVOUR, null))) }
     }
 
-    fun start() { link.discover() }
+    /** The page opened: look for TVs and PCs, and connect again to the remembered one when nothing is paired. */
+    fun start() {
+        link.discover()
+        if (!CompanionLink.open && !_ui.value.connecting && CompanionLink.rememberedName(ctx) != null) viewModelScope.launch {
+            _ui.update { it.copy(connecting = true) }
+            CompanionLink.ensure()
+            _ui.update { it.copy(connecting = false) }
+        }
+    }
 
     fun pause() { link.stopDiscovery() }
 
-    private fun phoneName() = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
-
     fun connect(index: Int, code: String) {
         val tv = link.found.value.getOrNull(index) ?: return
-        doConnect(tv.name, code) { link.connect(tv, code, phoneName()) }
+        doConnect(tv.name, code) { CompanionLink.connect(tv, code) }
     }
 
     fun connectAddress(host: String, code: String) {
-        doConnect(host, code) { link.connect(host.trim(), code = code, phone = phoneName()) }
+        doConnect(host, code) { CompanionLink.connect(host.trim(), dev.autotune.link.LINK_PORT, code, host.trim()) }
     }
 
+    /** Pairs; what follows a pairing is [onWelcome], which [CompanionLink.welcome] calls. */
     private fun doConnect(name: String, code: String, how: suspend () -> LinkMsg) {
         if (_ui.value.connecting) return
         _ui.update { it.copy(connecting = true, error = null) }
@@ -178,28 +195,38 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
                 val w = how()
                 val tvName = w["name"] ?: name
                 prefs.edit().putString("tvCode_$tvName", code).putString("tvCode_$name", code).apply()
-                val method = PlayMethod.of(w["method"]) ?: PlayMethod.STEREO
-                _ui.update {
-                    val layout = if (it.layout in method.layouts) it.layout else method.layouts.first()
-                    it.copy(connecting = false, tv = tvName, kind = w["kind"] ?: Msg.KIND_TV, method = method, output = w["out"], tvEqOn = w["eq"] == "1", layout = layout,
-                        codes = it.codes + (tvName to code) + (name to code),
-                        threeTests = w["caps"].orEmpty().split(',').containsAll(listOf("noise", "distances", "eqtest")),
-                        pretend = w["pretend"] == "1", real = w["real"])
-                }
-                // a new one when Tune's Set up asked for it, else this TV's or PC's own, never another device's results
-                val fresh = pendingNew
-                pendingNew = null
-                _ui.update { it.copy(startingNew = false) }
-                if (_ui.value.threeTests) { if (fresh != null) newTest(fresh.ifBlank { tvName }) else openTestFor(tvName) }
-                if (_ui.value.threeTests) sendResult(_ui.value.focus) else _ui.value.report?.let(::show)
-                Diag.log(ctx, "theatre_connected", mapOf("method" to method.name, "output" to w["out"], "kind" to (w["kind"] ?: Msg.KIND_TV)))
+                _ui.update { it.copy(codes = it.codes + (tvName to code) + (name to code)) }
             } catch (e: Exception) {
                 _ui.update { it.copy(connecting = false, error = e.message ?: "Could not connect.") }
             }
         }
     }
 
-    fun disconnect() { stop(); link.close() }
+    /**
+     * A TV or PC paired, first or again: take its state; open a new home theatre when Tune's Set up asked for one,
+     * keep the open one when it is this device's (a reconnect), else open this device's own, never another's results.
+     */
+    private fun onWelcome(tvName: String, w: LinkMsg) {
+        val method = PlayMethod.of(w["method"]) ?: PlayMethod.STEREO
+        _ui.update {
+            val layout = if (it.layout in method.layouts) it.layout else method.layouts.first()
+            it.copy(connecting = false, tv = tvName, kind = w["kind"] ?: Msg.KIND_TV, method = method, output = w["out"], tvEqOn = w["eq"] == "1", layout = layout,
+                threeTests = w["caps"].orEmpty().split(',').containsAll(listOf("noise", "distances", "eqtest")),
+                pretend = w["pretend"] == "1", real = w["real"], error = null)
+        }
+        val fresh = pendingNew
+        pendingNew = null
+        _ui.update { it.copy(startingNew = false) }
+        if (_ui.value.threeTests) when {
+            fresh != null -> newTest(fresh.ifBlank { tvName })
+            _ui.value.test?.owner != tvName -> openTestFor(tvName)
+        }
+        if (_ui.value.threeTests) sendResult(_ui.value.focus) else _ui.value.report?.let(::show)
+        Diag.log(ctx, "theatre_connected", mapOf("method" to method.name, "output" to w["out"], "kind" to (w["kind"] ?: Msg.KIND_TV)))
+    }
+
+    /** Disconnect: closes the link and stops it reconnecting by itself (the widget or this page can still). */
+    fun disconnect() { stop(); CompanionLink.disconnect() }
 
     fun setLayout(l: Layout) {
         if (_ui.value.busy) return
@@ -410,6 +437,22 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun measurePass(layout: Layout, cal: Calibration?, hold: Boolean, kind: PassKind, pcm: Boolean = false): PassReading {
+        // a flavour is never measured: a pass that plays through the TV's EQ gets the plain EQ, then the flavour is back
+        val u = _ui.value
+        val plain = u.eq?.eq?.sortedBy { it.freqHz }?.takeIf { !hold && u.tvEqOn && u.flavour != dev.autotune.Flavour.NONE && it.isNotEmpty() }
+        if (plain == null) return measurePassAsIs(layout, cal, hold, kind, pcm)
+        val chain = dev.autotune.companionChain(plain, dev.autotune.Flavour.NONE)
+        link.send(Msg.eq(layout.speakers.associateWith { chain }))
+        try {
+            return measurePassAsIs(layout, cal, hold, kind, pcm)
+        } finally {
+            // exactly what played before, flavour included (a new fit is only sent when asked)
+            val back = dev.autotune.companionChain(plain, u.flavour)
+            link.send(Msg.eq(layout.speakers.associateWith { back }))
+        }
+    }
+
+    private suspend fun measurePassAsIs(layout: Layout, cal: Calibration?, hold: Boolean, kind: PassKind, pcm: Boolean = false): PassReading {
         doneAt = 0L
         val id = ++nextId
         passing = true
@@ -484,6 +527,14 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         prefs.edit().putString("theatreTaste_$id", "$bassDb,$trebleDb").apply()
         _ui.update { it.copy(bassDb = bassDb, trebleDb = trebleDb) }
         refit()
+    }
+
+    /** The flavour on the TV or PC: it plays on top of the EQ, sent again at once while the EQ is on. */
+    fun setFlavour(f: dev.autotune.Flavour) {
+        prefs.edit().putString(CompanionLink.PREF_FLAVOUR, f.name).apply()
+        _ui.update { it.copy(flavour = f) }
+        if (_ui.value.tvEqOn && _ui.value.tv != null) useEq()
+        dev.autotune.audio.AutoTuneWidgets.update(ctx)
     }
 
     private fun refit() {
@@ -758,9 +809,12 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         val u0 = _ui.value
         if (u0.threeTests) {
             val eq = u0.eq?.eq?.sortedBy { it.freqHz }?.takeIf { it.isNotEmpty() } ?: return
-            val chain = EqChain(eq, EqChain.withSafePreamp(eq).preampDb)
+            // the flavour plays on top; the plain EQ is kept for the widget, which adds the flavour itself
+            val chain = dev.autotune.companionChain(eq, u0.flavour)
             link.send(Msg.eq(u0.layout.speakers.associateWith { chain }))
-            Diag.log(ctx, "theatre_eq_sent", mapOf("speakers" to u0.layout.speakers.size, "preampDb" to chain.preampDb, "one" to true))
+            prefs.edit().putString(CompanionLink.PREF_BASE, dev.autotune.filtersText(eq))
+                .putString(CompanionLink.PREF_SPEAKERS, u0.layout.speakers.joinToString(",") { it.code }).apply()
+            Diag.log(ctx, "theatre_eq_sent", mapOf("speakers" to u0.layout.speakers.size, "preampDb" to chain.preampDb, "one" to true, "flavour" to u0.flavour.name))
             return
         }
         val r = _ui.value.report ?: return
@@ -782,8 +836,8 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        // the link stays: it belongs to the app (CompanionLink), so leaving the page does not drop the TV or PC
         link.stopDiscovery()
-        link.close()
         super.onCleared()
     }
 }

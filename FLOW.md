@@ -1,4 +1,4 @@
-# AutoTune flow maps (2.24.1)
+# AutoTune flow maps (2.25.0)
 
 How a tuning session flows and how you move around the app, drawn from the code. Update this file whenever a Tune step, a pinned action or a link between screens changes (see CLAUDE.md). Code names in brackets point at where each decision lives.
 
@@ -59,7 +59,7 @@ Every measurement starts the moment its key is pressed. Stock and Verify are mea
 | EQ, after stock | Use the phone's EQ and measure; Measure the stock again when the stock looks wrong; It's set, measure on equipment | Preview in the app, Set it on my equipment; Advanced: target, sliders, bands, files, AI |
 | Result | Apply the new suggested EQ, Keep this EQ and finish, Keep the EQ of run n, Check the EQ reaches the speakers, Measure again, Set it on my equipment, or Switch on the phone's EQ and measure | The other moves, Measure again, Ask AI, All results, Discard |
 | Tune screen after Keep | Use this EQ whenever <device> connects (phone EQ, Bluetooth route), else Open the EQ | Tune (new test), Continue |
-| Home theatre page | Connect; then nothing is pinned between tests: Set the levels, Test the distances and Test the EQ each sit in their own card; Next speaker / Measure seat n / Stop while a test runs | The big EQ on/off key (sends the last EQ or switches it off), Check the EQ reaches the speakers, Disconnect; the target sound on the EQ card (both modes, kept per home theatre); after an EQ test a Refine card (the bands to set by hand, Share the EQ files; Advanced: bass and treble); the home theatre line opens Home theatres (pick, New, Rename, Delete); Advanced: EQ test seats. A TV or PC from 2.14: speaker by speaker |
+| Home theatre page | Connect; then nothing is pinned between tests: Set the levels, Test the distances and Test the EQ each sit in their own card; Next speaker / Measure seat n / Stop while a test runs | The big EQ on/off key (sends the last EQ or switches it off), Flavour (both modes, never measured), Check the EQ reaches the speakers, Disconnect; the target sound on the EQ card (both modes, kept per home theatre); after an EQ test a Refine card (the bands to set by hand, Share the EQ files; Advanced: bass and treble); the home theatre line opens Home theatres (pick, New, Rename, Delete); Advanced: EQ test seats. A TV or PC from 2.14: speaker by speaker |
 | Test results page | Continue tuning, with the move it leads to on its second line ("next: …") | Open the EQ, AI review (at the bottom, above Details) |
 
 ## Navigation map
@@ -97,6 +97,8 @@ flowchart LR
   ST -->|"Advanced: Use this device as the TV"| TVS["TV screen on this phone or tablet<br/>(TvActivity; Back returns;<br/>Pretend: off, 2.1, 3.1, 5.1, 7.1)"]
   HT -.->|"from another phone"| TVS
   W["Widgets, notification actions,<br/>Quick Settings tile"] -->|"EqActionReceiver"| BG(("background:<br/>app stays closed"))
+  CW["TV or PC widget: EQ, Flavour"] -->|"CompanionActions: connect to the remembered one, send"| TV
+  CW -->|"its name"| HT
   SH["Shortcuts, routines,<br/>autotune://profile/name"] -->|"ApplyProfileActivity"| BG
   BT["Bluetooth device connects"] -->|"rules.txt"| BG
   FS(["First start"]) -->|"once (tutorialSeen)"| TUT["Tutorial over every screen<br/>5 cards: Skip, Next, Get started"]

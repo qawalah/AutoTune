@@ -224,6 +224,8 @@ object ProfileController {
 /** Widget taps and notification actions: done in the background, without opening the app. */
 class EqActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        // the Companion widget's keys talk to the TV or PC over the network: in the background, then they say how it went
+        if (dev.autotune.theatre.CompanionActions.handles(intent.action)) { dev.autotune.theatre.CompanionActions.handle(context, intent, goAsync()); return }
         val msg = ProfileController.handle(context, intent)
         if (msg != null && intent.getBooleanExtra(EXTRA_TOAST, true)) Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
     }

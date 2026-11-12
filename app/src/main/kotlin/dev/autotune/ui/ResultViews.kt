@@ -200,13 +200,14 @@ fun EqCheckCard(v: dev.autotune.EqCheckView, vm: dev.autotune.TuneViewModel) {
 
 /** Flavour on top of the tuned EQ, and the preamp (with its slider in Manual). Changes play at once. */
 @Composable
-fun FlavourAndPreamp(s: UiState, vm: dev.autotune.TuneViewModel) {
+fun FlavourAndPreamp(s: UiState, vm: dev.autotune.TuneViewModel, preamp: Boolean = true) {
     val flavours = dev.autotune.Flavour.entries
     DropSelect(
         flavours.map { it.title }, flavours.indexOf(s.flavour), { vm.setFlavour(flavours[it]) }, label = "Flavour",
         details = flavours.map { it.detail }, icons = flavours.map { flavourIcon(it) },
         info = "A flavour plays on top of the tuned EQ. It only plays: measurements always use the tuned EQ alone.",
     )
+    if (!preamp) return
     val modes = dev.autotune.PreampMode.entries
     DropSelect(
         modes.map { it.title }, modes.indexOf(s.preampMode), { vm.setPreampMode(modes[it]) }, label = "Preamp",

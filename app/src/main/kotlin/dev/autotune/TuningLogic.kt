@@ -714,6 +714,33 @@ enum class Flavour(val title: String, val detail: String, val filters: List<EqFi
     companion object { fun of(name: String?) = entries.firstOrNull { it.name == name } ?: NONE }
 }
 
+/**
+ * The EQ AutoTune sends to the TV or PC: the home theatre's [base] EQ plus the [flavour], under one safe preamp. A
+ * flavour only plays: every test that plays through the TV's EQ gets [base] alone (2.25).
+ */
+fun companionChain(base: List<EqFilter>, flavour: Flavour): EqChain {
+    val all = (base + flavour.filters).sortedBy { it.freqHz }
+    return EqChain(all, EqChain.withSafePreamp(all).preampDb)
+}
+
+/** EQ bands as one line ("f,g,q;f,g,q"), to keep the companion's EQ for the widget. */
+fun filtersText(f: List<EqFilter>): String = f.joinToString(";") { String.format(java.util.Locale.US, "%.2f,%.2f,%.3f", it.freqHz, it.gainDb, it.q) }
+
+fun filtersFrom(text: String?): List<EqFilter> = text.orEmpty().split(';').mapNotNull { p ->
+    val v = p.split(',').mapNotNull { it.trim().toDoubleOrNull() }
+    if (v.size == 3 && v[0] > 0 && v[2] > 0) EqFilter(v[0], v[1], v[2]) else null
+}
+
+/** The next flavour for a widget key that steps through them, back to "As tuned" after the last. */
+fun nextFlavour(f: Flavour): Flavour = Flavour.entries[(f.ordinal + 1) % Flavour.entries.size]
+
+/**
+ * When the phone tries the remembered TV or PC again after the link dropped: [attempt] 0, 1, 2 ... gives 2, 4, 8, 16,
+ * then every 30 s; null after [giveUpMs] of trying (the page or the widget starts it again).
+ */
+fun reconnectDelayMs(attempt: Int, triedMs: Long, giveUpMs: Long = 10 * 60_000L): Long? =
+    if (triedMs >= giveUpMs) null else minOf(30_000L, 2_000L shl attempt.coerceIn(0, 4))
+
 /** The manual preamp's range: down to −15 dB, and up to +6 dB for a quiet system (the limiter catches the peaks). */
 const val PREAMP_MIN = -15.0
 const val PREAMP_MAX = 6.0
