@@ -142,14 +142,14 @@ private fun Connect(u: TheatreUi, vm: TheatreViewModel) {
             value = code, onValueChange = { v -> code = v.filter { it.isDigit() }.take(4) },
             label = { Text("Code on its screen") }, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
+            modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
         )
         Adv {
             OutlinedTextField(
                 value = address, onValueChange = { address = it.trim() },
                 label = { Text("Address (when it is not found)") }, placeholder = { Text("192.168.1.20") }, singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
+                modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
             )
         }
     }
@@ -599,7 +599,7 @@ private fun RunsDetails(u: TheatreUi, vm: TheatreViewModel) {
         var note by rememberSaveable(t.id) { mutableStateOf(t.last(RunKind.EQ)?.note.orEmpty()) }
         if (t.last(RunKind.EQ) != null) OutlinedTextField(
             value = note, onValueChange = { note = it; vm.setNote(RunKind.EQ, it) }, singleLine = true,
-            label = { Text("Note on the last EQ run") }, modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
+            label = { Text("Note on the last EQ run") }, modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
         )
     }
     u.distances?.let { d ->

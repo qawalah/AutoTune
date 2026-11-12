@@ -72,7 +72,7 @@ fun AiKeySetup(a: AiUi, vm: TuneViewModel) {
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { if (key.isNotBlank()) { vm.aiSaveKey(key); key = "" } }),
-                modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
+                modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
             )
             PrimaryButton("Save the key", { vm.aiSaveKey(key); key = "" }, enabled = key.length > 10, icon = Ic.SAVE)
         }
@@ -235,7 +235,7 @@ private fun IssueRow(i: AiIssue) {
         AiSeverity.CHECK -> At.c.warn
         AiSeverity.FINE -> At.c.good
     }
-    Row(Modifier.heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.settleIn().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.padding(end = 12.dp).size(10.dp).clip(androidx.compose.foundation.shape.CircleShape).background(tint))
         Column(Modifier.weight(1f)) {
             Text(i.title, style = MaterialTheme.typography.titleSmall, maxLines = 2)

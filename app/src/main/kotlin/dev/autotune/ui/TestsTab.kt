@@ -327,7 +327,7 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
             OutlinedTextField(
                 value = targetName, onValueChange = { targetName = it }, singleLine = true,
                 label = { Text("Name") }, placeholder = { Text("e.g. My car sound") },
-                modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
+                modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
             )
             TextAction("Save ${focusLabel ?: "latest run"} as a target", { vm.saveRunAsTarget(targetName.ifBlank { "My curve" }); targetName = "" }, icon = Ic.CURVE)
         }
@@ -337,7 +337,7 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
                 value = s.testNotes, onValueChange = vm::setTestNotes,
                 label = { Text("About this setup") },
                 placeholder = { Text("Seat, mic spot, amp gain, what was installed") },
-                modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
+                modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
             )
         }
             }

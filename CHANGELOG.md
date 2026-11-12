@@ -4,6 +4,10 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.28.1] - 2026-11-12
+### Changed
+- **The rest of the screens arrive too:** every text field on a page, each EQ band and profile row, the band sliders, AI issue rows, findings, result headlines and the "Details" heading now settle in like everything else.
+
 ## [2.28.0] - 2026-11-12
 ### Changed
 - **Everything that appears now arrives, not only a page opening.** Set up's screens (equipment, TV or PC, names, sound) slide in from the side they come from and Back slides them the other way, each with its items arriving one after the other. Anything else that shows up later (an answer, a folded section, a result after a measurement, the pinned key) arrives the same way, on every screen, dialogs included. A burst of arrivals starts again after 0.4 s of quiet.

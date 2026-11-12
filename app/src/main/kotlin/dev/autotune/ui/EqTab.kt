@@ -323,7 +323,7 @@ private fun ProfileRow(p: dev.autotune.EqProfile, active: Boolean, edited: Boole
     var rename by remember { mutableStateOf(false) }
     var delete by remember { mutableStateOf(false) }
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 60.dp).clip(MaterialTheme.shapes.small)
+        Modifier.fillMaxWidth().settleIn().heightIn(min = 60.dp).clip(MaterialTheme.shapes.small)
             .background(if (active) At.c.panelHigh else At.c.panel).padding(start = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -441,7 +441,7 @@ fun AutomationSection(s: UiState, vm: TuneViewModel, pick: Pickers) {
 
 @Composable
 private fun BandRow(i: Int, f: EqFilter, open: Boolean, onToggle: () -> Unit, vm: TuneViewModel, onRemoved: () -> Unit) {
-    Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).background(At.c.panel)) {
+    Column(Modifier.fillMaxWidth().settleIn().clip(MaterialTheme.shapes.small).background(At.c.panel)) {
         Row(
             Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onToggle).padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -484,7 +484,7 @@ private fun sliderColors() = SliderDefaults.colors(
 
 @Composable
 private fun SliderRow(label: String, value: String, slider: @Composable () -> Unit) {
-    Column {
+    Column(Modifier.settleIn()) {
         Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
             Text(label, Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = At.c.muted)
             Text(value, style = MaterialTheme.typography.labelMedium, fontFamily = AtFigures)

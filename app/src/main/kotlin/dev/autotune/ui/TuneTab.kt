@@ -228,13 +228,13 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
                     value = equipName, onValueChange = { equipName = it },
                     label = { Text("Equipment name") }, placeholder = { Text("e.g. " + equipNamePlaceholder(equipment, s.outputName)) },
                     singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
+                    modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
                 )
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
                     label = { Text("Test name (optional)") }, placeholder = { Text(namePlaceholder(equipment)) },
                     singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
+                    modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
                 )
             }
             // with AutoTune on the TV or PC this is the last screen: a new home theatre with these names
@@ -318,7 +318,7 @@ fun FindingRow(f: dev.autotune.Finding) {
         else -> Ic.DONE to At.c.good
     }
     // the title on the page, what it means in its bubble
-    Row(Modifier.heightIn(min = 36.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.settleIn().heightIn(min = 36.dp), verticalAlignment = Alignment.CenterVertically) {
         AtIcon(icon, tint, Modifier.padding(end = 10.dp), 20.dp)
         Text(f.title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
         if (f.detail.isNotBlank()) InfoButton(f.title, f.detail, small = true)
@@ -570,7 +570,7 @@ private fun RunNote(s: UiState, vm: TuneViewModel) {
         OutlinedTextField(
             value = s.runNote, onValueChange = vm::setRunNote,
             label = { Text("Note for the next run") }, placeholder = { Text("e.g. tweeters down 2 dB") },
-            singleLine = true, modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
+            singleLine = true, modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
         )
     } else Actions { TextAction("Add a note to the next run", { note = true }, icon = Ic.EDIT) }
 }
@@ -611,7 +611,7 @@ private fun MicLine(s: UiState, pick: Pickers) {
 
 @Composable
 private fun CardTitle(title: String, sub: String? = null, info: String? = null) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.settleIn(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, style = MaterialTheme.typography.titleLarge)
             if (sub != null) Text(sub, style = MaterialTheme.typography.bodyMedium, color = At.c.muted, maxLines = 1)
