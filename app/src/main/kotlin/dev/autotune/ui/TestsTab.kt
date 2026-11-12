@@ -140,7 +140,7 @@ private fun TheatreList(theatres: List<dev.autotune.theatre.TheatreTest>, open: 
 @Composable
 private fun TestRow(t: TestSummary, isOpen: Boolean, onOpen: () -> Unit, onContinue: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 76.dp).clickable(onClickLabel = "Open the results of ${t.name}", onClick = onOpen)
+        Modifier.fillMaxWidth().settleIn().heightIn(min = 76.dp).clickable(onClickLabel = "Open the results of ${t.name}", onClick = onOpen)
             .padding(start = 14.dp, end = 2.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

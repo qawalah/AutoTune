@@ -82,7 +82,7 @@ fun ResponseChart(
     var big by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     // new curves (another run, a new reading) play the movement again
     val grow = rememberArrival("chart:" + data.curves.joinToString { it.label + it.values.size })
-    Column(modifier) {
+    Column(modifier.settleIn()) {
         Box {
             ChartCanvas(data, Modifier.fillMaxWidth().height(height).arrival(grow), showTarget, hidden) { grow.value }
             Box(Modifier.align(Alignment.TopEnd)) {

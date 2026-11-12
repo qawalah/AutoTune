@@ -564,7 +564,7 @@ private fun AlertsLine(items: List<String>, onOpen: () -> Unit) {
     val open = onOpen
     // a key-grey line with a hairline edge, like the other keys: no tinted fill; the warn colour stays on the icon
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(MaterialTheme.shapes.medium).background(At.c.panelHigh)
+        Modifier.fillMaxWidth().settleIn().heightIn(min = 44.dp).clip(MaterialTheme.shapes.medium).background(At.c.panelHigh)
             .border(1.dp, At.c.line, MaterialTheme.shapes.medium)
             .clickable(role = Role.Button, onClickLabel = "Read the notes") { open() }.padding(start = 12.dp, end = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -783,7 +783,7 @@ fun ReadingCells(cells: List<Reading>) {
 /** One reading: the figure, its unit and its score box on one line (never squeezed), its name and note under it. */
 @Composable
 private fun ReadingCell(r: Reading, main: Boolean) {
-    Column(horizontalAlignment = Alignment.Start) {
+    Column(Modifier.settleIn(), horizontalAlignment = Alignment.Start) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 r.value, style = if (main) MaterialTheme.typography.displayMedium else MaterialTheme.typography.displaySmall.copy(fontSize = 24.sp, lineHeight = 30.sp),
@@ -831,7 +831,7 @@ fun TuningScale(needleDb: Double, stockDb: Double?, bestDb: Double? = null, pred
     val c = At.c
     val max = dev.autotune.scaleMax(listOfNotNull(needleDb, stockDb, bestDb))
     val anim by androidx.compose.animation.core.animateFloatAsState(needleDb.toFloat(), tween(motionMs(600), easing = EaseArrive), label = "needle")
-    Column(Modifier.fillMaxWidth().semantics { contentDescription = "%.1f dB from the target".format(needleDb) }) {
+    Column(Modifier.fillMaxWidth().settleIn().semantics { contentDescription = "%.1f dB from the target".format(needleDb) }) {
         Canvas(Modifier.fillMaxWidth().height(40.dp).clip(MaterialTheme.shapes.small).background(c.bg)) {
             val pad = 10.dp.toPx(); val w = size.width - 2 * pad; val h = size.height
             fun x(db: Double) = pad + w * (db / max).toFloat().coerceIn(0f, 1f)
@@ -1622,7 +1622,7 @@ fun DropSelect(
     swatches: List<Color?>? = null,
 ) {
     var open by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth()) {
+    Column(Modifier.fillMaxWidth().settleIn()) {
         if (label != null) InfoLabel(label, info)
         Box {
             Row(
@@ -1760,7 +1760,7 @@ fun PulsingButton(label: String, sub: String?, icon: Ic, enabled: Boolean, onCli
 fun StepHeader(index: Int, total: Int, title: String, onExit: (() -> Unit)?, onBack: (() -> Unit)? = null, names: List<String>? = null) {
     val c = At.c
     val next = names?.getOrNull(index + 1)
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(Modifier.fillMaxWidth().settleIn(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (onBack != null) Box(Modifier.offset(x = (-12).dp)) { IconAction(Ic.BACK, "Back", onBack) }
             // one line, so a long title never wraps up under the status bar
@@ -1839,7 +1839,7 @@ fun PowerToggle(on: Boolean, onChange: (Boolean) -> Unit, label: String, enabled
 /** A setting that is on or off: its name, and the latching key at the end of the row. */
 @Composable
 fun SwitchRow(text: String, checked: Boolean, onChange: (Boolean) -> Unit, enabled: Boolean = true, info: String? = null) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 52.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().settleIn().heightIn(min = 52.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = if (enabled) At.c.text else At.c.muted)
         if (info != null) InfoButton(text, info, small = true)
         LatchKey(checked, onChange, text, enabled)
@@ -1864,7 +1864,7 @@ fun MeasureControl(label: String, hint: String?, busy: Boolean, progress: Float?
     } else 0f
     val c = At.c
     Box(
-        Modifier.size(196.dp).semantics { contentDescription = if (busy) "Stop measuring" else label },
+        Modifier.settleIn().size(196.dp).semantics { contentDescription = if (busy) "Stop measuring" else label },
         contentAlignment = Alignment.Center,
     ) {
         Canvas(Modifier.size(196.dp)) {
@@ -1900,12 +1900,12 @@ fun MeasureControl(label: String, hint: String?, busy: Boolean, progress: Float?
 
 @Composable
 fun Muted(text: String, modifier: Modifier = Modifier) =
-    Text(text, modifier, style = MaterialTheme.typography.bodySmall, color = At.c.muted)
+    Text(text, modifier.settleIn(), style = MaterialTheme.typography.bodySmall, color = At.c.muted)
 
 /** Status line and warnings under an action. */
 @Composable
 fun StatusBlock(status: String?, warnings: List<String>, modifier: Modifier = Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(modifier.settleIn(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (status != null) Text(status, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
         Alerts(warnings)
     }
@@ -1913,7 +1913,7 @@ fun StatusBlock(status: String?, warnings: List<String>, modifier: Modifier = Mo
 
 @Composable
 fun Warning(text: String) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.settleIn(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         AtIcon(Ic.ALERT, At.c.warn, Modifier.padding(top = 1.dp), 18.dp)
         Text(text, style = MaterialTheme.typography.bodySmall, color = At.c.text)
     }
@@ -1980,7 +1980,7 @@ fun <T> PickField(
 fun GroupedPick(label: String, choices: List<dev.autotune.EqChoice>, selectedKey: String, onPick: (String) -> Unit, emptyText: String, info: String? = null) {
     var open by remember { mutableStateOf(false) }
     val sel = choices.firstOrNull { it.key == selectedKey }
-    Column(Modifier.fillMaxWidth()) {
+    Column(Modifier.fillMaxWidth().settleIn()) {
         InfoLabel(label, info)
         Row(
             Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(MaterialTheme.shapes.small).background(At.c.panelHigh)

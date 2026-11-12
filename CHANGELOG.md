@@ -4,6 +4,10 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.27.3] - 2026-11-12
+### Changed
+- **Arrivals are app-wide.** Besides decks, keys, buttons and actions, now each reading, drop-down, switch row, note line, alert line, status, step header, scale, response graph, the measure key and each test row arrives on its own, in reading order, on every screen.
+
 ## [2.27.2] - 2026-11-12
 ### Changed
 - **Every item arrives on its own, not just the deck.** Inside a deck, each picture key (Set up's four equipment keys, the Yes/No keys), each button and each stacked action rises, grows and fades in after the one before it, in reading order.
