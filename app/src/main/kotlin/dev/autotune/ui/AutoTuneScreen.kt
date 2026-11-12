@@ -245,9 +245,10 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     // Only the EQ tab turns sideways (its graph and faders fill the width); every other screen stays upright, either
     // way up, so the phone's mic can point up while measuring (owner, 2026-11-11: landscape was broken elsewhere)
     val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
-    LaunchedEffect(tab, page, s.measureView != null) {
+    // the full-screen chart turns too, wherever it was opened from
+    LaunchedEffect(tab, page, s.measureView != null, zoom.shown != null) {
         activity?.requestedOrientation =
-            if (dev.autotune.turnsSideways(tab.name, page != null, s.measureView != null)) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+            if (zoom.shown != null || dev.autotune.turnsSideways(tab.name, page != null, s.measureView != null)) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
             else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
     }
     val viewMode = androidx.compose.runtime.remember(s.advanced) { ViewMode(s.advanced, vm::setAdvanced) }

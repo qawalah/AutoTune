@@ -641,6 +641,21 @@ fun navSlide(from: String, to: String): Int {
 fun stepSlide(from: TuneStep, to: TuneStep): Int = to.ordinal.compareTo(from.ordinal)
 
 /** The tab a widget, shortcut or intent asks for ("eq", "live", "settings"; anything else opens Tune). */
+/** A curve's level at [f] (Hz), read between its points on the log-frequency axis, for the chart's cursor. */
+fun levelAt(freqs: DoubleArray, values: DoubleArray, f: Double): Double {
+    if (freqs.isEmpty() || values.size != freqs.size) return 0.0
+    if (f <= freqs.first()) return values.first()
+    if (f >= freqs.last()) return values.last()
+    var i = 1
+    while (freqs[i] < f) i++
+    val t = (kotlin.math.ln(f / freqs[i - 1]) / kotlin.math.ln(freqs[i] / freqs[i - 1])).coerceIn(0.0, 1.0)
+    return values[i - 1] + (values[i] - values[i - 1]) * t
+}
+
+/** The cursor's frequency as the chart says it: "63 Hz", "1.2 kHz". */
+fun cursorFreqText(f: Double): String =
+    if (f >= 1000) String.format(java.util.Locale.US, "%.1f kHz", f / 1000) else String.format(java.util.Locale.US, "%.0f Hz", f)
+
 /** Whether the screen may turn sideways: only the EQ tab itself, with no page over it and nothing measuring. */
 fun turnsSideways(tab: String, pageOpen: Boolean, measuring: Boolean): Boolean = tab == "EQ" && !pageOpen && !measuring
 
@@ -1389,7 +1404,7 @@ fun routeMoved(before: Set<String>, now: Set<String>): Boolean = now.isNotEmpty(
 
 /**
  * Whether AutoTune EQ, switched off but still running flat ([parked]), can be taken away now. Only with no music
- * playing: taking it away mid-song ticks (2.19.3, owner's report), since the long blocks hold ~85 ms of sound.
+ * playing: taking it away mid-song ticks (2.19.4, owner's report), since the long blocks hold ~85 ms of sound.
  */
 fun letGoOfEq(parked: Boolean, musicPlaying: Boolean): Boolean = parked && !musicPlaying
 

@@ -444,7 +444,7 @@ class ConvergenceTest {
         assertEquals(2, SWEEP_ATTEMPTS)
     }
 
-    /** 2.19.3: the EQ was rebuilt a second after every switch-on, because Android lists all devices again on registering. */
+    /** 2.19.4: the EQ was rebuilt a second after every switch-on, because Android lists all devices again on registering. */
     @Test
     fun onlyAMovedMediaRouteRebuildsTheEq() {
         val car = setOf("Bluetooth: Ford F-150")
@@ -454,7 +454,7 @@ class ConvergenceTest {
         assertFalse("the phone could not say", routeMoved(car, emptySet()))
     }
 
-    /** 2.19.3: switching the EQ off mid-song ticked; it now stays in place, flat, until the music stops. */
+    /** 2.19.4: switching the EQ off mid-song ticked; it now stays in place, flat, until the music stops. */
     @Test
     fun anOffEqIsLetGoOnlyWhenNothingPlays() {
         assertFalse(letGoOfEq(parked = true, musicPlaying = true))
@@ -702,5 +702,19 @@ class ConvergenceTest {
         org.junit.Assert.assertFalse(turnsSideways("EQ", pageOpen = true, measuring = false))
         org.junit.Assert.assertFalse(turnsSideways("EQ", pageOpen = false, measuring = true))
         for (t in listOf("TESTS", "MEASURE", "LIVE", "SETTINGS")) org.junit.Assert.assertFalse(turnsSideways(t, false, false))
+    }
+
+    @Test
+    fun theCursorReadsBetweenPoints() {
+        val f = doubleArrayOf(20.0, 200.0, 2000.0)
+        val v = doubleArrayOf(0.0, 10.0, -10.0)
+        org.junit.Assert.assertEquals(10.0, levelAt(f, v, 200.0), 1e-9)
+        // halfway on the log axis between 20 and 200 Hz
+        org.junit.Assert.assertEquals(5.0, levelAt(f, v, 63.245553), 1e-3)
+        // outside the curve: its end values
+        org.junit.Assert.assertEquals(0.0, levelAt(f, v, 10.0), 1e-9)
+        org.junit.Assert.assertEquals(-10.0, levelAt(f, v, 20000.0), 1e-9)
+        org.junit.Assert.assertEquals("63 Hz", cursorFreqText(63.2))
+        org.junit.Assert.assertEquals("1.2 kHz", cursorFreqText(1234.0))
     }
 }

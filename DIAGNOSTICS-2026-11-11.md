@@ -137,7 +137,7 @@ Two tunes on the F-150 over Bluetooth, "F150 HD" (stock 5.00 → Runs 3.11, 3.16
   `sweep_stall` and not saved. Smaller slips of 2-6 ms (whole sweep early or late, `beepLateMs` 2-5) are common on
   this Bluetooth link and harmless.
 
-**What went wrong (fixed in 2.19.3)**
+**What went wrong (fixed in 2.19.4)**
 - **45 EQ rebuilds in an hour.** One second after every `system_eq_on` came `system_eq_rebuild` "output changed",
   often followed by "first player after an output change". Cause: Android answers `registerAudioDeviceCallback`
   with every device, and the service registers each time it starts. With 4096-sample blocks each rebuild is a
