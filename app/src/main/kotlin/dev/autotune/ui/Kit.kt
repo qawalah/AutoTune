@@ -1555,7 +1555,7 @@ fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
     val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     androidx.compose.material3.Button(
         onClick = onClick, enabled = enabled, interactionSource = src,
-        modifier = modifier.then(if (LocalStacked.current) Modifier.fillMaxWidth() else Modifier).heightIn(min = 52.dp).pressScale(src),
+        modifier = modifier.settleIn().then(if (LocalStacked.current) Modifier.fillMaxWidth() else Modifier).heightIn(min = 52.dp).pressScale(src),
         shape = MaterialTheme.shapes.medium,
         // a graphite key; red is kept for the pilot light, the needle and the EQ
         colors = ButtonDefaults.buttonColors(
@@ -1579,7 +1579,7 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
     val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     OutlinedButton(
         onClick = onClick, enabled = enabled, interactionSource = src,
-        modifier = modifier.then(if (LocalStacked.current) Modifier.fillMaxWidth() else Modifier).heightIn(min = 48.dp).pressScale(src),
+        modifier = modifier.settleIn().then(if (LocalStacked.current) Modifier.fillMaxWidth() else Modifier).heightIn(min = 48.dp).pressScale(src),
         shape = MaterialTheme.shapes.medium,
         border = BorderStroke(1.dp, At.c.line),
         colors = ButtonDefaults.outlinedButtonColors(containerColor = At.c.panelHigh, contentColor = At.c.text, disabledContentColor = At.c.muted),
@@ -1594,7 +1594,7 @@ fun TextAction(text: String, onClick: () -> Unit, enabled: Boolean = true, dange
         // in a stack: one full-width row per action, the label at the start and a chevron at the end
         val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 52.dp).pressScale(src).clip(MaterialTheme.shapes.medium).background(At.c.panelHigh)
+            Modifier.fillMaxWidth().settleIn().heightIn(min = 52.dp).pressScale(src).clip(MaterialTheme.shapes.medium).background(At.c.panelHigh)
                 .clickable(interactionSource = src, indication = androidx.compose.material3.ripple(), enabled = enabled, role = Role.Button, onClick = onClick)
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,

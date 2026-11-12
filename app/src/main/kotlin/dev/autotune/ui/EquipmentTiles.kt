@@ -66,7 +66,7 @@ fun PictureKey(
     val shape = MaterialTheme.shapes.medium
     val ink = if (on) c.signal else c.text
     Column(
-        modifier.heightIn(min = minHeight).clip(shape).background(c.panelHigh)
+        modifier.settleIn().heightIn(min = minHeight).clip(shape).background(c.panelHigh)
             .border(if (on) 2.dp else 1.dp, if (on) c.signal else c.line, shape)
             .selectable(selected = on, enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 12.dp),
