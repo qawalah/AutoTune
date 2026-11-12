@@ -588,16 +588,16 @@ class ConvergenceTest {
     }
 
     @Test
-    fun graphicsPlayTwiceThenStop() {
-        assertEquals(2, GRAPHIC_PLAYS)
-        // from rest: forward, a quick return, forward again: two whole movements, ending settled
-        assertEquals(listOf(1f, 0f, 1f), arrivalLegs(0f))
-        // a replay of a settled graphic returns first, so it still plays two whole movements
-        assertEquals(listOf(0f, 1f, 0f, 1f), arrivalLegs(1f))
-        assertEquals(listOf(0f, 1f, 0f, 1f), arrivalLegs(0.4f))
-        assertEquals(2, arrivalLegs(0f).count { it == 1f })
+    fun graphicsPlayOnceThenStop() {
+        assertEquals(1, GRAPHIC_PLAYS)
+        // from rest: forward once, ending settled
+        assertEquals(listOf(1f), arrivalLegs(0f))
+        // a replay of a settled graphic returns first, so it still plays one whole movement
+        assertEquals(listOf(0f, 1f), arrivalLegs(1f))
+        assertEquals(listOf(0f, 1f), arrivalLegs(0.4f))
         assertEquals(1f, arrivalLegs(0f).last())
-        assertEquals(listOf(1f), arrivalLegs(0f, plays = 1))
+        // more plays can still be asked for explicitly
+        assertEquals(listOf(1f, 0f, 1f), arrivalLegs(0f, plays = 2))
         // the return is quick, and none with animations off
         assertEquals(300, returnMs(900))
         assertEquals(180, returnMs(300))
@@ -767,5 +767,15 @@ class ConvergenceTest {
         assertEquals(30_000L, reconnectDelayMs(4, 60_000))
         assertEquals(30_000L, reconnectDelayMs(9, 60_000))
         assertNull(reconnectDelayMs(5, 10 * 60_000L))
+    }
+
+    @Test
+    fun decksSettleOneAfterTheOther() {
+        assertEquals(0, staggerDelayMs(0, 0))
+        assertEquals(55, staggerDelayMs(1, 10))
+        assertEquals(440, staggerDelayMs(40, 10))
+        // a deck composed after the page has opened does not wait or move
+        assertEquals(-1, staggerDelayMs(2, STAGGER_WINDOW_MS + 1))
+        assertEquals(-1, staggerDelayMs(-1, 0))
     }
 }

@@ -52,6 +52,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -439,8 +442,10 @@ fun Modifier.pressScale(source: androidx.compose.foundation.interaction.Interact
 /** A full page rises in about 28dp over what was there. */
 fun riseIn(): androidx.compose.animation.ContentTransform =
     (androidx.compose.animation.fadeIn(tween(300, easing = EaseArrive)) +
-        androidx.compose.animation.slideInVertically(tween(360, easing = EaseArrive)) { (it * 0.04f).toInt().coerceAtMost(84) }) togetherWith
-        androidx.compose.animation.fadeOut(tween(100, easing = EaseLeave))
+        androidx.compose.animation.slideInVertically(tween(420, easing = EaseArrive)) { (it * 0.05f).toInt().coerceAtMost(110) } +
+        androidx.compose.animation.scaleIn(tween(420, easing = EaseArrive), initialScale = 0.97f)) togetherWith
+        (androidx.compose.animation.fadeOut(tween(160, easing = EaseLeave)) +
+            androidx.compose.animation.scaleOut(tween(220, easing = EaseLeave), targetScale = 0.985f))
 
 /** Back: the page drops away and what was under it fades back. */
 fun dropOut(): androidx.compose.animation.ContentTransform =
@@ -485,7 +490,8 @@ fun <T> Transit(
     androidx.compose.animation.AnimatedContent(targetState = target, modifier = modifier, transitionSpec = spec, label = "transit") { t ->
         val arriving = transition.targetState == androidx.compose.animation.EnterExitState.Visible
         val spare = remember { PinSlot() }
-        androidx.compose.runtime.CompositionLocalProvider(LocalPin provides if (arriving) pin else spare) { content(t) }
+        val stagger = remember(t) { Stagger() }
+        androidx.compose.runtime.CompositionLocalProvider(LocalPin provides if (arriving) pin else spare, LocalStagger provides stagger) { content(t) }
     }
 }
 
@@ -681,7 +687,7 @@ private fun CardBox(modifier: Modifier, pad: Dp, content: @Composable () -> Unit
         return
     }
     Column(
-        modifier.fillMaxWidth().deckPlate()
+        modifier.fillMaxWidth().settleIn().deckPlate()
             .animateContentSize(tween(motionMs(320), easing = EaseArrive)).padding(pad),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) { DeckColors { androidx.compose.runtime.CompositionLocalProvider(LocalInCard provides true) { content() } } }
@@ -699,7 +705,7 @@ fun Panel(modifier: Modifier = Modifier, pad: Dp = 14.dp, content: @Composable (
 fun RunSheet(title: String, sub: String? = null, trailing: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) = DeckColors {
     val c = At.c
     Column(
-        Modifier.fillMaxWidth().deckPlate().animateContentSize(tween(motionMs(320), easing = EaseArrive)),
+        Modifier.fillMaxWidth().settleIn().deckPlate().animateContentSize(tween(motionMs(320), easing = EaseArrive)),
     ) {
         // the deck's own label line, like the lettering above a device's controls
         Row(
@@ -1210,7 +1216,10 @@ val LocalReplay = androidx.compose.runtime.compositionLocalOf { 0 }
 class Arrival internal constructor(internal val anim: androidx.compose.animation.core.Animatable<Float, androidx.compose.animation.core.AnimationVector1D>) {
     /** Whether the graphic is on screen now (set by [arrival]); the movement waits for it. */
     internal var seen by mutableStateOf(false)
+    /** Counts presses on the graphic; each one plays the movement again. */
+    internal var presses by androidx.compose.runtime.mutableIntStateOf(0)
     val value: Float get() = anim.value
+    fun replay() { presses++ }
 }
 
 /**
@@ -1224,7 +1233,7 @@ fun rememberArrival(key: Any?, ms: Int = 900, shown: (() -> Boolean)? = null): A
     val replay = LocalReplay.current
     val a = remember(key) { Arrival(androidx.compose.animation.core.Animatable(if (dur == 0) 1f else 0f)) }
     val isShown = androidx.compose.runtime.rememberUpdatedState(shown)
-    androidx.compose.runtime.LaunchedEffect(key, replay, dur) {
+    androidx.compose.runtime.LaunchedEffect(key, replay, dur, a.presses) {
         if (dur == 0) { a.anim.snapTo(1f); return@LaunchedEffect }
         // a graphic below the visible part of the page (or folded small in the header) waits until it can be seen
         androidx.compose.runtime.snapshotFlow { isShown.value?.invoke() ?: a.seen }.first { it }
@@ -1237,6 +1246,7 @@ fun rememberArrival(key: Any?, ms: Int = 900, shown: (() -> Boolean)? = null): A
 internal suspend fun playLegs(anim: androidx.compose.animation.core.Animatable<Float, androidx.compose.animation.core.AnimationVector1D>, ms: Int) {
     for (to in dev.autotune.arrivalLegs(anim.value)) {
         if (to > anim.value) anim.animateTo(to, tween(ms, easing = EaseArrive))
+        else if (to == 0f && dev.autotune.GRAPHIC_PLAYS < 2) anim.snapTo(0f)
         else anim.animateTo(to, tween(dev.autotune.returnMs(ms), easing = EaseLeave))
     }
 }
@@ -1245,6 +1255,49 @@ internal suspend fun playLegs(anim: androidx.compose.animation.core.Animatable<F
 fun Modifier.arrival(a: Arrival): Modifier = this.onGloballyPositioned { coords ->
     val visible = coords.boundsInWindow().height
     a.seen = dev.autotune.shownOnScreen(visible, coords.size.height.toFloat())
+}.pressToReplay { a.replay() }
+
+/**
+ * Calls [onPress] when the element is tapped, without taking the touch from anything else on it (a chart's cursor, a
+ * button): it watches before the children and never consumes. A drag or a scroll is not a press.
+ */
+fun Modifier.pressToReplay(onPress: () -> Unit): Modifier = this.pointerInput(Unit) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+        var moved = false
+        while (true) {
+            val ev = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+            val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+            if ((ch.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
+            if (!ch.pressed) { if (!moved) onPress(); break }
+        }
+    }
+}
+
+/** Decks of one page arrive in turn: counts them and remembers when the page opened ([dev.autotune.staggerDelayMs]). */
+class Stagger {
+    private val born = System.nanoTime()
+    private var n = 0
+    fun next(): Int = dev.autotune.staggerDelayMs(n++, (System.nanoTime() - born) / 1_000_000L)
+}
+
+val LocalStagger = androidx.compose.runtime.compositionLocalOf<Stagger?> { null }
+
+/**
+ * A deck settles into its place when its page opens: it rises about 20dp and fades in, after the decks above it
+ * ([Stagger]). With "Remove animations", or for a deck that appears later (unfolded, scrolled in), it is simply there.
+ */
+@Composable
+fun Modifier.settleIn(): Modifier {
+    val stagger = LocalStagger.current
+    val delayMs = remember { stagger?.next() ?: -1 }
+    val on = animationsOn() && delayMs >= 0
+    val p = remember { androidx.compose.animation.core.Animatable(if (on) 0f else 1f) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (on) { delay(delayMs.toLong()); p.animateTo(1f, tween(460, easing = EaseArrive)) }
+    }
+    val rise = with(androidx.compose.ui.platform.LocalDensity.current) { 20.dp.toPx() }
+    return this.graphicsLayer { alpha = p.value; translationY = (1f - p.value) * rise }
 }
 
 /**
@@ -1267,7 +1320,7 @@ fun HeaderArt(key: String, modifier: Modifier, shown: (() -> Boolean)? = null) {
     val accent = c.signal
     val slotInk = androidx.compose.ui.graphics.Color.Black.copy(alpha = if (c.dark) 0.6f else 0.45f)
     val arrival = rememberArrival(key, shown = shown)
-    Canvas((if (shown == null) modifier.arrival(arrival) else modifier).semantics { }) {
+    Canvas((if (shown == null) modifier.arrival(arrival) else modifier.pressToReplay { arrival.replay() }).semantics { }) {
         val t = arrival.value
         val w = size.width; val h = size.height
         val r6 = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx())
@@ -1623,12 +1676,13 @@ fun PulsingButton(label: String, sub: String?, icon: Ic, enabled: Boolean, onCli
     // the face is always light and the holes dark, in every look, by day and by night (dialColours)
     val (face, dot) = dialColours(c)
     // the pulse: a wave from the centre out to the rim, inside out; the holes it passes darken and swell, a faint ring
-    // marks its front and the rim answers as it arrives. Two pulses, then still ("Remove animations": always still).
+    // marks its front and the rim answers as it arrives. One pulse (again on a press), then still ("Remove animations": always still).
     val dur = motionMs(dev.autotune.PULSE_MS)
     val replay = LocalReplay.current
     val pulse = remember { androidx.compose.animation.core.Animatable(0f) }
+    var presses by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     var seen by remember { mutableStateOf(false) }
-    androidx.compose.runtime.LaunchedEffect(replay, dur, enabled) {
+    androidx.compose.runtime.LaunchedEffect(replay, dur, enabled, presses) {
         if (dur == 0 || !enabled) { pulse.snapTo(0f); return@LaunchedEffect }
         androidx.compose.runtime.snapshotFlow { seen }.first { it }
         repeat(dev.autotune.GRAPHIC_PLAYS) { k ->
@@ -1644,7 +1698,7 @@ fun PulsingButton(label: String, sub: String?, icon: Ic, enabled: Boolean, onCli
         Canvas(
             Modifier.size(270.dp).onGloballyPositioned { co ->
                 seen = dev.autotune.shownOnScreen(co.boundsInWindow().height, co.size.height.toFloat())
-            },
+            }.pressToReplay { presses++ },
         ) {
             val r = size.minDimension / 2
             val ctr = center

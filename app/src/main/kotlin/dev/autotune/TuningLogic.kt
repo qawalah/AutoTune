@@ -1400,10 +1400,10 @@ fun knownScore(
         ?: stockScore?.takeIf { runIdx == 0 }
         ?: allScores.getOrNull(runIdx)?.takeIf { it >= 0 }
 
-// ---------------------------------------------------------------- graphics play twice, replay on a pull (2.10)
+// ---------------------------------------------------------------- graphics play once, replay on a press or a pull (2.10, 2.30)
 
-/** How many times a graphic's movement plays when it is shown: the header art, the Tune dial, the report meters, the charts. */
-const val GRAPHIC_PLAYS = 2
+/** How many times a graphic's movement plays when it is shown: the header art, the Tune dial, the report meters, the charts. Once; it never loops. */
+const val GRAPHIC_PLAYS = 1
 
 /**
  * The targets a graphic's progress runs through (0 = before its movement, 1 = settled) to play the movement [plays]
@@ -1443,6 +1443,18 @@ class PullReplay(private val thresholdPx: Float) {
 
     fun end() { pulled = 0f; fired = false }
 }
+
+/**
+ * When a deck on a page settles into place: decks arrive one after the other, [STAGGER_STEP_MS] apart (the first one
+ * straight away), at most [STAGGER_MAX_MS] in. A deck composed later than [STAGGER_WINDOW_MS] after its page opened
+ * (scrolled into view, unfolded) does not wait or move: -1 = no arrival at all.
+ */
+fun staggerDelayMs(index: Int, pageAgeMs: Long): Int =
+    if (index < 0 || pageAgeMs > STAGGER_WINDOW_MS) -1 else minOf(index * STAGGER_STEP_MS, STAGGER_MAX_MS)
+
+const val STAGGER_STEP_MS = 55
+const val STAGGER_MAX_MS = 440
+const val STAGGER_WINDOW_MS = 500L
 
 /** The Tune dial's pulse: one wave from the centre out past the rim, [PULSE_MS] long, played [GRAPHIC_PLAYS] times. */
 const val PULSE_MS = 1500

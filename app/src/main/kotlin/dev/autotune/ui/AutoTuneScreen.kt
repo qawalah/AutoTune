@@ -218,6 +218,8 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     var theatreNew by rememberSaveable { mutableStateOf<String?>(null) }
     // a tab replaces whatever was open over it; Export opens as a page over the current tab
     val go: (Tab) -> Unit = { t ->
+        // pressing the tab you are on plays its graphics again
+        if (t.ordinal == tabIdx && pages.isEmpty() && overlay == OVERLAY_NONE) replays[t.name] = (replays[t.name] ?: 0) + 1
         overlay = OVERLAY_NONE
         when (t) {
             Tab.EXPORT -> open(Page.EXPORT)
