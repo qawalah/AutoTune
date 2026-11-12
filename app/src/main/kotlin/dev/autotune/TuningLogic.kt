@@ -178,10 +178,11 @@ fun analyzeStock(
     warnings: List<String>, report: dev.autotune.dsp.SystemReport?,
 ): StockAnalysis {
     val out = ArrayList<Finding>()
-    val badReading = warnings.any { "barely heard" in it || "far too quiet" in it }
+    // the stock reading is every run's reference: a clipped one, or one whose timing moved, is measured again first (2.23)
+    val badReading = warnings.any { "barely heard" in it || "far too quiet" in it || "clipped" in it || "timing moved" in it }
     val suspicious = rmsDb > 12.0 || badReading
     warnings.forEach { w ->
-        val bad = "barely heard" in w || "signal-to-noise" in w.lowercase() || "far too quiet" in w
+        val bad = "barely heard" in w || "signal-to-noise" in w.lowercase() || "far too quiet" in w || "clipped" in w || "timing moved" in w
         out += Finding(if (bad) 2 else 1, "Measurement", w)
     }
     val off = regions.filter { kotlin.math.abs(it.errDb) >= 3.0 }.sortedByDescending { kotlin.math.abs(it.errDb) }
@@ -1589,6 +1590,43 @@ fun micStopped(code: Int, usbMic: Boolean): String =
 
 /** Sweeps tried for one phone reading when Bluetooth pauses the sound mid-sweep (2.19.2). */
 const val SWEEP_ATTEMPTS = 2
+
+/** What a shift in the sweep's timing ([SweepCheck.stallIn]) means for the reading. */
+enum class TimingVerdict { OK, AGAIN, FAIL, WARN }
+
+/**
+ * What to do when the sweep's timing shifted partway ([stalled]), in the order the causes come (owner, 2026-11-12: a
+ * phone-speaker reading that clipped was failed as "Bluetooth dropped out"):
+ * - a clipped recording cannot be timed (the overload smears each piece), so clipping leads and the shift is ignored;
+ * - only Bluetooth pauses the sound: there it is measured again, then failed;
+ * - on any other output it is noted on the reading, never blamed on Bluetooth.
+ */
+fun sweepTiming(stalled: Boolean, clipped: Boolean, bluetooth: Boolean, attempt: Int): TimingVerdict = when {
+    !stalled || clipped -> TimingVerdict.OK
+    !bluetooth -> TimingVerdict.WARN
+    attempt < SWEEP_ATTEMPTS -> TimingVerdict.AGAIN
+    else -> TimingVerdict.FAIL
+}
+
+/** The words for a timing shift of [ms] (negative: the sound skipped ahead), by output. */
+fun stallMessage(ms: Double, bluetooth: Boolean): String {
+    val what = if (ms > 0) "paused" else "skipped"
+    val size = "%.0f ms".format(kotlin.math.abs(ms))
+    return if (bluetooth) "The sound $what for $size during the sweep (Bluetooth dropped out), which spoils the reading. Measure again, with the phone closer to the speakers' Bluetooth."
+    else "The timing moved $size partway through the sweep. If the reading looks wrong, measure again."
+}
+
+/**
+ * Set up's last prerequisite before the stock reading, when this phone plays the test sound: it must reach the
+ * equipment, not the phone's own speaker (owner, 2026-11-12: a "car" stock reading was taken from the phone speaker).
+ * Null when it may go ahead.
+ */
+fun phoneSpeakerBlock(e: Equipment, phonePlays: Boolean, phoneSpeaker: Boolean): String? = when {
+    !phonePlays || !phoneSpeaker -> null
+    e == Equipment.CAR -> "plays through the phone's own speaker: connect the phone to the car first"
+    e == Equipment.PC -> "plays through the phone's own speaker: connect it to the PC's speakers, or let the PC play our file"
+    else -> "plays through the phone's own speaker: connect the phone to the speakers first"
+}
 
 
 // ---------------------------------------------------------------- the first-start tutorial (2.9.0)

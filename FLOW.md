@@ -1,4 +1,4 @@
-# AutoTune flow maps (2.22.0)
+# AutoTune flow maps (2.23.0)
 
 How a tuning session flows and how you move around the app, drawn from the code. Update this file whenever a Tune step, a pinned action or a link between screens changes (see CLAUDE.md). Code names in brackets point at where each decision lives.
 
@@ -11,19 +11,19 @@ flowchart TD
   CQ -->|"Yes: Connect to AutoTune on the TV or PC"| HTP(["Home theatre page<br/>(see the navigation map)"])
   CQ -->|"No: Use this phone only"| NM
   EQP -->|"Car or Other speakers"| NM["screen: Name it<br/>equipment name, test name"]
-  NM -->|"Next"| S["screen: Play the test sound (a draft)<br/>route named for the equipment, output, Test sound<br/>target only in Advanced (Simple: Harman car / Home theatre)<br/>warns when the phone EQ may not reach it<br/>open test and EQ untouched"]
+  NM -->|"Next"| S["screen: Play the test sound (a draft)<br/>route named for the equipment, output, Test sound<br/>target only in Advanced (Simple: Harman car / Home theatre)<br/>warns when the phone EQ may not reach it<br/>key off while it plays on the phone's own speaker<br/>open test and EQ untouched"]
   S -->|"Back"| H(["Tune screen: Continue still there"])
   MEM["remembered per output: equipment, route<br/>and the last equipment, companion installed"] -.-> EQP
   CT(["Continue: Tune screen, results, Tests ⋮"]) --> RA{"Saved place still valid?<br/>(resumeAt)"}
   RA -->|"yes"| E
   RA -->|"no: by run count"| E
   S -->|"key: Measure the stock system<br/>EQ off, new test (tuneSetup)"| M0[["Measuring screen<br/>checks, spots 1..n"]]
-  M0 -->|"failed: Try again, Check the level"| M0
+  M0 -->|"failed: Try again, Check the level<br/>(causes in order: output, beeps, cut off, clipping,<br/>background, then timing: Bluetooth only; sweepTiming)"| M0
   M0 -->|"closed, stopped or failed: Close<br/>(returnAfterMeasuring)"| S
   M0 -->|"failed: Ask AI why"| AI[["AI review"]]
   M1 -->|"closed, stopped or failed: back where it started"| E
   M0 -->|"saved"| Q{"Stock reading suspicious?<br/>(analyzeStock)"}
-  Q -->|"yes: Measure the stock again"| M0
+  Q -->|"yes (far off, too weak, clipped, timing moved): Measure the stock again"| M0
   Q -->|"no, or Use this reading anyway"| E["3 EQ<br/>stock summary, suggested EQ<br/>How do you want to apply it?<br/>(equipment first on a known bypass output)"]
   E -->|"Use the phone's EQ and measure"| M1
   E -->|"Preview in the app and measure"| M1
