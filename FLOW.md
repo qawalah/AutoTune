@@ -1,4 +1,4 @@
-# AutoTune flow maps (2.7.0)
+# AutoTune flow maps (2.20.0)
 
 How a tuning session flows and how you move around the app, drawn from the code. Update this file whenever a Tune step, a pinned action or a link between screens changes (see CLAUDE.md). Code names in brackets point at where each decision lives.
 
@@ -6,9 +6,13 @@ How a tuning session flows and how you move around the app, drawn from the code.
 
 ```mermaid
 flowchart TD
-  K(["Tune key, or New test on Tests"]) --> S["1 Set up (a draft)<br/>name, target, route, output<br/>warns when the phone EQ may not reach it<br/>open test and EQ untouched"]
+  K(["Tune key, or New test on Tests"]) --> EQP{"1 Set up: What are you tuning?<br/>Car, Home theatre or soundbar,<br/>PC speakers, Other speakers"}
+  EQP -->|"Home theatre or PC speakers"| CQ{"AutoTune on the TV / on the PC?<br/>(companionQuestion)"}
+  CQ -->|"Installed: Connect to AutoTune on the TV or PC"| HTP(["Home theatre page<br/>(see the navigation map)"])
+  CQ -->|"Not installed"| S
+  EQP -->|"Car or Other speakers"| S["Set up, this phone only (a draft)<br/>name, target for the equipment,<br/>route named for the equipment, output<br/>warns when the phone EQ may not reach it<br/>open test and EQ untouched"]
   S -->|"Back"| H(["Tune screen: Continue still there"])
-  MEM["remembered per output:<br/>target, taste, route, spots"] -.-> S
+  MEM["remembered per output: equipment, route<br/>and the last equipment, companion installed"] -.-> EQP
   CT(["Continue: Tune screen, results, Tests ⋮"]) --> RA{"Saved place still valid?<br/>(resumeAt)"}
   RA -->|"yes"| E
   RA -->|"no: by run count"| E
@@ -22,7 +26,7 @@ flowchart TD
   Q -->|"no, or Use this reading anyway"| E["3 EQ<br/>stock summary, suggested EQ<br/>How do you want to apply it?<br/>(equipment first on a known bypass output)"]
   E -->|"Use the phone's EQ and measure"| M1
   E -->|"Preview in the app and measure"| M1
-  E -->|"Set it on my equipment, It's set, measure"| M1[["4 Verify: measuring screen"]]
+  E -->|"Set it on my equipment (named for it; a PC saves the EQ files), It's set, measure"| M1[["4 Verify: measuring screen"]]
   M1 -->|"saved"| R["5 Result<br/>summary, graph, one move"]
   R --> N{"recommendNext"}
   N -->|"REFINE: Apply the new suggested EQ"| RG{"Way already chosen on a phone route?<br/>(refineGoesStraightToMeasure)"}
@@ -48,6 +52,7 @@ Every measurement starts the moment its key is pressed. Stock and Verify are mea
 
 | Screen | The one key | Other choices |
 |---|---|---|
+| Set up | Measure the stock system; with AutoTune on the TV or PC: Connect to AutoTune on the TV (or the PC) | Equipment, AutoTune on the TV/PC, name, target, route, output, Test sound; Advanced: measurement options, tools |
 | Measuring | See the result (closes itself when all checks pass), or Try again | Measure next spot, Check the level, Ask AI why, Close |
 | EQ, after stock | Use the phone's EQ and measure; Measure the stock again when the stock looks wrong; It's set, measure on equipment | Preview in the app, Set it on my equipment; Advanced: target, sliders, bands, files, AI |
 | Result | Apply the new suggested EQ, Keep this EQ and finish, Keep the EQ of run n, Check the EQ reaches the speakers, Measure again, Set it on my equipment, or Switch on the phone's EQ and measure | The other moves, Measure again, Ask AI, All results, Discard |
@@ -80,7 +85,7 @@ flowchart LR
   TU -->|"Ask AI"| AI
   AI -->|"Measure it"| TU
   L -->|"Advanced: Open EQ"| EQ
-  TU -->|"Connect to the companion app on a TV or PC"| HT["Home theatre page<br/>over the current tab"]
+  TU -->|"Set up: Home theatre or PC speakers,<br/>AutoTune installed: Connect"| HT["Home theatre page<br/>over the current tab"]
   HT -->|"Set the levels: pink noise per speaker,<br/>live meter, next after 3 s level"| TV(("AutoTune on the TV"))
   HT -->|"Test the distances: one sweep per speaker"| TV
   HT -->|"Test the EQ: every speaker together, 1-5 seats,<br/>then Use the EQ (one for every speaker)"| TV

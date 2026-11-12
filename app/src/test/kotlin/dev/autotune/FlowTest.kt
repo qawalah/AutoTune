@@ -243,6 +243,66 @@ class FlowTest {
         assertEquals(null, SetupMemory.fromText("2;5;0;3;0;2.0;-1.5")) // a later format
         assertEquals(null, SetupMemory.fromText("1;5;0;x;0;2.0;-1.5"))
         assertEquals(null, SetupMemory.fromText("1;5;0;0;0;2.0;-1.5")) // no spots
+        // 2.20 adds the equipment; a memory from before has none, and an unknown name reads as none
+        val e = m.copy(equipment = Equipment.HOME)
+        assertEquals(e, SetupMemory.fromText(e.toText()))
+        assertEquals("1;5;0;3;0;2.0;-1.5", m.toText())
+        assertEquals(null, SetupMemory.fromText("1;5;0;3;0;2.0;-1.5;BOAT")?.equipment)
+    }
+
+    /** Set up asks what is tuned first (owner, 2026-11-12); everything after it follows from the answer. */
+    @Test
+    fun setUpStartsWithTheEquipment() {
+        // the output's own memory wins, then the last pick, then car mode, then the default target's kind
+        assertEquals(Equipment.PC, startEquipment(Equipment.PC, Equipment.CAR, true, TargetKind.CAR))
+        assertEquals(Equipment.HOME, startEquipment(null, Equipment.HOME, true, TargetKind.CAR))
+        assertEquals(Equipment.CAR, startEquipment(null, null, true, TargetKind.HOME))
+        assertEquals(Equipment.HOME, startEquipment(null, null, false, TargetKind.HOME))
+        assertEquals(Equipment.OTHER, startEquipment(null, null, false, TargetKind.FLAT))
+        // a test saved before 2.20 takes it from its target
+        assertEquals(Equipment.CAR, equipmentOf("", TargetKind.CAR))
+        assertEquals(Equipment.PC, equipmentOf("PC", TargetKind.CAR))
+        assertEquals(Equipment.HOME, equipmentOf(null, TargetKind.HOME))
+    }
+
+    @Test
+    fun onlyTheTvAndThePcHaveACompanion() {
+        assertEquals(null, companionQuestion(Equipment.CAR))
+        assertEquals(null, companionQuestion(Equipment.OTHER))
+        assertEquals("AutoTune on the TV", companionQuestion(Equipment.HOME)?.label)
+        assertEquals("AutoTune on the PC", companionQuestion(Equipment.PC)?.label)
+        assertEquals(2, companionQuestion(Equipment.PC)?.answers?.size)
+    }
+
+    @Test
+    fun theTargetsFollowTheEquipment() {
+        // the built-in order: Car, Home theatre, Flat, Harman car, Harman room, then a custom curve
+        val kinds = listOf(TargetKind.CAR, TargetKind.HOME, TargetKind.FLAT, TargetKind.CAR, TargetKind.HOME, TargetKind.CUSTOM)
+        assertEquals(listOf(0, 2, 3, 5), equipmentTargets(Equipment.CAR, kinds))
+        assertEquals(listOf(1, 2, 4, 5), equipmentTargets(Equipment.HOME, kinds))
+        assertEquals(listOf(1, 2, 4, 5), equipmentTargets(Equipment.PC, kinds))
+        assertEquals(kinds.indices.toList(), equipmentTargets(Equipment.OTHER, kinds))
+        // the default from Settings when it fits, else the remembered one, else the first that fits
+        assertEquals(3, equipmentTarget(Equipment.CAR, kinds, 3, 0))
+        assertEquals(0, equipmentTarget(Equipment.CAR, kinds, 1, 0))
+        assertEquals(1, equipmentTarget(Equipment.HOME, kinds, 0, null))
+        assertEquals(4, equipmentTarget(Equipment.HOME, kinds, 0, 4))
+    }
+
+    @Test
+    fun theRoutesFollowTheEquipment() {
+        assertEquals(Source.PHONE, equipmentRoutes(Equipment.CAR).first())
+        // a PC plays our file itself
+        assertEquals(Source.COMBINED, equipmentRoutes(Equipment.PC).first())
+        assertEquals(Source.TEST_FILE, equipmentRoute(Equipment.HOME, Source.TEST_FILE))
+        assertEquals(Source.COMBINED, equipmentRoute(Equipment.PC, null))
+        assertEquals("The head unit plays our sweep file", routeLabel(Equipment.CAR, Source.TEST_FILE))
+        assertEquals("The TV plays pink noise", routeLabel(Equipment.HOME, Source.YOUTUBE))
+        Equipment.entries.forEach { e -> assertEquals(Source.entries.toSet(), equipmentRoutes(e).toSet()) }
+        // the checklist and the place the EQ goes name the equipment's own controls
+        assertTrue(stockChecklist(Equipment.CAR).contains("head unit"))
+        assertTrue(stockChecklist(Equipment.PC).contains("Equalizer APO"))
+        assertTrue(equipmentEqWhere(Equipment.PC).first.contains("equalizer apo"))
     }
 
     @Test

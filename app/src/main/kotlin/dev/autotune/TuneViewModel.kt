@@ -361,6 +361,11 @@ data class UiState(
     val measureFrom: TuneStep? = null,
     /** Set up's last choices on the current output (null: none yet, the defaults apply). */
     val setupMemory: SetupMemory? = null,
+    /** What the open test tunes (2.20): decides the targets, the routes and where the EQ goes. */
+    val equipment: Equipment = Equipment.CAR,
+    /** The equipment picked last on Set up, on any output, and the equipment said to have AutoTune installed on it. */
+    val lastEquipment: Equipment? = null,
+    val companionInstalled: Set<Equipment> = emptySet(),
     /** The test the last Keep finished and its run count then: the Tune screen shows it as tuned (see [showsTuned]). */
     val tunedTestId: String? = null,
     val tunedRuns: Int = 0,
@@ -552,6 +557,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 keepRecordings = prefs.getBoolean("keepRecordings", true),
                 smoothing = prefs.getInt("smoothing", 6),
                 defTarget = prefs.getString("defTarget", null),
+                lastEquipment = Equipment.orNull(prefs.getString("lastEquipment", null)),
+                companionInstalled = Equipment.entries.filter { prefs.getBoolean("companion_${it.name}", false) }.toSet(),
                 defBassDb = prefs.getFloat("defBass", 0f).toDouble(),
                 defTrebleDb = prefs.getFloat("defTreble", 0f).toDouble(),
                 defSpots = prefs.getInt("defSpots", 0),
@@ -812,14 +819,14 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Creates the (not yet saved) test the user just named. The test is saved with its first, stock run. */
-    fun startNewTest(name: String, targetIdx: Int, source: Source) {
+    fun startNewTest(name: String, targetIdx: Int, source: Source, equipment: Equipment = equipmentOf(null, targetKind(Target.ALL.getOrNull(targetIdx)))) {
         newTest()
         val idx = targetIdx.coerceIn(0, Target.ALL.size - 1)
         pendingPositions.clear()
         val nm = uniqueName(name.trim().ifBlank { "${Target.ALL[idx].name} test, ${fmtDate(System.currentTimeMillis())}" })
         state.update {
             it.copy(
-                testName = nm, targetIdx = idx, source = source,
+                testName = nm, targetIdx = idx, source = source, equipment = equipment,
                 // Car cabins: keep only the direct sound + first reflections. Rooms: keep room modes.
                 gateMs = if (targetKind(Target.ALL[idx]) == TargetKind.CAR) 80 else 400,
                 // a cabin response changes with every cm: average three mic spots by default
@@ -838,6 +845,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             it.copy(
                 testName = t.name, currentTestId = t.id,
                 source = Source.entries.getOrElse(t.sourceIdx) { Source.PHONE },
+                equipment = equipmentOf(t.equipment, targetKind(Target.ALL[idx])),
                 targetIdx = idx, gateMs = t.gateMs, distortion = null,
                 selectedRuns = if (t.runs.size > 1) setOf(0, t.runs.lastIndex) else setOf(0),
                 resonances = t.resonances.map { r ->
@@ -1706,6 +1714,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             runs = listOf(SavedRun(now, rms, mag, filters, TestStore.STOCK_LABEL, warnings = warnings, calibration = calName(), complete = true)),
             // the output it was tuned on names its EQs; another device playing it leaves it to the test's name
             device = cur?.device?.ifBlank { null } ?: state.value.outputName?.takeIf { source == Source.PHONE }.orEmpty(),
+            equipment = cur?.equipment?.ifBlank { null } ?: state.value.equipment.name,
             resonances = res.map { doubleArrayOf(it.freqHz, it.prominenceDb, it.q, it.t60Ms ?: Double.NaN, if (it.t60IsLowerBound) 1.0 else 0.0) },
             notes = state.value.testNotes,
             bassDb = cur?.bassDb ?: newTaste?.first ?: state.value.defBassDb, trebleDb = cur?.trebleDb ?: newTaste?.second ?: state.value.defTrebleDb,
@@ -2075,7 +2084,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
      * Set up is the last stop before the stock reading: the test is created and the reading starts at once. Without
      * microphone access the Stock screen is shown instead, where the permission can be given.
      */
-    fun tuneSetup(name: String, targetIdx: Int, source: Source, positions: Int, gateMs: Int?) {
+    fun tuneSetup(name: String, targetIdx: Int, source: Source, positions: Int, gateMs: Int?, equipment: Equipment) {
         if (micMissing()) return
         // the stock reference is measured with no EQ at all: AutoTune EQ off, the new test's suggestion in use
         if (state.value.systemEqOn) setSystemEq(false)
@@ -2084,14 +2093,34 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         newTaste = null
         rememberSetup(SetupMemory(
             targetIdx, source.ordinal, positions, gateMs ?: 0,
-            newTaste?.first ?: state.value.defBassDb, newTaste?.second ?: state.value.defTrebleDb,
+            newTaste?.first ?: state.value.defBassDb, newTaste?.second ?: state.value.defTrebleDb, equipment,
         ))
-        startNewTest(name, targetIdx, source)
+        // measured from this phone alone: the next Set up starts the same way, "Not installed" included
+        rememberEquipment(equipment, false)
+        if (equipment.companion != null) forgetCompanion(equipment)
+        startNewTest(name, targetIdx, source, equipment)
         resetToSuggestion()
         setPositions(positions)
         gateMs?.let { setGate(it) }
         startMeasuring(TuneStep.STOCK)
         stockRun()
+    }
+
+    /**
+     * Set up's first two answers, kept for the next Set up on any output: the equipment, and whether AutoTune is
+     * installed on it (the TV or the PC). [installed] true is remembered; a test measured without it leaves it as it was.
+     */
+    fun rememberEquipment(e: Equipment, installed: Boolean) {
+        val ed = prefs.edit().putString("lastEquipment", e.name)
+        if (installed) ed.putBoolean("companion_${e.name}", true)
+        ed.apply()
+        state.update { it.copy(lastEquipment = e, companionInstalled = if (installed) it.companionInstalled + e else it.companionInstalled) }
+    }
+
+    /** "Not installed" picked on Set up: the next Set up starts there too. */
+    fun forgetCompanion(e: Equipment) {
+        prefs.edit().putBoolean("companion_${e.name}", false).apply()
+        state.update { it.copy(companionInstalled = it.companionInstalled - e) }
     }
 
     /** Saves Set up's choices for the current output. */

@@ -2,6 +2,7 @@ package dev.autotune
 
 import dev.autotune.dsp.EqFilter
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -45,6 +46,16 @@ class TestStoreTest {
         assertEquals("none", back.runs[1].calibration)
         assertEquals("Run 1 (repeat)", back.runs[1].label)
         assertTrue(back.runs[1].complete)
+    }
+
+    /** The equipment (2.20) is kept; a test saved without it loads with none, and takes it from its target. */
+    @Test
+    fun equipmentSurvivesSaveAndLoad() {
+        val t = SavedTest("id", "Den", 5L, 1, 1, 400, listOf(run("Stock (no EQ)", 0)), equipment = "PC")
+        assertEquals("PC", TestStore.decode(TestStore.encode(t)).equipment)
+        val old = TestStore.decode(TestStore.encode(t.copy(equipment = "")))
+        assertEquals("", old.equipment)
+        assertFalse(TestStore.encode(t.copy(equipment = "")).contains("equip="))
     }
 
     /** Files written by 1.9.0 and before have none of the new fields. */

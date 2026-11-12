@@ -374,20 +374,155 @@ data class SetupMemory(
     /** 0 = automatic. */
     val gateMs: Int,
     val bassDb: Double, val trebleDb: Double,
+    /** What was tuned on this output (2.20+); null in memories saved before. */
+    val equipment: Equipment? = null,
 ) {
-    fun toText(): String = "1;$targetIdx;$sourceIdx;$spots;$gateMs;$bassDb;$trebleDb"
+    fun toText(): String = "1;$targetIdx;$sourceIdx;$spots;$gateMs;$bassDb;$trebleDb" + (equipment?.let { ";${it.name}" } ?: "")
 
     companion object {
-        /** Null for anything this version cannot read. */
+        /** Null for anything this version cannot read. An eighth field names the equipment; older memories have none. */
         fun fromText(text: String?): SetupMemory? {
             val p = text?.split(';') ?: return null
             if (p.size < 7 || p[0] != "1") return null
             return runCatching {
-                SetupMemory(p[1].toInt(), p[2].toInt(), p[3].toInt(), p[4].toInt(), p[5].toDouble(), p[6].toDouble())
+                SetupMemory(p[1].toInt(), p[2].toInt(), p[3].toInt(), p[4].toInt(), p[5].toDouble(), p[6].toDouble(), Equipment.orNull(p.getOrNull(7)))
             }.getOrNull()?.takeIf { it.targetIdx >= 0 && it.sourceIdx >= 0 && it.spots in 1..9 && it.gateMs >= 0 }
         }
     }
 }
+
+// ------------------------------------------------------------------ Set up: equipment first (2.20)
+
+/**
+ * What is being tuned: Set up's first question. It decides whether there is a companion app to ask about
+ * ([companion]: AutoTune on the TV or the PC plays every speaker and sets the EQ there), which targets are offered,
+ * how the test sound can reach the speakers and where the EQ goes in the end.
+ */
+enum class Equipment(val title: String, val detail: String, val companion: String?) {
+    CAR("Car", "Head unit, amp or DSP", null),
+    HOME("Home theatre or soundbar", "Played by a TV or a receiver", "the TV"),
+    PC("PC speakers", "Played by a Windows PC", "the PC"),
+    OTHER("Other speakers", "A Bluetooth speaker or anything else", null);
+
+    companion object {
+        fun orNull(name: String?): Equipment? = entries.firstOrNull { it.name == name }
+    }
+}
+
+/** The equipment of a test saved before 2.20, from its target: a car target is a car, a room target a home theatre. */
+fun equipmentOf(saved: String?, kind: TargetKind): Equipment = Equipment.orNull(saved) ?: when (kind) {
+    TargetKind.CAR -> Equipment.CAR
+    TargetKind.HOME -> Equipment.HOME
+    else -> Equipment.OTHER
+}
+
+/**
+ * The equipment Set up starts with: what this output was last tuned as, else the last equipment picked, else a car
+ * when the phone is in car mode, else what the default target is for.
+ */
+fun startEquipment(remembered: Equipment?, last: Equipment?, carMode: Boolean, defaultKind: TargetKind): Equipment =
+    remembered ?: last ?: if (carMode) Equipment.CAR else equipmentOf(null, defaultKind)
+
+/**
+ * The targets offered for [e], as indices into [kinds] (the kind of every target, built-in first): a car gets the car
+ * curves, a room the room curves, both keep Flat and the user's own curves; Other speakers get everything.
+ */
+fun equipmentTargets(e: Equipment, kinds: List<TargetKind>): List<Int> {
+    val fits = kinds.indices.filter { i ->
+        when (kinds[i]) {
+            TargetKind.CAR -> e == Equipment.CAR || e == Equipment.OTHER
+            TargetKind.HOME -> e != Equipment.CAR
+            else -> true
+        }
+    }
+    return fits.ifEmpty { kinds.indices.toList() }
+}
+
+/** The target Set up picks for [e]: the default from Settings when it fits, else the remembered one, else the first that fits. */
+fun equipmentTarget(e: Equipment, kinds: List<TargetKind>, defaultIdx: Int, rememberedIdx: Int?): Int {
+    val fits = equipmentTargets(e, kinds)
+    return listOfNotNull(defaultIdx, rememberedIdx).firstOrNull { it in fits } ?: fits.first()
+}
+
+/**
+ * How the test sound can reach [e]'s speakers without a companion app, best first. A PC plays our file itself; a car
+ * or a soundbar is usually fed by the phone over Bluetooth.
+ */
+fun equipmentRoutes(e: Equipment): List<Source> = when (e) {
+    Equipment.PC -> listOf(Source.COMBINED, Source.TEST_FILE, Source.YOUTUBE, Source.PHONE)
+    else -> listOf(Source.PHONE, Source.COMBINED, Source.TEST_FILE, Source.YOUTUBE)
+}
+
+/** The route as one line, naming what plays it on [e]. */
+fun routeLabel(e: Equipment, s: Source): String {
+    val player = when (e) {
+        Equipment.CAR -> "The head unit"
+        Equipment.HOME -> "The TV"
+        Equipment.PC -> "The PC"
+        Equipment.OTHER -> "Another device"
+    }
+    return when (s) {
+        Source.PHONE -> when (e) {
+            Equipment.CAR -> "This phone plays it (Bluetooth, aux or USB)"
+            Equipment.HOME -> "This phone plays it (Bluetooth to the soundbar)"
+            Equipment.PC -> "This phone plays it (into the PC's speakers)"
+            Equipment.OTHER -> "This phone plays it (Bluetooth, aux or USB)"
+        }
+        Source.COMBINED -> "$player plays our sweep + pink file (best)"
+        Source.TEST_FILE -> "$player plays our sweep file"
+        Source.YOUTUBE -> "$player plays pink noise"
+    }
+}
+
+/** The route Set up picks: the remembered one when [e] offers it, else [e]'s best. */
+fun equipmentRoute(e: Equipment, remembered: Source?): Source =
+    remembered?.takeIf { it in equipmentRoutes(e) } ?: equipmentRoutes(e).first()
+
+/** What to check before the stock reading on [e], for the info bubble on Set up. */
+fun stockChecklist(e: Equipment): String {
+    val flat = when (e) {
+        Equipment.CAR -> "Set the head unit or DSP EQ flat: every band at 0, bass boost and loudness off."
+        Equipment.HOME -> "Set the TV's and the home theatre's sound flat: EQ at 0, sound modes, night mode and dialogue boost off."
+        Equipment.PC -> "Set the PC's sound flat: Equalizer APO and any other sound effects off."
+        Equipment.OTHER -> "Set the speaker's own EQ flat: every band at 0, bass boost off."
+    }
+    val mic = when (e) {
+        Equipment.CAR -> "Mic at your head position, pointing up. Engine off, doors closed, normal listening volume."
+        Equipment.PC -> "Mic where your head is at the desk, pointing up. Normal listening volume."
+        else -> "Mic at your seat, at ear height, pointing up. Room quiet, normal listening volume."
+    }
+    return "The first reading is the reference every run is compared with, so measure the system with no EQ at all:\n\n" +
+        "• AutoTune EQ is switched off for you.\n• $flat\n" +
+        "• Phone sound effects off: Samsung Adapt Sound, Dolby Atmos, the phone's own equaliser.\n• $mic"
+}
+
+/** Where the EQ goes when it is set by hand on [e], as one lowercase label and its info bubble. */
+fun equipmentEqWhere(e: Equipment): Pair<String, String> = when (e) {
+    Equipment.CAR -> "set these bands on your equipment" to "Set these bands on your head unit, DSP or EQ app, with the preamp first."
+    Equipment.HOME -> "set these bands on the home theatre" to
+        "Set these bands in the home theatre's or the soundbar's EQ (or its app), with the preamp first. AutoTune on the TV can set an EQ on the TV for you: pick Home theatre on Set up and say it is installed."
+    Equipment.PC -> "load these bands into equalizer apo" to
+        "Save files gives ParametricEQ.txt: open it in Equalizer APO's Configuration Editor on the PC (or copy it into its config folder). AutoTune for Windows sets it for you: pick PC speakers on Set up and say it is installed."
+    Equipment.OTHER -> "set these bands on your equipment" to "Set these bands on the speaker's EQ or its app, with the preamp first."
+}
+
+/** What the companion question says for [e]: its label, its two answers and the info bubble. Null when [e] has none. */
+fun companionQuestion(e: Equipment): CompanionQuestion? {
+    val on = e.companion ?: return null
+    val where = if (e == Equipment.PC) "Windows: AutoTune for Windows, from DevStore on the PC or the MSI on the release page."
+    else "Android TV or Google TV: the same AutoTune app, installed on the TV through Obtainium or DevStore."
+    return CompanionQuestion(
+        label = "AutoTune on $on",
+        answers = listOf("Not installed: this phone only", "Installed: connect to it"),
+        details = listOf("The phone measures what plays and you set the EQ there", "It plays each speaker and puts the EQ in use there"),
+        info = "With AutoTune open on $on (on the same Wi-Fi), $on plays the test sound speaker by speaker, the phone listens at your " +
+            "seat, and the EQ is put in use on $on for you." +
+            (if (e == Equipment.HOME) " It also checks each speaker's level and distance." else "") + "\n\n$where\n\n" +
+            "Without it, the phone measures what plays and gives you the bands to set by hand.",
+    )
+}
+
+data class CompanionQuestion(val label: String, val answers: List<String>, val details: List<String>, val info: String)
 
 /** The Tune screen shows a finished tune while the test it finished is open and has no run after it. */
 fun showsTuned(tunedTestId: String?, tunedRuns: Int, openTestId: String?, runCount: Int): Boolean =

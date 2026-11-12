@@ -74,7 +74,7 @@ fun TuneTab(s: UiState, vm: TuneViewModel, sharer: Sharer, go: (Tab) -> Unit, op
                 // Done is the Tune screen showing the finished tune
                 TuneStep.HOME, TuneStep.DONE -> TuneHome(s, vm, pick, go)
                 // five steps: the fresh start is part of Tune itself, and the stock review heads the EQ step
-                TuneStep.FRESH, TuneStep.SETUP -> SetupStep(s, vm, sharer, pick, exit)
+                TuneStep.FRESH, TuneStep.SETUP -> SetupStep(s, vm, sharer, pick, exit, go)
                 TuneStep.STOCK_RESULT, TuneStep.APPLY, TuneStep.STOCK, TuneStep.VERIFY -> ApplyStep(s, vm, pick, exit)
                 TuneStep.RESULT -> ResultStep(s, vm, pick, openResults, exit)
             }
@@ -116,8 +116,7 @@ private fun TuneHome(s: UiState, vm: TuneViewModel, pick: Pickers, go: (Tab) -> 
     if (s.runs.isNotEmpty()) {
         SecondaryButton("Continue “${dev.autotune.shortTestName(s.testName, "").first}”", vm::tuneContinue, Modifier.fillMaxWidth(), icon = Ic.NEXT)
     }
-    // every speaker of a home theatre, played by AutoTune on the TV, or a PC's speakers played by AutoTune on Windows
-    SecondaryButton("Connect to the companion app on a TV or PC", { go(Tab.THEATRE) }, Modifier.fillMaxWidth(), icon = Ic.HOME)
+    // AutoTune on a TV or a PC is reached through Set up now: Tune › Home theatre or PC speakers › Installed (2.20)
 }
 
 @Composable
@@ -130,25 +129,34 @@ private fun Check(icon: Ic, text: String) {
 
 // ------------------------------------------------------------------ 2. set up
 
-private val ROUTES = listOf(
-    Source.PHONE to "This phone plays it (Bluetooth, aux or USB)",
-    Source.COMBINED to "Another device plays our sweep + pink file (best)",
-    Source.TEST_FILE to "Another device plays our sweep file",
-    Source.YOUTUBE to "Another device plays pink noise",
-)
-
+/**
+ * Set up asks in the order the answers depend on each other (owner, 2026-11-12): what is tuned, then whether AutoTune
+ * is on it (the TV or the PC) where it can be, then only what that leaves: with the companion the key connects to it;
+ * without, the targets, the ways the sound can reach the speakers and the checklist all follow the equipment.
+ */
 @Composable
-private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pickers, exit: () -> Unit) {
+private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Pickers, exit: () -> Unit, go: (Tab) -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
-    // starts from the defaults in Settings (target, spots, window); on an output tuned before only the way the
-    // sound reaches the speakers is taken from last time, so a changed default always takes effect
+    // starts from the defaults in Settings (target, spots, window); on an output tuned before only the equipment and
+    // the way the sound reaches the speakers are taken from last time, so a changed default always takes effect
     val mem = s.setupMemory?.takeIf { it.targetIdx in s.targetNames.indices }
+    val kinds = s.targetNames.indices.map { dev.autotune.targetKind(Target.ALL.getOrNull(it)) }
     val defIdx = Target.ALL.indexOfFirst { it.name == s.defTarget }.takeIf { it >= 0 } ?: mem?.targetIdx ?: s.targetIdx
     val out = s.outputName
-    var targetIdx by rememberSaveable(out) { mutableIntStateOf(defIdx.coerceIn(0, (s.targetNames.size - 1).coerceAtLeast(0))) }
+    val equipments = dev.autotune.Equipment.entries
+    var equipment by rememberSaveable(out) {
+        mutableStateOf(dev.autotune.startEquipment(mem?.equipment, s.lastEquipment, s.carMode, kinds.getOrElse(defIdx) { dev.autotune.TargetKind.CAR }))
+    }
+    val companion = dev.autotune.companionQuestion(equipment)
+    var installed by rememberSaveable(equipment) { mutableStateOf(equipment in s.companionInstalled) }
+    val viaCompanion = companion != null && installed
+
+    val targetIdxs = dev.autotune.equipmentTargets(equipment, kinds)
+    var targetIdx by rememberSaveable(out, equipment) { mutableIntStateOf(dev.autotune.equipmentTarget(equipment, kinds, defIdx, mem?.targetIdx)) }
+    val routes = dev.autotune.equipmentRoutes(equipment)
     val memSource = mem?.let { m -> Source.entries.getOrNull(m.sourceIdx) }
-    var routeIdx by rememberSaveable(out) { mutableIntStateOf(ROUTES.indexOfFirst { it.first == (memSource ?: s.source) }.coerceAtLeast(0)) }
-    val car = dev.autotune.targetKind(Target.ALL.getOrNull(targetIdx)) == dev.autotune.TargetKind.CAR
+    var route by rememberSaveable(out, equipment) { mutableStateOf(dev.autotune.equipmentRoute(equipment, memSource ?: s.source)) }
+    val car = equipment == dev.autotune.Equipment.CAR || kinds.getOrNull(targetIdx) == dev.autotune.TargetKind.CAR
     var spotsIdx by rememberSaveable(car, out) {
         mutableIntStateOf(listOf(1, 3, 5).indexOf(s.defSpots).takeIf { it >= 0 } ?: if (car) 1 else 0)
     }
@@ -157,32 +165,48 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
 
     StepHeader(0, STEPS, "Set up", exit, onBack = vm::tuneBack, names = dev.autotune.STEP_NAMES)
     Panel {
-        CardTitle(
-            "What are you tuning?",
-            info = "The first reading is the reference every run is compared with, so measure the system with no EQ at all:\n\n" +
-                "• AutoTune EQ is switched off for you.\n• Set the head unit or DSP EQ flat: every band at 0, bass boost and loudness off.\n" +
-                "• Phone sound effects off: Samsung Adapt Sound, Dolby Atmos, the phone's own equaliser.\n" +
-                "• Mic at your head position, pointing up. Engine off, doors closed, normal listening volume.",
-        )
-        if (mem != null && out != null) Muted("as last time on $out")
-        OutlinedTextField(
-            value = name, onValueChange = { name = it },
-            label = { Text("Name (optional)") }, placeholder = { Text("e.g. F-150 driver seat") },
-            singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
-        )
-        val kinds = s.targetNames.indices.map { dev.autotune.targetKind(Target.ALL.getOrNull(it)) }
+        CardTitle("What are you tuning?", info = dev.autotune.stockChecklist(equipment))
+        if (mem?.equipment != null && out != null) Muted("as last time on $out")
+        // 1. the equipment: everything below follows from it
         DropSelect(
-            s.targetNames, targetIdx, { targetIdx = it }, label = "Kind of system and target sound",
-            icons = kinds.map { kindIcon(it) },
-            details = s.targetNames.indices.map { targetDetail(Target.ALL.getOrNull(it)) },
+            equipments.map { it.title }, equipments.indexOf(equipment), { equipment = equipments[it] }, label = "Equipment",
+            icons = equipments.map { equipmentIcon(it) }, details = equipments.map { it.detail },
         )
-        DropSelect(ROUTES.map { it.second }, routeIdx, { routeIdx = it }, label = "How the sound reaches the speakers", icon = Ic.SPEAKER)
-        if (ROUTES[routeIdx].first == Source.PHONE) {
-            OutputPicker(s, vm)
-            Actions { if (s.playing) TextAction("Stop the test sound", vm::stopClip, icon = Ic.STOP) else TextAction("Test sound", vm::testSound, enabled = !s.busy, icon = Ic.PLAY) }
-        } else OtherDeviceSignal(ROUTES[routeIdx].first, vm, sharer)
-        MicLine(s, pick)
+        // 2. a TV or a PC can run AutoTune itself, which plays every speaker and puts the EQ in use there
+        if (companion != null) DropSelect(
+            companion.answers, if (installed) 1 else 0, { installed = it == 1 }, label = companion.label,
+            icon = Ic.HOME, details = companion.details, info = companion.info,
+        )
+        if (!viaCompanion) {
+            OutlinedTextField(
+                value = name, onValueChange = { name = it },
+                label = { Text("Name (optional)") }, placeholder = { Text(namePlaceholder(equipment)) },
+                singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
+            )
+            DropSelect(
+                targetIdxs.map { s.targetNames[it] }, targetIdxs.indexOf(targetIdx).coerceAtLeast(0), { targetIdx = targetIdxs[it] },
+                label = "Target sound", icons = targetIdxs.map { kindIcon(kinds[it]) },
+                details = targetIdxs.map { targetDetail(Target.ALL.getOrNull(it)) },
+            )
+            DropSelect(
+                routes.map { dev.autotune.routeLabel(equipment, it) }, routes.indexOf(route).coerceAtLeast(0), { route = routes[it] },
+                label = "How the sound reaches the speakers", icon = Ic.SPEAKER,
+            )
+            if (route == Source.PHONE) {
+                OutputPicker(s, vm)
+                Actions { if (s.playing) TextAction("Stop the test sound", vm::stopClip, icon = Ic.STOP) else TextAction("Test sound", vm::testSound, enabled = !s.busy, icon = Ic.PLAY) }
+            } else OtherDeviceSignal(route, vm, sharer)
+            MicLine(s, pick)
+        }
+    }
+    if (viaCompanion) {
+        // the TV or PC takes it from here: its page finds it, pairs with its code and runs the tests
+        PinAction(
+            "Connect to AutoTune on ${equipment.companion}",
+            { vm.rememberEquipment(equipment, true); go(Tab.THEATRE) }, icon = Ic.HOME,
+        )
+        return
     }
     // the essentials above; spots and window keep sensible defaults and wait in Advanced
     if (isAdvanced()) Fold("Measurement options", summary = listOf("1 spot", "3 spots", "5 spots")[spotsIdx] + " · " + listOf("auto window", "80 ms", "200 ms", "400 ms", "600 ms")[gateIdx]) {
@@ -204,9 +228,24 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
     // no stop in between: this key creates the test and starts the stock reading
     PinAction(
         "Measure the stock system",
-        { vm.tuneSetup(name, targetIdx, ROUTES[routeIdx].first, spots[spotsIdx], listOf(null, 80, 200, 400, 600)[gateIdx]) },
+        { vm.tuneSetup(name, targetIdx, route, spots[spotsIdx], listOf(null, 80, 200, 400, 600)[gateIdx], equipment) },
         icon = Ic.MEASURE,
     )
+}
+
+/** The line icon for each kind of equipment. */
+private fun equipmentIcon(e: dev.autotune.Equipment): Ic = when (e) {
+    dev.autotune.Equipment.CAR -> kindIcon(dev.autotune.TargetKind.CAR)
+    dev.autotune.Equipment.HOME -> kindIcon(dev.autotune.TargetKind.HOME)
+    dev.autotune.Equipment.PC -> Ic.SPEAKER
+    dev.autotune.Equipment.OTHER -> Ic.BLUETOOTH
+}
+
+private fun namePlaceholder(e: dev.autotune.Equipment) = when (e) {
+    dev.autotune.Equipment.CAR -> "e.g. F-150 driver seat"
+    dev.autotune.Equipment.HOME -> "e.g. Living room sofa"
+    dev.autotune.Equipment.PC -> "e.g. Desk speakers"
+    dev.autotune.Equipment.OTHER -> "e.g. Kitchen speaker"
 }
 
 // ------------------------------------------------------------------ 3 / 5. measure
@@ -300,8 +339,14 @@ private fun ApplyStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> 
                 s.systemEqMessage?.takeIf { !s.systemEqOn && it.isNotBlank() && it != "EQ off." }?.let { Warning(it) }
                 if (s.systemEqSuspect) TextAction("Use the phone's EQ anyway", { pick.notifications(); vm.tuneApply(ApplyWay.AUTOTUNE_EQ) }, icon = Ic.POWER)
             } else {
-                InfoLabel("set these bands on your equipment", "Set these bands on your head unit, DSP or EQ app, with the preamp first.")
+                val (where, how) = dev.autotune.equipmentEqWhere(s.equipment)
+                InfoLabel(where, how)
                 EqListView(chain, s, vm)
+                // Equalizer APO reads a file, so the PC's file sits with the bands, in Simple too
+                if (s.equipment == dev.autotune.Equipment.PC) Actions {
+                    TextAction("Save the EQ files", { vm.exportFiles(share = false) }, icon = Ic.SAVE)
+                    TextAction("Share", { vm.exportFiles(share = true) }, icon = Ic.SHARE)
+                }
                 PinAction("It's set, measure", { vm.tuneApply(ApplyWay.EQUIPMENT) }, icon = Ic.NEXT)
                 if (s.source == Source.PHONE) TextAction("Use the phone's EQ instead", { equipment = false }, icon = Ic.POWER)
             }

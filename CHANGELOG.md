@@ -4,6 +4,17 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.20.0] - 2026-11-12
+### Changed
+- **Set up starts with the equipment.** Its first question is what you are tuning: Car, Home theatre or soundbar, PC speakers, or Other speakers. Everything after it follows from the answer.
+- **Then it asks whether AutoTune is on it**, for a home theatre (AutoTune on the TV) and PC speakers (AutoTune on the PC). Installed: the key is "Connect to AutoTune on the TV" (or the PC), which opens the home-theatre page, where it plays each speaker and puts the EQ in use there. Not installed: Set up goes on as before, from this phone alone. A car and other speakers are not asked.
+- **The rest of Set up follows the equipment:** the target list holds only the curves for it (car curves for a car, room curves for a room, Flat and your own curves always); the ways the sound can reach the speakers name what plays it ("The head unit plays our sweep file", "The TV plays pink noise") and a PC starts from our file played on the PC; the checklist in the (i) names the equipment's own controls (head unit, TV and home theatre, Equalizer APO).
+- **Refine says where the bands go** on the equipment: the head unit or DSP, the home theatre's EQ, or Equalizer APO on a PC, which also gets Save and Share for the EQ files right there.
+- Set up remembers the equipment per output and the last one picked, and whether AutoTune was installed on the TV or the PC.
+- The Tune screen no longer has "Connect to the companion app on a TV or PC": it is the second question on Set up (Tune › Home theatre or PC speakers › Installed). The widget's companion key still opens the page directly.
+### Added
+- Tests keep their equipment (`equip=` in the test file); tests saved before take it from their target.
+
 ## [2.19.4] - 2026-11-12
 From the owner's diagnostics after 2.19.2 (F-150, two tunes): the 4096-sample blocks were taken, about twice as much of the bass EQ's shape now arrives, the smear around 80 Hz is gone, and the pause check caught a real 14 ms Bluetooth pause. It also showed three faults.
 ### Fixed
