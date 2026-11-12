@@ -259,6 +259,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     AutoTuneTheme(s.themeMode, s.look, s.accent, s.palette) {
       androidx.compose.runtime.CompositionLocalProvider(
           LocalPin provides pin, LocalViewMode provides viewMode, LocalChartZoom provides zoom,
+          LocalStagger provides androidx.compose.runtime.remember { Stagger() },
       ) {
         Box(
             Modifier.fillMaxSize().background(At.c.bg)

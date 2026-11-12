@@ -159,6 +159,7 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
     val pages = dev.autotune.setupPages(equipment, viaCompanion)
 
     val advanced = isAdvanced()
+    val anim = animationsOn()
     val targetIdxs = dev.autotune.equipmentTargets(equipment, kinds)
     var advTargetIdx by rememberSaveable(out, equipment) { mutableIntStateOf(dev.autotune.equipmentTarget(equipment, kinds, defIdx, mem?.targetIdx)) }
     // Simple does not ask: Harman-style in a car, the room curve elsewhere
@@ -180,10 +181,18 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
 
     StepHeader(0, STEPS, "Set up", exit, onBack = back, names = dev.autotune.STEP_NAMES)
     val count = "${pages.indexOf(page) + 1} of ${pages.size}"
-    when (page) {
+    // each screen of Set up arrives from the side it comes from; Back sends it the other way
+    Transit(
+        page,
+        spec = {
+            if (!anim) androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
+            else slideSideways(if (targetState.ordinal >= initialState.ordinal) 1 else -1)
+        },
+    ) { pg -> Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    when (pg) {
         dev.autotune.SetupPage.EQUIPMENT -> {
             Panel {
-                CardTitle(page.title, count)
+                CardTitle(pg.title, count)
                 // a key picks and moves on: the next question follows from it
                 EquipmentTiles(equipment, { equipment = it; next() }, enabled = !s.busy)
                 if (mem?.equipment != null && out != null) Muted("as last time on $out")
@@ -192,11 +201,11 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
         }
 
         dev.autotune.SetupPage.COMPANION -> {
-            val q = dev.autotune.companionQuestion(equipment) ?: return
+            val q = dev.autotune.companionQuestion(equipment) ?: return@Transit
             val installed = equipment in s.companionInstalled
             // either answer goes on to the names; with yes their key connects
-            val connect = { viaCompanion = true; dev.autotune.nextSetupPage(equipment, page, true)?.let { page = it }; Unit }
-            val phoneOnly = { viaCompanion = false; if (installed) vm.forgetCompanion(equipment); dev.autotune.nextSetupPage(equipment, page, false)?.let { page = it }; Unit }
+            val connect = { viaCompanion = true; dev.autotune.nextSetupPage(equipment, pg, true)?.let { page = it }; Unit }
+            val phoneOnly = { viaCompanion = false; if (installed) vm.forgetCompanion(equipment); dev.autotune.nextSetupPage(equipment, pg, false)?.let { page = it }; Unit }
             Panel { CardTitle("Is AutoTune on ${equipment.companion}?", count, info = q.info) }
             // two equal answers in the middle of the screen, nothing pinned or suggested (owner, 2026-11-12)
             val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
@@ -214,7 +223,7 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
 
         dev.autotune.SetupPage.NAMES -> {
             Panel {
-                CardTitle(page.title, count)
+                CardTitle(pg.title, count)
                 OutlinedTextField(
                     value = equipName, onValueChange = { equipName = it },
                     label = { Text("Equipment name") }, placeholder = { Text("e.g. " + equipNamePlaceholder(equipment, s.outputName)) },
@@ -237,7 +246,7 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
 
         dev.autotune.SetupPage.SOUND -> {
             Panel {
-                CardTitle(page.title, count, info = dev.autotune.stockChecklist(equipment))
+                CardTitle(pg.title, count, info = dev.autotune.stockChecklist(equipment))
                 if (advanced) DropSelect(
                     targetIdxs.map { s.targetNames[it] }, targetIdxs.indexOf(advTargetIdx).coerceAtLeast(0), { advTargetIdx = targetIdxs[it] },
                     label = "Target sound", icons = targetIdxs.map { kindIcon(kinds[it]) },
@@ -280,6 +289,7 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
             )
         }
     }
+    } }
 }
 
 /** An example equipment name: the output the phone plays to when there is one, else one for the kind. */

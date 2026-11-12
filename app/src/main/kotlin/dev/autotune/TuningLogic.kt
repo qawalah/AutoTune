@@ -1445,16 +1445,15 @@ class PullReplay(private val thresholdPx: Float) {
 }
 
 /**
- * When a deck on a page settles into place: decks arrive one after the other, [STAGGER_STEP_MS] apart (the first one
- * straight away), at most [STAGGER_MAX_MS] in. A deck composed later than [STAGGER_WINDOW_MS] after its page opened
- * (scrolled into view, unfolded) does not wait or move: -1 = no arrival at all.
+ * When an item settles into place: items that appear together (a screen opening, a step changing, an answer arriving)
+ * arrive one after the other, [STAGGER_STEP_MS] apart (the first straight away), at most [STAGGER_MAX_MS] in. A new
+ * burst starts once nothing has appeared for [STAGGER_GAP_MS]. -1 = no arrival (animations off).
  */
-fun staggerDelayMs(index: Int, pageAgeMs: Long): Int =
-    if (index < 0 || pageAgeMs > STAGGER_WINDOW_MS) -1 else minOf(index * STAGGER_STEP_MS, STAGGER_MAX_MS)
+fun staggerDelayMs(index: Int): Int = if (index < 0) -1 else minOf(index * STAGGER_STEP_MS, STAGGER_MAX_MS)
 
 const val STAGGER_STEP_MS = 90
 const val STAGGER_MAX_MS = 720
-const val STAGGER_WINDOW_MS = 800L
+const val STAGGER_GAP_MS = 400L
 
 /** The Tune dial's pulse: one wave from the centre out past the rim, [PULSE_MS] long, played [GRAPHIC_PLAYS] times. */
 const val PULSE_MS = 1500

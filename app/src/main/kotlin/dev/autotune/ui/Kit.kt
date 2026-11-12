@@ -1274,18 +1274,23 @@ fun Modifier.pressToReplay(onPress: () -> Unit): Modifier = this.pointerInput(Un
     }
 }
 
-/** Decks of one page arrive in turn: counts them and remembers when the page opened ([dev.autotune.staggerDelayMs]). */
+/** Things that appear together arrive in turn: counts them, and starts again after a quiet moment ([dev.autotune.staggerDelayMs]). */
 class Stagger {
-    private val born = System.nanoTime()
+    private var last = 0L
     private var n = 0
-    fun next(): Int = dev.autotune.staggerDelayMs(n++, (System.nanoTime() - born) / 1_000_000L)
+    fun next(): Int {
+        val now = System.nanoTime() / 1_000_000L
+        if (now - last > dev.autotune.STAGGER_GAP_MS) n = 0
+        last = now
+        return dev.autotune.staggerDelayMs(n++)
+    }
 }
 
 val LocalStagger = androidx.compose.runtime.compositionLocalOf<Stagger?> { null }
 
 /**
- * A deck settles into its place when its page opens: it rises about 64dp, grows from 90% and fades in, after the decks above it
- * ([Stagger]). With "Remove animations", or for a deck that appears later (unfolded, scrolled in), it is simply there.
+ * Anything that appears (a screen opening, a step or a screen of Set up changing, an answer arriving) settles into its place: it rises about 64dp, grows from 90% and fades in, after the decks above it
+ * ([Stagger]). With "Remove animations" it is simply there.
  */
 @Composable
 fun Modifier.settleIn(): Modifier {

@@ -771,11 +771,9 @@ class ConvergenceTest {
 
     @Test
     fun decksSettleOneAfterTheOther() {
-        assertEquals(0, staggerDelayMs(0, 0))
-        assertEquals(90, staggerDelayMs(1, 10))
-        assertEquals(720, staggerDelayMs(40, 10))
-        // a deck composed after the page has opened does not wait or move
-        assertEquals(-1, staggerDelayMs(2, STAGGER_WINDOW_MS + 1))
-        assertEquals(-1, staggerDelayMs(-1, 0))
+        assertEquals(0, staggerDelayMs(0))
+        assertEquals(90, staggerDelayMs(1))
+        assertEquals(720, staggerDelayMs(40))
+        assertEquals(-1, staggerDelayMs(-1))
     }
 }
