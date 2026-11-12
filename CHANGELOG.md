@@ -4,6 +4,10 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.24.1] - 2026-11-12
+### Changed
+- **The home theatre's target is on its EQ card, in Simple too**, before the first EQ test as well, so the first EQ is fitted to it. It was only in Advanced, in the Refine card, which appears after an EQ test. Bass and treble to taste stay in Refine (Advanced).
+
 ## [2.24.0] - 2026-11-12
 ### Added
 - **Refine on the home-theatre page.** After an EQ test, a Refine card shows the suggested EQ (bands and preamp, and whether it is on the TV or PC), "Set it by hand on the home theatre" with the bands, and "Share the EQ files" (ParametricEQ.txt and GraphicEQ.txt). Advanced adds the target (the room curves) and bass and treble to taste, kept for each home theatre; changing them refits the EQ and resends it when it is on.

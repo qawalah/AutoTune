@@ -312,6 +312,8 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel, sharer: Sharer?, mana
             LevelsResult(u) { TextAction("Set the levels", vm::levelTest, icon = Ic.SPEAKER) }
             DistancesResult(u) { TextAction("Test the distances", vm::distancesTest, icon = Ic.MEASURE) }
             EqResult(u) {
+                // what the EQ is fitted to, in both modes, before the first EQ test too (owner, 2026-11-12)
+                TheatreTargetPick(u, vm)
                 TextAction("Test the EQ", vm::eqTest, icon = Ic.MEASURE)
                 if (u.tvEqOn && u.eq?.eq?.isNotEmpty() == true) TextAction("Check the EQ reaches the speakers", vm::eqCheck, icon = Ic.CHECK)
                 if (isAdvanced()) {
@@ -648,14 +650,7 @@ private fun RefineDeck(u: TheatreUi, vm: TheatreViewModel, sharer: Sharer?) {
     Group("Refine", info = ABOUT_REFINE) {
         Muted("${eq.size} bands · preamp %.1f dB".format(chain.preampDb) + if (u.tvEqOn) " · on the ${u.device}" else "")
         if (isAdvanced()) {
-            // room curves only: this is a home theatre or a PC's speakers
-            val kinds = Target.ALL.map { dev.autotune.targetKind(it) }
-            val idxs = dev.autotune.equipmentTargets(dev.autotune.Equipment.HOME, kinds)
-            val cur = idxs.indexOfFirst { Target.ALL[it].name == u.targetName }.coerceAtLeast(0)
-            DropSelect(
-                idxs.map { Target.ALL[it].name }, cur, { vm.setTarget(Target.ALL[idxs[it]].name) }, label = "Target sound",
-                icons = idxs.map { kindIcon(kinds[it]) }, details = idxs.map { targetDetail(Target.ALL[it]) },
-            )
+            // the target itself is on the EQ card above
             DropSelect(BASS_STEPS.map(::db), BASS_STEPS.indexOf(u.bassDb).let { if (it < 0) 1 else it }, { vm.setTaste(BASS_STEPS[it], u.trebleDb) }, label = "Bass to taste", icon = Ic.BASS)
             DropSelect(TREBLE_STEPS.map(::db), TREBLE_STEPS.indexOf(u.trebleDb).let { if (it < 0) 3 else it }, { vm.setTaste(u.bassDb, TREBLE_STEPS[it]) }, label = "Treble to taste", icon = Ic.TREBLE)
         }
@@ -667,5 +662,22 @@ private fun RefineDeck(u: TheatreUi, vm: TheatreViewModel, sharer: Sharer?) {
             TextAction("Share the EQ files", { vm.eqFiles()?.let { sharer.files(it, "text/plain", "Share the EQ files") } }, icon = Ic.SHARE)
         }
     }
+}
+
+/**
+ * The home theatre's target, the room curves only (it is a home theatre or a PC's speakers): kept per home theatre;
+ * a change refits the EQ and resends it while it is on. On the EQ card in Simple too: unlike a car, where Simple
+ * keeps Harman car without asking, the owner wants to choose it here (2026-11-12).
+ */
+@Composable
+private fun TheatreTargetPick(u: TheatreUi, vm: TheatreViewModel) {
+    val kinds = Target.ALL.map { dev.autotune.targetKind(it) }
+    val idxs = dev.autotune.equipmentTargets(dev.autotune.Equipment.HOME, kinds)
+    val cur = idxs.indexOfFirst { Target.ALL[it].name == u.targetName }.coerceAtLeast(0)
+    DropSelect(
+        idxs.map { Target.ALL[it].name }, cur, { vm.setTarget(Target.ALL[idxs[it]].name) }, label = "Target sound",
+        icons = idxs.map { kindIcon(kinds[it]) }, details = idxs.map { targetDetail(Target.ALL[it]) }, enabled = !u.busy && u.test != null,
+        info = "The sound the EQ aims for. Home theatre is a gentle room curve; Harman room has more bass. Each home theatre keeps its own; changing it refits the EQ (and sends it again while it is on).",
+    )
 }
 
