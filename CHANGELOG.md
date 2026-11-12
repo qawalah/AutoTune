@@ -4,6 +4,10 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.27.1] - 2026-11-12
+### Changed
+- **The motion is now easy to see.** Decks rise 64dp from 90% size and arrive 90 ms apart (the Tests lists and every Group included); pages come up from 14% of the screen at 90%, and tabs slide in from a third of the width while the old one slides away. 2.27.0 was too small to notice.
+
 ## [2.27.0] - 2026-11-12
 ### Changed
 - **Screens settle into place.** When a screen opens, each deck rises and fades in after the one above it, instead of the whole page fading at once; pages also come up with a little depth (they grow in from 97% while what is under them eases back). Decks that appear later (unfolded, scrolled in) are simply there.

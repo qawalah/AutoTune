@@ -1452,9 +1452,9 @@ class PullReplay(private val thresholdPx: Float) {
 fun staggerDelayMs(index: Int, pageAgeMs: Long): Int =
     if (index < 0 || pageAgeMs > STAGGER_WINDOW_MS) -1 else minOf(index * STAGGER_STEP_MS, STAGGER_MAX_MS)
 
-const val STAGGER_STEP_MS = 55
-const val STAGGER_MAX_MS = 440
-const val STAGGER_WINDOW_MS = 500L
+const val STAGGER_STEP_MS = 90
+const val STAGGER_MAX_MS = 720
+const val STAGGER_WINDOW_MS = 800L
 
 /** The Tune dial's pulse: one wave from the centre out past the rim, [PULSE_MS] long, played [GRAPHIC_PLAYS] times. */
 const val PULSE_MS = 1500

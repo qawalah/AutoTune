@@ -72,7 +72,7 @@ fun TestsTab(
         return
     }
     // the list is one deck, ruled between its rows like the tracks on a record sleeve
-    Column(Modifier.fillMaxWidth().deckPlate()) {
+    Column(Modifier.fillMaxWidth().settleIn().deckPlate()) {
         DeckColors {
             s.tests.forEachIndexed { i, t ->
                 if (i > 0) HorizontalDivider(color = At.c.line, modifier = Modifier.padding(start = 90.dp))
@@ -111,7 +111,7 @@ fun TestsTab(
 /** The home theatres, one row each: its name, its runs and when it was last tested. Opens on the Home theatre page. */
 @Composable
 private fun TheatreList(theatres: List<dev.autotune.theatre.TheatreTest>, open: (String) -> Unit) {
-    Column(Modifier.fillMaxWidth().deckPlate()) {
+    Column(Modifier.fillMaxWidth().settleIn().deckPlate()) {
         DeckColors {
             theatres.forEachIndexed { i, t ->
                 if (i > 0) HorizontalDivider(color = At.c.line, modifier = Modifier.padding(start = 90.dp))

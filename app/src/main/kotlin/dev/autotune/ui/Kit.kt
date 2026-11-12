@@ -442,10 +442,10 @@ fun Modifier.pressScale(source: androidx.compose.foundation.interaction.Interact
 /** A full page rises in about 28dp over what was there. */
 fun riseIn(): androidx.compose.animation.ContentTransform =
     (androidx.compose.animation.fadeIn(tween(300, easing = EaseArrive)) +
-        androidx.compose.animation.slideInVertically(tween(420, easing = EaseArrive)) { (it * 0.05f).toInt().coerceAtMost(110) } +
-        androidx.compose.animation.scaleIn(tween(420, easing = EaseArrive), initialScale = 0.97f)) togetherWith
+        androidx.compose.animation.slideInVertically(tween(520, easing = EaseArrive)) { (it * 0.14f).toInt().coerceAtMost(300) } +
+        androidx.compose.animation.scaleIn(tween(520, easing = EaseArrive), initialScale = 0.9f)) togetherWith
         (androidx.compose.animation.fadeOut(tween(160, easing = EaseLeave)) +
-            androidx.compose.animation.scaleOut(tween(220, easing = EaseLeave), targetScale = 0.985f))
+            androidx.compose.animation.scaleOut(tween(260, easing = EaseLeave), targetScale = 0.94f))
 
 /** Back: the page drops away and what was under it fades back. */
 fun dropOut(): androidx.compose.animation.ContentTransform =
@@ -460,9 +460,9 @@ fun dropOut(): androidx.compose.animation.ContentTransform =
 fun slideSideways(dir: Int): androidx.compose.animation.ContentTransform {
     if (dir == 0) return androidx.compose.animation.fadeIn(tween(220, easing = EaseArrive)) togetherWith androidx.compose.animation.fadeOut(tween(100, easing = EaseLeave))
     return (androidx.compose.animation.fadeIn(tween(300, easing = EaseArrive)) +
-        androidx.compose.animation.slideInHorizontally(tween(360, easing = EaseArrive)) { w -> dir * (w * 0.09f).toInt().coerceAtMost(110) }) togetherWith
-        (androidx.compose.animation.fadeOut(tween(100, easing = EaseLeave)) +
-            androidx.compose.animation.slideOutHorizontally(tween(100, easing = EaseLeave)) { w -> -dir * (w * 0.045f).toInt().coerceAtMost(55) })
+        androidx.compose.animation.slideInHorizontally(tween(520, easing = EaseArrive)) { w -> dir * (w * 0.3f).toInt() }) togetherWith
+        (androidx.compose.animation.fadeOut(tween(160, easing = EaseLeave)) +
+            androidx.compose.animation.slideOutHorizontally(tween(260, easing = EaseLeave)) { w -> -dir * (w * 0.15f).toInt() })
 }
 
 /** A full-screen sheet rises from the bottom. */
@@ -888,7 +888,7 @@ fun Fold(title: String, summary: String? = null, startOpen: Boolean = false, inf
         }
     }
     if (inCard) Column(Modifier.fillMaxWidth()) { body() }
-    else Column(Modifier.fillMaxWidth().deckPlate()) { DeckColors { body() } }
+    else Column(Modifier.fillMaxWidth().settleIn().deckPlate()) { DeckColors { body() } }
 }
 
 /** A titled block of content, separated from the previous one by a hairline. */
@@ -1284,7 +1284,7 @@ class Stagger {
 val LocalStagger = androidx.compose.runtime.compositionLocalOf<Stagger?> { null }
 
 /**
- * A deck settles into its place when its page opens: it rises about 20dp and fades in, after the decks above it
+ * A deck settles into its place when its page opens: it rises about 64dp, grows from 90% and fades in, after the decks above it
  * ([Stagger]). With "Remove animations", or for a deck that appears later (unfolded, scrolled in), it is simply there.
  */
 @Composable
@@ -1294,10 +1294,16 @@ fun Modifier.settleIn(): Modifier {
     val on = animationsOn() && delayMs >= 0
     val p = remember { androidx.compose.animation.core.Animatable(if (on) 0f else 1f) }
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        if (on) { delay(delayMs.toLong()); p.animateTo(1f, tween(460, easing = EaseArrive)) }
+        if (on) { delay(delayMs.toLong()); p.animateTo(1f, tween(650, easing = EaseArrive)) }
     }
-    val rise = with(androidx.compose.ui.platform.LocalDensity.current) { 20.dp.toPx() }
-    return this.graphicsLayer { alpha = p.value; translationY = (1f - p.value) * rise }
+    val rise = with(androidx.compose.ui.platform.LocalDensity.current) { 64.dp.toPx() }
+    return this.graphicsLayer {
+        val q = p.value
+        alpha = (q * 1.6f).coerceAtMost(1f)
+        translationY = (1f - q) * rise
+        val sc = 0.9f + 0.1f * q
+        scaleX = sc; scaleY = sc
+    }
 }
 
 /**
