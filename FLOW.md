@@ -1,4 +1,4 @@
-# AutoTune flow maps (2.26.0)
+# AutoTune flow maps (2.31.0)
 
 How a tuning session flows and how you move around the app, drawn from the code. Update this file whenever a Tune step, a pinned action or a link between screens changes (see CLAUDE.md). Code names in brackets point at where each decision lives.
 
@@ -48,7 +48,7 @@ flowchart TD
   R -.->|"Ask AI to review, Measure it"| E
 ```
 
-Every measurement starts the moment its key is pressed. Stock and Verify are measuring phases with no page: a closed, stopped or failed measurement returns to the step it started from. Tune is three screens (Set up, EQ, Result) plus the measuring screen. Back follows `previousStep`; Exit remembers the step for Continue.
+Every measurement starts the moment its key is pressed. Stock and Verify are measuring phases with no page: a closed, stopped or failed measurement returns to the step it started from. Tune is three screens (Set up, EQ, Result) plus the measuring screen. While Stock or Verify measures, the measuring screen shows the step bar with that step lit. Back follows `previousStep`; Exit remembers the step for Continue, and halfway (readings taken, no EQ kept) it asks first: Save and leave, Discard the test, or Keep tuning (`exitAsks`).
 
 ## After every reading
 
@@ -59,8 +59,8 @@ Every measurement starts the moment its key is pressed. Stock and Verify are mea
 | EQ, after stock | Use the phone's EQ and measure; Measure the stock again when the stock looks wrong; It's set, measure on equipment | Preview in the app, Set it on my equipment; Advanced: target, sliders, bands, files, AI |
 | Result | Apply the new suggested EQ, Keep this EQ and finish, Keep the EQ of run n, Check the EQ reaches the speakers, Measure again, Set it on my equipment, or Switch on the phone's EQ and measure | The other moves, Measure again, Ask AI, All results, Discard |
 | Tune screen after Keep | Use this EQ whenever <device> connects (phone EQ, Bluetooth route), else nothing pinned (the EQ tab is under it) | Tune (new test), Continue |
-| Home theatre page | Connect; then nothing is pinned between tests: Set the levels, Test the distances and Test the EQ each sit in their own card; Next speaker / Measure seat n / Stop while a test runs | The big EQ on/off key (sends the last EQ or switches it off), Flavour (both modes, never measured), Check the EQ reaches the speakers, Disconnect; the target sound on the EQ card (both modes, kept per home theatre); after an EQ test a Refine card (the bands to set by hand, Share the EQ files; Advanced: bass and treble); the home theatre line opens Home theatres (pick, New, Rename, Delete); Advanced: EQ test seats. A TV or PC from 2.14: speaker by speaker |
-| Test results page | Continue tuning, with the move it leads to on its second line ("next: …") | Open the EQ, AI review (at the bottom, above Details) |
+| Home theatre page | Connect (by name, or Advanced: an address, with :port when the TV or PC shows one); then nothing is pinned between tests: Set the levels, Test the distances and Test the EQ each sit in their own card, numbered 1 Levels, 2 Distances, 3 EQ; Next speaker / Measure seat n / Stop while a test runs (Stop also stops the TV or PC; a dropped link ends the test with "connection lost") | The big EQ on/off key (sends the last EQ or switches it off), Flavour (both modes, never measured), Check the EQ reaches the speakers, Disconnect; the target sound on the EQ card (both modes, kept per home theatre); after an EQ test a Refine card (the bands to set by hand, Share the EQ files; Advanced: bass and treble); the home theatre line opens Home theatres (pick, New, Rename, Delete); Advanced: EQ test seats. A TV or PC from 2.14: speaker by speaker |
+| Test results page | A finished test: Open the EQ; an unfinished one: Continue tuning, with the move it leads to on its second line ("next: …") | Tune further (finished) or Open the EQ (unfinished), AI review (at the bottom, above Details) |
 
 ## Navigation map
 
@@ -76,8 +76,8 @@ flowchart LR
   T -->|"tap a test"| RP["Results page<br/>over the current tab"]
   T -->|"⋮ Continue tuning"| TU
   T -->|"New test"| TU
-  RP -->|"Continue tuning"| TU
-  RP -->|"Open the EQ"| EQ
+  RP -->|"unfinished: Continue tuning<br/>finished: Tune further"| TU
+  RP -->|"finished: Open the EQ (main key)"| EQ
   RP -->|"AI review"| AI[["AI review sheet"]]
   EQ -->|"Verify this EQ: measures at once"| TU
   EQ -->|"Check the EQ reaches the speakers"| MV[["Measuring screen"]]

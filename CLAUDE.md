@@ -45,7 +45,7 @@ phone through Obtainium.
 - Use line icons from `Ic` in `ui/Kit.kt`.
 - Keep to clean Material 3, with minimal scrolling and taps.
 - After every reading, show a short summary, then one recommended action pinned above the tabs (`PinAction`), then the other choices, then Details. The graph is always shown.
-- The look is a Braun device by Dieter Rams (`Look.BRAUN`, the default); see `DESIGN.md`. Red is only for what is live or acted on.
+- The look is a Braun device by Dieter Rams; the default is Gradient edge (`Look.GRADIENT`), the others are kept (Settings › Look); see `DESIGN.md`. Red is only for what is live or acted on.
 - Use plain, short wording. Inter is the only typeface (`AtSans`; `AtFigures` is the same family): readings large and light, labels small and lowercase; figures are tabular everywhere.
 - Results open with the display (`RunSheet` + `ReadingCells` in `ui/Kit.kt`), a short headline and one folded "notes" line; the stock is drawn dashed in charts. Don't repeat target names on lists or titles; show test names through `shortTestName`.
 - Tuning is five steps (Set up, Stock, Refine, Verify, Result); keep it that short. Never put a screen between a decision and its measurement: the key that decides starts the measuring (`tuneSetup`, `tuneMeasure`, `tuneMeasureStock`).

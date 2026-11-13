@@ -1,6 +1,6 @@
 # AutoTune: handover
 
-Handover of AutoTune 1.18.0 (versionCode 38), now continued at 1.19.0 (versionCode 40), for development in https://github.com/qawalah/AutoTune with Claude Code. Written 2026-10-30. It replaces the per-version notes kept until now. Those notes are condensed in the "Code notes" appendix at the end.
+Handover of AutoTune 1.18.0 (versionCode 38), written for its continuation (now at 2.31.0; `gradle.properties` holds the current version), for development in https://github.com/qawalah/AutoTune with Claude Code. Written 2026-10-30. It replaces the per-version notes kept until now. Those notes are condensed in the "Code notes" appendix at the end.
 
 ## What the app does
 
@@ -36,8 +36,8 @@ An **Android app**, written in native Kotlin with Jetpack Compose (Material 3). 
 | | |
 |---|---|
 | applicationId / namespace | `dev.autotune` |
-| versionName | `1.19.0` |
-| versionCode | `40` |
+| versionName | see `gradle.properties` (`APP_VERSION_NAME`; 2.31.0 at the time of writing) |
+| versionCode | see `gradle.properties` (`APP_VERSION_CODE`; 106 at the time of writing) |
 | min / target / compile SDK | 26 / 35 / 35 |
 | Version source | `gradle.properties`: `APP_VERSION_NAME`, `APP_VERSION_CODE` (the single source of truth) |
 | APK name | `AutoTune-<versionName>-<buildType>.apk` |
@@ -62,7 +62,7 @@ Requirements:
 3. Install the APK on a phone. On first launch, grant the microphone permission. Notifications (Android 13 and later) and Bluetooth (for automatic switching) are asked for when needed.
 
 Manual steps and special setup:
-- **No release signing is configured.** Every build so far is a debug build, signed with the debug keystore of the machine that built it. An APK signed with a different key (for example by GitHub Actions) cannot be installed over the current one, so the phone has to uninstall first, which **deletes the saved tests**. Before switching, use Send diagnostics to keep a copy of the tests. The app has no import for that zip yet. Then use one release keystore from then on (see Secrets).
+- **Signing is done by CI.** DevStore's release workflow signs every release with the shared DevStore key when `main` is pushed with a new `versionCode`. Do not add a release `signingConfig` and do not commit keystores (CLAUDE.md). The phone installs and updates through Obtainium (filter by `^Android`).
 - **Releasing.** Bump both values in `gradle.properties`, add a `CHANGELOG.md` entry and tag `vX.Y.Z`. That has been the routine for every version. Tags v0.8.0 to v1.18.0 exist in the previous local git history. That history is not in this zip, which holds files only. The commits carry `Co-Authored-By` and `Claude-Session` trailers.
 - **Screenshots.** `tools/screenshots/` holds the Paparazzi harness and is not wired into the build. Its README explains how to use it.
 - **Phone settings.** Samsung's own sound effects (SoundAlive, Adapt Sound, Dolby Atmos) cannot be controlled by apps and must be off while measuring. Measure with the engine off in a quiet place, with the mic at the listening position.
@@ -105,7 +105,7 @@ Entry points for other apps:
 
 - **AI API keys**: `CLAUDE` (Anthropic, `sk-ant-…`) and `GOOGLE` (Gemini, `AIza…`). Each user types their own in Settings › AI assistant. They are stored encrypted on the phone (see above) and are never in the repo or the build.
 - **Build secrets**: none today.
-- **Release signing**: will need a keystore. Suggested GitHub Actions secret names: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. A `signingConfigs.release` block that reads them still has to be added to `app/build.gradle.kts`. Keystores are git-ignored.
+- **Release signing**: CI signs every release with the shared DevStore key; nothing to set up in this repo, and no keystore or `signingConfig` belongs in it.
 - **Play upload**: if you add it later, it needs a service-account JSON (for example `PLAY_SERVICE_ACCOUNT_JSON`).
 
 ## Known bugs, unfinished work and next ideas
@@ -575,3 +575,12 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - Concept consistency (from a review of all 108 harness screens): `HeaderArt` soft plates (`deck()` shades, `Modifier.shadow`, grooves instead of `c.line` outlines); the header's lower edge and the measuring screen's rule are grooves (`HairRule`); `AtMenu` (every drop-down and overflow menu: soft plate, field width, 6dp below; `optionStyle`); `atFieldColors`/`atFieldShape` on all 15 `OutlinedTextField`s; `PictureKey` raised/pressed, `EquipmentBadge` a well; the notes line (`AlertsLine`) a key; `MoreBelow` a round soft key; the measuring level and Live's level on the LCD; Live's level bar a slot; icons with round ends (`drawIcAt(round)` from `AtIcon`).
 - `animationsOn()` is false in `LocalInspectionMode`, so Paparazzi and previews draw screens at rest; `tools/screenshots/ConceptShots.kt` provides it (Paparazzi 1.3.5 does not).
 
+### The link, audited (2.31.0)
+- From `AUDIT-2026-11-13.md` (connection between the phone and AutoTune on a TV or PC; flow; docs). Each item there says what was done or why it stays open.
+- `:link`: `PING_SECONDS` (10) and `SILENT_PINGS` (3), `silenceTimeoutMs`. `Msg.hello(code, phone, pingSeconds)` adds `ping=`; `Msg.PONG`, `Msg.CAP_PONG`, `Msg.caps(welcome)`. `LinkServer` answers `ping` with `pong` itself (not passed on), adds `pong` to every welcome's caps (`withPong`), and sets the socket's read timeout from the hello's `ping=` (none for a phone before 2.31, so old phones are kept as before). Pairing: wrong codes go through one gate (`wrongGate`) across all connections, each after `wrongCodePause(base, inARow)` (doubling after `FREE_WRONG` = 3, at most a minute; a pairing resets it); at most `maxWaiting` (8) unpaired connections, more are closed on accept; `readLine(r, max)` refuses a hello over `MAX_HELLO` or a later line over `MAX_LINE`. The four-digit code and remembered pairings are unchanged. `parseAddress` ("host", "host:port", "[v6]:port") and `addressText` (port shown only when not 47810).
+- Phone: `LinkClient` sends `ping=` in its hello and, when the welcome has `pong`, reads with `silenceTimeoutMs(PING_SECONDS)`, so a dead TV or PC closes the link (and `CompanionLink` reconnects); `send` returns false when no link is open. `CompanionLink`: one `Mutex` around `connect`/`ensure` (`connectAt`/`connectFound` inside it), `PREF_KIND` and `rememberedKind`. `TheatreViewModel`: `stop()` sends `quiet` whenever a test was running (TVs from 2.16 and PCs stop a pass or clip on it and release the EQ hold); a link that closes while `busy` runs `lostMidTest()` (cancels the job, saves nothing, "The connection to the TV was lost…", kept when the link comes back by itself); `sendEq` (EQ and EQ off) tries `ensure()` and else shows one line; a good `eqstate` clears the EQ error it left (`lastEqError`); `connectAddress` parses host:port. `KeepScreenOn(on)` (Kit.kt, `View.keepScreenOn`) on the theatre page while busy and on the measuring screen while it measures or waits between spots.
+- TV: `onPhone(null)` stops what plays (unless the TV's own Play each runs) and releases the hold; `TvUi.port`, shown after the address when not 47810; a default-network callback refreshes the address and re-announces (old registration first, 1.5 s apart); a failed NSD registration is tried again up to five times.
+- PC: `onPhone(null)` cancels the play job (its `finally` writes the EQ back); `setAddress`; `Main.kt` checks `Net.addresses()` every 15 s and re-announces on a change; the port shows next to the address; the administrator step (Allow AutoTune) also adds an inbound firewall rule for AutoTune.exe on private networks (`ApoText.firewallLines`; by TCP port when the program is not known), never failing the step. The EQ key says nothing about pressing while there is no EQ.
+- UI: the home theatre's three cards are numbered 1 Levels, 2 Distances, 3 EQ (no pinned key, nothing pushed); Set up shows only the step line (no "n of m" on its screens); the measuring screen shows the step bar with Stock or Verify lit (`StepBar`, split out of `StepHeader`).
+- Tests: `LinkServerTest` (pong, silence drop, an old phone kept, the wrong-code gate and pause, the waiting cap and the long line, host:port), `PcEndpointTest` (quiet stops a pass and the EQ comes back, a vanished phone stops its noise, the address follows), `ApoTest` (firewall lines).
+- Not verified: none of the Android code was compiled here (no SDK in that session); the TV's network callback and NSD re-registration, the phone's screen-on, the firewall rule on Windows. The TV is still reachable only while its screen is open (see the audit).

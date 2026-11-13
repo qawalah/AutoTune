@@ -4,6 +4,27 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.31.0] - 2026-11-13
+### Fixed
+From the audit of 13 Nov (`AUDIT-2026-11-13.md`). The link stays compatible both ways: older phones, TVs and PCs ignore what is new.
+- **Stop stops the TV or PC too**, for every home-theatre test (distances, EQ, EQ check, speaker by speaker), and the EQ held off for the test comes back at once.
+- **A link that drops during a test ends it at once** with "The connection to the TV was lost", not "turn the volume up". The level test no longer listens to silence for minutes.
+- **A dead link is noticed within half a minute, both ways.** The TV or PC answers the phone's ping, so the phone drops a link that went silent and connects again by itself; the TV or PC drops a phone that went silent, so a vanished phone no longer shows as connected (and no longer blocks Pretend).
+- **The TV and PC stop playing when the phone goes**, and their EQ is back on.
+- **The phone's screen stays on** while a home-theatre test runs and while the measuring screen measures (also between the spots of a car reading).
+- **Guessing the code is slow.** Wrong codes are answered one at a time, whatever the number of connections, and the pause grows after three in a row (up to a minute). Only a few connections may wait unpaired, and an over-long line is refused. The four-digit code and remembered pairings are unchanged.
+- **The TV and PC are found again when their network comes up or changes**: the address on their screen follows and they announce themselves again. A failed announcement on the TV is tried again.
+- **Connect by address takes a port** ("192.168.1.20:47811"); the TV and PC show the port next to the address when it is not the usual one.
+- **Connecting from the page, the widget and the retry no longer collide.**
+- **EQ on or off that cannot be sent says so** in one line (after trying to connect again), and a good report from the TV or PC clears an old EQ error.
+- **The widget says plainly that AutoTune must be open on the TV** when the TV does not answer.
+- **Windows:** Allow AutoTune also lets the phone in through the firewall on private networks (not yet tried on a real PC). The EQ key no longer says "press for on" when there is no EQ.
+### Changed
+- **The home theatre's three tests are numbered: 1 Levels, 2 Distances, 3 EQ**, so a first-time user sees an order. Nothing is pinned or pushed.
+- **Set up shows one counter**: the step line; its screens no longer add "2 of 4".
+- **Stock and Verify light on the step bar** while the measuring screen measures them.
+- Docs: FLOW.md, HANDOVER.md (identity, signing, code notes) and CLAUDE.md (the default look is Gradient edge) brought up to date.
+
 ## [2.30.1] - 2026-11-13
 ### Fixed
 Found by a first-time-user walk-through on the JVM with a pretend car (`tools/walk/`), then checked against the code.
