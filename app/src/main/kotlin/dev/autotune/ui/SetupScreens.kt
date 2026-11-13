@@ -146,12 +146,6 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
                 Look.entries.map { it.title }, Look.entries.indexOf(s.look), { vm.setLook(Look.entries[it]) }, label = "Look",
                 details = Look.entries.map { it.detail }, icon = Ic.EQ,
             )
-            // a strip of the look's colours as it is now: navigation, accent, fields, two measurement colours
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(At.c.shell, At.c.signal, At.c.panelHigh, runColor(1), runColor(2)).forEach { col ->
-                    androidx.compose.foundation.layout.Box(Modifier.size(28.dp).clip(MaterialTheme.shapes.small).background(col))
-                }
-            }
             val accents = dev.autotune.Accent.entries
             DropSelect(
                 accents.map { it.title }, accents.indexOf(s.accent), { vm.setAccent(accents[it]) }, label = "Accent", icon = Ic.POWER,
@@ -196,7 +190,7 @@ private fun PaletteEditor(p: dev.autotune.Palette, start: dev.autotune.Palette, 
         info = "Your own colours over the look. Body is the page, Deck the plates that hold each section, Ink the text, " +
             "Accent what is live or acted on, Hairline the edges and rules. “As the look” keeps the look's own. " +
             "An ink that would not read on the look's surfaces brings their light (or dark) versions with it, by day and by night, so it shows; on colours you set yourself it falls back to an ink that does. " +
-            "The accent set here wins over the Accent above. " +
+            "The accent set here wins over the Accent above, until an Accent is picked there again. " +
             "Gradient edge starts from its own colours (Warm white, White, Slate, Braun red, Aluminium); Reset palette goes back to the look's start.",
     ) {
         dev.autotune.PaletteSlot.entries.forEach { slot ->
@@ -231,7 +225,7 @@ private fun HexColourDialog(title: String, start: Long?, onUse: (Long) -> Unit, 
                     value = text, onValueChange = { text = it.take(9) }, singleLine = true, modifier = Modifier.weight(1f),
                     isError = parsed == null && text.length > 1,
                     supportingText = { Text(if (parsed == null) "#RGB or #RRGGBB" else dev.autotune.hexColour(parsed)) },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), colors = atFieldColors(), shape = atFieldShape(),
                 )
                 Swatch(parsed?.let { androidx.compose.ui.graphics.Color(it) } ?: At.c.panelHigh, 40.dp)
             }

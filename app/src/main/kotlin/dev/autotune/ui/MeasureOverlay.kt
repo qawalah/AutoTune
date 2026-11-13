@@ -130,10 +130,11 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
             )
             if (!busy) IconAction(Ic.CLOSE, "Close") { vm.closeMeasureView() }
         }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(At.c.line))
+        HairRule()
 
         Panel {
-            // the display: the live level large and light, a pilot light for the stage
+            // the display: the live level large and light, a pilot light for the stage (on the LCD in the Concept look)
+            LcdWindow {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 Column(Modifier.weight(1f)) {
                     when {
@@ -145,6 +146,7 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
                     Text(if (hasLevel) "dbfs · mic level" else v.stage.name.lowercase().replace('_', ' '), style = MaterialTheme.typography.labelSmall, color = At.c.muted)
                 }
                 Pilot(accent, blink = busy, modifier = Modifier.padding(bottom = 10.dp))
+            }
             }
             // the sweep on a radio dial: 20 Hz to 20 kHz, the needle follows the tone
             dev.autotune.ui.gauge.SweepDial(progress, accent, gaugeColors(), waiting = progress == null && (busy || v.stage == MeasureStage.ANALYSING), animate = animationsOn())

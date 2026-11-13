@@ -588,16 +588,16 @@ class ConvergenceTest {
     }
 
     @Test
-    fun graphicsPlayTwiceThenStop() {
-        assertEquals(2, GRAPHIC_PLAYS)
-        // from rest: forward, a quick return, forward again: two whole movements, ending settled
-        assertEquals(listOf(1f, 0f, 1f), arrivalLegs(0f))
-        // a replay of a settled graphic returns first, so it still plays two whole movements
-        assertEquals(listOf(0f, 1f, 0f, 1f), arrivalLegs(1f))
-        assertEquals(listOf(0f, 1f, 0f, 1f), arrivalLegs(0.4f))
-        assertEquals(2, arrivalLegs(0f).count { it == 1f })
+    fun graphicsPlayOnceThenStop() {
+        assertEquals(1, GRAPHIC_PLAYS)
+        // from rest: forward once, ending settled
+        assertEquals(listOf(1f), arrivalLegs(0f))
+        // a replay of a settled graphic returns first, so it still plays one whole movement
+        assertEquals(listOf(0f, 1f), arrivalLegs(1f))
+        assertEquals(listOf(0f, 1f), arrivalLegs(0.4f))
         assertEquals(1f, arrivalLegs(0f).last())
-        assertEquals(listOf(1f), arrivalLegs(0f, plays = 1))
+        // more plays can still be asked for explicitly
+        assertEquals(listOf(1f, 0f, 1f), arrivalLegs(0f, plays = 2))
         // the return is quick, and none with animations off
         assertEquals(300, returnMs(900))
         assertEquals(180, returnMs(300))
@@ -718,6 +718,23 @@ class ConvergenceTest {
         org.junit.Assert.assertEquals("1.2 kHz", cursorFreqText(1234.0))
     }
 
+    /** 2026-11-13: the bubble near the left edge was cut off ("after Run 4 (not applied yet)" with its name lost). */
+    @Test
+    fun theCursorBubbleStaysInsideTheChart() {
+        // room on the right: right of the line
+        assertEquals(108f, bubbleX(100f, 120f, 400f, 8f), 0.001f)
+        // no room on the right: left of the line
+        assertEquals(272f, bubbleX(390f, 110f, 400f, 8f), 0.001f)
+        // no room on either side: held to the left edge, never cut off there
+        assertEquals(0f, bubbleX(150f, 300f, 400f, 8f), 0.001f)
+        // wider than the chart: starts at the left edge
+        assertEquals(0f, bubbleX(150f, 500f, 400f, 8f), 0.001f)
+        for (cx in 0..400 step 10) {
+            val x = bubbleX(cx.toFloat(), 180f, 400f, 8f)
+            org.junit.Assert.assertTrue(x >= 0f && x + 180f <= 400f)
+        }
+    }
+
     /** 2026-11-12: a phone-speaker reading that clipped failed as "Bluetooth dropped out". Causes come in order. */
     @Test
     fun aTimingShiftIsOnlyBlamedOnBluetoothOverBluetooth() {
@@ -767,5 +784,13 @@ class ConvergenceTest {
         assertEquals(30_000L, reconnectDelayMs(4, 60_000))
         assertEquals(30_000L, reconnectDelayMs(9, 60_000))
         assertNull(reconnectDelayMs(5, 10 * 60_000L))
+    }
+
+    @Test
+    fun decksSettleOneAfterTheOther() {
+        assertEquals(0, staggerDelayMs(0))
+        assertEquals(90, staggerDelayMs(1))
+        assertEquals(720, staggerDelayMs(40))
+        assertEquals(-1, staggerDelayMs(-1))
     }
 }

@@ -64,7 +64,8 @@ internal fun chartRange(series: List<DoubleArray>, freqs: DoubleArray): Pair<Dou
  * as the baseline), thin faint line = target, solid in the accent colour =
  * the EQ, dotted text colour = predicted with the EQ. Tap a name in the legend to hide or show its curve; the corner
  * button opens the graph full screen. The range grows to fit the curves, so nothing is cut off at the edge.
- * When the graph comes into view its curves rise from the target line, twice, then stay ([rememberArrival]).
+ * The graph is drawn still (since 2.30.0). Touching it reads each measured curve, the target and the prediction at
+ * that frequency; the EQ curve is never read out.
  */
 @Composable
 fun ResponseChart(
@@ -80,11 +81,10 @@ fun ResponseChart(
     val zoom = LocalChartZoom.current
     val me = androidx.compose.runtime.remember { Any() }
     var big by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    // new curves (another run, a new reading) play the movement again
-    val grow = rememberArrival("chart:" + data.curves.joinToString { it.label + it.values.size })
-    Column(modifier) {
+    // the graph is drawn still: no movement when it comes into view (owner, 2026-11-13)
+    Column(modifier.settleIn()) {
         Box {
-            ChartCanvas(data, Modifier.fillMaxWidth().height(height).arrival(grow), showTarget, hidden) { grow.value }
+            ChartCanvas(data, Modifier.fillMaxWidth().height(height), showTarget, hidden)
             Box(Modifier.align(Alignment.TopEnd)) {
                 IconAction(Ic.EXPAND, "Show the graph full screen") {
                     if (zoom != null) zoom.show(me, data, showTarget, onToggleTarget, targetLabel, hiddenState) else big = true
@@ -173,24 +173,20 @@ private fun ZoomedChartView(
 ) {
     val hidden = hiddenState.value
     val toggle: (String) -> Unit = { k -> hiddenState.value = if (k in hiddenState.value) hiddenState.value - k else hiddenState.value + k }
-    val grow = rememberArrival("zoom")
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Response", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
             TextAction("Close", onClose, icon = Ic.CLOSE)
         }
-        ChartCanvas(data, Modifier.fillMaxWidth().weight(1f).arrival(grow), showTarget, hidden) { grow.value }
+        ChartCanvas(data, Modifier.fillMaxWidth().weight(1f), showTarget, hidden)
         Legend(data, showTarget, onToggleTarget, hidden, toggle, targetLabel)
         Muted("Touch the chart to read each curve. Tap a name to hide or show it.")
     }
 }
 
-/**
- * The chart itself. [rise] (0..1, read while drawing) lifts the measured curves, the prediction and the EQ from the
- * target line to their place; the grid and the target stay.
- */
+/** The chart itself, drawn still. */
 @Composable
-private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean, hidden: List<String>, rise: () -> Float = { 1f }) {
+private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean, hidden: List<String>) {
     val tm = rememberTextMeasurer()
     val c = At.c
     val label = TextStyle(fontFamily = AtFigures, fontSize = 11.sp, color = c.muted, fontFeatureSettings = "tnum")
@@ -210,7 +206,6 @@ private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean
             .pointerInput(data) { detectTapGestures { p -> cursor = if (cursor != null && kotlin.math.abs(cursor!! - p.x) < 24.dp.toPx()) null else p.x } }
             .pointerInput(data) { detectHorizontalDragGestures(onDragStart = { p -> cursor = p.x }) { change, _ -> cursor = change.position.x } },
     ) {
-        val k = rise().coerceIn(0f, 1f).toDouble()
         val left = 30.dp.toPx()
         val bottom = size.height - 16.dp.toPx()
         val right = 16.dp.toPx()
@@ -244,11 +239,10 @@ private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean
             drawText(tm, t, Offset(x(f.toDouble()) - 6.dp.toPx(), bottom + 2.dp.toPx()), label)
         }
 
-        // [lift] scales a curve's distance from the target line (0 dB) while the graph arrives
-        fun curve(values: DoubleArray, color: Color, width: Float, dashed: Boolean = false, dotted: Boolean = false, lift: Double = 1.0) {
+        fun curve(values: DoubleArray, color: Color, width: Float, dashed: Boolean = false, dotted: Boolean = false) {
             val p = Path()
             for (i in values.indices) {
-                val px = x(data.freqs[i]); val py = y(values[i] * lift)
+                val px = x(data.freqs[i]); val py = y(values[i])
                 if (i == 0) p.moveTo(px, py) else p.lineTo(px, py)
             }
             drawPath(
@@ -264,11 +258,11 @@ private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean
         // the stock reading is the baseline, drawn dashed like the base run on a dyno sheet; the latest run is the heaviest
         data.curves.forEachIndexed { i, cv ->
             if ("run:" + cv.label !in hidden) {
-                curve(cv.values, runCols[i], if (i == data.curves.lastIndex) 3.dp.toPx() else 2.dp.toPx(), dashed = cv.colorIdx == 0 && data.curves.size > 1, lift = k)
+                curve(cv.values, runCols[i], if (i == data.curves.lastIndex) 3.dp.toPx() else 2.dp.toPx(), dashed = cv.colorIdx == 0 && data.curves.size > 1)
             }
         }
-        data.predicted?.let { if ("predicted" !in hidden) curve(it, c.text, 2.5.dp.toPx(), dotted = true, lift = k) }
-        data.eq?.let { if ("eq" !in hidden) curve(it, c.signal, 2.5.dp.toPx(), lift = k) }
+        data.predicted?.let { if ("predicted" !in hidden) curve(it, c.text, 2.5.dp.toPx(), dotted = true) }
+        data.eq?.let { if ("eq" !in hidden) curve(it, c.signal, 2.5.dp.toPx()) }
 
         // the cursor's line, and a bubble with the frequency and each shown curve's level there, in its colour
         cursor?.let { cx0 ->
@@ -280,13 +274,13 @@ private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean
                 data.curves.forEachIndexed { i, cv -> if ("run:" + cv.label !in hidden) add("${cv.label}  %+.1f".format(dev.autotune.levelAt(data.freqs, cv.values, f)) to runCols[i]) }
                 if (showTarget && "target" !in hidden) add("Target  %+.1f".format(dev.autotune.levelAt(data.freqs, data.target, f)) to c.muted)
                 data.predicted?.let { if ("predicted" !in hidden) add("Predicted  %+.1f".format(dev.autotune.levelAt(data.freqs, it, f)) to c.text) }
-                data.eq?.let { if ("eq" !in hidden) add("${data.eqLabel}  %+.1f".format(dev.autotune.levelAt(data.freqs, it, f)) to c.signal) }
+                // the EQ curve (a suggestion on every reading) is never read out here (owner, 2026-11-13)
             }.map { (t, col) -> tm.measure(t, bubble.copy(color = col)) }
             val pad = 6.dp.toPx()
             val bw = rows.maxOf { it.size.width } + pad * 2
             val bh = rows.sumOf { it.size.height } + pad * 2
-            // beside the line, on whichever side has room
-            val bx = if (cx + 8.dp.toPx() + bw < size.width - right) cx + 8.dp.toPx() else cx - 8.dp.toPx() - bw
+            // beside the line, on whichever side has room, and never past either edge of the chart
+            val bx = dev.autotune.bubbleX(cx, bw, size.width - right, 8.dp.toPx())
             val by = 4.dp.toPx()
             drawRoundRect(c.panel.copy(alpha = 0.95f), Offset(bx, by), androidx.compose.ui.geometry.Size(bw, bh), androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
             drawRoundRect(c.line, Offset(bx, by), androidx.compose.ui.geometry.Size(bw, bh), androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()), style = Stroke(hair * 2))

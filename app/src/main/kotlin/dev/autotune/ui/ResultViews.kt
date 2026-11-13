@@ -114,7 +114,7 @@ internal fun firstSentence(t: String): String = t.substringBefore(". ").let { if
 /** The result in one line, with its explanation in a bubble. */
 @Composable
 private fun Headline(text: String, info: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.settleIn(), verticalAlignment = Alignment.CenterVertically) {
         Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         InfoButton("About this result", info, small = true)
     }
@@ -123,7 +123,7 @@ private fun Headline(text: String, info: String) {
 /** The heading that separates the summary from the diagnostic layer. */
 @Composable
 fun DetailsHeading() {
-    Text("Details", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.titleLarge)
+    Text("Details", Modifier.settleIn().padding(top = 8.dp), style = MaterialTheme.typography.titleLarge)
 }
 
 /** What each built-in curve is, in a line, for the target drop-downs. */

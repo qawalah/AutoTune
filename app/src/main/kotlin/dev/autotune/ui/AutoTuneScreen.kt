@@ -63,6 +63,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.shadow
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -218,6 +219,8 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     var theatreNew by rememberSaveable { mutableStateOf<String?>(null) }
     // a tab replaces whatever was open over it; Export opens as a page over the current tab
     val go: (Tab) -> Unit = { t ->
+        // pressing the tab you are on plays its graphics again
+        if (t.ordinal == tabIdx && pages.isEmpty() && overlay == OVERLAY_NONE) replays[t.name] = (replays[t.name] ?: 0) + 1
         overlay = OVERLAY_NONE
         when (t) {
             Tab.EXPORT -> open(Page.EXPORT)
@@ -257,6 +260,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     AutoTuneTheme(s.themeMode, s.look, s.accent, s.palette) {
       androidx.compose.runtime.CompositionLocalProvider(
           LocalPin provides pin, LocalViewMode provides viewMode, LocalChartZoom provides zoom,
+          LocalStagger provides androidx.compose.runtime.remember { Stagger() },
       ) {
         Box(
             Modifier.fillMaxSize().background(At.c.bg)
@@ -457,8 +461,12 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
 fun AtNavBar(tab: Tab, busy: Boolean, eqOn: Boolean = false, onSelect: (Tab) -> Unit) {
     val c = At.c
     val items = Tab.bar
-    Column(Modifier.fillMaxWidth().background(c.shell)) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
+    // the soft look: a band of plastic, a shade lighter at its top edge, instead of a ruled strip
+    val band = if (c.soft) Modifier.background(
+        androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.lerp(c.shell, androidx.compose.ui.graphics.Color.White, if (c.dark) 0.03f else 0.35f), c.shell)),
+    ) else Modifier.background(c.shell)
+    Column(Modifier.fillMaxWidth().then(band)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(if (c.soft) (if (c.dark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.06f) else androidx.compose.ui.graphics.Color.White) else c.line))
         Row(
             Modifier.align(Alignment.CenterHorizontally).widthIn(max = 520.dp).fillMaxWidth().padding(horizontal = 10.dp).padding(top = 12.dp, bottom = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom,
@@ -483,12 +491,19 @@ fun AtNavBar(tab: Tab, busy: Boolean, eqOn: Boolean = false, onSelect: (Tab) -> 
                             latched -> androidx.compose.ui.graphics.lerp(c.panelHigh, c.line, 0.55f)
                             else -> c.panelHigh
                         }
+                        // the soft look: raised plastic keys; the chosen one is pressed in, and EQ on lights a pilot on its key
+                        val keyShape = RoundedCornerShape(if (c.soft) 12.dp else 4.dp)
                         Box(
-                            Modifier.offset(y = down).size(62.dp, 42.dp).pressScale(src).clip(RoundedCornerShape(4.dp))
-                                .background(face).border(1.dp, if (here) c.text else c.line, RoundedCornerShape(4.dp))
+                            Modifier.offset(y = down).size(62.dp, 42.dp).pressScale(src)
+                                .then(
+                                    if (c.soft) Modifier.keyFace(keyShape, down = here)
+                                    else Modifier.clip(keyShape).background(face).border(1.dp, if (here) c.text else c.line, keyShape),
+                                )
                                 .semantics { if (latched) stateDescription = "AutoTune EQ on" },
                             contentAlignment = Alignment.Center,
                         ) {
+                            if (latched && c.soft) Pilot(true, Modifier.align(Alignment.TopEnd).padding(top = 7.dp, end = 8.dp), 6.dp)
+                            else
                             if (latched) Box(
                                 Modifier.matchParentSize().background(
                                     androidx.compose.ui.graphics.Brush.verticalGradient(
@@ -497,7 +512,7 @@ fun AtNavBar(tab: Tab, busy: Boolean, eqOn: Boolean = false, onSelect: (Tab) -> 
                                     ),
                                 ),
                             )
-                            AtIcon(t.icon, if (here) c.bg else c.text, size = 24.dp)
+                            AtIcon(t.icon, if (here && !c.soft) c.bg else c.text, size = 24.dp)
                         }
                     }
                     Text(
@@ -511,15 +526,28 @@ fun AtNavBar(tab: Tab, busy: Boolean, eqOn: Boolean = false, onSelect: (Tab) -> 
     }
 }
 
+private val KnobRing = androidx.compose.ui.graphics.Color(0xFF2B2B29)
+private val KnobTicks = androidx.compose.ui.graphics.Color(0xFF4A4945)
+
 /**
- * Tune is a round push button, Bauhaus plain: a circle in the accent with the Tune mark. Chosen, it is pressed in like
- * the other keys (graphite, the mark in the accent, a step lower); while a measurement runs on another tab a ring
- * pulses round it.
+ * Tune is the app's mark as a round key, drawn as the Windows app's icon (since 2.30.0): a graphite ring, a light face
+ * with its scale and the index dot in the accent. Pressed, the knob turns up its scale to where it rests. Chosen, it
+ * is pressed in (a step lower, a little smaller); while a measurement runs on another tab a ring pulses round it.
  */
 @Composable
 private fun TuneButton(selected: Boolean, pulse: Boolean, src: androidx.compose.foundation.interaction.MutableInteractionSource) {
     val c = At.c
-    val face by androidx.compose.animation.animateColorAsState(if (selected) c.text else c.signal, androidx.compose.animation.core.tween(motionMs(160)), label = "face")
+    // the knob turns up its scale, from the low end to where it rests, each time it is pressed
+    val turn = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(KNOB_POINTER_DEG) }
+    val turnMs = motionMs(650)
+    androidx.compose.runtime.LaunchedEffect(src, turnMs) {
+        src.interactions.collect { i ->
+            if (i is androidx.compose.foundation.interaction.PressInteraction.Press && turnMs > 0) launch {
+                turn.snapTo(KNOB_SCALE_START_DEG)
+                turn.animateTo(KNOB_POINTER_DEG, androidx.compose.animation.core.tween(turnMs, easing = EaseArrive))
+            }
+        }
+    }
     val down by androidx.compose.animation.core.animateDpAsState(if (selected) 2.dp else 0.dp, androidx.compose.animation.core.tween(motionMs(120)), label = "down")
     val ring = if (pulse && animationsOn()) {
         val inf = androidx.compose.animation.core.rememberInfiniteTransition(label = "busy")
@@ -529,10 +557,19 @@ private fun TuneButton(selected: Boolean, pulse: Boolean, src: androidx.compose.
         if (ring != null) androidx.compose.foundation.Canvas(Modifier.size(62.dp)) {
             drawCircle(c.signal.copy(alpha = 0.5f * (1f - ring)), size.minDimension / 2 * (0.8f + 0.2f * ring), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
         }
-        Box(
-            Modifier.offset(y = down).size(if (selected) 48.dp else 50.dp).pressScale(src).clip(CircleShape).background(face)
-                .border(if (selected) 2.dp else 0.dp, c.line, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) { AtIcon(Ic.TUNE, if (selected) c.signal else c.onSignal, size = 26.dp) }
+        // the app's mark, as on Windows: a graphite ring, a light face with its scale and the index dot in the accent;
+        // pressed in (a step lower, a little smaller) while Tune is the tab shown, standing on a soft shadow in the Concept look
+        val (face, _) = dialColours(c)
+        val size = if (selected) 50.dp else 54.dp
+        androidx.compose.foundation.Canvas(
+            Modifier.offset(y = down).size(size).pressScale(src)
+                .then(if (c.soft && !selected) Modifier.shadow(6.dp, CircleShape, clip = false) else Modifier),
+        ) {
+            drawKnobMark(KnobRing, face, KnobTicks, c.signal, turn.value)
+            if (selected) drawCircle(
+                androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.22f), androidx.compose.ui.graphics.Color.Transparent), endY = this.size.height * 0.5f),
+                this.size.minDimension * 0.48f,
+            )
+        }
     }
 }

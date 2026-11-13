@@ -4,6 +4,44 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.30.0] - 2026-11-13
+### Changed
+- **The Tune key is the app's mark, as on Windows**: a graphite ring, a light face with its scale and the dot in the accent. Press it and the knob turns up its scale. Tune's icon is the same mark; the Tests icon is a clearer record with its tonearm.
+- **Graphs stay still** and are drawn on the plate again, not on a black screen. Touching a graph no longer reads out the suggested EQ, and the reading never runs off the edge.
+- **Accent works again in Simple**: picking an Accent now wins over an accent set in the palette. The row of colour dots under Look is gone.
+- **Concept look, reviewed screen by screen**: the header graphics are small plastic devices (no outlined boxes), menus are soft plates as wide as their field, text fields, equipment keys and badges, the notes line and the "more below" key match the plastic, the live level sits on the LCD while measuring and on Live, and the icons have round ends.
+
+## [2.29.0] - 2026-11-12
+### Added
+- **A new look, Concept** (Settings › Look), after a family of small off-white devices. The plates and keys are soft plastic: rounded corners, lighter at the top than at the foot, with a soft shadow. Fields and drop-downs are pressed into the plate. The round keys (Tune in the tab row and on the dial) are domed orange. The readings of a result sit on a grey LCD in a dark frame, and the response graph is drawn on a dark screen. The tab keys are raised and the chosen one is pressed in; with the AutoTune EQ on, its key carries a lit pilot. The switches are a slot pressed into the plate with a plastic knob, lit orange when on. At night the plastic is graphite and the LCD dimmed. The accent and the palette work over it as over any look. The other looks are unchanged.
+
+## [2.28.1] - 2026-11-12
+### Changed
+- **The rest of the screens arrive too:** every text field on a page, each EQ band and profile row, the band sliders, AI issue rows, findings, result headlines and the "Details" heading now settle in like everything else.
+
+## [2.28.0] - 2026-11-12
+### Changed
+- **Everything that appears now arrives, not only a page opening.** Set up's screens (equipment, TV or PC, names, sound) slide in from the side they come from and Back slides them the other way, each with its items arriving one after the other. Anything else that shows up later (an answer, a folded section, a result after a measurement, the pinned key) arrives the same way, on every screen, dialogs included. A burst of arrivals starts again after 0.4 s of quiet.
+
+## [2.27.3] - 2026-11-12
+### Changed
+- **Arrivals are app-wide.** Besides decks, keys, buttons and actions, now each reading, drop-down, switch row, note line, alert line, status, step header, scale, response graph, the measure key and each test row arrives on its own, in reading order, on every screen.
+
+## [2.27.2] - 2026-11-12
+### Changed
+- **Every item arrives on its own, not just the deck.** Inside a deck, each picture key (Set up's four equipment keys, the Yes/No keys), each button and each stacked action rises, grows and fades in after the one before it, in reading order.
+
+## [2.27.1] - 2026-11-12
+### Changed
+- **The motion is now easy to see.** Decks rise 64dp from 90% size and arrive 90 ms apart (the Tests lists and every Group included); pages come up from 14% of the screen at 90%, and tabs slide in from a third of the width while the old one slides away. 2.27.0 was too small to notice.
+
+## [2.27.0] - 2026-11-12
+### Changed
+- **Screens settle into place.** When a screen opens, each deck rises and fades in after the one above it, instead of the whole page fading at once; pages also come up with a little depth (they grow in from 97% while what is under them eases back). Decks that appear later (unfolded, scrolled in) are simply there.
+- **Graphics play once, never twice.** The header art, the Tune dial's pulse, the report meters and the response graph move once and then stay still.
+### Added
+- **Press a graphic to play it again:** tap the header drawing, the response graph (full screen too), the report meters or the Tune dial. Pressing the tab you are already on replays its graphics as well. The pull-down replay stays.
+
 ## [2.26.1] - 2026-11-12
 ### Changed
 - **The Tests list draws what each test tunes,** as Set up does: a car, a TV between tower speakers, a monitor between desk speakers, or a portable speaker, each in a small box with a hairline edge. Home theatres show the TV. Tests made before 2.20 take theirs from their target (a car curve is a car, a room curve a home theatre).

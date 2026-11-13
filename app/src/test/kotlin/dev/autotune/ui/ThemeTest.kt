@@ -330,4 +330,47 @@ class ThemeTest {
             assertTrue("${l.name} dark=$dark reads", contrast(dots, face) >= 4.5)
         }
     }
+
+    /** The Concept look (asked 2026-11-12): soft plastic and an LCD for the readings; the graphs stay on the plate. */
+    @Test
+    fun conceptLookIsSoftPlasticWithDisplays() {
+        for (dark in listOf(false, true)) {
+            val what = "CONCEPT dark=$dark"
+            val c = lookColors(Look.CONCEPT, dark)
+            assertTrue(what, c.soft)
+            assertNull(what, c.deck)
+            assertEquals(what, dark, c.dark)
+            // the plates stand off the body, by day and by night
+            assertTrue(what, c.panel.luminance() > c.bg.luminance())
+            // the LCD's figures read clearly
+            assertTrue(what, contrast(c.lcdInk, c.lcd!!) >= 7.0)
+            // the label on a round orange key reads
+            assertTrue(what, contrast(c.onSignal, c.signal) >= 3.0)
+        }
+        // light plastic by day; graphite at night, so nothing glares in a car
+        assertTrue(lookColors(Look.CONCEPT, false).bg.luminance() > 0.7f)
+        assertTrue(lookColors(Look.CONCEPT, true).bg.luminance() < 0.05f)
+        // the other looks stay flat, with no displays
+        for (l in Look.entries.filter { it != Look.CONCEPT }) for (dark in listOf(false, true)) {
+            val c = lookColors(l, dark)
+            assertTrue(l.name, !c.soft)
+            assertNull(l.name, c.lcd)
+        }
+        // appended after the other looks and stored under its own name; it starts from its own colours
+        assertEquals(Look.CONCEPT, Look.entries.last())
+        assertEquals(Look.CONCEPT, Look.of("CONCEPT"))
+        assertTrue(Look.CONCEPT.palette.isDefault)
+    }
+
+    @Test
+    fun thePaletteRecoloursTheConceptPlastic() {
+        val p = dev.autotune.Palette().with(dev.autotune.PaletteSlot.ACCENT, 0xFF2F6BD8L).with(dev.autotune.PaletteSlot.BODY, 0xFFFFFFFFL)
+        val c = themeColors(Look.CONCEPT, false, dev.autotune.Accent.LOOK, p)
+        assertEquals(Color(0xFF2F6BD8), c.signal)
+        // the palette recolours the plastic; it stays soft, with its LCD
+        assertEquals(Color.White, c.bg)
+        assertTrue(c.soft)
+        assertNotNull(c.lcd)
+        readsEverywhere(c, "CONCEPT white body")
+    }
 }

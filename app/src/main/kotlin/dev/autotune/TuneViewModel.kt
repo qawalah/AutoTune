@@ -623,6 +623,9 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     fun setAccent(a: Accent) {
         prefs.edit().putString("accent", a.name).apply()
         state.update { it.copy(accent = a) }
+        // the accent picked here is the one shown: one held in the palette (Advanced) would win over it, unseen in
+        // Simple (owner, 2026-11-13: Accent "Green" did nothing), so the palette's accent goes back to the look's
+        if (state.value.palette[PaletteSlot.ACCENT] != null) setPaletteColour(PaletteSlot.ACCENT, null)
     }
 
     fun setAdvanced(on: Boolean) {

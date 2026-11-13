@@ -62,6 +62,15 @@ class AtColors(
     val deck: AtColors? = null,
     /** A deck's outline as a gradient, top to bottom (the Gradient edge look); null draws the plain [line]. */
     val edge: List<Color>? = null,
+    /**
+     * Soft plastic (the Concept look): plates and keys stand up with soft shading and large corners, fields are pressed
+     * in, the round keys are domed. False draws the flat Braun decks with their hairline edge.
+     */
+    val soft: Boolean = false,
+    /** The grey LCD the readings sit on ([LcdWindow]); null draws them on the deck. */
+    val lcd: Color? = null,
+    /** The figures on the [lcd]. */
+    val lcdInk: Color = text,
 ) {
     fun copy(
         dark: Boolean = this.dark, bg: Color = this.bg, panel: Color = this.panel, panelHigh: Color = this.panelHigh,
@@ -70,7 +79,7 @@ class AtColors(
         onShellMuted: Color = this.onShellMuted, deck: AtColors? = this.deck, edge: List<Color>? = this.edge,
     ) = AtColors(
         dark, bg, panel, panelHigh, line, text, muted, signal, onSignal, good, warn, bad, target, runs,
-        shell, onShell, onShellMuted, teak, alu, deck, edge,
+        shell, onShell, onShellMuted, teak, alu, deck, edge, soft, lcd, lcdInk,
     )
 }
 
@@ -87,6 +96,7 @@ enum class Look(val title: String, val detail: String) {
     BRAUN_BLACK("Black", "Black and aluminium with an orange accent"),
     WHITE("White", "A white body with pale grey decks, always light"),
     GRADIENT("Gradient edge", "Warm white, white decks, edges shaded dark to light. The default"),
+    CONCEPT("Concept", "Off-white plastic, soft rounded plates, displays and orange keys"),
     ;
 
     /** The palette this look starts from; Reset palette returns to it ([dev.autotune.lookDefaultPalette]). */
@@ -241,6 +251,34 @@ private val EdgeNight = listOf(Color(0xFF2E2E2B), Color(0xFFA3A19A))
 private val GradientLight = BraunLight.copy(edge = EdgeDay, deck = BraunDeckLight.copy(edge = EdgeDay))
 private val GradientDark = BraunDark.copy(edge = EdgeNight, deck = BraunDeckDark.copy(edge = EdgeNight))
 
+// Concept: a family of small off-white devices (Braun's later concept objects). Soft plastic plates and keys with large
+// corners and soft shading, fields pressed in, round orange keys and the readings on a grey LCD; the graphs stay on
+// the plate (the owner found a black graph no good, 2026-11-13). No decks of another colour: plates and body are the same plastic, the body a shade darker. At night the
+// plastic is graphite and the LCD dimmed, so nothing glares in a car.
+private val ConceptLight = AtColors(
+    dark = false,
+    bg = Color(0xFFE8E7E3), panel = Color(0xFFF2F1EE), panelHigh = Color(0xFFDEDDD8), line = Color(0xFFCFCEC8),
+    text = Color(0xFF252523), muted = Color(0xFF57564F),
+    signal = Color(0xFFD9501A), onSignal = Color(0xFFFFFFFF),
+    good = Color(0xFF3D7F3A), warn = Color(0xFF805C00), bad = Color(0xFFB3261E),
+    target = Color(0xFF252523), runs = BraunRunsLight,
+    shell = Color(0xFFEEEDEA), onShell = Color(0xFF252523), onShellMuted = Color(0xFF57564F),
+    alu = Color(0xFFC9C8C3),
+    soft = true, lcd = Color(0xFFC6C8C0), lcdInk = Color(0xFF20221E),
+)
+
+private val ConceptDark = AtColors(
+    dark = true,
+    bg = Color(0xFF1D1D1C), panel = Color(0xFF292927), panelHigh = Color(0xFF20201F), line = Color(0xFF3C3C39),
+    text = Color(0xFFECEAE4), muted = Color(0xFFADABA4),
+    signal = Color(0xFFFF6A2B), onSignal = Color(0xFF1A0A03),
+    good = Color(0xFF6CB866), warn = Color(0xFFE9C14A), bad = Color(0xFFFF6B5E),
+    target = Color(0xFFECEAE4), runs = BraunRunsDark,
+    shell = Color(0xFF252523), onShell = Color(0xFFECEAE4), onShellMuted = Color(0xFFADABA4),
+    alu = Color(0xFF55554F),
+    soft = true, lcd = Color(0xFF262823), lcdInk = Color(0xFFDADDD0),
+)
+
 /** The colours of [l] in its dark or light version. Run colours stay far from each look's accent. */
 fun lookColors(l: Look, dark: Boolean): AtColors = when (l) {
     Look.BRAUN -> if (dark) BraunDark else BraunLight
@@ -248,6 +286,7 @@ fun lookColors(l: Look, dark: Boolean): AtColors = when (l) {
     Look.BRAUN_BLACK -> if (dark) BlackDark else BlackLight
     Look.WHITE -> WhiteBody
     Look.GRADIENT -> if (dark) GradientDark else GradientLight
+    Look.CONCEPT -> if (dark) ConceptDark else ConceptLight
 }
 
 val LocalAt = staticCompositionLocalOf { themeColors(Look.DEFAULT, false, dev.autotune.Accent.LOOK, Look.DEFAULT.palette) }
@@ -302,6 +341,18 @@ private val AtShapes = Shapes(
     large = RoundedCornerShape(6.dp),
     extraLarge = RoundedCornerShape(12.dp),
 )
+
+// the Concept look's moulded plastic: large, soft corners on keys, fields and plates
+private val SoftShapes = Shapes(
+    extraSmall = RoundedCornerShape(4.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(14.dp),
+    large = RoundedCornerShape(18.dp),
+    extraLarge = RoundedCornerShape(24.dp),
+)
+
+/** The corners for a set of colours: soft plastic for the Concept look, small and even for the others. */
+fun atShapes(at: AtColors): Shapes = if (at.soft) SoftShapes else AtShapes
 
 /** The same colours with the accent ([signal] and the text on it) swapped for [a]. */
 fun AtColors.withAccent(a: dev.autotune.Accent): AtColors {
@@ -507,6 +558,6 @@ fun AutoTuneTheme(
         }
     }
     androidx.compose.runtime.CompositionLocalProvider(LocalAt provides at) {
-        MaterialTheme(colorScheme = scheme, typography = AtTypography, shapes = AtShapes, content = content)
+        MaterialTheme(colorScheme = scheme, typography = AtTypography, shapes = atShapes(at), content = content)
     }
 }

@@ -876,6 +876,15 @@ fun levelAt(freqs: DoubleArray, values: DoubleArray, f: Double): Double {
 }
 
 /** The cursor's frequency as the chart says it: "63 Hz", "1.2 kHz". */
+/**
+ * Where the cursor's bubble starts on a chart whose plot ends at [right]: right of the line at [cx] when it fits there,
+ * else left of it, and never past either edge, so its text is never cut off.
+ */
+fun bubbleX(cx: Float, width: Float, right: Float, gap: Float): Float {
+    val x = if (cx + gap + width < right) cx + gap else cx - gap - width
+    return x.coerceIn(0f, (right - width).coerceAtLeast(0f))
+}
+
 fun cursorFreqText(f: Double): String =
     if (f >= 1000) String.format(java.util.Locale.US, "%.1f kHz", f / 1000) else String.format(java.util.Locale.US, "%.0f Hz", f)
 
@@ -1400,10 +1409,10 @@ fun knownScore(
         ?: stockScore?.takeIf { runIdx == 0 }
         ?: allScores.getOrNull(runIdx)?.takeIf { it >= 0 }
 
-// ---------------------------------------------------------------- graphics play twice, replay on a pull (2.10)
+// ---------------------------------------------------------------- graphics play once, replay on a press or a pull (2.10, 2.30)
 
-/** How many times a graphic's movement plays when it is shown: the header art, the Tune dial, the report meters, the charts. */
-const val GRAPHIC_PLAYS = 2
+/** How many times a graphic's movement plays when it is shown: the header art, the Tune dial, the report meters, the charts. Once; it never loops. */
+const val GRAPHIC_PLAYS = 1
 
 /**
  * The targets a graphic's progress runs through (0 = before its movement, 1 = settled) to play the movement [plays]
@@ -1443,6 +1452,17 @@ class PullReplay(private val thresholdPx: Float) {
 
     fun end() { pulled = 0f; fired = false }
 }
+
+/**
+ * When an item settles into place: items that appear together (a screen opening, a step changing, an answer arriving)
+ * arrive one after the other, [STAGGER_STEP_MS] apart (the first straight away), at most [STAGGER_MAX_MS] in. A new
+ * burst starts once nothing has appeared for [STAGGER_GAP_MS]. -1 = no arrival (animations off).
+ */
+fun staggerDelayMs(index: Int): Int = if (index < 0) -1 else minOf(index * STAGGER_STEP_MS, STAGGER_MAX_MS)
+
+const val STAGGER_STEP_MS = 90
+const val STAGGER_MAX_MS = 720
+const val STAGGER_GAP_MS = 400L
 
 /** The Tune dial's pulse: one wave from the centre out past the rim, [PULSE_MS] long, played [GRAPHIC_PLAYS] times. */
 const val PULSE_MS = 1500
