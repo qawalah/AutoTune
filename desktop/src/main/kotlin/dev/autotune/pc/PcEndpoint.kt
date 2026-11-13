@@ -102,8 +102,12 @@ class PcEndpoint(
         code = { _ui.value.code },
         welcome = ::welcome,
         onMessage = ::onMessage,
-        // the welcome carries whether the EQ is on; a problem with it follows at once
-        onPhone = { p -> _ui.update { it.copy(phone = p) }; if (p != null && problem() != null) tellEqState() },
+        // the welcome carries whether the EQ is on; a problem with it follows at once. A phone that goes (Disconnect,
+        // a dropped link, silence) stops what it started: the clip or noise ends and the EQ is back on (2.31)
+        onPhone = { p ->
+            _ui.update { it.copy(phone = p) }
+            if (p == null) playJob?.cancel() else if (problem() != null) tellEqState()
+        },
         deniedText = "That is not the code on the PC.",
     )
     private var playJob: Job? = null
@@ -129,6 +133,11 @@ class PcEndpoint(
     fun close() {
         playJob?.cancel()
         server.close()
+    }
+
+    /** The address shown for the phone, when the PC's network comes up or changes (2.31). */
+    fun setAddress(address: String?) {
+        if (address != _ui.value.address) _ui.update { it.copy(address = address) }
     }
 
     /** Looks for Equalizer APO and the outputs again (after installing it, or plugging in speakers). */
@@ -234,6 +243,7 @@ class PcEndpoint(
             // the phone switched it off: the bands stay, so the PC's key can bring them back
             Msg.EQ_OFF -> setEqOn(false)
             Msg.NOISE -> Speaker.of(m["speaker"])?.takeIf { ApoText.channelOf(it, method) != null }?.let(::noise)
+            // the phone's Stop (2.31: for every test, not only levels) ends any clip, and the EQ is back on after it
             Msg.QUIET -> playJob?.cancel()
             Msg.PASS -> {
                 val id = m["id"]?.toIntOrNull() ?: return

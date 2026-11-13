@@ -99,6 +99,8 @@ fun TheatrePage(pick: Pickers, openId: String? = null, opened: () -> Unit = {}, 
     LaunchedEffect(newName) { newName?.let { vm.startNew(it); opened() } }
     DisposableEffect(Unit) { vm.start(); onDispose { vm.pause() } }
     LaunchedEffect(u.needsMic) { if (u.needsMic) { vm.micGranted(true); pick.permission() } }
+    // a test can run past the screen timeout: the screen stays on until it ends (2.31)
+    KeepScreenOn(u.busy)
 
     // the home theatres are managed on their own page over this one; Back returns
     var managing by rememberSaveable { mutableStateOf(false) }
@@ -506,7 +508,8 @@ private fun whenText(ms: Long?): String? = ms?.let { java.text.SimpleDateFormat(
 private fun LevelsResult(u: TheatreUi, keys: (@Composable () -> Unit)? = null) {
     val run = u.test?.last(RunKind.LEVELS)
     val c = deckColors
-    RunSheet("Levels", whenText(run?.whenMillis) ?: "not set yet", trailing = { InfoButton("The level test", ABOUT_LEVELS, small = true) }) {
+    // numbered, so a first-time user sees an order; nothing is pushed (owner: no nagging about levels)
+    RunSheet("1 Levels", whenText(run?.whenMillis) ?: "not set yet", trailing = { InfoButton("The level test", ABOUT_LEVELS, small = true) }) {
         if (run == null) Muted("Pink noise, one speaker at a time: set each level on the home theatre.")
         else {
             val worst = run.levels.values.maxOfOrNull { kotlin.math.abs(it) } ?: 0.0
@@ -521,7 +524,7 @@ private fun DistancesResult(u: TheatreUi, keys: (@Composable () -> Unit)? = null
     val d = u.distances
     val run = u.test?.last(RunKind.DISTANCES)
     val c = deckColors
-    RunSheet("Distances", whenText(run?.whenMillis) ?: "not tested yet", trailing = { if (d != null) AlertsIcon(d.notes) else InfoButton("The distances test", ABOUT_DIST, small = true) }) {
+    RunSheet("2 Distances", whenText(run?.whenMillis) ?: "not tested yet", trailing = { if (d != null) AlertsIcon(d.notes) else InfoButton("The distances test", ABOUT_DIST, small = true) }) {
         if (d == null) Muted("One sweep per speaker. Run it at setup, and again when a speaker moves.")
         else {
             ReadingCells(listOf(
@@ -546,7 +549,7 @@ private fun EqResult(u: TheatreUi, keys: (@Composable () -> Unit)? = null) {
         ("The ${u.device}'s EQ is on, but this test plays Dolby, which passes by it: the reading is the system without it. " +
             "Check the EQ reaches the speakers plays through it.").takeIf { u.tvEqOn && u.method == dev.autotune.dsp.PlayMethod.DOLBY_51 && run != null },
     )
-    RunSheet("EQ", whenText(run?.whenMillis) ?: "not tested yet", trailing = { if (notes.isNotEmpty()) AlertsIcon(notes) else InfoButton("The EQ test", ABOUT_EQTEST, small = true) }) {
+    RunSheet("3 EQ", whenText(run?.whenMillis) ?: "not tested yet", trailing = { if (notes.isNotEmpty()) AlertsIcon(notes) else InfoButton("The EQ test", ABOUT_EQTEST, small = true) }) {
         if (e == null) Muted("Every speaker together: one EQ for all of them.")
         else {
             ReadingCells(listOfNotNull(

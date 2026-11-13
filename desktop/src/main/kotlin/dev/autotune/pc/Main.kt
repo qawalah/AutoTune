@@ -18,6 +18,7 @@ import dev.autotune.pc.ui.PcTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.RandomAccessFile
@@ -30,10 +31,26 @@ import kotlin.system.exitProcess
 fun main() {
     if (!oneInstance()) exitProcess(0)
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val pc = PcEndpoint(scope, PcStore(), WindowsApo(), JavaSoundOut())
+    val apo = WindowsApo()
+    val pc = PcEndpoint(scope, PcStore(), apo, JavaSoundOut())
     val port = pc.start()
+    apo.port = port
     val announcer = Announcer()
-    scope.launch(Dispatchers.IO) { announcer.start(pc.ui.value.pcName, port, Net.addresses()) }
+    // announced again, with the address shown, whenever the PC's network comes up or changes (2.31): a PC that started
+    // before its Wi-Fi, or got a new address, is found again
+    scope.launch(Dispatchers.IO) {
+        var last: List<String>? = null
+        while (true) {
+            val now = Net.addresses()
+            val ips = now.map { it.hostAddress }
+            if (ips != last) {
+                last = ips
+                pc.setAddress(ips.firstOrNull())
+                runCatching { announcer.start(pc.ui.value.pcName, port, now) }
+            }
+            delay(NETWORK_CHECK_MS)
+        }
+    }
 
     application {
         val u by pc.ui.collectAsState()
@@ -66,6 +83,9 @@ fun main() {
         }
     }
 }
+
+/** How often the PC looks whether its addresses changed. */
+private const val NETWORK_CHECK_MS = 15_000L
 
 /** True for the first AutoTune on this PC; a second one would fight the first for the port. */
 private fun oneInstance(): Boolean = runCatching {

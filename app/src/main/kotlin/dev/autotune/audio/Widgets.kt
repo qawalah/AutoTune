@@ -84,7 +84,9 @@ object AutoTuneWidgets {
         val name = p.getString(dev.autotune.theatre.CompanionLink.PREF_NAME, null)
         val connected = dev.autotune.theatre.CompanionLink.open
         v.setTextViewText(R.id.chip_cmp_title, name ?: "TV or PC")
-        v.setTextViewText(R.id.chip_cmp_state, if (name == null) "Connect" else if (connected) "Connected" else "Not connected")
+        // a TV answers only while AutoTune is open on it: say so where the state is
+        val tv = dev.autotune.theatre.CompanionLink.rememberedKind(ctx) != dev.autotune.link.Msg.KIND_PC
+        v.setTextViewText(R.id.chip_cmp_state, if (name == null) "Connect" else if (connected) "Connected" else if (tv) "Open AutoTune on the TV" else "Not connected")
         v.setOnClickPendingIntent(R.id.chip_cmp, openApp(ctx, "theatre"))
         val eqOn = p.getBoolean(dev.autotune.theatre.CompanionLink.PREF_EQ_ON, false)
         chip(v, R.id.chip_cmp_eq, R.id.chip_cmp_eq_title, R.id.chip_cmp_eq_state, eqOn, if (eqOn) "On" else "Off")

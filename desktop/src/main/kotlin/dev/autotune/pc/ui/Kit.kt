@@ -247,7 +247,8 @@ fun BigLatch(on: Boolean, onChange: (Boolean) -> Unit, label: String, enabled: B
                 Text(if (on) "EQ on" else "EQ off", style = MaterialTheme.typography.displaySmall, color = if (enabled) Pc.ink else Pc.muted)
                 Text(label.lowercase(), style = MaterialTheme.typography.labelSmall, color = Pc.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Text(if (on) "press for off" else "press for on", style = MaterialTheme.typography.labelSmall, color = Pc.muted)
+            // nothing to switch on: no "press for on" on a key that does nothing
+            if (enabled) Text(if (on) "press for off" else "press for on", style = MaterialTheme.typography.labelSmall, color = Pc.muted)
         }
     }
 }

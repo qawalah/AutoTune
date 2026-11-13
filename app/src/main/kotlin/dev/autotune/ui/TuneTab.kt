@@ -201,7 +201,8 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
     androidx.activity.compose.BackHandler(enabled = page != dev.autotune.SetupPage.EQUIPMENT && !s.busy) { back() }
 
     StepHeader(0, STEPS, "Set up", exit, onBack = back, names = dev.autotune.STEP_NAMES)
-    val count = "${pages.indexOf(page) + 1} of ${pages.size}"
+    // one counter only: the step line above says where Set up sits; its screens need no "n of m" of their own (2.31)
+    val count: String? = null
     // each screen of Set up arrives from the side it comes from; Back sends it the other way
     Transit(
         page,

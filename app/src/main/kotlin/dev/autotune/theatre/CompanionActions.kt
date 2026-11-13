@@ -45,7 +45,7 @@ object CompanionActions {
                         f.title
                     }
                     else -> if (prefs.getBoolean(CompanionLink.PREF_EQ_ON, false)) {
-                        if (CompanionLink.ensure()) { CompanionLink.link.send(Msg.eqOff()); prefs.edit().putBoolean(CompanionLink.PREF_EQ_ON, false).apply(); "EQ off" }
+                        if (CompanionLink.ensure() && CompanionLink.link.send(Msg.eqOff())) { prefs.edit().putBoolean(CompanionLink.PREF_EQ_ON, false).apply(); "EQ off" }
                         else unreachable(app)
                     } else send(app, prefs, Flavour.of(prefs.getString(CompanionLink.PREF_FLAVOUR, null)))
                 }
@@ -66,11 +66,18 @@ object CompanionActions {
             .ifEmpty { listOf(Speaker.FL, Speaker.FR) }
         if (!CompanionLink.ensure()) return unreachable(app)
         val chain = companionChain(base, flavour)
-        CompanionLink.link.send(Msg.eq(speakers.associateWith { chain }))
+        if (!CompanionLink.link.send(Msg.eq(speakers.associateWith { chain }))) return unreachable(app)
         prefs.edit().putBoolean(CompanionLink.PREF_EQ_ON, true).apply()
         return "EQ on" + if (flavour != Flavour.NONE) " · ${flavour.title}" else ""
     }
 
-    private fun unreachable(app: Context) =
-        (CompanionLink.rememberedName(app)?.let { "$it did not answer: open AutoTune on it" } ?: "Connect to a TV or PC in AutoTune first")
+    /**
+     * Why it did not answer, plainly. A TV is reachable only while AutoTune is open on its screen (its link lives in the
+     * TV screen, not in a background service); a PC stays reachable from its tray.
+     */
+    private fun unreachable(app: Context): String {
+        val name = CompanionLink.rememberedName(app) ?: return "Connect to a TV or PC in AutoTune first"
+        return if (CompanionLink.rememberedKind(app) == Msg.KIND_PC) "$name did not answer: open AutoTune on the PC"
+        else "$name did not answer: AutoTune must be open on the TV"
+    }
 }

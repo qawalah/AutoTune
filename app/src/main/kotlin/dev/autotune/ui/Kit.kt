@@ -2044,18 +2044,38 @@ fun StepHeader(index: Int, total: Int, title: String, onExit: (() -> Unit)?, onB
             )
             ModeSwitch()
         }
-        Row(
-            Modifier.fillMaxWidth().semantics { contentDescription = "Step ${index + 1} of $total" },
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
-            for (i in 0 until total) {
-                val col by androidx.compose.animation.animateColorAsState(
-                    if (i < index) c.muted else if (i == index) c.signal else c.line,
-                    tween(motionMs(380), easing = EaseArrive), label = "step",
-                )
-                Box(Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(col))
-            }
+        StepBar(index, total)
+    }
+}
+
+/**
+ * The slim bar of a multi-step flow, one segment per step, [index] lit. The measuring screen shows it too, so Stock and
+ * Verify, which have no page of their own, light while they measure (2.31).
+ */
+@Composable
+fun StepBar(index: Int, total: Int, modifier: Modifier = Modifier) {
+    val c = At.c
+    Row(
+        modifier.fillMaxWidth().semantics { contentDescription = "Step ${index + 1} of $total" },
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        for (i in 0 until total) {
+            val col by androidx.compose.animation.animateColorAsState(
+                if (i < index) c.muted else if (i == index) c.signal else c.line,
+                tween(motionMs(380), easing = EaseArrive), label = "step",
+            )
+            Box(Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(col))
         }
+    }
+}
+
+/** Keeps the phone's screen on while [on] (a measurement or a home-theatre test is running), and lets it go after (2.31). */
+@Composable
+fun KeepScreenOn(on: Boolean) {
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.DisposableEffect(view, on) {
+        view.keepScreenOn = on
+        onDispose { view.keepScreenOn = false }
     }
 }
 

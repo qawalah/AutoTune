@@ -36,11 +36,13 @@ class PcEndpointTest {
         val played: MutableList<Pair<String?, Int>> = Collections.synchronizedList(ArrayList())
         var eqDuringPlay: String? = null
         var apo: FakeApo? = null
+        /** Plays until stopped, as a long clip would. */
+        @Volatile var endless = false
         override fun outputs() = listOf("Speakers (Realtek(R) Audio)", "LG TV SSCR2 (NVIDIA High Definition Audio)")
         override suspend fun play(output: String?, pcm: ShortArray, channels: Int, fs: Int, loop: Boolean, onTime: (Double) -> Unit) {
             eqDuringPlay = apo?.writes?.lastOrNull()
             played += output to channels
-            if (loop) kotlinx.coroutines.awaitCancellation()
+            if (loop || endless) { onTime(0.0); kotlinx.coroutines.awaitCancellation() }
             // walk through the clip's time, as a sound card would report it
             var t = 0.0
             while (t * fs < pcm.size / channels) { onTime(t); t += 0.5 }
@@ -251,5 +253,53 @@ class PcEndpointTest {
         assertEquals("LG TV SSCR2 (NVIDIA High Definition Audio)", again.ui.value.output)
         assertEquals(pc.ui.value.code, again.ui.value.code)
         again.close()
+    }
+
+    private fun eqOnFromThePhone(p: Phone) {
+        val c = EqChain.withSafePreamp(listOf(EqFilter(80.0, -4.0, 2.0)))
+        p.send(Msg.eq(mapOf(Speaker.FL to c, Speaker.FR to c)))
+        assertEquals("1", p.readUntil(Msg.EQ_STATE)["on"])
+    }
+
+    @Test
+    fun quietStopsAPassAndTheEqComesBack() {
+        val p = pair()
+        p.read()
+        eqOnFromThePhone(p)
+        audio.endless = true
+        p.send(Msg.pass(11, "L20", hold = true, kind = "eq"))
+        waitFor { pc.ui.value.what != null }
+        // held off while it plays
+        waitFor { !apo.writes.last().contains("Filter") }
+        p.send(Msg.quiet())
+        val f = p.readUntil(Msg.FAILED)
+        assertEquals("11", f["id"])
+        waitFor { pc.ui.value.what == null && pc.ui.value.playing == null }
+        waitFor { apo.writes.last().contains("Filter 1") }
+    }
+
+    @Test
+    fun aPhoneThatGoesStopsWhatItStarted() {
+        val p = pair()
+        p.read()
+        eqOnFromThePhone(p)
+        p.send(Msg.noise(Speaker.FL, "L20"))
+        waitFor { pc.ui.value.playing == Speaker.FL }
+        waitFor { !apo.writes.last().contains("Filter") }
+        // the phone vanishes without a word
+        p.s.close()
+        waitFor { pc.ui.value.phone == null }
+        waitFor { pc.ui.value.playing == null && pc.ui.value.what == null }
+        waitFor { apo.writes.last().contains("Filter 1") }
+    }
+
+    @Test
+    fun theShownAddressFollowsTheNetwork() {
+        assertEquals("192.168.1.20", pc.ui.value.address)
+        pc.setAddress("192.168.1.31")
+        assertEquals("192.168.1.31", pc.ui.value.address)
+        pc.setAddress(null)
+        assertEquals(null, pc.ui.value.address)
+        assertTrue(pc.ui.value.port > 0)
     }
 }

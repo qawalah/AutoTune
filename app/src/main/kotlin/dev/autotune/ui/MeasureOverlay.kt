@@ -82,6 +82,8 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
         while (true) withFrameMillis { value = System.currentTimeMillis() }
     }
     val busy = s.busy && (v.stage == MeasureStage.MEASURING || v.stage == MeasureStage.ANALYSING)
+    // the screen stays on while it measures, and between the spots of a reading (2.31)
+    KeepScreenOn(busy || v.stage == MeasureStage.MEASURING || v.stage == MeasureStage.ANALYSING || v.stage == MeasureStage.SPOT_DONE)
     val allGood = v.checks.none { it.state >= 2 }
     val hasLevel = busy && level > -110f
 
@@ -131,6 +133,13 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
             if (!busy) IconAction(Ic.CLOSE, "Close") { vm.closeMeasureView() }
         }
         HairRule()
+        // Stock and Verify have no page: they light on the step bar while this screen measures them
+        val step = when (s.tuneStep) {
+            dev.autotune.TuneStep.STOCK -> 1
+            dev.autotune.TuneStep.VERIFY -> 3
+            else -> null
+        }
+        step?.let { StepBar(it, dev.autotune.STEP_NAMES.size) }
 
         Panel {
             // the display: the live level large and light, a pilot light for the stage (on the LCD in the Concept look)

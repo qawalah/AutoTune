@@ -57,6 +57,9 @@ internal fun regQuery(vararg args: String): String? =
 
 /** Equalizer APO on this Windows PC: read from the registry, written in its config folder. */
 class WindowsApo : ApoControl {
+    /** The port the phone connects to, for the firewall rule the setup adds when the program is not known. */
+    @Volatile var port: Int = dev.autotune.link.LINK_PORT
+
     override fun status(output: String?): ApoStatus {
         if (!isWindows) return ApoStatus(ApoState.NOT_WINDOWS)
         val root = regQuery(ApoRegistry.EQUALIZER_APO, "/reg:64")
@@ -107,7 +110,9 @@ class WindowsApo : ApoControl {
         newConfig.writeBytes(encodeLike(old, ApoText.withInclude(decode(old))))
         val sid = ApoRegistry.sid(run("whoami", "/user", "/fo", "csv", "/nh", charset = Charset.defaultCharset()))
         val script = File(tmp, "autotune-setup.cmd")
-        script.writeText(ApoText.setupScript(dir, newConfig.path, sid), Charsets.ISO_8859_1)
+        // the same step lets the phone in through the firewall on private networks (2.31; not verified on Windows)
+        val program = runCatching { ProcessHandle.current().info().command().orElse(null) }.getOrNull()
+        script.writeText(ApoText.setupScript(dir, newConfig.path, sid, ApoText.firewallLines(program, port)), Charsets.ISO_8859_1)
         val ps = "\$p = Start-Process -FilePath '${script.path.replace("'", "''")}' -Verb RunAs -Wait -WindowStyle Hidden -PassThru; exit \$p.ExitCode"
         val done = run("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", ps, timeoutSec = 300) != null
         runCatching { tmp.deleteRecursively() }

@@ -7,6 +7,8 @@ import dev.autotune.link.LINK_PORT
 import dev.autotune.link.LinkMsg
 import dev.autotune.link.Msg
 import dev.autotune.link.NSD_TYPE
+import dev.autotune.link.PING_SECONDS
+import dev.autotune.link.silenceTimeoutMs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -38,6 +40,8 @@ class LinkClient(private val ctx: Context, private val scope: CoroutineScope) {
     private val _open = MutableStateFlow(false)
     /** True while connected and paired. */
     val open: StateFlow<Boolean> = _open
+    /** The paired TV or PC answers pings (2.31), so a silent link is taken as gone. */
+    @Volatile var answersPings: Boolean = false; private set
 
     private var socket: Socket? = null
     private var out: PrintWriter? = null
@@ -97,12 +101,18 @@ class LinkClient(private val ctx: Context, private val scope: CoroutineScope) {
             s.soTimeout = 0
             val w = PrintWriter(s.getOutputStream().bufferedWriter(), true)
             val r = BufferedReader(InputStreamReader(s.getInputStream()))
-            w.println(Msg.hello(code, phone).encode())
+            // the hello says how often this phone pings, so a TV or PC from 2.31 can drop it once it falls silent
+            w.println(Msg.hello(code, phone, PING_SECONDS).encode())
             s.soTimeout = 6000
             val first = LinkMsg.parse(r.readLine() ?: error("It closed the connection.")) ?: error("It sent something unexpected.")
             s.soTimeout = 0
             if (first.type == Msg.DENIED) error(first["reason"] ?: "It refused the code.")
             if (first.type != Msg.WELCOME) error("It sent something unexpected.")
+            // one that answers pings hears from us every PING_SECONDS: nothing for a few of them means it has gone
+            // (an older TV or PC never answers, so silence there means nothing)
+            val pongs = Msg.CAP_PONG in Msg.caps(first)
+            answersPings = pongs
+            if (pongs) s.soTimeout = silenceTimeoutMs(PING_SECONDS)
             socket = s; out = w
             lastHost = host; lastPort = port
             _open.value = true
@@ -110,7 +120,7 @@ class LinkClient(private val ctx: Context, private val scope: CoroutineScope) {
                 try {
                     while (true) {
                         val line = r.readLine() ?: break
-                        LinkMsg.parse(line)?.let { _incoming.emit(it) }
+                        LinkMsg.parse(line)?.takeIf { it.type != Msg.PONG }?.let { _incoming.emit(it) }
                     }
                 } catch (_: Exception) {
                 } finally {
@@ -130,14 +140,16 @@ class LinkClient(private val ctx: Context, private val scope: CoroutineScope) {
     /** One background writer, so messages go out in order and never from the main thread. */
     private val writer = java.util.concurrent.Executors.newSingleThreadExecutor()
 
-    fun send(m: LinkMsg) {
-        val w = out ?: return
+    /** Queues [m]; false when no link is open (nothing is sent). A line that then fails to go out closes the link. */
+    fun send(m: LinkMsg): Boolean {
+        val w = out ?: return false
         val s = socket
         writer.execute {
             runCatching { w.println(m.encode()) }
             // a line that could not go out means the link has gone: closing ends the reader, which says so
             if (w.checkError()) runCatching { s?.close() }
         }
+        return true
     }
 
     fun close() {

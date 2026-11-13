@@ -98,17 +98,36 @@ object ApoText {
      * The one-time setup, run as administrator: keep a copy of config.txt, put [newConfig] in its place, make
      * AutoTune's file and let [sid] (the user) change it, so later EQs need no administrator.
      */
-    fun setupScript(configDir: String, newConfig: String, sid: String?): String {
+    fun setupScript(configDir: String, newConfig: String, sid: String?, firewall: List<String> = emptyList()): String {
         val d = configDir.trimEnd('\\', '/')
         val who = sid?.let { "*$it" } ?: "*S-1-5-32-545"
-        return listOf(
+        return (listOf(
             "@echo off",
             "if exist \"$d\\config.txt\" if not exist \"$d\\$BACKUP\" copy /y \"$d\\config.txt\" \"$d\\$BACKUP\" >nul",
             "copy /y \"$newConfig\" \"$d\\config.txt\" >nul || exit /b 2",
             "if not exist \"$d\\$FILE\" (echo # AutoTune) > \"$d\\$FILE\"",
             "icacls \"$d\\$FILE\" /grant $who:(M) >nul || exit /b 3",
-            "exit /b 0",
-        ).joinToString("\r\n", postfix = "\r\n")
+        ) + firewall + "exit /b 0").joinToString("\r\n", postfix = "\r\n")
+    }
+
+    /** The firewall rule's name; set again (not added twice) each time the setup runs. */
+    const val FIREWALL_RULE = "AutoTune"
+
+    /**
+     * Lines for the setup (2.31) that let the phone reach AutoTune on private networks: an inbound rule for [program]
+     * (AutoTune.exe), or, when it is not known (or is a bare java.exe), for its TCP [port]. Never fails the setup:
+     * Windows' own prompt is still there if the rule does not take.
+     */
+    fun firewallLines(program: String?, port: Int): List<String> {
+        val exe = program?.takeIf { p ->
+            val n = p.substringAfterLast('\\').substringAfterLast('/').lowercase()
+            n.endsWith(".exe") && n != "java.exe" && n != "javaw.exe" && !p.contains('"')
+        }
+        val what = if (exe != null) "program=\"$exe\"" else "protocol=TCP localport=$port"
+        return listOf(
+            "netsh advfirewall firewall delete rule name=\"$FIREWALL_RULE\" >nul 2>&1",
+            "netsh advfirewall firewall add rule name=\"$FIREWALL_RULE\" dir=in action=allow $what enable=yes profile=private >nul 2>&1",
+        )
     }
 }
 

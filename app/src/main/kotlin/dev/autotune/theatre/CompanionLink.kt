@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -27,7 +29,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  * again by itself ([reconnectDelayMs]); the page and the widget reconnect on demand ([ensure]).
  */
 object CompanionLink {
-    private const val PING_MS = 15_000L
+    private const val PING_MS = dev.autotune.link.PING_SECONDS * 1000L
+    /** One connect at a time (2.31): the page, the retry loop and the widget each connect, and a connect closes the link first. */
+    private val connecting = Mutex()
     private lateinit var app: Context
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     lateinit var link: LinkClient
@@ -79,15 +83,19 @@ object CompanionLink {
     private fun phoneName() = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
 
     /** Pairs with a TV or PC found on the Wi-Fi; remembers it. */
-    suspend fun connect(tv: FoundTv, code: String): LinkMsg = paired(link.connect(tv, code, phoneName()), tv.name, code)
+    suspend fun connect(tv: FoundTv, code: String): LinkMsg = connecting.withLock { connectFound(tv, code) }
 
     /** Pairs with a TV or PC by its address; remembers it. */
-    suspend fun connect(host: String, port: Int, code: String, name: String): LinkMsg = paired(link.connect(host, port, code, phoneName()), name, code)
+    suspend fun connect(host: String, port: Int, code: String, name: String): LinkMsg = connecting.withLock { connectAt(host, port, code, name) }
+
+    private suspend fun connectFound(tv: FoundTv, code: String): LinkMsg = paired(link.connect(tv, code, phoneName()), tv.name, code)
+
+    private suspend fun connectAt(host: String, port: Int, code: String, name: String): LinkMsg = paired(link.connect(host, port, code, phoneName()), name, code)
 
     private fun paired(w: LinkMsg, name: String, code: String): LinkMsg {
         val tvName = w["name"] ?: name
         prefs.edit().putString(PREF_NAME, tvName).putString(PREF_CODE, code).putString(PREF_HOST, link.lastHost).putInt(PREF_PORT, link.lastPort)
-            .putBoolean(PREF_EQ_ON, w["eq"] == "1").apply()
+            .putBoolean(PREF_EQ_ON, w["eq"] == "1").putString(PREF_KIND, w["kind"] ?: Msg.KIND_TV).apply()
         wanted = true
         retry?.cancel(); _reconnecting.value = false
         _welcome.value = tvName to w
@@ -99,17 +107,22 @@ object CompanionLink {
      * Connected to the remembered TV or PC, connecting first when needed: at its last address, else by its name on the
      * Wi-Fi (its address may have changed). False when there is none or it does not answer.
      */
-    suspend fun ensure(): Boolean {
-        if (open) return true
-        val name = prefs.getString(PREF_NAME, null) ?: return false
-        val code = prefs.getString(PREF_CODE, null) ?: return false
+    suspend fun ensure(): Boolean = connecting.withLock {
+        // another caller may have connected while this one waited
+        if (open) return@withLock true
+        val name = prefs.getString(PREF_NAME, null) ?: return@withLock false
+        val code = prefs.getString(PREF_CODE, null) ?: return@withLock false
         val host = prefs.getString(PREF_HOST, null)
-        if (host != null && runCatching { connect(host, prefs.getInt(PREF_PORT, dev.autotune.link.LINK_PORT), code, name) }.isSuccess) return true
+        if (host != null && runCatching { connectAt(host, prefs.getInt(PREF_PORT, dev.autotune.link.LINK_PORT), code, name) }.isSuccess) return@withLock true
         // not there any more: look for it by name for a few seconds
         link.discover()
-        val tv = withTimeoutOrNull(6_000) { link.found.first { l -> l.any { it.name == name } } }?.firstOrNull { it.name == name } ?: return false
-        return runCatching { connect(tv, code) }.isSuccess
+        val tv = withTimeoutOrNull(6_000) { link.found.first { l -> l.any { it.name == name } } }?.firstOrNull { it.name == name } ?: return@withLock false
+        runCatching { connectFound(tv, code) }.isSuccess
     }
+
+    /** The remembered one is a TV ([Msg.KIND_TV]) or a PC; a TV until the first pairing says otherwise. */
+    fun rememberedKind(ctx: Context): String =
+        ctx.getSharedPreferences("autotune_prefs", Context.MODE_PRIVATE).getString(PREF_KIND, null) ?: Msg.KIND_TV
 
     private fun retryLater() {
         if (retry?.isActive == true) return
@@ -142,6 +155,7 @@ object CompanionLink {
     const val PREF_CODE = "companionCode"
     const val PREF_HOST = "companionHost"
     const val PREF_PORT = "companionPort"
+    const val PREF_KIND = "companionKind"
     /** The TV's or PC's EQ is on (its last report), the home theatre's EQ and speakers last sent, and the flavour. */
     const val PREF_EQ_ON = "companionEqOn"
     const val PREF_BASE = "companionBase"

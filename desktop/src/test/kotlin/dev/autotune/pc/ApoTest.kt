@@ -80,6 +80,24 @@ class ApoTest {
         assertTrue(ApoText.setupScript("C:\\c", "C:\\t\\config.txt", null).contains("*S-1-5-32-545:(M)"))
     }
 
+    @Test
+    fun theSetupLetsThePhoneThroughTheFirewall() {
+        val app = ApoText.firewallLines("C:\\Users\\Me\\AppData\\Local\\AutoTune\\AutoTune.exe", 47810)
+        assertTrue(app.last().contains("program=\"C:\\Users\\Me\\AppData\\Local\\AutoTune\\AutoTune.exe\""))
+        assertTrue(app.last().contains("dir=in action=allow"))
+        assertTrue(app.last().contains("profile=private"))
+        // set again, never added twice; never stops the setup
+        assertTrue(app.first().contains("delete rule name=\"AutoTune\""))
+        assertTrue(app.none { it.contains("exit") })
+        // a bare java.exe (run from a build) is not let in wholesale: only the port
+        val dev = ApoText.firewallLines("C:\\jdk\\bin\\java.exe", 47811)
+        assertTrue(dev.last().contains("protocol=TCP localport=47811"))
+        assertTrue(ApoText.firewallLines(null, 47810).last().contains("localport=47810"))
+        // the rule comes before the script's end
+        val s = ApoText.setupScript("C:\\c", "C:\\t\\config.txt", null, app)
+        assertTrue(s.indexOf("netsh") in 1 until s.indexOf("exit /b 0"))
+    }
+
     private val render = """
 
 HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render\{0d1b6a65-0000-4000-8000-123456789abc}

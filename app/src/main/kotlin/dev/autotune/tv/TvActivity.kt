@@ -130,7 +130,7 @@ fun TvScreen(
                 if (u.phone == null) {
                     Text("pair the phone", style = MaterialTheme.typography.labelLarge, color = c.muted)
                     Text(u.code.toList().joinToString(" "), style = MaterialTheme.typography.displayLarge.copy(fontSize = 64.sp, lineHeight = 70.sp, fontWeight = FontWeight.Light), color = c.text)
-                    Text("code · same wi-fi" + (u.address?.let { " · $it" } ?: ""), style = MaterialTheme.typography.titleSmall, color = c.muted)
+                    Text("code · same wi-fi" + (u.address?.let { " · " + dev.autotune.link.addressText(it, u.port) } ?: ""), style = MaterialTheme.typography.titleSmall, color = c.muted)
                 } else Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(16.dp).clip(CircleShape).background(c.signal))
                     Spacer(Modifier.width(16.dp))

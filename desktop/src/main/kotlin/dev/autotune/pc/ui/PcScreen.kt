@@ -71,7 +71,8 @@ import kotlin.math.pow
 private const val ABOUT_PHONE =
     "On the phone, open AutoTune: Tune, pick PC speakers and say AutoTune is installed on the PC. Pick this PC and enter the code once.\n\n" +
         "The phone and this PC must be on the same Wi-Fi. If Windows asks whether AutoTune may use the network, allow it " +
-        "on private networks. When the PC is not found, the phone can connect by the address shown here (Advanced)."
+        "on private networks (Allow AutoTune, under Output, also lets it in). When the PC is not found, the phone can " +
+        "connect by the address shown here (Advanced), with the port after a colon when one is shown."
 
 private const val ABOUT_OUTPUT =
     "The output the speakers are on. The PC plays each speaker's test sound here, and AutoTune's EQ is set on it alone.\n\n" +
@@ -212,7 +213,7 @@ private fun PhoneDeck(u: PcUi) {
                 ReadingCell(u.code.toList().joinToString(" "), "code")
                 Spacer(Modifier.weight(1f))
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(u.address ?: "no network", style = MaterialTheme.typography.titleMedium, color = Pc.ink)
+                    Text(u.address?.let { dev.autotune.link.addressText(it, u.port) } ?: "no network", style = MaterialTheme.typography.titleMedium, color = Pc.ink)
                     Text("address", style = MaterialTheme.typography.labelSmall, color = Pc.muted)
                 }
             }

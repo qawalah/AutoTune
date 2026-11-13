@@ -157,7 +157,15 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         _ui.update { it.copy(tests = all.map { t -> t.id to t.name }, seats = prefs.getInt("theatreSeats", 1)) }
         open?.let { openTest(it) }
         viewModelScope.launch { link.found.collect { f -> _ui.update { it.copy(found = f.map { t -> t.name }) } } }
-        viewModelScope.launch { link.open.collect { open -> if (!open) _ui.update { it.copy(tv = null, playing = null) } } }
+        viewModelScope.launch {
+            link.open.collect { open ->
+                if (!open) {
+                    // a link that drops during a test ends it at once, and says so (2.31): not "turn the volume up"
+                    if (_ui.value.busy) lostMidTest()
+                    _ui.update { it.copy(tv = null, playing = null) }
+                }
+            }
+        }
         viewModelScope.launch { link.incoming.collect(::onMessage) }
         // every pairing, first or again after a drop, by this page or by the widget, comes through here
         viewModelScope.launch { CompanionLink.welcome.collect { p -> p?.let { (name, w) -> onWelcome(name, w) } } }
@@ -182,8 +190,13 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         doConnect(tv.name, code) { CompanionLink.connect(tv, code) }
     }
 
-    fun connectAddress(host: String, code: String) {
-        doConnect(host, code) { CompanionLink.connect(host.trim(), dev.autotune.link.LINK_PORT, code, host.trim()) }
+    /** By its address: "192.168.1.20", or "192.168.1.20:47811" when the TV or PC shows a port (2.31). */
+    fun connectAddress(address: String, code: String) {
+        val (host, port) = dev.autotune.link.parseAddress(address) ?: run {
+            _ui.update { it.copy(error = "Type the address as it shows it, like 192.168.1.20 or 192.168.1.20:47811.") }
+            return
+        }
+        doConnect(host, code) { CompanionLink.connect(host, port, code, host) }
     }
 
     /** Pairs; what follows a pairing is [onWelcome], which [CompanionLink.welcome] calls. */
@@ -212,7 +225,8 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
             val layout = if (it.layout in method.layouts) it.layout else method.layouts.first()
             it.copy(connecting = false, tv = tvName, kind = w["kind"] ?: Msg.KIND_TV, method = method, output = w["out"], tvEqOn = w["eq"] == "1", layout = layout,
                 threeTests = w["caps"].orEmpty().split(',').containsAll(listOf("noise", "distances", "eqtest")),
-                pretend = w["pretend"] == "1", real = w["real"], error = null)
+                // a test the drop ended still says so after the link is back by itself; the next test clears it
+                pretend = w["pretend"] == "1", real = w["real"], error = it.error?.takeIf { e -> e == linkLostError })
         }
         val fresh = pendingNew
         pendingNew = null
@@ -238,6 +252,10 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
     fun micGranted(ok: Boolean) = _ui.update { it.copy(needsMic = !ok) }
 
     private val failures = HashMap<Int, CompletableDeferred<String>>()
+    /** The error the TV's or PC's last EQ report gave (or the EQ that could not be sent), so a good one clears it. */
+    private var lastEqError: String? = null
+    /** The message a drop mid-test left, kept when the link comes back by itself. */
+    private var linkLostError: String? = null
     /** When the TV said the clip that is being recorded has ended (0 = not yet). */
     @Volatile private var doneAt = 0L
 
@@ -252,7 +270,12 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 judgeTest()
             }
-            Msg.EQ_STATE -> _ui.update { it.copy(tvEqOn = m["on"] == "1", error = m["error"] ?: it.error) }
+            // a good report clears the EQ error an earlier one left (2.31); any other error stays
+            Msg.EQ_STATE -> {
+                val err = m["error"]
+                _ui.update { it.copy(tvEqOn = m["on"] == "1", error = err ?: it.error.takeIf { e -> e != lastEqError }) }
+                lastEqError = err
+            }
             // the system test: the TV names each speaker as its sweep starts, then "all"
             Msg.PLAYING -> if (m["id"]?.toIntOrNull() == nextId && passing) {
                 val all = m["speaker"] == Msg.ALL
@@ -746,9 +769,25 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Stop: the phone stops listening and the TV or PC stops playing, whatever the test (2.31; quiet also ends a pass). */
     fun stop() {
+        val wasBusy = _ui.value.busy
         job?.cancel()
+        if (wasBusy) link.send(Msg.quiet())
         _ui.update { it.copy(busy = false, playing = null, status = null) }
+    }
+
+    /** The link dropped while a test ran: the test ends now, saving nothing, with the reason. */
+    private fun lostMidTest() {
+        job?.cancel()
+        stopLive(); passing = false
+        val device = _ui.value.device
+        val err = "The connection to the $device was lost. Test again once it is back."
+        linkLostError = err
+        _ui.update {
+            it.copy(busy = false, playing = null, allPlaying = false, status = null, level = null, seat = null, waitingSeat = false, error = err)
+        }
+        Diag.log(ctx, "theatre_link_lost", mapOf("device" to device))
     }
 
     private fun loadCalibration(): Calibration? =
@@ -811,7 +850,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
             val eq = u0.eq?.eq?.sortedBy { it.freqHz }?.takeIf { it.isNotEmpty() } ?: return
             // the flavour plays on top; the plain EQ is kept for the widget, which adds the flavour itself
             val chain = dev.autotune.companionChain(eq, u0.flavour)
-            link.send(Msg.eq(u0.layout.speakers.associateWith { chain }))
+            sendEq(Msg.eq(u0.layout.speakers.associateWith { chain }))
             prefs.edit().putString(CompanionLink.PREF_BASE, dev.autotune.filtersText(eq))
                 .putString(CompanionLink.PREF_SPEAKERS, u0.layout.speakers.joinToString(",") { it.code }).apply()
             Diag.log(ctx, "theatre_eq_sent", mapOf("speakers" to u0.layout.speakers.size, "preampDb" to chain.preampDb, "one" to true, "flavour" to u0.flavour.name))
@@ -821,11 +860,26 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         val withEq = r.speakers.filter { it.heard }
         val pre = withEq.minOfOrNull { EqChain.withSafePreamp(it.eq).preampDb } ?: 0.0
         val chains = r.layout.speakers.associateWith { s -> EqChain(withEq.firstOrNull { it.speaker == s }?.eq.orEmpty().sortedBy { it.freqHz }, pre) }
-        link.send(Msg.eq(chains))
+        sendEq(Msg.eq(chains))
         Diag.log(ctx, "theatre_eq_sent", mapOf("speakers" to chains.size, "preampDb" to pre))
     }
 
-    fun tvEqOff() = link.send(Msg.eqOff())
+    fun tvEqOff() { sendEq(Msg.eqOff()) }
+
+    /**
+     * Sends the EQ (or EQ off) and says so when it cannot go (2.31): with the link closed it connects again first, and
+     * when that fails one line says the EQ was not sent. Before, it was dropped without a word.
+     */
+    private fun sendEq(m: LinkMsg) {
+        if (link.send(m)) return
+        viewModelScope.launch {
+            if (CompanionLink.ensure() && link.send(m)) return@launch
+            val err = "The ${_ui.value.device} is not connected: the EQ was not sent."
+            lastEqError = err
+            _ui.update { it.copy(error = err) }
+            Diag.log(ctx, "theatre_eq_not_sent", mapOf("type" to m.type))
+        }
+    }
 
     /** Forgets the stock reference: the next full test becomes it. */
     fun startOver() {

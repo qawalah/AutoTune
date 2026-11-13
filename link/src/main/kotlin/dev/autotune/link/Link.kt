@@ -17,6 +17,41 @@ const val LINK_VERSION = 1
 const val LINK_PORT = 47810
 const val NSD_TYPE = "_autotune._tcp."
 
+/** How often the phone pings (2.31: it says so in its hello, `ping=`), and how many pings may go unheard. */
+const val PING_SECONDS = 10
+const val SILENT_PINGS = 3
+
+/** How long a side waits for any line before it takes the link as gone: [SILENT_PINGS] ping periods. */
+fun silenceTimeoutMs(pingSeconds: Int): Int = (pingSeconds.coerceAtLeast(1) * SILENT_PINGS * 1000).coerceIn(3_000, 180_000)
+
+/** "192.168.1.20", or "192.168.1.20:47811" when the port is not [LINK_PORT]. */
+fun addressText(host: String, port: Int): String =
+    if (port <= 0 || port == LINK_PORT) host else if (host.contains(':')) "[$host]:$port" else "$host:$port"
+
+/**
+ * An address as typed: "host" or "host:port" ("[v6]:port" for IPv6; a bare IPv6 address keeps [LINK_PORT]). Null when
+ * nothing usable was typed.
+ */
+fun parseAddress(text: String): Pair<String, Int>? {
+    val t = text.trim()
+    if (t.isEmpty()) return null
+    if (t.startsWith("[")) {
+        val end = t.indexOf(']')
+        if (end <= 1) return null
+        val host = t.substring(1, end)
+        val rest = t.substring(end + 1)
+        if (rest.isEmpty()) return host to LINK_PORT
+        val port = rest.removePrefix(":").toIntOrNull()?.takeIf { rest.startsWith(":") && it in 1..65535 } ?: return null
+        return host to port
+    }
+    val colons = t.count { it == ':' }
+    if (colons > 1) return t to LINK_PORT
+    if (colons == 0) return t to LINK_PORT
+    val host = t.substringBefore(':').trim()
+    val port = t.substringAfter(':').trim().toIntOrNull()?.takeIf { it in 1..65535 } ?: return null
+    return if (host.isEmpty()) null else host to port
+}
+
 class LinkMsg(val type: String, val args: Map<String, String> = emptyMap()) {
     operator fun get(key: String): String? = args[key]
 
@@ -54,8 +89,14 @@ object Msg {
     const val EQ = "eq"
     const val EQ_OFF = "eqoff"
     const val BYE = "bye"
-    /** The phone's keep-alive (2.25): no answer is needed; a write that fails shows the link has gone. Ignored by older TVs and PCs. */
+    /**
+     * The phone's keep-alive (2.25), ignored by older TVs and PCs. From 2.31 the TV or PC answers [PONG] and says so in
+     * its welcome's caps ([CAP_PONG]); the phone says how often it pings in its hello (`ping=` seconds).
+     */
     const val PING = "ping"
+    const val PONG = "pong"
+    /** In a welcome's caps: it answers pings (2.31), so silence means the link has gone. */
+    const val CAP_PONG = "pong"
     /** Pink noise on one speaker, looping until [QUIET], for setting its level (2.15). */
     const val NOISE = "noise"
     const val QUIET = "quiet"
@@ -74,7 +115,14 @@ object Msg {
     const val FAILED = "failed"
     const val EQ_STATE = "eqstate"
 
-    fun hello(code: String, phone: String) = LinkMsg(HELLO, mapOf("code" to code, "name" to phone, "v" to "$LINK_VERSION"))
+    /** [pingSeconds]: how often this phone pings (2.31); the TV or PC then drops it after [SILENT_PINGS] silent periods. */
+    fun hello(code: String, phone: String, pingSeconds: Int? = null) = LinkMsg(
+        HELLO,
+        buildMap { put("code", code); put("name", phone); put("v", "$LINK_VERSION"); pingSeconds?.let { put("ping", "$it") } },
+    )
+
+    /** The caps of a welcome, as a set. */
+    fun caps(welcome: LinkMsg): Set<String> = welcome["caps"].orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
     /** What answers the phone: a TV ([KIND_TV]) or a Windows PC ([KIND_PC]). A welcome without a kind is from a TV. */
     const val KIND_TV = "tv"
     const val KIND_PC = "pc"
@@ -179,6 +227,7 @@ object Msg {
     fun eq(chains: Map<Speaker, EqChain>) = LinkMsg(EQ, mapOf("chains" to chainsText(chains)))
     fun eqOff() = LinkMsg(EQ_OFF)
     fun ping() = LinkMsg(PING)
+    fun pong() = LinkMsg(PONG)
     fun eqState(on: Boolean, error: String? = null) =
         LinkMsg(EQ_STATE, buildMap { put("on", if (on) "1" else "0"); error?.let { put("error", it) } })
     fun bye() = LinkMsg(BYE)

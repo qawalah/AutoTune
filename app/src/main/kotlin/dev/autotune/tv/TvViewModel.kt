@@ -3,6 +3,8 @@ package dev.autotune.tv
 import android.app.Application
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.LinkProperties
+import android.net.Network
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
@@ -44,6 +46,8 @@ data class TvUi(
     val code: String = "",
     val tvName: String = "",
     val address: String? = null,
+    /** The port the phone connects to; shown next to the address when it is not the usual one. */
+    val port: Int = -1,
     val probe: OutputProbe? = null,
     /** The paired phone, while it is connected. */
     val phone: String? = null,
@@ -92,12 +96,21 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             Msg.welcome(u.tvName, u.method.name, TvEq.on, u.probe?.output ?: "TV", pretend = u.pretend != null, real = u.real.takeIf { u.pretend != null })
         },
         onMessage = ::handle,
-        onPhone = { name -> _ui.update { it.copy(phone = name, error = if (name != null) null else it.error) } },
+        onPhone = { name ->
+            _ui.update { it.copy(phone = name, error = if (name != null) null else it.error) }
+            // a phone that goes (Disconnect, a dropped link, silence) stops what it started, and the EQ is back (2.31);
+            // the TV's own Play each speaker is left alone
+            if (name == null && eachJob?.isActive != true) stopPlaying()
+        },
         deniedText = "That code is not the one on the TV.",
     )
     private var playJob: Job? = null
     private var eachJob: Job? = null
     private var nsdListener: NsdManager.RegistrationListener? = null
+    @Volatile private var serverPort = -1
+    private var announceTries = 0
+    private var netCallback: ConnectivityManager.NetworkCallback? = null
+    private var reannounce: Job? = null
 
     init {
         val prefs = ctx.getSharedPreferences("autotune_tv", Context.MODE_PRIVATE)
@@ -109,6 +122,38 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         TvEq.restore(ctx)
         _ui.update { it.copy(code = code, tvName = deviceName(), address = ipAddress(), probe = probe, layout = layout, eqOn = TvEq.on, pretend = pretend) }
         startServer()
+        watchNetwork()
+    }
+
+    /**
+     * The address shown and the announcement follow the network (2.31): a TV that started before its Wi-Fi, or got a
+     * new address, is found again.
+     */
+    private fun watchNetwork() {
+        val cm = ctx.getSystemService(ConnectivityManager::class.java) ?: return
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) = networkChanged()
+            override fun onLinkPropertiesChanged(network: Network, lp: LinkProperties) = networkChanged()
+        }
+        if (runCatching { cm.registerDefaultNetworkCallback(cb) }.isSuccess) netCallback = cb
+    }
+
+    @Synchronized
+    private fun networkChanged() {
+        val a = ipAddress()
+        if (a == _ui.value.address) return
+        _ui.update { it.copy(address = a) }
+        val port = serverPort
+        if (a == null || port <= 0) return
+        reannounce?.cancel()
+        reannounce = viewModelScope.launch(Dispatchers.Main) {
+            // the old announcement goes first, and has a moment to go, so the name is not taken twice
+            nsdListener?.let { old -> runCatching { ctx.getSystemService(NsdManager::class.java)?.unregisterService(old) } }
+            nsdListener = null
+            kotlinx.coroutines.delay(1_500)
+            announceTries = 0
+            announce(port)
+        }
     }
 
     private fun deviceName(): String =
@@ -124,16 +169,27 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             val port = runCatching { server.start(LINK_PORT) }.getOrNull()
             if (port == null) { _ui.update { it.copy(error = "Could not open a connection for the phone.") }; return@launch }
-            announce(port)
+            serverPort = port
+            _ui.update { it.copy(port = port) }
+            launch(Dispatchers.Main) { announce(port) }
         }
     }
 
+    /** Announces the TV on the Wi-Fi, replacing an earlier announcement; a failed one is tried again a few times (2.31). */
     private fun announce(port: Int) {
         val nsd = ctx.getSystemService(NsdManager::class.java) ?: return
+        nsdListener?.let { old -> runCatching { nsd.unregisterService(old) } }
+        nsdListener = null
         val info = NsdServiceInfo().apply { serviceName = "AutoTune on ${_ui.value.tvName}"; serviceType = NSD_TYPE; this.port = port }
         val l = object : NsdManager.RegistrationListener {
-            override fun onServiceRegistered(i: NsdServiceInfo) {}
-            override fun onRegistrationFailed(i: NsdServiceInfo, code: Int) {}
+            override fun onServiceRegistered(i: NsdServiceInfo) { announceTries = 0 }
+            override fun onRegistrationFailed(i: NsdServiceInfo, code: Int) {
+                if (nsdListener === this) nsdListener = null
+                if (announceTries++ < 5) viewModelScope.launch(Dispatchers.Main) {
+                    kotlinx.coroutines.delay(5_000L * announceTries)
+                    if (nsdListener == null) announce(port)
+                }
+            }
             override fun onServiceUnregistered(i: NsdServiceInfo) {}
             override fun onUnregistrationFailed(i: NsdServiceInfo, code: Int) {}
         }
@@ -293,6 +349,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     fun eqOff() { viewModelScope.launch(Dispatchers.IO) { setEq(emptyMap()) } }
 
     override fun onCleared() {
+        runCatching { netCallback?.let { ctx.getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(it) } }
         runCatching { nsdListener?.let { ctx.getSystemService(NsdManager::class.java)?.unregisterService(it) } }
         server.close()
         super.onCleared()
