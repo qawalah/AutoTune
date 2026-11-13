@@ -627,6 +627,16 @@ fun exitAsks(step: TuneStep, runCount: Int, keptEq: Boolean): Boolean = step in 
 /** A test's page is finished when an EQ was kept and no round is waiting to be continued (the main key is then not "Continue"). */
 fun testFinished(keptEq: Boolean, resumeStep: TuneStep?): Boolean = keptEq && resumeStep == null
 
+/**
+ * A band fader dragged by [totalDy] pixels from [start] dB along a track [trackPx] long that spans -[range]..+[range] dB:
+ * the move is relative to where the cap was, never a jump to the finger, in half-dB steps and within the range (2.30.2).
+ */
+fun fadeDrag(start: Double, totalDy: Float, trackPx: Float, range: Double): Double {
+    if (trackPx <= 0f) return start
+    val v = start - totalDy / trackPx * 2 * range
+    return (Math.round(v.coerceIn(-range, range) * 2) / 2.0)
+}
+
 /** The closest run to the target after the stock run (index 0), the first one on a tie; null with no run after the stock. */
 fun bestRunIndex(rmsDbs: List<Double>): Int? = (1 until rmsDbs.size).minByOrNull { rmsDbs[it] }
 

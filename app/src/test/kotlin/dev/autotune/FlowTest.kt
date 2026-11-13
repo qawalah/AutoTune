@@ -409,4 +409,15 @@ class FlowTest {
         assertFalse(hasKeptEq(listOf(p), "Other"))
         assertFalse(hasKeptEq(listOf(p), ""))
     }
+
+    @Test
+    fun aFaderMovesByTheDragNotToTheFinger() {
+        // a 152 px track spans 24 dB: 6.33 px per dB, in half-dB steps
+        assertEquals(2.0, fadeDrag(0.0, -12.67f, 152f, 12.0), 0.01)
+        assertEquals(-3.0, fadeDrag(0.0, 19f, 152f, 12.0), 0.01)
+        assertEquals(1.5, fadeDrag(1.5, 0f, 152f, 12.0), 0.0) // touching without moving changes nothing
+        assertEquals(12.0, fadeDrag(10.0, -500f, 152f, 12.0), 0.0) // never past the ends
+        assertEquals(-12.0, fadeDrag(-10.0, 500f, 152f, 12.0), 0.0)
+        assertEquals(4.0, fadeDrag(4.0, -3f, 0f, 12.0), 0.0) // no track, no move
+    }
 }

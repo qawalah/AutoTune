@@ -649,6 +649,14 @@ private fun freqLabel(f: Double): String {
 @Composable
 internal fun GraphicSliders(s: UiState, vm: TuneViewModel, centres: List<Double>, q: Double, locked: Boolean = false) {
     val gains = graphicGains(s.exportChain, centres)
+    // a fader moves only after it is selected with a tap, and then only by dragging it; touching one in passing, or
+    // scrolling over it, changes nothing. The selection lets go after a few seconds, and when the sliders are locked.
+    var selected by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(-1) }
+    var touched by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(selected, touched, locked) {
+        if (locked) selected = -1
+        else if (selected >= 0) { kotlinx.coroutines.delay(4000); selected = -1 }
+    }
     val many = centres.size > 10
     val scroll = androidx.compose.foundation.rememberScrollState()
     val deck = At.c.panel
@@ -701,7 +709,10 @@ internal fun GraphicSliders(s: UiState, vm: TuneViewModel, centres: List<Double>
                             color = if (g < -0.05) At.c.bad else if (g > 0.05) At.c.signal else At.c.muted,
                             maxLines = 1,
                         )
-                        VSlider(g, { vm.graphicSet(centres, q, i, it) }, "${freqLabel(f)} Hz", enabled = !locked)
+                        VSlider(
+                            g, { vm.graphicSet(centres, q, i, it) }, "${freqLabel(f)} Hz", enabled = !locked,
+                            selected = selected == i, onSelect = { selected = i; touched++ }, onTouch = { touched++ },
+                        )
                         Text(freqLabel(f), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
                     }
                 }
@@ -725,21 +736,32 @@ internal fun GraphicSliders(s: UiState, vm: TuneViewModel, centres: List<Double>
 /** How tall the band faders are: taller in landscape, where the EQ fills the screen. */
 val LocalFaderHeight = androidx.compose.runtime.compositionLocalOf { 176.dp }
 
-/** A vertical slider, +12 dB at the top, in half-dB steps. Drag anywhere along it; double-tap-free: tap sets, drag moves. */
+/**
+ * A vertical slider, +12 dB at the top, in half-dB steps. A tap selects it (nothing moves); only a selected slider
+ * follows a drag, by how far the finger moves, so a touch in passing or a scroll over it never changes the EQ.
+ */
 @Composable
-private fun VSlider(value: Double, onChange: (Double) -> Unit, label: String, enabled: Boolean = true) {
+private fun VSlider(
+    value: Double, onChange: (Double) -> Unit, label: String, enabled: Boolean = true,
+    selected: Boolean = false, onSelect: () -> Unit = {}, onTouch: () -> Unit = {},
+) {
     val faderH = LocalFaderHeight.current
     val range = 12.0
     val track = At.c.line
     val fill = (if (value < 0) At.c.bad else At.c.signal).let { if (enabled) it else it.copy(alpha = 0.45f) }
     val zero = At.c.muted
-    val thumb = if (enabled) At.c.text else At.c.muted
+    val thumb = if (!enabled) At.c.muted else if (selected) At.c.signal else At.c.text
     val latest = androidx.compose.runtime.rememberUpdatedState(onChange)
-    fun at(y: Float, h: Float): Double = (Math.round((range - 2 * range * (y / h).coerceIn(0f, 1f)) * 2) / 2.0)
+    val now = androidx.compose.runtime.rememberUpdatedState(value)
+    val touch = androidx.compose.runtime.rememberUpdatedState(onTouch)
+    val pick = androidx.compose.runtime.rememberUpdatedState(onSelect)
     androidx.compose.foundation.Canvas(
         // locked: no touch handling at all, so scrolling past the sliders can never move one
         Modifier.width(48.dp).height(faderH)
-            .then(if (enabled) Modifier.androidx_pointer(latest, ::at).androidx_semantics(label, value, range) { latest.value(it) } else Modifier.semantics { contentDescription = "$label, locked" }),
+            .then(
+                if (enabled) Modifier.androidx_pointer(selected, now, latest, pick, touch, range).androidx_semantics(label, value, range) { latest.value(it) }
+                else Modifier.semantics { contentDescription = "$label, locked" },
+            ),
     ) {
         val cx = size.width / 2
         val pad = 12.dp.toPx()
@@ -773,18 +795,29 @@ private fun Modifier.androidxHorizontalScroll(state: androidx.compose.foundation
     this.then(Modifier.horizontalScroll(state))
 
 private fun Modifier.androidx_pointer(
+    selected: Boolean,
+    value: androidx.compose.runtime.State<Double>,
     latest: androidx.compose.runtime.State<(Double) -> Unit>,
-    at: (Float, Float) -> Double,
+    pick: androidx.compose.runtime.State<() -> Unit>,
+    touch: androidx.compose.runtime.State<() -> Unit>,
+    range: Double,
 ): Modifier = this
-    .pointerInput(Unit) {
-        detectTapGestures { o -> latest.value(at(o.y - 12.dp.toPx(), size.height - 24.dp.toPx())) }
-    }
-    .pointerInput(Unit) {
-        detectVerticalDragGestures { change, _ ->
-            change.consume()
-            latest.value(at(change.position.y - 12.dp.toPx(), size.height - 24.dp.toPx()))
-        }
-    }
+    // a tap only selects; it never sets a value
+    .pointerInput(Unit) { detectTapGestures { pick.value() } }
+    // the drag is only listened to on the selected fader, so an unselected one lets the page scroll past it
+    .then(
+        if (!selected) Modifier
+        else Modifier.pointerInput(Unit) {
+            var start = 0.0
+            var total = 0f
+            detectVerticalDragGestures(onDragStart = { start = value.value; total = 0f }) { change, dy ->
+                change.consume()
+                total += dy
+                touch.value()
+                latest.value(dev.autotune.fadeDrag(start, total, size.height - 24.dp.toPx(), range))
+            }
+        },
+    )
 
 private fun Modifier.androidx_semantics(label: String, value: Double, range: Double, set: (Double) -> Unit): Modifier =
     this.semantics {
