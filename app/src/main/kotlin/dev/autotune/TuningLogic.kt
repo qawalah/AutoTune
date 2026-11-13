@@ -614,6 +614,9 @@ fun tunedRunIndex(rmsDbs: List<Double>, keptIdx: Int): Int? =
     keptIdx.takeIf { it in 1 until rmsDbs.size }
         ?: (1 until rmsDbs.size).minByOrNull { rmsDbs[it] }
 
+/** The closest run to the target after the stock run (index 0), the first one on a tie; null with no run after the stock. */
+fun bestRunIndex(rmsDbs: List<Double>): Int? = (1 until rmsDbs.size).minByOrNull { rmsDbs[it] }
+
 /** Steps worth coming back to after Exit (Set up is asked again; Done is finished). */
 val RESUMABLE = setOf(TuneStep.STOCK, TuneStep.STOCK_RESULT, TuneStep.APPLY, TuneStep.VERIFY, TuneStep.RESULT)
 

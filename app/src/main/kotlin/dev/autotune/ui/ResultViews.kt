@@ -34,7 +34,9 @@ import dev.autotune.moveLabel
 fun ResultSummary(s: UiState, namesTest: Boolean = true) {
     val runs = s.runs
     val stock = runs.firstOrNull() ?: return
-    val latest = runs.last()
+    // while tuning the sheet leads with the latest run; on a finished test's own page it leads with the focus run, which opens on
+    // the best one (2.30.2: it said "Run 2 vs stock" with Run 1 better in dB and in score)
+    val latest = if (namesTest) runs.last() else s.selectedRuns.filter { it in runs.indices }.maxOrNull()?.takeIf { it > 0 }?.let { runs[it] } ?: runs.last()
     // the readings sit on the deck, so their tints are the deck's (the body's green and amber are made for the dark body)
     val c = deckColors
     val targets = dev.autotune.dsp.Target.ALL

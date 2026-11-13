@@ -912,6 +912,14 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         refreshView()
     }
 
+    /** A finished test opens on its best run (the closest to the target): stock plus that run are drawn and lead the result. */
+    fun selectBestRun() {
+        val t = current ?: return
+        val best = bestRunIndex(t.runs.map { it.rmsDb }) ?: return
+        state.update { it.copy(selectedRuns = setOf(0, best)) }
+        refreshView()
+    }
+
     /** All runs, or just the stock run plus the latest one. */
     fun selectRuns(all: Boolean) {
         val t = current ?: return

@@ -8,6 +8,7 @@ Everything below is untested on a real device and microphone unless stated.
 ### Fixed
 Found by a first-time-user walk-through on the JVM with a pretend car (`tools/walk/`), then checked against the code.
 - **The Tuned card shows the run that is in use.** After "Keep this EQ and finish" on a later round it showed the run with the lowest dB, while the EQ on (and the Tests list) was the kept run.
+- **A finished test opens on its best run.** The test's results page led with the latest run ("Run 2 vs stock") even when an earlier run was closer in dB and score. It now opens on the best run, the graph draws stock and that run, and ticking another run still moves the lead. While tuning, the Result step still shows the latest.
 - **Finishing keeps the closer run.** The 0.3 dB margin only decides whether another round is worth it. With Run 1 at 3.8 dB and Run 2 at 4.0 dB the pinned key said "Keep this EQ and finish" for Run 2, which was worse in dB and in score; it now says "Keep the EQ of Run 1 and finish".
 - **Continue is no longer left under the "more below" fade.** With a finished tune on the Tune screen the dial gives way, so the card and Continue fit.
 - **The Tune screen says "Phone microphone" before the microphone is allowed**, not "USB microphone: Phone microphone", and offers Allow microphone under it.

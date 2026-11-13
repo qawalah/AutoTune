@@ -390,7 +390,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                             }
                         } else when (d.tab) {
                             Tab.TESTS -> TestsTab(
-                                s, vm, { id -> vm.openTest(id); openResults() }, continueTest = { id -> vm.openTest(id); vm.tuneContinue(); go(Tab.MEASURE) },
+                                s, vm, { id -> vm.openTest(id); vm.selectBestRun(); openResults() }, continueTest = { id -> vm.openTest(id); vm.tuneContinue(); go(Tab.MEASURE) },
                                 openTheatre = { id -> theatreOpen = id; go(Tab.THEATRE) },
                                 openCompanion = { go(Tab.THEATRE) },
                             )

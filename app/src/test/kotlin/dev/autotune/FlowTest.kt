@@ -379,4 +379,12 @@ class FlowTest {
         // the latest being the closer one is unchanged
         assertEquals(NextMove.KEEP_LATEST, recommendNext(listOf(r("Stock", 6.0), r("Run 1", 2.6), r("Run 2", 2.5)), false).move)
     }
+
+    @Test
+    fun aFinishedTestOpensOnItsBestRun() {
+        assertEquals(1, bestRunIndex(listOf(6.0, 3.8, 4.0))) // Run 1 beats Run 2, the stock run is never "best"
+        assertEquals(2, bestRunIndex(listOf(6.0, 4.0, 3.8)))
+        assertEquals(1, bestRunIndex(listOf(6.0, 3.8, 3.8))) // a tie keeps the earlier run
+        assertEquals(null, bestRunIndex(listOf(6.0)))
+    }
 }
