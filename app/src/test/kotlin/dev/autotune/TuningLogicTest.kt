@@ -718,6 +718,23 @@ class ConvergenceTest {
         org.junit.Assert.assertEquals("1.2 kHz", cursorFreqText(1234.0))
     }
 
+    /** 2026-11-13: the bubble near the left edge was cut off ("after Run 4 (not applied yet)" with its name lost). */
+    @Test
+    fun theCursorBubbleStaysInsideTheChart() {
+        // room on the right: right of the line
+        assertEquals(108f, bubbleX(100f, 120f, 400f, 8f), 0.001f)
+        // no room on the right: left of the line
+        assertEquals(272f, bubbleX(390f, 110f, 400f, 8f), 0.001f)
+        // no room on either side: held to the left edge, never cut off there
+        assertEquals(0f, bubbleX(150f, 300f, 400f, 8f), 0.001f)
+        // wider than the chart: starts at the left edge
+        assertEquals(0f, bubbleX(150f, 500f, 400f, 8f), 0.001f)
+        for (cx in 0..400 step 10) {
+            val x = bubbleX(cx.toFloat(), 180f, 400f, 8f)
+            org.junit.Assert.assertTrue(x >= 0f && x + 180f <= 400f)
+        }
+    }
+
     /** 2026-11-12: a phone-speaker reading that clipped failed as "Bluetooth dropped out". Causes come in order. */
     @Test
     fun aTimingShiftIsOnlyBlamedOnBluetoothOverBluetooth() {

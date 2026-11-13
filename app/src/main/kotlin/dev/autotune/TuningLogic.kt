@@ -876,6 +876,15 @@ fun levelAt(freqs: DoubleArray, values: DoubleArray, f: Double): Double {
 }
 
 /** The cursor's frequency as the chart says it: "63 Hz", "1.2 kHz". */
+/**
+ * Where the cursor's bubble starts on a chart whose plot ends at [right]: right of the line at [cx] when it fits there,
+ * else left of it, and never past either edge, so its text is never cut off.
+ */
+fun bubbleX(cx: Float, width: Float, right: Float, gap: Float): Float {
+    val x = if (cx + gap + width < right) cx + gap else cx - gap - width
+    return x.coerceIn(0f, (right - width).coerceAtLeast(0f))
+}
+
 fun cursorFreqText(f: Double): String =
     if (f >= 1000) String.format(java.util.Locale.US, "%.1f kHz", f / 1000) else String.format(java.util.Locale.US, "%.0f Hz", f)
 

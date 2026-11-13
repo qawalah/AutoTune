@@ -71,6 +71,8 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
     // ---- level
     Panel {
         if (level != null) {
+            // the reading on the LCD in the Concept look, like every other reading
+            LcdWindow {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text("%.1f".format(level.rmsDb), style = MaterialTheme.typography.displayLarge)
                 Text(" dBFS", Modifier.padding(bottom = 10.dp), style = MaterialTheme.typography.bodyMedium, color = At.c.muted)
@@ -86,7 +88,8 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
                     }
                 }
             }
-            Box(Modifier.fillMaxWidth().height(8.dp).clip(MaterialTheme.shapes.extraSmall).background(At.c.panelHigh)) {
+            }
+            Box(Modifier.fillMaxWidth().height(8.dp).fieldFace(MaterialTheme.shapes.extraSmall)) {
                 val frac = ((level.rmsDb + 80.0) / 80.0).toFloat().coerceIn(0f, 1f)
                 Box(
                     Modifier.fillMaxWidth(frac).height(8.dp).clip(MaterialTheme.shapes.extraSmall)

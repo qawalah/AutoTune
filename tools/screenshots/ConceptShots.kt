@@ -71,7 +71,8 @@ class ConceptShots {
     @Composable private fun Frame(dark: Boolean, look: Look = Look.CONCEPT, nav: Tab = Tab.MEASURE, content: @Composable () -> Unit) {
         AutoTuneTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, look) {
             val slot = androidx.compose.runtime.remember { PinSlot() }
-            androidx.compose.runtime.CompositionLocalProvider(LocalPin provides slot) {
+            // inspection mode draws every screen at rest (animationsOn() is false), so nothing is caught mid-arrival
+            androidx.compose.runtime.CompositionLocalProvider(LocalPin provides slot, androidx.compose.ui.platform.LocalInspectionMode provides true) {
                 androidx.compose.material3.Surface(color = At.c.bg, contentColor = At.c.text) {
                     Column(Modifier.fillMaxSize().background(At.c.bg)) {
                         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) { content() }

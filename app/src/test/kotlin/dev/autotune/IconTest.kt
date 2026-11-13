@@ -51,6 +51,21 @@ class IconTest {
         assertNotEquals(Tab.MEASURE.icon, Tab.SETTINGS.icon)
     }
 
+    /** 2.30.0 (owner: "make it like the windows icon"): the mark's scale runs 270°, open at the bottom, round the top. */
+    @Test
+    fun theMarksScaleIsOpenAtTheBottom() {
+        for (n in listOf(7, 11)) {
+            val ticks = dev.autotune.ui.knobMarkTicks(n)
+            assertEquals(n, ticks.size)
+            assertEquals(270f, ticks.last() - ticks.first(), 1e-3f)
+            // symmetric round the top, and nothing in the bottom quarter
+            assertEquals(-90f, (ticks.first() + ticks.last()) / 2, 1e-3f)
+            ticks.forEach { d -> val a = Math.toRadians(d.toDouble()); assertTrue("tick at $d in the gap", !(Math.sin(a) > 0.72 && Math.abs(Math.cos(a)) < 0.69)) }
+        }
+        // the dot rests inside the scale, where the knob turns up to
+        assertTrue(KNOB_POINTER_DEG in dev.autotune.ui.KNOB_SCALE_START_DEG..dev.autotune.ui.knobMarkTicks(11).last())
+    }
+
     @Test
     fun theKnobsScaleSitsOverItsUpperHalf() {
         val ticks = knobTicks()

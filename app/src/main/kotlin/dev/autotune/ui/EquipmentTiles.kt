@@ -66,8 +66,12 @@ fun PictureKey(
     val shape = MaterialTheme.shapes.medium
     val ink = if (on) c.signal else c.text
     Column(
-        modifier.settleIn().heightIn(min = minHeight).clip(shape).background(c.panelHigh)
-            .border(if (on) 2.dp else 1.dp, if (on) c.signal else c.line, shape)
+        modifier.settleIn().heightIn(min = minHeight)
+            .then(
+                // the Concept look: a raised plastic key, pressed in when chosen (its drawing in the accent)
+                if (c.soft) Modifier.keyFace(MaterialTheme.shapes.large, down = on)
+                else Modifier.clip(shape).background(c.panelHigh).border(if (on) 2.dp else 1.dp, if (on) c.signal else c.line, shape),
+            )
             .selectable(selected = on, enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -177,7 +181,9 @@ fun EquipmentBadge(e: Equipment, modifier: Modifier = Modifier) {
     val c = At.c
     val shape = MaterialTheme.shapes.small
     androidx.compose.foundation.layout.Box(
-        modifier.size(64.dp, 40.dp).clip(shape).background(c.panelHigh).border(1.dp, c.line, shape).padding(horizontal = 5.dp, vertical = 5.dp),
+        modifier.size(64.dp, 40.dp)
+            .then(if (c.soft) Modifier.fieldFace(shape) else Modifier.clip(shape).background(c.panelHigh).border(1.dp, c.line, shape))
+            .padding(horizontal = 5.dp, vertical = 5.dp),
     ) { Canvas(Modifier.fillMaxSize()) { drawEquipment(e, c.text) } }
 }
 

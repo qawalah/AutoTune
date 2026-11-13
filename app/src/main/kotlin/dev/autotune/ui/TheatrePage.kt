@@ -142,14 +142,14 @@ private fun Connect(u: TheatreUi, vm: TheatreViewModel) {
             value = code, onValueChange = { v -> code = v.filter { it.isDigit() }.take(4) },
             label = { Text("Code on its screen") }, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
+            modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(), colors = atFieldColors(), shape = atFieldShape(),
         )
         Adv {
             OutlinedTextField(
                 value = address, onValueChange = { address = it.trim() },
                 label = { Text("Address (when it is not found)") }, placeholder = { Text("192.168.1.20") }, singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
+                modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(), colors = atFieldColors(), shape = atFieldShape(),
             )
         }
     }
@@ -494,7 +494,7 @@ private fun NameDialog(title: String, start: String, onDone: (String) -> Unit, o
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onCancel,
         title = { Text(title) },
-        text = { OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true, placeholder = { Text("Living room 5.1") }, modifier = Modifier.fillMaxWidth()) },
+        text = { OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true, placeholder = { Text("Living room 5.1") }, modifier = Modifier.fillMaxWidth(), colors = atFieldColors(), shape = atFieldShape()) },
         confirmButton = { androidx.compose.material3.TextButton(onClick = { onDone(text) }) { Text("Save") } },
         dismissButton = { androidx.compose.material3.TextButton(onClick = onCancel) { Text("Cancel") } },
     )
@@ -599,7 +599,7 @@ private fun RunsDetails(u: TheatreUi, vm: TheatreViewModel) {
         var note by rememberSaveable(t.id) { mutableStateOf(t.last(RunKind.EQ)?.note.orEmpty()) }
         if (t.last(RunKind.EQ) != null) OutlinedTextField(
             value = note, onValueChange = { note = it; vm.setNote(RunKind.EQ, it) }, singleLine = true,
-            label = { Text("Note on the last EQ run") }, modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
+            label = { Text("Note on the last EQ run") }, modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(), colors = atFieldColors(), shape = atFieldShape(),
         )
     }
     u.distances?.let { d ->

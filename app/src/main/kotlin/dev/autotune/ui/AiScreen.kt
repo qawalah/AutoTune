@@ -72,7 +72,7 @@ fun AiKeySetup(a: AiUi, vm: TuneViewModel) {
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { if (key.isNotBlank()) { vm.aiSaveKey(key); key = "" } }),
-                modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
+                modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(), colors = atFieldColors(), shape = atFieldShape(),
             )
             PrimaryButton("Save the key", { vm.aiSaveKey(key); key = "" }, enabled = key.length > 10, icon = Ic.SAVE)
         }
@@ -274,7 +274,7 @@ private fun Chat(a: AiUi, vm: TuneViewModel) {
                 value = q, onValueChange = { q = it }, placeholder = { Text("e.g. why is 63 Hz still high?") },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { if (q.isNotBlank() && !a.asking) { vm.aiAsk(q); q = "" } }),
-                modifier = Modifier.weight(1f).bringIntoViewOnFocus(), maxLines = 4,
+                modifier = Modifier.weight(1f).bringIntoViewOnFocus(), maxLines = 4, colors = atFieldColors(), shape = atFieldShape(),
             )
             IconAction(Ic.SEND, "Send") { if (q.isNotBlank() && !a.asking) { vm.aiAsk(q); q = "" } }
         }

@@ -90,7 +90,7 @@ fun TestsTab(
             onDismissRequest = { renameId = null },
             title = { Text("Rename") },
             text = {
-                OutlinedTextField(value = renameText, onValueChange = { renameText = it }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = renameText, onValueChange = { renameText = it }, singleLine = true, modifier = Modifier.fillMaxWidth(), colors = atFieldColors(), shape = atFieldShape())
             },
             confirmButton = { TextButton(onClick = { vm.renameTest(id, renameText); renameId = null }) { Text("Save") } },
             dismissButton = { TextButton(onClick = { renameId = null }) { Text("Cancel") } },
@@ -188,7 +188,7 @@ private fun TestRow(t: TestSummary, isOpen: Boolean, onOpen: () -> Unit, onConti
         var menu by remember { mutableStateOf(false) }
         Box {
             IconAction(Ic.MORE, "Actions for ${t.name}") { menu = true }
-            androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            AtMenu(expanded = menu, onDismiss = { menu = false }) {
                 androidx.compose.material3.DropdownMenuItem(text = { Text("Open results") }, leadingIcon = { AtIcon(Ic.TESTS, At.c.muted) }, onClick = { menu = false; onOpen() })
                 androidx.compose.material3.DropdownMenuItem(text = { Text("Continue tuning") }, leadingIcon = { AtIcon(Ic.TUNE, At.c.muted) }, onClick = { menu = false; onContinue() })
                 androidx.compose.material3.DropdownMenuItem(text = { Text("Rename") }, leadingIcon = { AtIcon(Ic.EDIT, At.c.muted) }, onClick = { menu = false; onRename() })
@@ -327,7 +327,7 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
             OutlinedTextField(
                 value = targetName, onValueChange = { targetName = it }, singleLine = true,
                 label = { Text("Name") }, placeholder = { Text("e.g. My car sound") },
-                modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
+                modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(), colors = atFieldColors(), shape = atFieldShape(),
             )
             TextAction("Save ${focusLabel ?: "latest run"} as a target", { vm.saveRunAsTarget(targetName.ifBlank { "My curve" }); targetName = "" }, icon = Ic.CURVE)
         }
@@ -337,7 +337,7 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
                 value = s.testNotes, onValueChange = vm::setTestNotes,
                 label = { Text("About this setup") },
                 placeholder = { Text("Seat, mic spot, amp gain, what was installed") },
-                modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
+                modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(), colors = atFieldColors(), shape = atFieldShape(),
             )
         }
             }
@@ -366,7 +366,7 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
         AlertDialog(
             onDismissRequest = { rename = false },
             title = { Text("Rename test") },
-            text = { OutlinedTextField(value = renameText, onValueChange = { renameText = it }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+            text = { OutlinedTextField(value = renameText, onValueChange = { renameText = it }, singleLine = true, modifier = Modifier.fillMaxWidth(), colors = atFieldColors(), shape = atFieldShape()) },
             confirmButton = { TextButton(onClick = { s.currentTestId?.let { id -> vm.renameTest(id, renameText) }; rename = false }) { Text("Save") } },
             dismissButton = { TextButton(onClick = { rename = false }) { Text("Cancel") } },
         )

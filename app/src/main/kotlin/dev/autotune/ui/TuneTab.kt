@@ -228,13 +228,13 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
                     value = equipName, onValueChange = { equipName = it },
                     label = { Text("Equipment name") }, placeholder = { Text("e.g. " + equipNamePlaceholder(equipment, s.outputName)) },
                     singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
+                    modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(), colors = atFieldColors(), shape = atFieldShape(),
                 )
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
                     label = { Text("Test name (optional)") }, placeholder = { Text(namePlaceholder(equipment)) },
                     singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
+                    modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(), colors = atFieldColors(), shape = atFieldShape(),
                 )
             }
             // with AutoTune on the TV or PC this is the last screen: a new home theatre with these names
@@ -570,7 +570,7 @@ private fun RunNote(s: UiState, vm: TuneViewModel) {
         OutlinedTextField(
             value = s.runNote, onValueChange = vm::setRunNote,
             label = { Text("Note for the next run") }, placeholder = { Text("e.g. tweeters down 2 dB") },
-            singleLine = true, modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(),
+            singleLine = true, modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(), colors = atFieldColors(), shape = atFieldShape(),
         )
     } else Actions { TextAction("Add a note to the next run", { note = true }, icon = Ic.EDIT) }
 }

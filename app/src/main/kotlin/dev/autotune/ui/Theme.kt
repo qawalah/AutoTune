@@ -71,18 +71,15 @@ class AtColors(
     val lcd: Color? = null,
     /** The figures on the [lcd]. */
     val lcdInk: Color = text,
-    /** The colours inside a dark screen, where the graphs are drawn ([ScreenWindow]); null draws them on the deck. */
-    val screen: AtColors? = null,
 ) {
     fun copy(
         dark: Boolean = this.dark, bg: Color = this.bg, panel: Color = this.panel, panelHigh: Color = this.panelHigh,
         line: Color = this.line, text: Color = this.text, muted: Color = this.muted, signal: Color = this.signal,
         onSignal: Color = this.onSignal, target: Color = this.target, shell: Color = this.shell, onShell: Color = this.onShell,
         onShellMuted: Color = this.onShellMuted, deck: AtColors? = this.deck, edge: List<Color>? = this.edge,
-        screen: AtColors? = this.screen,
     ) = AtColors(
         dark, bg, panel, panelHigh, line, text, muted, signal, onSignal, good, warn, bad, target, runs,
-        shell, onShell, onShellMuted, teak, alu, deck, edge, soft, lcd, lcdInk, screen,
+        shell, onShell, onShellMuted, teak, alu, deck, edge, soft, lcd, lcdInk,
     )
 }
 
@@ -255,19 +252,9 @@ private val GradientLight = BraunLight.copy(edge = EdgeDay, deck = BraunDeckLigh
 private val GradientDark = BraunDark.copy(edge = EdgeNight, deck = BraunDeckDark.copy(edge = EdgeNight))
 
 // Concept: a family of small off-white devices (Braun's later concept objects). Soft plastic plates and keys with large
-// corners and soft shading, fields pressed in, round orange keys, the readings on a grey LCD and the graphs on a dark
-// screen. No decks of another colour: plates and body are the same plastic, the body a shade darker. At night the
+// corners and soft shading, fields pressed in, round orange keys and the readings on a grey LCD; the graphs stay on
+// the plate (the owner found a black graph no good, 2026-11-13). No decks of another colour: plates and body are the same plastic, the body a shade darker. At night the
 // plastic is graphite and the LCD dimmed, so nothing glares in a car.
-private val ConceptScreen = AtColors(
-    dark = true,
-    bg = Color(0xFF151514), panel = Color(0xFF151514), panelHigh = Color(0xFF242422), line = Color(0xFF393936),
-    text = Color(0xFFEDECE8), muted = Color(0xFF9E9D97),
-    signal = Color(0xFFFF6A2B), onSignal = Color(0xFF1A0A03),
-    good = Color(0xFF6CB866), warn = Color(0xFFE9C14A), bad = Color(0xFFFF6B5E),
-    target = Color(0xFFB9B8B2), runs = BraunRunsDark,
-    soft = true,
-)
-
 private val ConceptLight = AtColors(
     dark = false,
     bg = Color(0xFFE8E7E3), panel = Color(0xFFF2F1EE), panelHigh = Color(0xFFDEDDD8), line = Color(0xFFCFCEC8),
@@ -277,7 +264,7 @@ private val ConceptLight = AtColors(
     target = Color(0xFF252523), runs = BraunRunsLight,
     shell = Color(0xFFEEEDEA), onShell = Color(0xFF252523), onShellMuted = Color(0xFF57564F),
     alu = Color(0xFFC9C8C3),
-    soft = true, lcd = Color(0xFFC6C8C0), lcdInk = Color(0xFF20221E), screen = ConceptScreen,
+    soft = true, lcd = Color(0xFFC6C8C0), lcdInk = Color(0xFF20221E),
 )
 
 private val ConceptDark = AtColors(
@@ -289,7 +276,7 @@ private val ConceptDark = AtColors(
     target = Color(0xFFECEAE4), runs = BraunRunsDark,
     shell = Color(0xFF252523), onShell = Color(0xFFECEAE4), onShellMuted = Color(0xFFADABA4),
     alu = Color(0xFF55554F),
-    soft = true, lcd = Color(0xFF262823), lcdInk = Color(0xFFDADDD0), screen = ConceptScreen,
+    soft = true, lcd = Color(0xFF262823), lcdInk = Color(0xFFDADDD0),
 )
 
 /** The colours of [l] in its dark or light version. Run colours stay far from each look's accent. */
@@ -372,7 +359,7 @@ fun AtColors.withAccent(a: dev.autotune.Accent): AtColors {
     if (a == dev.autotune.Accent.LOOK) return this
     val sig = Color(if (dark) a.dark else a.light)
     val on = Color(if (dark) a.onDark else a.onLight)
-    return copy(signal = sig, onSignal = on, deck = deck?.withAccent(a), screen = screen?.withAccent(a))
+    return copy(signal = sig, onSignal = on, deck = deck?.withAccent(a))
 }
 
 private fun Color.argb(): Long = toArgb().toLong() and 0xFFFFFFFFL
@@ -423,10 +410,8 @@ fun AtColors.withPalette(p: Palette): AtColors {
     fun col(s: PaletteSlot) = p[s]?.let { Color(it) }
     val body = col(PaletteSlot.BODY); val plate = col(PaletteSlot.DECK); val ink = col(PaletteSlot.INK)
     val rule = col(PaletteSlot.RULE); val accent = col(PaletteSlot.ACCENT)
-    // the dark screen keeps its own colours; only the accent follows the palette
-    val scr = if (accent != null) screen?.copy(signal = accent, onSignal = Color(onAccent(accent.argb()))) else screen
-    val d = deck ?: return recolour(Ground.BOTH, body, plate, ink, rule, accent).copy(screen = scr)
-    return recolour(Ground.BODY, body, null, ink, rule, accent).copy(deck = d.recolour(Ground.DECK, null, plate, ink, rule, accent), screen = scr)
+    val d = deck ?: return recolour(Ground.BOTH, body, plate, ink, rule, accent)
+    return recolour(Ground.BODY, body, null, ink, rule, accent).copy(deck = d.recolour(Ground.DECK, null, plate, ink, rule, accent))
 }
 
 /** The Material colours for a palette, so drop-downs, dialogs and menus match the body or the deck they sit on. */

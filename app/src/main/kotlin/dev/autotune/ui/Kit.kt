@@ -192,20 +192,23 @@ fun gearTeeth(n: Int = 8, inner: Float = GEAR_BODY_R - 0.8f, outer: Float = 9.7f
 
 @Composable
 fun AtIcon(kind: Ic, tint: Color, modifier: Modifier = Modifier, size: Dp = 24.dp) {
-    Canvas(modifier.size(size)) { drawIc(kind, tint) }
+    // the Concept look draws its lines with round ends and corners, like its moulded plastic
+    val round = At.c.soft
+    Canvas(modifier.size(size)) { drawIcAt(kind, tint, this.size.width, round) }
 }
 
 /** Draws [kind] into this scope, which is treated as the icon's 24-unit square. */
 fun DrawScope.drawIc(kind: Ic, tint: Color) = drawIcAt(kind, tint, size.width)
 
-/** Draws [kind] at [px] square from this scope's origin. */
-fun DrawScope.drawIcAt(kind: Ic, tint: Color, px: Float) {
+/** Draws [kind] at [px] square from this scope's origin; [round] gives every line round ends and corners (the Concept look). */
+fun DrawScope.drawIcAt(kind: Ic, tint: Color, px: Float, round: Boolean = false) {
     val u = px / 24f
     val sw = 1.8f * u
-    val flat = Stroke(sw, cap = StrokeCap.Butt, join = androidx.compose.ui.graphics.StrokeJoin.Miter)
+    val end = if (round) StrokeCap.Round else StrokeCap.Butt
+    val flat = Stroke(sw, cap = end, join = if (round) androidx.compose.ui.graphics.StrokeJoin.Round else androidx.compose.ui.graphics.StrokeJoin.Miter)
     val soft = Stroke(sw, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
     fun p(x: Float, y: Float) = Offset(x * u, y * u)
-    fun seg(x1: Float, y1: Float, x2: Float, y2: Float) = drawLine(tint, p(x1, y1), p(x2, y2), sw, StrokeCap.Butt)
+    fun seg(x1: Float, y1: Float, x2: Float, y2: Float) = drawLine(tint, p(x1, y1), p(x2, y2), sw, end)
     fun poly(vararg xy: Float, closed: Boolean = false, round: Boolean = false) {
         val path = androidx.compose.ui.graphics.Path()
         var i = 0
@@ -217,7 +220,8 @@ fun DrawScope.drawIcAt(kind: Ic, tint: Color, px: Float) {
     fun dot(cx: Float, cy: Float, r: Float) = drawCircle(tint, r * u, p(cx, cy))
     fun box(x: Float, y: Float, w: Float, h: Float, r: Float = 1.5f) =
         drawRoundRect(tint, p(x, y), Size(w * u, h * u), androidx.compose.ui.geometry.CornerRadius(r * u), style = flat)
-    fun cap(x: Float, y: Float, w: Float, h: Float) = drawRect(tint, p(x, y), Size(w * u, h * u))
+    fun cap(x: Float, y: Float, w: Float, h: Float) =
+        if (round) drawRoundRect(tint, p(x, y), Size(w * u, h * u), androidx.compose.ui.geometry.CornerRadius(1.2f * u)) else drawRect(tint, p(x, y), Size(w * u, h * u))
     fun wave(x0: Float, x1: Float, y: Float, amp: Float, periods: Float) {
         val path = androidx.compose.ui.graphics.Path()
         val n = 64
@@ -233,7 +237,7 @@ fun DrawScope.drawIcAt(kind: Ic, tint: Color, px: Float) {
         val a = Math.toRadians(deg.toDouble())
         return p(cx + r * kotlin.math.cos(a).toFloat(), cy + r * kotlin.math.sin(a).toFloat())
     }
-    fun ray(cx: Float, cy: Float, r0: Float, r1: Float, deg: Float) = drawLine(tint, polar(cx, cy, r0, deg), polar(cx, cy, r1, deg), sw, StrokeCap.Butt)
+    fun ray(cx: Float, cy: Float, r0: Float, r1: Float, deg: Float) = drawLine(tint, polar(cx, cy, r0, deg), polar(cx, cy, r1, deg), sw, end)
     fun oval(x: Float, y: Float, w: Float, h: Float) = androidx.compose.ui.graphics.Path().apply { addOval(androidx.compose.ui.geometry.Rect(x * u, y * u, (x + w) * u, (y + h) * u)) }
     fun circlePath(cx: Float, cy: Float, r: Float) = oval(cx - r, cy - r, 2 * r, 2 * r)
     fun outline(a: androidx.compose.ui.graphics.Path, b: androidx.compose.ui.graphics.Path, op: androidx.compose.ui.graphics.PathOperation) {
@@ -244,31 +248,18 @@ fun DrawScope.drawIcAt(kind: Ic, tint: Color, px: Float) {
 
     when (kind) {
         // ---- the tabs: a record, the fader strip, the tuning knob, level bars, a gear
-        Ic.TESTS -> { // a record on the platter, the tonearm resting on it
-            ring(10f, 14f, 7.5f); dot(10f, 14f, 1.5f)
-            dot(19.5f, 4f, 1.7f); poly(19.5f, 4f, 19.5f, 11f, 14.8f, 15.7f)
+        Ic.TESTS -> { // a record: its edge, the label round the spindle, and the tonearm from its pivot resting in the groove
+            ring(10f, 14f, 7.5f); ring(10f, 14f, 2.6f); dot(10f, 14f, 0.9f)
+            dot(19.5f, 3.8f, 1.7f); poly(19.5f, 3.8f, 19.5f, 11.5f, 15.2f, 16.2f)
         }
         Ic.EQ -> { // three fader slots with square caps
             seg(6f, 3f, 6f, 21f); seg(12f, 3f, 12f, 21f); seg(18f, 3f, 18f, 21f)
             cap(3f, 13.2f, 6f, 3.6f); cap(9f, 6.2f, 6f, 3.6f); cap(15f, 10.2f, 6f, 3.6f)
         }
-        Ic.TUNE -> { // a Braun radio's tuning knob: the ridged knob with its pointer cut in, a short scale over it
-            val knob = androidx.compose.ui.graphics.Path()
-            knobEdge(KNOB_CX, KNOB_CY, KNOB_R).forEachIndexed { i, (x, y) -> if (i == 0) knob.moveTo(x * u, y * u) else knob.lineTo(x * u, y * u) }
-            knob.close()
-            val slot = androidx.compose.ui.graphics.Path()
-            val ends = listOf(KNOB_POINTER_DEG - 90f, KNOB_POINTER_DEG + 90f)
-            val a = polar(KNOB_CX, KNOB_CY, 1.4f, KNOB_POINTER_DEG); val b = polar(KNOB_CX, KNOB_CY, KNOB_R - 1.1f, KNOB_POINTER_DEG)
-            val half = 0.95f * u
-            ends.forEachIndexed { i, d ->
-                val r = Math.toRadians(d.toDouble())
-                val off = Offset(half * kotlin.math.cos(r).toFloat(), half * kotlin.math.sin(r).toFloat())
-                if (i == 0) { slot.moveTo(a.x + off.x, a.y + off.y); slot.lineTo(b.x + off.x, b.y + off.y) }
-                else { slot.lineTo(b.x + off.x, b.y + off.y); slot.lineTo(a.x + off.x, a.y + off.y); slot.close() }
-            }
-            val cut = androidx.compose.ui.graphics.Path(); cut.op(knob, slot, androidx.compose.ui.graphics.PathOperation.Difference)
-            drawPath(cut, tint)
-            knobTicks().forEach { d -> ray(KNOB_CX, KNOB_CY, 9.2f, 10.8f, d) }
+        Ic.TUNE -> { // the app's mark, as the Windows app draws it: the knob's ring, its scale open at the bottom, the index dot
+            drawCircle(tint, 9.6f * u, p(12f, 12f), style = Stroke(sw * 1.5f))
+            knobMarkTicks(7).forEach { ray(12f, 12f, 5.6f, 7.4f, it) }
+            drawCircle(tint, 1.9f * u, polar(12f, 12f, 3.2f, KNOB_POINTER_DEG))
         }
         Ic.LIVE -> { // a slot grille of level bars
             seg(4f, 20.5f, 4f, 14f); seg(8f, 20.5f, 8f, 8.5f); seg(12f, 20.5f, 12f, 4f); seg(16f, 20.5f, 16f, 10f); seg(20f, 20.5f, 20f, 13f)
@@ -567,8 +558,11 @@ private fun AlertsLine(items: List<String>, onOpen: () -> Unit) {
     val open = onOpen
     // a key-grey line with a hairline edge, like the other keys: no tinted fill; the warn colour stays on the icon
     Row(
-        Modifier.fillMaxWidth().settleIn().heightIn(min = 44.dp).clip(MaterialTheme.shapes.medium).background(At.c.panelHigh)
-            .border(1.dp, At.c.line, MaterialTheme.shapes.medium)
+        Modifier.fillMaxWidth().settleIn().heightIn(min = 44.dp)
+            .then(
+                if (At.c.soft) Modifier.keyFace(MaterialTheme.shapes.medium)
+                else Modifier.clip(MaterialTheme.shapes.medium).background(At.c.panelHigh).border(1.dp, At.c.line, MaterialTheme.shapes.medium),
+            )
             .clickable(role = Role.Button, onClickLabel = "Read the notes") { open() }.padding(start = 12.dp, end = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -624,12 +618,13 @@ fun ModeSwitch() {
                 AtIcon(Ic.CHEVRON_DOWN, At.c.muted, Modifier.padding(start = 4.dp), size = 16.dp)
             }
         }
-        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.widthIn(min = 220.dp)) {
+        AtMenu(expanded = open, onDismiss = { open = false }, modifier = Modifier.widthIn(min = 220.dp)) {
             listOf(false to ("Simple" to "Less text, the main choices"), true to ("Advanced" to "Every option and explanation")).forEach { (adv, t) ->
                 androidx.compose.material3.DropdownMenuItem(
                     text = {
                         Column(Modifier.padding(vertical = 4.dp)) {
-                            Text(t.first, style = MaterialTheme.typography.bodyLarge, color = if (adv == mode.advanced) At.c.signal else At.c.text)
+                            val (col, wt) = optionStyle(adv == mode.advanced)
+                            Text(t.first, style = MaterialTheme.typography.bodyLarge, color = col, fontWeight = wt)
                             Text(t.second, style = MaterialTheme.typography.bodySmall, color = At.c.muted)
                         }
                     },
@@ -662,7 +657,7 @@ private fun sink(c: Color, t: Float) = androidx.compose.ui.graphics.lerp(c, Colo
  * foot and a soft shadow. Plates, keys and knobs of the Concept look.
  */
 fun Modifier.softPlate(c: AtColors, shape: Shape, elevation: Dp = 6.dp, face: Color = c.panel): Modifier {
-    val shade = if (c.dark) Color.Black else Color(0xFF3A2E22)
+    val shade = SoftShade(c)
     val top = if (c.dark) lift(face, 0.05f) else lift(face, 0.45f)
     val foot = if (c.dark) sink(face, 0.14f) else sink(face, 0.05f)
     val rim = Brush.verticalGradient(
@@ -671,6 +666,9 @@ fun Modifier.softPlate(c: AtColors, shape: Shape, elevation: Dp = 6.dp, face: Co
     return this.shadow(elevation, shape, clip = false, ambientColor = shade, spotColor = shade)
         .clip(shape).background(Brush.verticalGradient(listOf(top, foot))).border(1.dp, rim, shape)
 }
+
+/** The colour of a soft plastic part's shadow: warm by day, black at night. */
+fun SoftShade(c: AtColors): Color = if (c.dark) Color.Black else Color(0xFF3A2E22)
 
 /** Soft plastic pressed in: a well, shaded from its top edge, with a light lip at the foot. Fields and pressed keys. */
 fun Modifier.softWell(c: AtColors, shape: Shape, face: Color = c.panelHigh): Modifier {
@@ -704,6 +702,32 @@ fun Modifier.fieldFace(shape: Shape = MaterialTheme.shapes.small): Modifier {
     val c = At.c
     return if (c.soft) softWell(c, shape) else this.clip(shape).background(c.panelHigh)
 }
+
+/** A full-width rule under a top line: a hairline, or in the Concept look a moulded groove (a shade over a light lip). */
+@Composable
+fun HairRule() {
+    val c = At.c
+    if (!c.soft) { Box(Modifier.fillMaxWidth().height(1.dp).background(c.line)); return }
+    Column(Modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color.Black.copy(alpha = if (c.dark) 0.5f else 0.08f)))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = if (c.dark) 0.05f else 0.85f)))
+    }
+}
+
+/** A text field's colours: in the Concept look pressed into the plate (a well, no outline, the accent edge while typing). */
+@Composable
+fun atFieldColors(): androidx.compose.material3.TextFieldColors {
+    val c = At.c
+    return if (!c.soft) androidx.compose.material3.OutlinedTextFieldDefaults.colors()
+    else androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = c.panelHigh, unfocusedContainerColor = c.panelHigh, disabledContainerColor = c.panelHigh,
+        unfocusedBorderColor = Color.Transparent, disabledBorderColor = Color.Transparent, focusedBorderColor = c.signal,
+    )
+}
+
+/** A text field's corners: the fields' in the Concept look, Material's outlined field otherwise. */
+@Composable
+fun atFieldShape(): Shape = if (At.c.soft) MaterialTheme.shapes.small else androidx.compose.material3.OutlinedTextFieldDefaults.shape
 
 /** A key's face: raised soft plastic, pressed in while [down], in the soft look; a flat key-grey face otherwise. */
 @Composable
@@ -763,23 +787,61 @@ fun LcdWindow(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
 }
 
 /**
- * A dark screen set into the plate, for the graphs, in the Concept look ([AtColors.screen]): everything in [content]
- * draws with the screen's colours. In the other looks [content] sits on the deck as it is.
+ * A drop-down menu. In the Concept look it is a plate of soft plastic: large corners, a soft shadow and a light top
+ * edge, as wide as the field it opens from ([fieldWidthPx], when given) and a little below it; in the other looks it
+ * is Material's menu as before.
  */
 @Composable
-fun ScreenWindow(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+fun AtMenu(
+    expanded: Boolean, onDismiss: () -> Unit, modifier: Modifier = Modifier, fieldWidthPx: Int = 0,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
     val c = At.c
-    val s = c.screen
-    if (s == null) { content(); return }
-    val glass = RoundedCornerShape(10.dp)
-    Box(
-        modifier.fillMaxWidth().fieldFace(RoundedCornerShape(14.dp)).padding(5.dp)
-            .clip(glass).background(s.bg).border(2.dp, Color(0xFF2B2B29), glass).padding(6.dp),
-    ) {
-        androidx.compose.runtime.CompositionLocalProvider(LocalAt provides s, androidx.compose.material3.LocalContentColor provides s.text) {
-            MaterialTheme(colorScheme = atScheme(s), typography = MaterialTheme.typography, shapes = MaterialTheme.shapes, content = content)
-        }
+    if (!c.soft) {
+        androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, modifier = modifier, content = content)
+        return
     }
+    val w = with(androidx.compose.ui.platform.LocalDensity.current) { fieldWidthPx.toDp() }
+    androidx.compose.material3.DropdownMenu(
+        expanded = expanded, onDismissRequest = onDismiss,
+        modifier = if (fieldWidthPx > 0) Modifier.width(w) else modifier,
+        offset = androidx.compose.ui.unit.DpOffset(0.dp, 6.dp),
+        shape = RoundedCornerShape(18.dp), containerColor = c.panel, tonalElevation = 0.dp, shadowElevation = 14.dp,
+        border = BorderStroke(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = if (c.dark) 0.08f else 0.9f), Color.Transparent))),
+        content = content,
+    )
+}
+
+/** A menu's option: the chosen one in the accent; in the Concept look in ink, set heavier, with the accent kept for its check. */
+@Composable
+private fun optionStyle(chosen: Boolean): Pair<Color, FontWeight> = when {
+    !chosen -> At.c.text to FontWeight.Normal
+    At.c.soft -> At.c.text to FontWeight.SemiBold
+    else -> At.c.signal to FontWeight.Normal
+}
+
+/** Where the knob mark's scale starts (the low end, lower left), in screen degrees; it rests at [KNOB_POINTER_DEG]. */
+const val KNOB_SCALE_START_DEG = -225f
+
+/** The knob mark's scale: [n] ticks spread evenly over 270°, from the lower left over the top to the lower right. */
+fun knobMarkTicks(n: Int): List<Float> = List(n) { KNOB_SCALE_START_DEG + it * 270f / (n - 1) }
+
+/**
+ * The app's mark as the Windows app draws it (owner, 2026-11-13: "make it like the windows icon"): a graphite ring, a
+ * light face with eleven ticks over 270° (open at the bottom) and the index dot in [dot] at [dotDeg].
+ */
+fun DrawScope.drawKnobMark(ring: Color, face: Color, ticks: Color, dot: Color, dotDeg: Float = KNOB_POINTER_DEG) {
+    val s = size.minDimension
+    val c = center
+    drawCircle(ring, s * 0.48f, c)
+    drawCircle(face, s * 0.40f, c)
+    for (d in knobMarkTicks(11)) {
+        val a = Math.toRadians(d.toDouble())
+        val cs = kotlin.math.cos(a).toFloat(); val sn = kotlin.math.sin(a).toFloat()
+        drawLine(ticks, Offset(c.x + s * 0.30f * cs, c.y + s * 0.30f * sn), Offset(c.x + s * 0.36f * cs, c.y + s * 0.36f * sn), s * 0.03f)
+    }
+    val a = Math.toRadians(dotDeg.toDouble())
+    drawCircle(dot, s * 0.065f, Offset(c.x + s * 0.2f * kotlin.math.cos(a).toFloat(), c.y + s * 0.2f * kotlin.math.sin(a).toFloat()))
 }
 
 /** The deck's plate: its colour and a hairline edge, plain or, in the Gradient edge look, shaded dark to light. */
@@ -1219,7 +1281,11 @@ private fun HeaderFace(spec: HeaderSpec, scrollPx: () -> Float, modifier: Modifi
         Box(Modifier.matchParentSize().drawBehind {
             val b = bottom()
             drawRect(c.bg, size = Size(size.width, b))
-            drawRect(c.line, Offset(0f, b - px.hair), Size(size.width, px.hair))
+            if (c.soft) {
+                // the Concept look: a moulded groove, a shade over a light lip, rather than a hairline
+                drawRect(Color.Black.copy(alpha = if (c.dark) 0.5f else 0.08f), Offset(0f, b - px.hair * 2), Size(size.width, px.hair))
+                drawRect(Color.White.copy(alpha = if (c.dark) 0.05f else 0.85f), Offset(0f, b - px.hair), Size(size.width, px.hair))
+            } else drawRect(c.line, Offset(0f, b - px.hair), Size(size.width, px.hair))
         })
 
         // what moves: the graphic and the large name, clipped to the plate
@@ -1462,17 +1528,24 @@ fun Modifier.settleIn(): Modifier {
  */
 @Composable
 fun HeaderArt(key: String, modifier: Modifier, shown: (() -> Boolean)? = null) {
-    // drawn as a light device on the dark body, in the deck's colours
+    // drawn as a light device on the dark body, in the deck's colours; in the Concept look a small device of soft
+    // plastic (a shaded plate on a soft shadow, grooves instead of hairline outlines), like the plates around it
     val c = deckColors
+    val soft = c.soft
     val plate = c.panel
     val keyFace = c.panelHigh
-    val rule = c.line
+    val rule = if (soft) Color.Black.copy(alpha = if (c.dark) 0.45f else 0.13f) else c.line
     val ink = c.text
     val alu = c.alu
     val accent = c.signal
     val slotInk = androidx.compose.ui.graphics.Color.Black.copy(alpha = if (c.dark) 0.6f else 0.45f)
     val arrival = rememberArrival(key, shown = shown)
-    Canvas((if (shown == null) modifier.arrival(arrival) else modifier.pressToReplay { arrival.replay() }).semantics { }) {
+    val softShape = RoundedCornerShape(percent = 18)
+    Canvas(
+        (if (shown == null) modifier.arrival(arrival) else modifier.pressToReplay { arrival.replay() })
+            .then(if (soft) Modifier.shadow(5.dp, softShape, clip = false, ambientColor = SoftShade(c), spotColor = SoftShade(c)) else Modifier)
+            .semantics { },
+    ) {
         val t = arrival.value
         val w = size.width; val h = size.height
         val r6 = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx())
@@ -1481,6 +1554,18 @@ fun HeaderArt(key: String, modifier: Modifier, shown: (() -> Boolean)? = null) {
         // every drawing sits in its device's box: the plate with a hairline edge, so it reads on a light body too
         // (owner, 2026-11-12: "the graphics should have an outline box, for example the cassette")
         fun deck() {
+            if (soft) {
+                // soft plastic: lighter at the top than at the foot, a light top edge, no outline
+                val rr = androidx.compose.ui.geometry.CornerRadius(minOf(w, h) * 0.18f)
+                val top = if (c.dark) lift(plate, 0.05f) else lift(plate, 0.45f)
+                val foot = if (c.dark) sink(plate, 0.14f) else sink(plate, 0.05f)
+                drawRoundRect(Brush.verticalGradient(listOf(top, foot)), Offset.Zero, size, rr)
+                drawRoundRect(
+                    Brush.verticalGradient(listOf(Color.White.copy(alpha = if (c.dark) 0.10f else 0.95f), Color.Transparent, Color.Black.copy(alpha = if (c.dark) 0.35f else 0.06f))),
+                    Offset(hair / 2, hair / 2), Size(w - hair, h - hair), rr, style = Stroke(hair),
+                )
+                return
+            }
             drawRoundRect(plate, Offset.Zero, size, r6)
             drawRoundRect(rule, Offset(hair / 2, hair / 2), Size(w - hair, h - hair), r6, style = Stroke(hair))
         }
@@ -1794,11 +1879,12 @@ fun DropSelect(
     swatches: List<Color?>? = null,
 ) {
     var open by remember { mutableStateOf(false) }
+    var fieldW by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     Column(Modifier.fillMaxWidth().settleIn()) {
         if (label != null) InfoLabel(label, info)
         Box {
             Row(
-                Modifier.fillMaxWidth().heightIn(min = 52.dp).fieldFace()
+                Modifier.fillMaxWidth().heightIn(min = 52.dp).onGloballyPositioned { fieldW = it.size.width }.fieldFace()
                     .clickable(enabled = enabled, role = Role.DropdownList, onClickLabel = "Choose ${label ?: "option"}") { open = true }
                     .padding(start = 14.dp, end = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1813,14 +1899,15 @@ fun DropSelect(
                 )
                 AtIcon(Ic.CHEVRON_DOWN, At.c.muted, size = 20.dp)
             }
-            androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.widthIn(min = 240.dp, max = 360.dp)) {
+            AtMenu(expanded = open, onDismiss = { open = false }, modifier = Modifier.widthIn(min = 240.dp, max = 360.dp), fieldWidthPx = fieldW) {
                 // long lists (the palette's colours) scroll, so the last choices are never cut off below the field
                 Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
                 options.forEachIndexed { i, o ->
                     androidx.compose.material3.DropdownMenuItem(
                         text = {
                             Column(Modifier.padding(vertical = 4.dp)) {
-                                Text(o, style = MaterialTheme.typography.bodyLarge, color = if (i == selected) At.c.signal else At.c.text)
+                                val (col, wt) = optionStyle(i == selected)
+                                Text(o, style = MaterialTheme.typography.bodyLarge, color = col, fontWeight = wt)
                                 details?.getOrNull(i)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = At.c.muted) }
                             }
                         },
@@ -2033,6 +2120,8 @@ fun SwitchRow(text: String, checked: Boolean, onChange: (Boolean) -> Unit, enabl
 
 @Composable
 fun animationsOn(): Boolean {
+    // previews and screenshot tools draw every screen at rest, as with "Remove animations" (never set on a phone)
+    if (androidx.compose.ui.platform.LocalInspectionMode.current) return false
     val ctx = LocalContext.current
     return remember { Settings.Global.getFloat(ctx.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) != 0f }
 }
@@ -2122,11 +2211,12 @@ fun <T> PickField(
     title: (T) -> String, detail: (T) -> String?, onPick: (T) -> Unit, enabled: Boolean = true,
 ) {
     var open by remember { mutableStateOf(false) }
+    var fieldW by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     Column {
         Text(label, style = MaterialTheme.typography.labelMedium, color = At.c.muted, modifier = Modifier.padding(bottom = 4.dp))
         Box {
             Row(
-                Modifier.fillMaxWidth().heightIn(min = 56.dp).fieldFace()
+                Modifier.fillMaxWidth().heightIn(min = 56.dp).onGloballyPositioned { fieldW = it.size.width }.fieldFace()
                     .clickable(enabled = enabled, role = Role.DropdownList, onClickLabel = "Choose $label") { open = true }
                     .padding(start = 14.dp, end = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -2137,7 +2227,7 @@ fun <T> PickField(
                 )
                 AtIcon(Ic.CHEVRON_DOWN, At.c.muted, size = 20.dp)
             }
-            androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.widthIn(min = 280.dp, max = 360.dp)) {
+            AtMenu(expanded = open, onDismiss = { open = false }, modifier = Modifier.widthIn(min = 280.dp, max = 360.dp), fieldWidthPx = fieldW) {
                 items.forEach { item ->
                     androidx.compose.material3.DropdownMenuItem(
                         text = {
@@ -2402,8 +2492,11 @@ fun MoreBelow(state: androidx.compose.foundation.ScrollState, modifier: Modifier
             contentAlignment = Alignment.BottomCenter,
         ) {
             Box(
-                Modifier.padding(bottom = 6.dp).size(36.dp).clip(androidx.compose.foundation.shape.CircleShape).background(At.c.panelHigh)
-                    .border(1.dp, At.c.line, androidx.compose.foundation.shape.CircleShape)
+                Modifier.padding(bottom = 6.dp).size(36.dp).then(
+                    // a round key of soft plastic in the Concept look, a ruled grey key otherwise
+                    if (At.c.soft) Modifier.softPlate(At.c, CircleShape, 3.dp)
+                    else Modifier.clip(CircleShape).background(At.c.panelHigh).border(1.dp, At.c.line, CircleShape),
+                ).clip(CircleShape)
                     .clickable(onClickLabel = "Scroll down") {
                         scope.launch { state.animateScrollTo(minOf(state.maxValue, state.value + with(density) { 480.dp.toPx() }.toInt())) }
                     },
