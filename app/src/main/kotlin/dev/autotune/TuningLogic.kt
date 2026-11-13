@@ -614,6 +614,19 @@ fun tunedRunIndex(rmsDbs: List<Double>, keptIdx: Int): Int? =
     keptIdx.takeIf { it in 1 until rmsDbs.size }
         ?: (1 until rmsDbs.size).minByOrNull { rmsDbs[it] }
 
+/** True when Keep put an EQ in use for the test: its tuned profile is saved under the test's name (see tuneKeep). */
+fun hasKeptEq(profiles: List<EqProfile>, testName: String): Boolean =
+    testName.isNotBlank() && profiles.any { it.test == testName && it.name.startsWith("$testName · tuned") }
+
+/**
+ * Exit from a Tune step asks "save or discard" only when something would be left half done: a step worth coming back to,
+ * with readings measured, and no EQ kept yet. Set up (nothing measured) and a test already finished once just leave.
+ */
+fun exitAsks(step: TuneStep, runCount: Int, keptEq: Boolean): Boolean = step in RESUMABLE && runCount > 0 && !keptEq
+
+/** A test's page is finished when an EQ was kept and no round is waiting to be continued (the main key is then not "Continue"). */
+fun testFinished(keptEq: Boolean, resumeStep: TuneStep?): Boolean = keptEq && resumeStep == null
+
 /** The closest run to the target after the stock run (index 0), the first one on a tie; null with no run after the stock. */
 fun bestRunIndex(rmsDbs: List<Double>): Int? = (1 until rmsDbs.size).minByOrNull { rmsDbs[it] }
 

@@ -220,8 +220,11 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
         // the same summary as the Tune result screens; the page title names the test
         ResultSummary(s, namesTest = false)
         // the one action at the bottom, with the move it leads to on its second line and why in its hint
+        // a finished test is not asking to be tuned again: its main key opens the EQ, and Continue is one of the other choices
+        val finished = dev.autotune.testFinished(dev.autotune.hasKeptEq(s.profiles, s.testName), s.resumeStep)
         val (next, why) = resultNext(s)
-        PinAction("Continue tuning", { vm.tuneContinue(); go(Tab.MEASURE) }, icon = Ic.TUNE, hint = why, sub = next)
+        if (finished) PinAction("Open the EQ", { go(Tab.EQ) }, icon = Ic.EQ)
+        else PinAction("Continue tuning", { vm.tuneContinue(); go(Tab.MEASURE) }, icon = Ic.TUNE, hint = why, sub = next)
         // The response is the visual proof of the result; keep its legend directly with the plot.
         s.chart?.let { c ->
             Panel {
@@ -242,8 +245,10 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
     } else {
         FollowAndChecks(s, vm)
         // the other choices, under the result and above the details, one per row
+        val finishedTest = dev.autotune.testFinished(dev.autotune.hasKeptEq(s.profiles, s.testName), s.resumeStep)
         Actions {
-            TextAction("Open the EQ", { go(Tab.EQ) }, icon = Ic.EQ)
+            if (finishedTest) TextAction("Tune further", { vm.tuneContinue(); go(Tab.MEASURE) }, icon = Ic.TUNE)
+            else TextAction("Open the EQ", { go(Tab.EQ) }, icon = Ic.EQ)
             TextAction("AI review", vm::aiOpen, icon = Ic.AI)
         }
         // Simple stops here: the summary, the graph, the checks and the other choices; the rest is in Advanced

@@ -60,7 +60,10 @@ fun TuneTab(
     openCompanion: (String) -> Unit = { go(Tab.THEATRE) },
 ) {
     // Exit leaves the workflow and keeps the place: Continue comes back to the same step
-    val exit = { vm.tuneExit() }
+    // halfway out (readings taken, no EQ kept) it asks: save the test for later, or discard it
+    var askExit by remember { mutableStateOf(false) }
+    val exit = { if (dev.autotune.exitAsks(s.tuneStep, s.runs.size, dev.autotune.hasKeptEq(s.profiles, s.testName))) askExit = true else vm.tuneExit() }
+    if (askExit) ExitAsk(onSave = { askExit = false; vm.tuneExit() }, onDiscard = { askExit = false; vm.tuneDiscardTest() }, onStay = { askExit = false })
     val anim = animationsOn()
     // each step slides in from the side it comes from: forward from the end, Back from the start
     // Stock and Verify are measuring phases with no page of their own: the step they started from stays under the
@@ -87,6 +90,23 @@ fun TuneTab(
 }
 
 private const val STEPS = 5
+
+/** Exit halfway through a tune: keep the test to continue later, throw it away, or stay. */
+@Composable
+private fun ExitAsk(onSave: () -> Unit, onDiscard: () -> Unit, onStay: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onStay,
+        title = { Text("Leave this tune?") },
+        text = { Text("No EQ is kept yet. Save it and Continue brings you back here, or discard the test and its readings.") },
+        confirmButton = {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
+                androidx.compose.material3.TextButton(onClick = onSave) { Text("Save and leave") }
+                androidx.compose.material3.TextButton(onClick = onDiscard) { Text("Discard the test", color = At.c.bad) }
+                androidx.compose.material3.TextButton(onClick = onStay) { Text("Keep tuning") }
+            }
+        },
+    )
+}
 
 // ------------------------------------------------------------------ home
 

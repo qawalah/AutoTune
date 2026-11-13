@@ -387,4 +387,26 @@ class FlowTest {
         assertEquals(1, bestRunIndex(listOf(6.0, 3.8, 3.8))) // a tie keeps the earlier run
         assertEquals(null, bestRunIndex(listOf(6.0)))
     }
+
+    @Test
+    fun exitAsksOnlyWhenAHalfDoneTuneWouldBeLeft() {
+        // readings taken, no EQ kept: ask
+        assertTrue(exitAsks(TuneStep.RESULT, 2, keptEq = false))
+        assertTrue(exitAsks(TuneStep.APPLY, 1, keptEq = false))
+        // Set up has nothing measured; a test finished once just leaves
+        assertFalse(exitAsks(TuneStep.SETUP, 0, keptEq = false))
+        assertFalse(exitAsks(TuneStep.RESULT, 3, keptEq = true))
+        assertFalse(exitAsks(TuneStep.HOME, 2, keptEq = false))
+    }
+
+    @Test
+    fun aFinishedTestsMainKeyIsNotContinue() {
+        assertTrue(testFinished(keptEq = true, resumeStep = null))
+        assertFalse(testFinished(keptEq = true, resumeStep = TuneStep.RESULT)) // a round was left half done
+        assertFalse(testFinished(keptEq = false, resumeStep = null))
+        val p = EqProfile("1", "Truck · tuned (Run 1)", "tuning", "", "Truck", "measured in Run 1", 0L, emptyList())
+        assertTrue(hasKeptEq(listOf(p), "Truck"))
+        assertFalse(hasKeptEq(listOf(p), "Other"))
+        assertFalse(hasKeptEq(listOf(p), ""))
+    }
 }

@@ -2123,6 +2123,16 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
 
     private var resumeTestId: String? = null
 
+    /** Exit, then "Discard": an unfinished test goes away with its readings (the stock reading included). */
+    fun tuneDiscardTest() {
+        val id = current?.id
+        if (id == null) { tuneGo(TuneStep.HOME); return }
+        Diag.log(ctx(), "tune_discarded", mapOf("test" to state.value.testName, "runs" to (current?.runs?.size ?: 0)))
+        resumeTestId = null
+        deleteTest(id)
+        state.update { it.copy(resumeStep = null) }
+    }
+
     /** Leaves the workflow and remembers the step, so Continue comes back to the same place. */
     fun tuneExit() {
         val st = state.value.tuneStep
