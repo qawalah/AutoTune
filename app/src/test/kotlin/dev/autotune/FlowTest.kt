@@ -351,4 +351,32 @@ class FlowTest {
         assertFalse(showsTuned("t1", 3, "t2", 3)) // another test open
         assertFalse(showsTuned(null, 0, null, 0))
     }
+
+    @Test
+    fun theTunedCardShowsTheRunKeepPutInUseNotTheLowestDb() {
+        // stock 2.9, run 1 1.3, run 2 1.4: Keep on Run 2 puts Run 2's EQ in use, so Run 2 is what the card shows (2.30.1)
+        val dbs = listOf(2.9, 1.3, 1.4)
+        assertEquals(2, tunedRunIndex(dbs, 2))
+        assertEquals(1, tunedRunIndex(dbs, 1))
+        // not known (an older state), or the stock run: the lowest dB after the stock
+        assertEquals(1, tunedRunIndex(dbs, -1))
+        assertEquals(1, tunedRunIndex(dbs, 0))
+        assertEquals(1, tunedRunIndex(dbs, 7))
+        assertEquals(null, tunedRunIndex(listOf(2.9), -1))
+    }
+
+    @Test
+    fun theDialMakesRoomForAFinishedTune() {
+        assertTrue(dialShare(true) < dialShare(false))
+    }
+
+    @Test
+    fun finishingKeepsTheCloserRunEvenWithinTheRoundMargin() {
+        // Run 1 3.8 dB, Run 2 4.0 dB (seen on a phone): the last round "barely changed it", but Run 1 is the closer one
+        val rec = recommendNext(listOf(r("Stock", 6.0), r("Run 1", 3.8), r("Run 2", 4.0)), false)
+        assertEquals(NextMove.KEEP_BEST, rec.move)
+        assertEquals(1, rec.bestIdx)
+        // the latest being the closer one is unchanged
+        assertEquals(NextMove.KEEP_LATEST, recommendNext(listOf(r("Stock", 6.0), r("Run 1", 2.6), r("Run 2", 2.5)), false).move)
+    }
 }

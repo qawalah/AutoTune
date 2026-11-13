@@ -371,6 +371,8 @@ data class UiState(
     /** The test the last Keep finished and its run count then: the Tune screen shows it as tuned (see [showsTuned]). */
     val tunedTestId: String? = null,
     val tunedRuns: Int = 0,
+    /** The run whose EQ the last Keep put in use (-1 = not known): the Tuned card shows that run, not the lowest dB. */
+    val tunedRunIdx: Int = -1,
     /** How the EQ reaches the speakers for the next run (AutoTune EQ, equipment or inside the app). */
     val applyWay: ApplyWay = ApplyWay.EQUIPMENT,
     /** The next run repeats the previous one with nothing changed. */
@@ -2277,7 +2279,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             if (t.sourceIdx == m.sourceIdx) rememberSetup(m.copy(targetIdx = t.targetIdx, bassDb = t.bassDb, trebleDb = t.trebleDb))
         }
         // Done is the Tune screen showing the finished tune
-        state.update { it.copy(tunedTestId = t.id, tunedRuns = t.runs.size, resumeStep = null) }
+        state.update { it.copy(tunedTestId = t.id, tunedRuns = t.runs.size, tunedRunIdx = idx, resumeStep = null) }
         tuneGo(TuneStep.HOME)
     }
 
@@ -2500,7 +2502,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         rta.stop()
         dev.autotune.audio.LevelMeter.paused = false
         if (state.value.rtaRunning) player.stop()
-        state.update { it.copy(rtaRunning = false) }
+        // Stop puts "Play from the phone" back to Off, so the next Start is silent unless it is picked again (2.30.1)
+        state.update { it.copy(rtaRunning = false, liveSignal = LiveSignal.NONE, rtaNoise = false) }
     }
 
 

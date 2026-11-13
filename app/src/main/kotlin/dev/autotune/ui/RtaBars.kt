@@ -22,7 +22,7 @@ import kotlin.math.abs
 
 /**
  * RTA (real-time analyzer) bars: one bar per 1/3 octave, dB relative to the target level.
- * Teal = within 2 dB of the target, yellow = within 4 dB, red = further. White tick = target.
+ * Green = within 2 dB of the target, yellow = within 4 dB, red = further. White tick = target.
  */
 @Composable
 fun RtaBars(
@@ -77,7 +77,7 @@ fun RtaBars(
         }
         if (caption) {
             Text(
-                "Teal is within 2 dB of the target tick, yellow within 4 dB, red further away." +
+                "Green is within 2 dB of the target tick, yellow within 4 dB, red further away." +
                     if (ghosts.isNotEmpty()) " Coloured caps are the other ticked runs." else "",
                 style = MaterialTheme.typography.bodySmall, color = c.muted,
                 modifier = Modifier.padding(top = 4.dp),

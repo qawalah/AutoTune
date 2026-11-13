@@ -293,6 +293,20 @@ fun offerAutoSwitch(route: BtRoute?, playsOnPhone: Boolean, profileId: String?, 
 }
 
 private fun baseRecommendation(runs: List<SavedRun>, eqMayNotBeApplied: Boolean, eqCheckSeverity: Int?): Recommendation {
+    val r = baseRecommendationRaw(runs, eqMayNotBeApplied, eqCheckSeverity)
+    // Finishing keeps the closer run: the 0.3 dB margin only decides whether another round is worth it (2.30.1: 3.8 dB
+    // in Run 1 and 4.0 in Run 2 finished on Run 2, which was worse in both dB and score)
+    val latestIdx = runs.lastIndex
+    val best = runs.getOrNull(r.bestIdx)
+    if (r.move == NextMove.KEEP_LATEST && r.bestIdx in 1 until latestIdx && best != null && best.rmsDb < runs[latestIdx].rmsDb) {
+        return Recommendation(
+            NextMove.KEEP_BEST, "${best.label} measured better (%.1f dB against %.1f dB). Its EQ is the one to keep.".format(best.rmsDb, runs[latestIdx].rmsDb), r.bestIdx,
+        )
+    }
+    return r
+}
+
+private fun baseRecommendationRaw(runs: List<SavedRun>, eqMayNotBeApplied: Boolean, eqCheckSeverity: Int?): Recommendation {
     val latestIdx = runs.lastIndex
     val withEq = (1..latestIdx).toList()
     val bestIdx = withEq.minByOrNull { runs[it].rmsDb } ?: latestIdx
@@ -588,6 +602,17 @@ fun newTestName(typed: String, equipName: String, targetName: String, date: Stri
 /** The Tune screen shows a finished tune while the test it finished is open and has no run after it. */
 fun showsTuned(tunedTestId: String?, tunedRuns: Int, openTestId: String?, runCount: Int): Boolean =
     tunedTestId != null && tunedTestId == openTestId && tunedRuns == runCount
+
+/** What share of the screen's height the Tune dial fills at least: less when a finished tune and Continue sit under it. */
+fun dialShare(hasTune: Boolean): Float = if (hasTune) 0.42f else 0.58f
+
+/**
+ * The run the Tuned card shows: the one Keep put in use ([keptIdx], never the stock run at 0), else the lowest dB.
+ * [rmsDbs] is every run in order, stock first. Null when there is no run after the stock.
+ */
+fun tunedRunIndex(rmsDbs: List<Double>, keptIdx: Int): Int? =
+    keptIdx.takeIf { it in 1 until rmsDbs.size }
+        ?: (1 until rmsDbs.size).minByOrNull { rmsDbs[it] }
 
 /** Steps worth coming back to after Exit (Set up is asked again; Done is finished). */
 val RESUMABLE = setOf(TuneStep.STOCK, TuneStep.STOCK_RESULT, TuneStep.APPLY, TuneStep.VERIFY, TuneStep.RESULT)

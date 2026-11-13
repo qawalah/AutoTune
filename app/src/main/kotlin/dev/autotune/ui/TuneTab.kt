@@ -95,7 +95,8 @@ private fun TuneHome(s: UiState, vm: TuneViewModel, pick: Pickers, go: (Tab) -> 
     // no header here: the screen starts with the dial (the wordmark, the mode key, the title and the speaker art went)
     // the dial in the middle of the screen: it fills the space above the lines and keys under it
     val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
-    Box(Modifier.fillMaxWidth().heightIn(min = (screenH * 0.58f).dp), contentAlignment = Alignment.Center) {
+    // with a tune to show (the card and Continue under it) the dial gives way, so Continue is not left under the "more below" fade (2.30.1)
+    Box(Modifier.fillMaxWidth().heightIn(min = (screenH * dev.autotune.dialShare(s.runs.isNotEmpty())).dp), contentAlignment = Alignment.Center) {
         PulsingButton("Tune", "new test", Ic.TUNE, enabled = !s.busy, onClick = vm::tuneStart)
         // the speaker says it all; Advanced adds controls, never a paragraph under it
     }
@@ -538,7 +539,7 @@ private fun TunedPanel(s: UiState, vm: TuneViewModel, pick: Pickers, go: (Tab) -
     s.status?.takeIf { it.startsWith("No run had") }?.let { Muted(it) }
     if (!dev.autotune.showsTuned(s.tunedTestId, s.tunedRuns, s.currentTestId, s.runs.size)) return
     val stock = s.runs.firstOrNull() ?: return
-    val best = s.runs.drop(1).minByOrNull { it.rmsDb } ?: return
+    val best = dev.autotune.tunedRunIndex(s.runs.map { it.rmsDb }, s.tunedRunIdx)?.let { s.runs[it] } ?: return
     Panel {
         CardTitle("Tuned")
         // the score beside the dB where it is already known for that run
@@ -591,8 +592,13 @@ private fun QuietStatus(light: androidx.compose.ui.graphics.Color, label: String
 private fun MicLine(s: UiState, pick: Pickers) {
     val ready = s.hasPermission
     Alerts(listOfNotNull(if (s.micAlsoOutput) "Your phone also sees the mic as headphones, so sound can end up in the mic instead of the car. Use Test sound to check, and pick the car under Plays through if needed." else null), "Microphone")
-    if (ready && s.phoneMic) {
+    if (s.phoneMic) {
+        // the phone's own mic: never "USB microphone" (2.30.1: it said so while the permission was still to be given)
         StatusLine(true, say("Phone microphone", "Phone microphone. Good for checking, a USB mic is more accurate."))
+        if (!ready) {
+            StatusLine(false, "Microphone access needed")
+            Actions { PrimaryButton("Allow microphone", pick.permission, icon = Ic.MIC) }
+        }
         return
     }
     if (ready && s.calibrationName != null) {
