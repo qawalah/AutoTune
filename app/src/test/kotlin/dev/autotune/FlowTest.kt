@@ -61,9 +61,10 @@ class FlowTest {
         assertEquals(TuneStep.SETUP, previousStep(TuneStep.STOCK, 0))
         assertEquals(TuneStep.APPLY, previousStep(TuneStep.STOCK, 1))
         assertEquals(TuneStep.HOME, previousStep(TuneStep.APPLY, 1))
-        assertEquals(TuneStep.RESULT, previousStep(TuneStep.APPLY, 3))
+        // 2.33: one step back, Result -> Refine -> the Tune screen, whatever the round
+        assertEquals(TuneStep.HOME, previousStep(TuneStep.APPLY, 3))
         assertEquals(TuneStep.APPLY, previousStep(TuneStep.VERIFY, 2))
-        assertEquals(TuneStep.HOME, previousStep(TuneStep.RESULT, 2))
+        assertEquals(TuneStep.APPLY, previousStep(TuneStep.RESULT, 2))
         // every step can be left
         TuneStep.entries.forEach { st -> var x = st; repeat(10) { x = previousStep(x, 2) }; assertEquals(TuneStep.HOME, x) }
     }
@@ -396,25 +397,16 @@ class FlowTest {
     }
 
     @Test
-    fun exitAsksOnlyWhenAHalfDoneTuneWouldBeLeft() {
-        // readings taken, no EQ kept: ask
-        assertTrue(exitAsks(TuneStep.RESULT, 2, keptEq = false))
-        assertTrue(exitAsks(TuneStep.APPLY, 1, keptEq = false))
-        // Set up has nothing measured; a test finished once just leaves
-        assertFalse(exitAsks(TuneStep.SETUP, 0, keptEq = false))
-        assertFalse(exitAsks(TuneStep.RESULT, 3, keptEq = true))
-        assertFalse(exitAsks(TuneStep.HOME, 2, keptEq = false))
-    }
-
-    @Test
     fun aFinishedTestsMainKeyIsNotContinue() {
         assertTrue(testFinished(keptEq = true, resumeStep = null))
         assertFalse(testFinished(keptEq = true, resumeStep = TuneStep.RESULT)) // a round was left half done
         assertFalse(testFinished(keptEq = false, resumeStep = null))
-        val p = EqProfile("1", "Truck · tuned (Run 1)", "tuning", "", "Truck", "measured in Run 1", 0L, emptyList())
-        assertTrue(hasKeptEq(listOf(p), "Truck"))
-        assertFalse(hasKeptEq(listOf(p), "Other"))
-        assertFalse(hasKeptEq(listOf(p), ""))
+        // tied by the test's id (2.33), so a rename keeps it
+        val p = EqProfile("1", "Truck", "tuning", "", "Truck", "measured in Run 1", 0L, emptyList(), testId = "t1", kept = true)
+        assertTrue(hasKeptEq(listOf(p), "t1"))
+        assertFalse(hasKeptEq(listOf(p), "t2"))
+        assertFalse(hasKeptEq(listOf(p), null))
+        assertFalse(hasKeptEq(listOf(p.copy(kept = false)), "t1"))
     }
 
     @Test

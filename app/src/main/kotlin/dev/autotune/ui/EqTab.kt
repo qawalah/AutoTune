@@ -103,7 +103,8 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Bands", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
                         IconAction(if (lockedL) Ic.LOCK else Ic.UNLOCK, if (lockedL) "Unlock the sliders" else "Lock the sliders") { lockedL = !lockedL }
-                        TextAction("Flat", { vm.editClear() }, enabled = bandCount > 0 && !lockedL, icon = Ic.UNDO)
+                        if (s.canUndoFlat) TextAction("Undo", vm::undoFlat, icon = Ic.UNDO)
+                        else TextAction("Flat", { vm.editClear() }, enabled = bandCount > 0 && !lockedL, icon = Ic.UNDO)
                     }
                     androidx.compose.runtime.CompositionLocalProvider(LocalFaderHeight provides (h - 120.dp).coerceAtLeast(140.dp)) {
                         GraphicSliders(s, vm, centres, qOf, lockedL)
@@ -116,9 +117,13 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
 
     val testKind = s.tests.firstOrNull { it.id == s.currentTestId }?.kind
     var locked by rememberSaveable { mutableStateOf(true) }
+    // Advanced: the exact bands open in place in the Bands deck (2.33: they were a deck inside the "More" deck)
+    var exact by rememberSaveable { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf<dev.autotune.EqProfile?>(null) }
+    var deleting by remember { mutableStateOf<dev.autotune.EqProfile?>(null) }
     ScreenTitle("EQ", if (hasTest) dev.autotune.shortTestName(s.testName, "").first else null, contextIcon = testKind?.let { kindIcon(it) })
 
-    // ---- on / off
+    // ---- on / off, the EQ in use and the flavour: the tab's job, first in both modes
     Panel {
         Row(verticalAlignment = Alignment.CenterVertically) {
             // the switch says on or off; no second "On" beside it (2.32)
@@ -135,29 +140,34 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
             )
             PowerToggle(s.systemEqOn, { if (it) pick.notifications(); vm.setSystemEq(it) }, "AutoTune EQ")
         }
+        // the saved EQs are managed right here, on their rows (Advanced: rename, delete); no second list (2.33)
+        val advanced = isAdvanced()
         GroupedPick(
             "EQ in use", s.eqChoices, s.eqPick, vm::selectEq, if (bandCount > 0) "Your own bands" else "No EQ yet",
             info = "Whatever is picked here is what plays when AutoTune EQ is on. “Suggested EQ” entries are AutoTune's proposals from tuning, not measured yet; runs show how far each was from the target.\n\nAutoTune EQ affects only this phone's audio, and how well it works depends on the phone.",
+            rowMenu = if (!advanced) null else { c ->
+                s.profiles.firstOrNull { "profile:${it.id}" == c.key }?.let { p -> listOf(RowAction("Rename") { renaming = p }, RowAction("Delete", danger = true) { deleting = p }) }.orEmpty()
+            },
         )
         if (s.sliderLayer.isNotEmpty()) Muted("+ your slider changes")
-        // the bands and preamp it was given are a technical status: Advanced only; a problem shows in both (2.32)
-        s.systemEqMessage?.takeIf { isAdvanced() || !it.startsWith("EQ updated") }?.let { Muted(it) }
+        // only a problem shows here; "EQ updated", "On: …" are not status lines (2.33)
+        dev.autotune.eqStatusShown(s.systemEqMessage)?.let { Muted(it) }
         // Simple: on/off, which EQ and the flavour (owner, 2026-11-12: "I don't see flavour/genre"); the preamp waits in Advanced
         FlavourAndPreamp(s, vm, preamp = isAdvanced())
     }
 
-    // ---- equaliser: classic sliders
-    Group(
-        "Bands",
-        trailing = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // the lock says what it is (2.32: a bare padlock)
-                TextAction(if (locked) "Locked" else "Unlocked", { locked = !locked }, icon = if (locked) Ic.LOCK else Ic.UNLOCK)
-                TextAction("Flat", { vm.editClear() }, enabled = bandCount > 0 && !locked, icon = Ic.UNDO)
-                TextAction("Save", { saveDialog = true }, enabled = bandCount > 0, icon = Ic.SAVE)
-            }
-        },
-    ) {
+    // ---- equaliser: classic sliders, then the graph of what they shape. Simple folds both under "Adjust" (2.33)
+    val keys: @Composable () -> Unit = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // the lock says what it is (2.32: a bare padlock)
+            TextAction(if (locked) "Locked" else "Unlocked", { locked = !locked }, icon = if (locked) Ic.LOCK else Ic.UNLOCK)
+            // Flat offers Undo right where it was pressed (2.33)
+            if (s.canUndoFlat) TextAction("Undo", vm::undoFlat, icon = Ic.UNDO)
+            else TextAction("Flat", { vm.editClear() }, enabled = bandCount > 0 && !locked, icon = Ic.UNDO)
+            TextAction("Save", { saveDialog = true }, enabled = bandCount > 0, icon = Ic.SAVE)
+        }
+    }
+    val bands: @Composable () -> Unit = {
         if (isAdvanced()) DropSelect(listOf("5 bands", "10 bands", "15 bands"), bandSet, { bandSet = it })
         GraphicSliders(s, vm, centres, qOf, locked)
         if (isAdvanced()) chain?.let { c -> if (c.filters.isNotEmpty()) Muted("Preamp %.1f dB".format(c.preampDb)) }
@@ -175,15 +185,24 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
         )
         if (s.sliderLayer.isNotEmpty()) TextAction("Remove my slider changes", vm::resetSliders, icon = Ic.UNDO)
     }
-
-    // ---- the response of the EQ in use, after the sliders that shape it
-    s.eqChart?.let { chart ->
-        val graph: @Composable () -> Unit = {
-            ResponseChart(chart, height = 224.dp, showTarget = s.showTargetEq, onToggleTarget = { vm.setShowTarget(false, !s.showTargetEq) })
+    val graph: @Composable () -> Unit = {
+        s.eqChart?.let { chart -> ResponseChart(chart, height = 224.dp, showTarget = s.showTargetEq, onToggleTarget = { vm.setShowTarget(false, !s.showTargetEq) }) }
+    }
+    if (!isAdvanced()) {
+        // the graph is shown after a reading (CLAUDE.md); this tab is not one, so it folds with the sliders
+        Fold("Adjust", summary = if (bandCount == 0) "bands and graph" else "${dev.autotune.countText(bandCount, "band")} · bands and graph") {
+            keys()
+            bands()
+            graph()
         }
-        // Simple: the graph needs no title
-        if (isAdvanced()) Group("Frequency response", divider = false, info = "The measured or proposed response of the selected EQ. Toggle the target line to compare the correction with your chosen target.") { graph() }
-        else Panel(pad = 12.dp) { graph() }
+    } else {
+        Group("Bands", trailing = keys) {
+            bands()
+            Actions { TextAction(if (exact) "Hide the exact bands" else "Edit exactly", { exact = !exact }, icon = Ic.EDIT) }
+            if (exact) ExactBands(s, vm, mine, bandCount, expanded) { expanded = it }
+        }
+        // ---- the response of the EQ in use, after the sliders that shape it
+        if (s.eqChart != null) Group("Frequency response", divider = false, info = "The measured or proposed response of the selected EQ. Toggle the target line to compare the correction with your chosen target.") { graph() }
     }
 
     // ---- dynamic EQ: less bass and harshness when it's loud
@@ -214,98 +233,38 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
                 }, enabled = bandCount > 0, icon = Ic.MEASURE)
             }
             if (!isAdvanced()) return@Actions
+            // it measures at once: a key, not a row that opens something (2.33)
             if (bandCount > 0 && s.eqCheck == null) TextAction("Check the EQ reaches the speakers", vm::eqCheck, enabled = !s.busy && s.hasPermission, icon = Ic.CHECK)
             if (hasTest && s.runs.isNotEmpty() && !s.systemEqOn && s.source == Source.PHONE) {
                 val onEquipment = s.applyWay == ApplyWay.EQUIPMENT && s.runs.size > 1
                 if (onEquipment) TextAction("Try it inside the app instead", { vm.tryInApp(); vm.tuneMeasure(); go(Tab.MEASURE) }, enabled = bandCount > 0, icon = Ic.PLAY)
                 else TextAction("I set it on my equipment, measure", { vm.appliedOnEquipment(); vm.tuneMeasure(); go(Tab.MEASURE) }, enabled = bandCount > 0, icon = Ic.EDIT)
             }
-            TextAction("Export EQ files", { go(Tab.EXPORT) }, icon = Ic.EXPORT)
+            TextAction("Export EQ files", { go(Tab.EXPORT) }, icon = Ic.EXPORT, opens = true)
         }
     }
 
-    // ---- saved EQs: picked above, renamed or deleted here
-    if (s.profiles.isNotEmpty() && isAdvanced()) {
-        Fold("Saved EQs", summary = "${s.profiles.size} saved · rename or delete") {
-            s.profiles.sortedWith(compareBy<dev.autotune.EqProfile> { it.test.ifBlank { "~" } }.thenByDescending { it.created }).forEach { p ->
-                ProfileRow(p, active = p.id == s.activeProfileId, edited = false, vm = vm)
-            }
-        }
-    }
-
-
-    // ---- everything else
-    if (isAdvanced()) Fold("More", summary = "Exact bands, listen, measure, automatic switching") {
-        Fold("Exact bands", summary = if (bandCount == 0) "None yet" else "$bandCount bands" + if (mine) " · your own" else " · from tuning") {
-            if (!mine) {
-                val sug = s.suggestedChain
-                if (sug == null || sug.filters.isEmpty()) {
-                    Text(
-                        if (s.runs.isEmpty()) "No suggestion yet. Measure a stock reading, or move a slider above."
-                        else "The system is already close to the target. No EQ needed.",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                } else {
-                    if (s.sliderLayer.isNotEmpty()) Text("Tuned bands", style = MaterialTheme.typography.titleSmall)
-                    BandTable(filterLines(sug, s.previousChain), sug.preampDb, compared = s.previousChain != null)
-                    if (s.sliderLayer.isNotEmpty()) {
-                        Text("Your slider changes (added on top)", style = MaterialTheme.typography.titleSmall)
-                        s.sliderLayer.forEach { f ->
-                            Row(Modifier.fillMaxWidth().heightIn(min = 36.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(hzText(f.freqHz) + " Hz\u00B7Q" + "%.1f".format(f.q), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                                Text(signed(f.gainDb) + " dB", style = MaterialTheme.typography.bodyMedium, fontFamily = AtFigures)
-                            }
-                        }
-                    }
-                    TextAction("Edit these exactly", vm::editStart, icon = Ic.EDIT)
-                }
-            } else {
-                val list = s.editFilters.orEmpty()
-                if (list.isEmpty()) Text("No bands yet. Add one to start.", style = MaterialTheme.typography.bodyMedium)
-                list.forEachIndexed { i, f ->
-                    BandRow(i, f, open = expanded == i, onToggle = {
-                        if (expanded == i) { expanded = -1; vm.editSort() } else { if (expanded >= 0) vm.editSort(); expanded = if (expanded >= 0) -1 else i }
-                    }, vm = vm, onRemoved = { expanded = -1 })
-                }
-                Actions {
-                    TextAction("Add band", { expanded = -1; vm.editAdd() }, icon = Ic.PLUS)
-                    if (list.size > 1) TextAction("Sort", { expanded = -1; vm.editSort() }, icon = Ic.TESTS)
-                }
-            }
-            // lossy on purpose, so it is an explicit action with the difference reported
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Convert for a head unit", style = MaterialTheme.typography.titleSmall)
-                InfoButton("Convert for a head unit", "Head units and graphic EQs only have fixed bands. This replaces the tuned bands and sliders with peaking bands at those centres. It is lossy, and the difference is reported.", small = true)
-            }
-            Actions {
-                GRAPHIC_SETS.forEach { (cs, q) ->
-                    TextAction("Convert to ${cs.size} bands", { expanded = -1; vm.convertToBands(cs, q) }, enabled = bandCount > 0, icon = Ic.EQ)
-                }
-            }
-            s.convertMessage?.let { Muted(it) }
-        }
-
-        Fold("Try it", summary = "Listen with and without") {
-            Text("Listen: ${s.clipName}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-            Actions {
-                if (s.playing && s.playingWithEq) PrimaryButton("With EQ", { vm.playClip(true) }, icon = Ic.PLAY) else TextAction("With EQ", { vm.playClip(true) }, enabled = !s.busy, icon = Ic.PLAY)
-                if (s.playing && !s.playingWithEq) PrimaryButton("Without", { vm.playClip(false) }, icon = Ic.PLAY) else TextAction("Without", { vm.playClip(false) }, enabled = !s.busy, icon = Ic.PLAY)
-                if (s.playing) TextAction("Stop", vm::stopClip, icon = Ic.STOP)
-                TextAction("Other clip", pick.clip, icon = Ic.FILE)
-            }
-        }
-
-        Fold(
-            "Automatic switching",
-            summary = if (s.automationOn && s.rules.isNotEmpty()) "On · ${s.rules.size} ${if (s.rules.size == 1) "device" else "devices"}" else "Off",
-        ) { AutomationSection(s, vm, pick) }
-    }
+    // ---- automatic switching: its own deck (2.33: it was folded inside "More")
+    if (isAdvanced()) Fold(
+        "Automatic switching",
+        summary = if (s.automationOn && s.rules.isNotEmpty()) "On · ${s.rules.size} ${if (s.rules.size == 1) "device" else "devices"}" else "Off",
+    ) { AutomationSection(s, vm, pick) }
 
     if (saveDialog) SaveProfileDialog(
-        suggested = if (!mine && s.runs.isNotEmpty()) "${s.testName} EQ" else "",
+        suggested = if (!mine && s.runs.isNotEmpty()) s.testName else "",
         onDismiss = { saveDialog = false },
         onSave = { saveDialog = false; vm.saveProfile(it) },
     )
+    renaming?.let { p -> SaveProfileDialog(title = "Rename the saved EQ", suggested = p.name, onDismiss = { renaming = null }, onSave = { renaming = null; vm.renameProfile(p.id, it) }) }
+    deleting?.let { p ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text("Delete “${p.name}”?") },
+            text = { Text("Automatic switching that uses it is removed too.") },
+            confirmButton = { DialogKey("Delete", { deleting = null; vm.deleteProfile(p.id) }, danger = true) },
+            dismissButton = { DialogKey("Keep", { deleting = null }) },
+        )
+    }
 
     if (confirmSuggested) {
         AlertDialog(
@@ -318,42 +277,51 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
     }
 }
 
+/** Advanced: the exact bands, opened in place in the Bands deck (2.33). */
 @Composable
-private fun ProfileRow(p: dev.autotune.EqProfile, active: Boolean, edited: Boolean, vm: TuneViewModel) {
-    var menu by remember { mutableStateOf(false) }
-    var rename by remember { mutableStateOf(false) }
-    var delete by remember { mutableStateOf(false) }
-    Row(
-        Modifier.fillMaxWidth().settleIn().heightIn(min = 60.dp).clip(MaterialTheme.shapes.small)
-            .background(if (active) At.c.panelHigh else At.c.panel).padding(start = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier.size(10.dp).clip(CircleShape).then(
-                if (active) Modifier.background(At.c.signal) else Modifier.background(Color.Transparent).border(1.5.dp, At.c.muted, CircleShape),
-            ),
-        )
-        Column(Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Text(p.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Muted(p.origin + (if (edited) " · changed since saved" else ""))
-        }
-        Box {
-            IconAction(Ic.MORE, "More for ${p.name}") { menu = true }
-            AtMenu(expanded = menu, onDismiss = { menu = false }) {
-                if (edited) DropdownMenuItem(text = { Text("Update with current EQ") }, onClick = { menu = false; vm.updateProfile(p.id) })
-                DropdownMenuItem(text = { Text("Rename") }, onClick = { menu = false; rename = true })
-                DropdownMenuItem(text = { Text("Delete", color = At.c.bad) }, onClick = { menu = false; delete = true })
+private fun ExactBands(s: UiState, vm: TuneViewModel, mine: Boolean, bandCount: Int, expanded: Int, setExpanded: (Int) -> Unit) {
+    if (!mine) {
+        val sug = s.suggestedChain
+        if (sug == null || sug.filters.isEmpty()) {
+            Muted(if (s.runs.isEmpty()) "No suggestion yet" else "No EQ needed")
+        } else {
+            if (s.sliderLayer.isNotEmpty()) Text("Tuned bands", style = MaterialTheme.typography.titleSmall)
+            BandTable(filterLines(sug, s.previousChain), sug.preampDb, compared = s.previousChain != null)
+            if (s.sliderLayer.isNotEmpty()) {
+                Text("Your slider changes (added on top)", style = MaterialTheme.typography.titleSmall)
+                s.sliderLayer.forEach { f ->
+                    Row(Modifier.fillMaxWidth().heightIn(min = 36.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(hzText(f.freqHz) + " Hz\u00B7Q" + "%.1f".format(f.q), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        Text(signed(f.gainDb) + " dB", style = MaterialTheme.typography.bodyMedium, fontFamily = AtFigures)
+                    }
+                }
             }
+            Actions { TextAction("Edit these bands", vm::editStart, icon = Ic.EDIT) }
+        }
+    } else {
+        val list = s.editFilters.orEmpty()
+        if (list.isEmpty()) Muted("No bands yet")
+        list.forEachIndexed { i, f ->
+            BandRow(i, f, open = expanded == i, onToggle = {
+                if (expanded == i) { setExpanded(-1); vm.editSort() } else { if (expanded >= 0) vm.editSort(); setExpanded(if (expanded >= 0) -1 else i) }
+            }, vm = vm, onRemoved = { setExpanded(-1) })
+        }
+        Actions {
+            TextAction("Add band", { setExpanded(-1); vm.editAdd() }, icon = Ic.PLUS)
+            if (list.size > 1) TextAction("Sort", { setExpanded(-1); vm.editSort() }, icon = Ic.TESTS)
         }
     }
-    if (rename) SaveProfileDialog(title = "Rename the saved EQ", suggested = p.name, onDismiss = { rename = false }, onSave = { rename = false; vm.renameProfile(p.id, it) })
-    if (delete) AlertDialog(
-        onDismissRequest = { delete = false },
-        title = { Text("Delete “${p.name}”?") },
-        text = { Text("Automatic switching that uses it is removed too.") },
-        confirmButton = { DialogKey("Delete", { delete = false; vm.deleteProfile(p.id) }, danger = true) },
-        dismissButton = { DialogKey("Keep", { delete = false }) },
-    )
+    // lossy on purpose, so it is an explicit action with the difference reported
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("Convert for a head unit", style = MaterialTheme.typography.titleSmall)
+        InfoButton("Convert for a head unit", "Head units and graphic EQs only have fixed bands. This replaces the tuned bands and sliders with peaking bands at those centres. It is lossy, and the difference is reported.", small = true)
+    }
+    Actions {
+        GRAPHIC_SETS.forEach { (cs, q) ->
+            TextAction("Convert to ${cs.size} bands", { setExpanded(-1); vm.convertToBands(cs, q) }, enabled = bandCount > 0, icon = Ic.EQ)
+        }
+    }
+    s.convertMessage?.let { Muted(it) }
 }
 
 @Composable
@@ -414,7 +382,7 @@ fun AutomationSection(s: UiState, vm: TuneViewModel, pick: Pickers) {
             )
             PickField(
                 "Switch to this saved EQ", s.profiles.firstOrNull { it.id == prof }?.name, "Choose a saved EQ",
-                s.profiles, { it.name }, { it.origin }, { prof = it.id },
+                s.profiles, { it.name }, { savedLine(null, java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault()).format(java.util.Date(it.created)), it.filters.size) }, { prof = it.id },
             )
             Actions {
                 TextAction("Add", {
@@ -450,7 +418,7 @@ private fun BandRow(i: Int, f: EqFilter, open: Boolean, onToggle: () -> Unit, vm
             Text("%.0f Hz".format(f.freqHz), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures)
             Text("%+.1f dB".format(f.gainDb), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures, color = if (f.gainDb < 0) At.c.text else At.c.signal)
             Text("Q %.1f".format(f.q), Modifier.weight(0.8f), style = MaterialTheme.typography.titleSmall, fontFamily = AtFigures, color = At.c.muted)
-            AtIcon(if (open) Ic.CHEVRON_DOWN else Ic.CHEVRON, At.c.muted, size = 20.dp)
+            AtIcon(Ic.CHEVRON_DOWN, At.c.muted, Modifier.graphicsLayer { rotationZ = if (open) 180f else 0f }, size = 20.dp)
         }
         if (open) {
             Column(Modifier.padding(horizontal = 14.dp).padding(bottom = 8.dp)) {
@@ -939,3 +907,6 @@ fun LoudEqFold(s: UiState, vm: TuneViewModel, startOpen: Boolean = false) {
         )
     }
 }
+
+/** A saved EQ's second line where its run is not known here: bands and date (2.33). */
+private fun savedLine(db: Double?, date: String, bands: Int) = dev.autotune.savedEqLine(db, date, bands)

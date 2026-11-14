@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -59,8 +60,27 @@ fun TestsTab(
     var renameText by remember { mutableStateOf("") }
     var deleteId by remember { mutableStateOf<String?>(null) }
     ScreenTitle("Tests", context = if (s.tests.isEmpty()) null else dev.autotune.countText(s.tests.size, "system") + " · " + dev.autotune.countText(readingCount, "reading"))
-    // the second way to AutoTune on a TV or a PC, beside Tune › Set up (owner, 2026-11-12)
-    Panel(pad = 6.dp) { Actions { TextAction("Connect to AutoTune on a TV or PC", openCompanion, icon = Ic.HOME) } }
+    // the second way to AutoTune on a TV or a PC, beside Tune › Set up (owner, 2026-11-12); after the first connection
+    // it is one row for the remembered TV or PC, connected or not (2.33)
+    dev.autotune.theatre.CompanionLink.init(ctx)
+    val linkOpen by dev.autotune.theatre.CompanionLink.link.open.collectAsState()
+    val remembered = dev.autotune.theatre.CompanionLink.rememberedName(ctx)
+    if (remembered == null) Panel(pad = 6.dp) { Actions { TextAction("Connect to AutoTune on a TV or PC", openCompanion, icon = Ic.HOME, opens = true) } }
+    else Column(Modifier.fillMaxWidth().settleIn().deckPlate()) {
+        DeckColors {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 60.dp).clickable(onClickLabel = "Open $remembered", onClick = openCompanion).padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(8.dp).clip(CircleShape).background(if (linkOpen) At.c.signal else At.c.line))
+                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                    Text(remembered, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Muted(if (linkOpen) "connected" else "not connected")
+                }
+                AtIcon(Ic.CHEVRON, At.c.muted, size = 18.dp)
+            }
+        }
+    }
     if (theatres.isNotEmpty()) TheatreList(theatres, openTheatre)
     if (s.tests.isEmpty()) {
         if (theatres.isNotEmpty()) return
@@ -79,7 +99,7 @@ fun TestsTab(
                 TestRow(
                     t, t.id == s.currentTestId, onOpen = { openResults(t.id) },
                     // a finished test is tuned further, not continued (2.32)
-                    finished = dev.autotune.testFinished(dev.autotune.hasKeptEq(s.profiles, t.name), if (t.id == s.currentTestId) s.resumeStep else null),
+                    finished = dev.autotune.testFinished(dev.autotune.hasKeptEq(s.profiles, t.id), if (t.id == s.currentTestId) s.resumeStep else null),
                     onContinue = { continueTest(t.id) },
                     onRename = { renameId = t.id; renameText = t.name },
                     onDelete = { deleteId = t.id },
@@ -103,12 +123,15 @@ fun TestsTab(
         AlertDialog(
             onDismissRequest = { deleteId = null },
             title = { Text("Delete $name?") },
-            text = { Text("Every reading of this test is deleted. Saved EQs stay.") },
+            text = { Text(DELETE_TEST_TEXT) },
             confirmButton = { DialogKey("Delete", { vm.deleteTest(id); deleteId = null }, danger = true) },
             dismissButton = { DialogKey("Keep it", { deleteId = null }) },
         )
     }
 }
+
+/** What deleting a test takes with it, in one line (2.33): the kept EQ goes too; EQs saved by hand stay. */
+private const val DELETE_TEST_TEXT = "Its readings and its EQ are deleted. EQs you saved yourself stay."
 
 /** The home theatres, one row each: its name, its runs and when it was last tested. Opens on the Home theatre page. */
 @Composable
@@ -132,7 +155,7 @@ private fun TheatreList(theatres: List<dev.autotune.theatre.TheatreTest>, open: 
                             last?.let { java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault()).format(java.util.Date(it.whenMillis)) },
                         ).joinToString(" · "))
                     }
-                    AtIcon(Ic.NEXT, At.c.muted)
+                    AtIcon(Ic.CHEVRON, At.c.muted, size = 18.dp)
                 }
             }
         }
@@ -225,7 +248,7 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
         ResultSummary(s, namesTest = false)
         // the one action at the bottom, with the move it leads to on its second line and why in its hint
         // a finished test is not asking to be tuned again: its main key opens the EQ, and Continue is one of the other choices
-        val finished = dev.autotune.testFinished(dev.autotune.hasKeptEq(s.profiles, s.testName), s.resumeStep)
+        val finished = dev.autotune.testFinished(dev.autotune.hasKeptEq(s.profiles, s.currentTestId), s.resumeStep)
         val (next, why) = resultNext(s)
         if (finished) PinAction("Open the EQ", { go(Tab.EQ) }, icon = Ic.EQ)
         else PinAction("Continue tuning", { vm.tuneContinue(); go(Tab.MEASURE) }, icon = Ic.TUNE, hint = why, sub = next)
@@ -249,11 +272,11 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
     } else {
         FollowAndChecks(s, vm)
         // the other choices, under the result and above the details, one per row
-        val finishedTest = dev.autotune.testFinished(dev.autotune.hasKeptEq(s.profiles, s.testName), s.resumeStep)
+        val finishedTest = dev.autotune.testFinished(dev.autotune.hasKeptEq(s.profiles, s.currentTestId), s.resumeStep)
         Actions {
-            if (finishedTest) TextAction("Tune further", { vm.tuneContinue(); go(Tab.MEASURE) }, icon = Ic.TUNE)
-            else TextAction("Open the EQ", { go(Tab.EQ) }, icon = Ic.EQ)
-            TextAction("AI review", vm::aiOpen, icon = Ic.AI)
+            if (finishedTest) TextAction("Tune further", { vm.tuneContinue(); go(Tab.MEASURE) }, icon = Ic.TUNE, opens = true)
+            else TextAction("Open the EQ", { go(Tab.EQ) }, icon = Ic.EQ, opens = true)
+            TextAction("AI review", vm::aiOpen, icon = Ic.AI, opens = true)
         }
         // Simple stops here: the summary, the graph, the checks and the other choices; the rest is in Advanced
         if (isAdvanced()) {
@@ -324,7 +347,7 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-            TextAction("Open in EQ", { go(Tab.EQ) }, icon = Ic.EQ)
+            TextAction("Open in EQ", { go(Tab.EQ) }, icon = Ic.EQ, opens = true)
         }
 
         Fold(
@@ -384,7 +407,7 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
         AlertDialog(
             onDismissRequest = { delete = false },
             title = { Text("Delete this test?") },
-            text = { Text("The stock reading and every run are removed. This can't be undone.") },
+            text = { Text(DELETE_TEST_TEXT) },
             confirmButton = { DialogKey("Delete", { delete = false; back(); s.currentTestId?.let { id -> vm.deleteTest(id) } }, danger = true) },
             dismissButton = { DialogKey("Cancel", { delete = false }) },
         )

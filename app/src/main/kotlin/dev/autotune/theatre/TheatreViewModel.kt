@@ -77,6 +77,8 @@ data class TheatreUi(
     val threeTests: Boolean = false,
     /** The home theatres measured on this phone (id, name), and the one open. */
     val tests: List<Pair<String, String>> = emptyList(),
+    /** The same list with the TV or PC each belongs to, for the list grouped by device (2.33). */
+    val entries: List<dev.autotune.TheatreEntry> = emptyList(),
     val test: TheatreTest? = null,
     /** The last distances and EQ results of the open test. */
     val distances: DistanceReport? = null,
@@ -154,7 +156,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         val pick = prefs.getString("theatreTest", null)
         val all = TheatreTests.list(ctx.filesDir)
         val open = all.firstOrNull { it.id == pick } ?: all.firstOrNull()
-        _ui.update { it.copy(tests = all.map { t -> t.id to t.name }, seats = prefs.getInt("theatreSeats", 1)) }
+        _ui.update { it.copy(tests = all.map { t -> t.id to t.name }, entries = all.map(::entry), seats = prefs.getInt("theatreSeats", 1)) }
         open?.let { openTest(it) }
         viewModelScope.launch { link.found.collect { f -> _ui.update { it.copy(found = f.map { t -> t.name }) } } }
         viewModelScope.launch {
@@ -590,13 +592,39 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
             open != null && open.runs.isEmpty() && open.device == null -> open.forDevice(device).also { TheatreTests.save(ctx.filesDir, it) }
             else -> TheatreTest(TheatreTests.newId(), device, System.currentTimeMillis(), emptyList(), device).also { TheatreTests.save(ctx.filesDir, it) }
         }
-        _ui.update { it.copy(tests = TheatreTests.list(ctx.filesDir).map { r -> r.id to r.name }, distances = null, eq = null) }
+        refreshList()
+        _ui.update { it.copy(distances = null, eq = null) }
         openTest(t)
     }
 
+    private fun entry(t: TheatreTest) = dev.autotune.TheatreEntry(t.id, t.name, t.owner)
+
+    /** The list of home theatres from their files, with the device each belongs to. */
+    private fun refreshList() {
+        val all = TheatreTests.list(ctx.filesDir)
+        _ui.update { it.copy(tests = all.map { r -> r.id to r.name }, entries = all.map(::entry)) }
+    }
+
+    /** Opens a home theatre; while a TV or PC is connected, only one of its own (2.33: never another device's results). */
     fun selectTest(id: String) {
         if (_ui.value.busy) return
-        TheatreTests.load(ctx.filesDir, id)?.let(::openTest)
+        val t = TheatreTests.load(ctx.filesDir, id) ?: return
+        if (!dev.autotune.theatreMayOpen(t.owner, _ui.value.tv)) return
+        openTest(t)
+    }
+
+    /**
+     * Tune › Home theatre or PC speakers › Yes (2.33): the remembered device's home theatre when there is one of the kind
+     * picked, else a new one named [name] ([startNew]). A new one is otherwise made from the list's own New.
+     */
+    fun fromTune(name: String, pickedPc: Boolean) {
+        val remembered = _ui.value.tv ?: CompanionLink.rememberedName(ctx)
+        val kindPc = if (_ui.value.tv != null) _ui.value.kind == Msg.KIND_PC else CompanionLink.rememberedKind(ctx) == Msg.KIND_PC
+        val mine = dev.autotune.theatreFromTune(TheatreTests.list(ctx.filesDir).map(::entry), remembered, kindPc, pickedPc)
+        if (mine == null) { startNew(name); return }
+        pendingNew = null
+        _ui.update { it.copy(startingNew = false) }
+        selectTest(mine.id)
     }
 
     /** A new home theatre, empty, named [name]; it becomes the open one. */
@@ -604,23 +632,39 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         if (_ui.value.busy) return
         val t = TheatreTest(TheatreTests.newId(), name.trim().ifEmpty { "Home theatre" }, System.currentTimeMillis(), emptyList(), _ui.value.tv)
         TheatreTests.save(ctx.filesDir, t)
-        _ui.update { it.copy(tests = listOf(t.id to t.name) + it.tests) }
+        refreshList()
         openTest(t)
     }
 
     fun renameTest(name: String) {
         val t = _ui.value.test?.renamed(name) ?: return
         TheatreTests.save(ctx.filesDir, t)
-        _ui.update { it.copy(test = t, tests = it.tests.map { (id, n) -> id to if (id == t.id) t.name else n }) }
+        _ui.update { it.copy(test = t) }
+        refreshList()
     }
 
+    /**
+     * Deletes the open home theatre (2.33): when its EQ is the one last sent, the EQ remembered for the widget goes too
+     * and, connected to that device, its EQ is switched off. Then another home theatre of the same device opens, or none.
+     */
     fun deleteTest() {
         val t = _ui.value.test ?: return
         if (_ui.value.busy) return
         TheatreTests.delete(ctx.filesDir, t.id)
+        val owner = t.owner
+        val clears = dev.autotune.clearsCompanionEq(
+            t.id, owner, prefs.getString(PREF_BASE_TEST, null), CompanionLink.rememberedName(ctx), prefs.getString(CompanionLink.PREF_BASE, null) != null,
+        )
+        if (clears) {
+            prefs.edit().remove(CompanionLink.PREF_BASE).remove(CompanionLink.PREF_SPEAKERS).remove(PREF_BASE_TEST).apply()
+            if (_ui.value.tv != null && (owner == null || owner.equals(_ui.value.tv, true)) && _ui.value.tvEqOn) tvEqOff()
+            dev.autotune.audio.AutoTuneWidgets.update(ctx)
+        }
         val rest = TheatreTests.list(ctx.filesDir)
-        _ui.update { it.copy(tests = rest.map { r -> r.id to r.name }, test = null, distances = null, eq = null) }
-        rest.firstOrNull()?.let(::openTest)
+        refreshList()
+        _ui.update { it.copy(test = null, distances = null, eq = null) }
+        dev.autotune.theatreAfterDelete(rest.map(::entry), owner ?: _ui.value.tv)?.let { e -> rest.firstOrNull { it.id == e.id }?.let(::openTest) }
+        Diag.log(ctx, "theatre_deleted", mapOf("clearedEq" to clears))
     }
 
     /** The note on the last run of [kind]. */
@@ -644,12 +688,12 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
     /** Saves [r] to the open test (a new one, "Home theatre", when none is open) and judges it. */
     private fun addRun(r: TheatreRun) {
         val t = _ui.value.test ?: TheatreTest(TheatreTests.newId(), _ui.value.tv ?: "Home theatre", System.currentTimeMillis(), emptyList(), _ui.value.tv).also { nt ->
-            _ui.update { it.copy(tests = listOf(nt.id to nt.name) + it.tests) }
             prefs.edit().putString("theatreTest", nt.id).apply()
         }
         val nt = t.with(r)
         TheatreTests.save(ctx.filesDir, nt)
         _ui.update { it.copy(test = nt) }
+        refreshList()
         judgeTest()
     }
 
@@ -852,7 +896,9 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
             val chain = dev.autotune.companionChain(eq, u0.flavour)
             sendEq(Msg.eq(u0.layout.speakers.associateWith { chain }))
             prefs.edit().putString(CompanionLink.PREF_BASE, dev.autotune.filtersText(eq))
-                .putString(CompanionLink.PREF_SPEAKERS, u0.layout.speakers.joinToString(",") { it.code }).apply()
+                .putString(CompanionLink.PREF_SPEAKERS, u0.layout.speakers.joinToString(",") { it.code })
+                // whose EQ it is, so deleting that home theatre clears it (2.33)
+                .putString(PREF_BASE_TEST, u0.test?.id.orEmpty()).apply()
             Diag.log(ctx, "theatre_eq_sent", mapOf("speakers" to u0.layout.speakers.size, "preampDb" to chain.preampDb, "one" to true, "flavour" to u0.flavour.name))
             return
         }
@@ -895,6 +941,9 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         super.onCleared()
     }
 }
+
+/** The home theatre whose EQ [CompanionLink.PREF_BASE] holds (2.33). */
+private const val PREF_BASE_TEST = "companionBaseTest"
 
 /** A home theatre's target by name (Home theatre when the name is unknown), with the taste on top. */
 fun theatreTarget(name: String, bassDb: Double, trebleDb: Double): Target =

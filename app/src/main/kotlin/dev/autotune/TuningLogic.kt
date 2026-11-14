@@ -370,11 +370,12 @@ private fun baseRecommendationRaw(runs: List<SavedRun>, eqMayNotBeApplied: Boole
  * is the top of the EQ step, so FRESH and STOCK_RESULT only survive as names for older saved places.
  */
 fun previousStep(step: TuneStep, runCount: Int): TuneStep = when (step) {
-    TuneStep.HOME, TuneStep.FRESH, TuneStep.SETUP -> TuneStep.HOME
+    TuneStep.HOME, TuneStep.FRESH, TuneStep.SETUP, TuneStep.DONE -> TuneStep.HOME
     TuneStep.STOCK -> if (runCount > 0) TuneStep.APPLY else TuneStep.SETUP
-    TuneStep.STOCK_RESULT, TuneStep.APPLY -> if (runCount > 1) TuneStep.RESULT else TuneStep.HOME
+    // one step back (2.33): Result goes to Refine, Refine to the Tune screen (the test is kept: Continue returns)
+    TuneStep.STOCK_RESULT, TuneStep.APPLY -> TuneStep.HOME
     TuneStep.VERIFY -> TuneStep.APPLY
-    TuneStep.RESULT, TuneStep.DONE -> TuneStep.HOME
+    TuneStep.RESULT -> if (runCount > 0) TuneStep.APPLY else TuneStep.HOME
 }
 
 /**
@@ -570,11 +571,12 @@ enum class SetupPage(val title: String) {
  * The screens Set up shows for [e], in order: the companion question only where there can be one, and the sound
  * screen only when this phone measures alone ([viaCompanion] false).
  */
-fun setupPages(e: Equipment, viaCompanion: Boolean = false, askNames: Boolean = true): List<SetupPage> {
+fun setupPages(e: Equipment, viaCompanion: Boolean = false, askNames: Boolean = true, askCompanion: Boolean = true): List<SetupPage> {
     val companion = e.companion != null
     return SetupPage.entries.filter {
         when (it) {
-            SetupPage.COMPANION -> companion
+            // asked unless the TV or PC is remembered as having AutoTune (2.33)
+            SetupPage.COMPANION -> companion && askCompanion
             SetupPage.SOUND -> !(companion && viaCompanion)
             SetupPage.NAMES -> askNames
             else -> true
@@ -583,16 +585,16 @@ fun setupPages(e: Equipment, viaCompanion: Boolean = false, askNames: Boolean = 
 }
 
 /** The screen after [page] for [e]; null on the last. [askNames] false is Simple (2.32): the test is named after the equipment. */
-fun nextSetupPage(e: Equipment, page: SetupPage, viaCompanion: Boolean = false, askNames: Boolean = true): SetupPage? =
-    setupPages(e, viaCompanion, askNames).let { p -> p.indexOf(page).takeIf { it >= 0 }?.let { p.getOrNull(it + 1) } }
+fun nextSetupPage(e: Equipment, page: SetupPage, viaCompanion: Boolean = false, askNames: Boolean = true, askCompanion: Boolean = true): SetupPage? =
+    setupPages(e, viaCompanion, askNames, askCompanion).let { p -> p.indexOf(page).takeIf { it >= 0 }?.let { p.getOrNull(it + 1) } }
 
 /** The screen before [page] for [e]; null on the first (Back then leaves Set up). */
-fun previousSetupPage(e: Equipment, page: SetupPage, viaCompanion: Boolean = false, askNames: Boolean = true): SetupPage? =
-    setupPages(e, viaCompanion, askNames).let { p -> p.indexOf(page).takeIf { it >= 0 }?.let { p.getOrNull(it - 1) } }
+fun previousSetupPage(e: Equipment, page: SetupPage, viaCompanion: Boolean = false, askNames: Boolean = true, askCompanion: Boolean = true): SetupPage? =
+    setupPages(e, viaCompanion, askNames, askCompanion).let { p -> p.indexOf(page).takeIf { it >= 0 }?.let { p.getOrNull(it - 1) } }
 
 /** The screen Set up shows: [page], or the first one shown when [page] is not among them (the names in Simple). */
-fun shownSetupPage(e: Equipment, page: SetupPage, viaCompanion: Boolean = false, askNames: Boolean = true): SetupPage =
-    setupPages(e, viaCompanion, askNames).let { p -> if (page in p) page else p.lastOrNull { it.ordinal < page.ordinal } ?: p.first() }
+fun shownSetupPage(e: Equipment, page: SetupPage, viaCompanion: Boolean = false, askNames: Boolean = true, askCompanion: Boolean = true): SetupPage =
+    setupPages(e, viaCompanion, askNames, askCompanion).let { p -> if (page in p) page else p.lastOrNull { it.ordinal < page.ordinal } ?: p.first() }
 
 /**
  * Set up's answers kept while the Connect page is open over it (2.32), so Back returns to the screen it came from with
@@ -655,15 +657,9 @@ fun tunedRunIndex(rmsDbs: List<Double>, keptIdx: Int): Int? =
     keptIdx.takeIf { it in 1 until rmsDbs.size }
         ?: (1 until rmsDbs.size).minByOrNull { rmsDbs[it] }
 
-/** True when Keep put an EQ in use for the test: its tuned profile is saved under the test's name (see tuneKeep). */
-fun hasKeptEq(profiles: List<EqProfile>, testName: String): Boolean =
-    testName.isNotBlank() && profiles.any { it.test == testName && it.name.startsWith("$testName · tuned") }
-
-/**
- * Exit from a Tune step asks "save or discard" only when something would be left half done: a step worth coming back to,
- * with readings measured, and no EQ kept yet. Set up (nothing measured) and a test already finished once just leave.
- */
-fun exitAsks(step: TuneStep, runCount: Int, keptEq: Boolean): Boolean = step in RESUMABLE && runCount > 0 && !keptEq
+/** True when Keep put an EQ in use for the test: its kept EQ is tied to the test's id (2.33; it was the name, which a rename broke). */
+fun hasKeptEq(profiles: List<EqProfile>, testId: String?): Boolean =
+    !testId.isNullOrBlank() && profiles.any { it.kept && it.testId == testId }
 
 /** A test's page is finished when an EQ was kept and no round is waiting to be continued (the main key is then not "Continue"). */
 fun testFinished(keptEq: Boolean, resumeStep: TuneStep?): Boolean = keptEq && resumeStep == null
@@ -2041,3 +2037,141 @@ fun spotDoneText(spot: Int, spots: Int): String = "spot $spot of $spots done"
 
 /** Every check passed: Simple folds them into one line that opens the list (2.32). */
 fun allChecksPassed(states: List<Int>): Boolean = states.isNotEmpty() && states.all { it == 1 }
+
+// ---------------------------------------------------------------- the second audit (2.33): leftover EQs, Back, the TV or PC page
+
+/** The EQ Keep made for test [testId], if any (one per test). */
+fun keptEqOf(profiles: List<EqProfile>, testId: String): EqProfile? = profiles.firstOrNull { it.kept && it.testId == testId }
+
+/**
+ * Ties older profiles to their tests by id, once (2.33): a profile from a tune that has no test id takes the id of the
+ * test with its test name; a kept EQ takes the test's name as its own ("Car", not "Car · tuned (Run 1)"), numbered
+ * when another saved EQ has it. Ids never change, so automatic switching and the widgets keep working. Unmatched
+ * profiles stay as they are (their test is gone).
+ */
+fun tieProfilesToTests(profiles: List<EqProfile>, tests: List<Pair<String, String>>): List<EqProfile> {
+    val out = profiles.toMutableList()
+    for (i in out.indices) {
+        val p = out[i]
+        if (!p.fromTuning || p.testId.isNotBlank() || p.test.isBlank()) continue
+        val id = tests.firstOrNull { it.second == p.test }?.first ?: continue
+        val name = if (p.kept) numberedName(p.test, out.filterIndexed { k, _ -> k != i }.map { it.name }.toSet()) else p.name
+        out[i] = p.copy(testId = id, name = name)
+    }
+    return out
+}
+
+/** The profiles left when test [testId] is deleted: its kept EQ goes; EQs saved by hand stay. Second: the ids removed. */
+fun profilesAfterTestDelete(profiles: List<EqProfile>, testId: String): Pair<List<EqProfile>, Set<String>> {
+    val gone = profiles.filter { it.kept && it.testId == testId }.map { it.id }.toSet()
+    return profiles.filter { it.id !in gone } to gone
+}
+
+/** Whether the EQ picked ([EqChoice.key]) came from test [testId] or from one of the [removed] profiles. */
+fun pickFromTest(pick: String, testId: String, removed: Set<String>): Boolean {
+    val p = pick.split(':')
+    return when (p[0]) {
+        "suggest", "run", "ai" -> p.getOrNull(1) == testId
+        "profile" -> p.getOrNull(1) in removed
+        else -> false
+    }
+}
+
+/** A saved EQ's second line (2.33): how close it came and when, never "Tuned · Connected to my phone · measured in Run 1". */
+fun savedEqLine(db: Double?, date: String, bands: Int): String =
+    (if (db != null) "%.1f dB from target".format(db) else countText(bands, "band")) + " · " + date
+
+/** The status under the EQ's switch: a problem only; "EQ updated", "On: …" and "EQ off." are not shown (2.33). */
+fun eqStatusShown(msg: String?): String? =
+    msg?.takeIf { it.isNotBlank() && !it.startsWith("EQ updated") && !it.startsWith("On:") && !it.startsWith("On,") && it != "EQ off." }
+
+/** What Back does on the measuring screen (2.33): ask before measured spots are dropped, else stop or close. */
+enum class MeasureBack { ASK, STOP, CLOSE }
+
+/** Spots measured and not yet saved: [spot] is the one measuring, or the one just done between spots. */
+fun spotsMeasured(stage: MeasureStage, spot: Int): Int = if (stage == MeasureStage.SPOT_DONE) spot else spot - 1
+
+fun measureBack(stage: MeasureStage, busy: Boolean, spot: Int): MeasureBack = when {
+    (busy || stage == MeasureStage.SPOT_DONE) && spotsMeasured(stage, spot) > 0 -> MeasureBack.ASK
+    busy -> MeasureBack.STOP
+    else -> MeasureBack.CLOSE
+}
+
+/** The question's one line: "Spot 1 is measured and is dropped." */
+fun dropSpotsText(n: Int): String = if (n == 1) "Spot 1 is measured and is dropped." else "Spots 1-$n are measured and are dropped."
+
+/**
+ * Set up on equipment used before goes straight to its sound screen, "as last time" (2.33): when the phone measures
+ * it ([installed] false for a TV or PC). First time, or with AutoTune on the TV or PC, Set up asks as before.
+ */
+fun setupStartsAtSound(usedBefore: Boolean, e: Equipment, installed: Boolean): Boolean =
+    usedBefore && !(e.companion != null && installed)
+
+/** The fact on the sound screen when Set up started there: "car · as last time". */
+fun asLastTime(e: Equipment): String = equipmentName(e).lowercase() + " · as last time"
+
+/** The Result key when the advice is to keep (2.33): "Done", and what it keeps on its second line; null otherwise. */
+fun keepKey(move: NextMove?, bestLabel: String?): Pair<String, String>? = when (move) {
+    NextMove.KEEP_LATEST -> "Done" to "keeps this EQ"
+    NextMove.KEEP_BEST -> "Done" to "keeps the EQ of ${bestLabel ?: "the best run"}"
+    else -> null
+}
+
+/** What the Connect page calls the device: the one remembered, else what Set up picked ("the TV", "the PC"). */
+fun connectDevice(remembered: String?, picked: Equipment?): String = remembered?.takeIf { it.isNotBlank() } ?: when (picked) {
+    Equipment.PC -> "the PC"
+    Equipment.HOME -> "the TV"
+    else -> "the TV or PC"
+}
+
+/** The Connect page's three status lines, each ticked when done (2.33): open there, found on this Wi-Fi, code entered. */
+fun connectSteps(device: String, found: Boolean, codeLength: Int): List<Pair<String, Boolean>> = listOf(
+    "AutoTune open on $device" to found,
+    "found on this Wi-Fi" to found,
+    "code entered" to (codeLength == 4),
+)
+
+/** The home theatres' list title by what is tuned (2.33): a PC's speakers are not a home theatre. */
+fun theatreListTitle(pc: Boolean): String = if (pc) "PC speakers" else "Home theatres"
+
+/** One home theatre in the list: what it is called and the TV or PC it belongs to (null before its first run). */
+data class TheatreEntry(val id: String, val name: String, val owner: String?)
+
+/**
+ * The home theatres to list (2.33): connected, only that device's (never another's results); not connected, grouped
+ * under each device's name, newest group first as listed, those with no device last.
+ */
+fun theatreGroups(all: List<TheatreEntry>, connected: String?): List<Pair<String?, List<TheatreEntry>>> {
+    if (connected != null) return listOf(null to all.filter { it.owner.equals(connected, ignoreCase = true) })
+    val byOwner = LinkedHashMap<String?, MutableList<TheatreEntry>>()
+    all.filter { it.owner != null }.forEach { byOwner.getOrPut(byOwner.keys.firstOrNull { k -> k.equals(it.owner, true) } ?: it.owner) { ArrayList() } += it }
+    all.filter { it.owner == null }.takeIf { it.isNotEmpty() }?.let { byOwner[null] = it.toMutableList() }
+    return byOwner.entries.map { it.key to it.value.toList() }
+}
+
+/** Whether [owner]'s home theatre may open while [connected] is the device on the link (2.33). */
+fun theatreMayOpen(owner: String?, connected: String?): Boolean = connected == null || owner == null || owner.equals(connected, true)
+
+/**
+ * After deleting a home theatre, the one that opens (2.33): another of the same device, newest first, else none.
+ * [rest] is in list order (newest first).
+ */
+fun theatreAfterDelete(rest: List<TheatreEntry>, owner: String?): TheatreEntry? =
+    owner?.let { o -> rest.firstOrNull { it.owner.equals(o, true) } }
+
+/**
+ * Deleting home theatre [deletedId] clears the EQ remembered for the TV or PC (the widget's) when it is the one last
+ * sent: by the id kept with it (2.33), or for an EQ sent before that, when the deleted one belongs to the remembered device.
+ */
+fun clearsCompanionEq(deletedId: String, deletedOwner: String?, baseTestId: String?, rememberedName: String?, hasBase: Boolean): Boolean =
+    hasBase && (if (!baseTestId.isNullOrBlank()) baseTestId == deletedId else deletedOwner != null && deletedOwner.equals(rememberedName, true))
+
+/**
+ * Tune › Home theatre or PC › Yes (2.33): the home theatre to open instead of making a new one, the newest of the
+ * remembered device when it is the kind picked ([pickedPc]); null makes a new one.
+ */
+fun theatreFromTune(all: List<TheatreEntry>, remembered: String?, rememberedPc: Boolean, pickedPc: Boolean): TheatreEntry? =
+    if (remembered == null || rememberedPc != pickedPc) null else all.firstOrNull { it.owner.equals(remembered, true) }
+
+/** Connected, the EQ key, the flavour, Refine and the runs show once the home theatre has an EQ (2.33). */
+fun theatreShowsEq(hasEqRun: Boolean, eqOn: Boolean): Boolean = hasEqRun || eqOn

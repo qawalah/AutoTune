@@ -28,7 +28,7 @@ class StoreShots {
         uc.getMethod("allocateInstance", Class::class.java).invoke(f.get(null), TuneViewModel::class.java) as TuneViewModel
     }
     private val sharer = object : Sharer { override fun text(t: String) {}; override fun files(list: List<java.io.File>, mime: String, title: String) {} }
-    private val pick = Pickers({}, {}, {}, {}, {}, {})
+    private val pick = Pickers({}, {}, {}, {}, {})
     private val grid = FreqGrid()
 
     private fun curveOf(bump: (Double) -> Double) = DoubleArray(grid.size) { bump(grid.freqs[it]) }
@@ -58,7 +58,7 @@ class StoreShots {
         suggestedChain = eqc, exportChain = eqc, eqChart = eqChart, eqSource = "Suggested by tuning · F-150 driver seat", eqLevelDb = -3.4,
         outputs = listOf(1 to "F-150 (Bluetooth)", 2 to "Phone speaker"), outputName = "F-150 (Bluetooth)", positions = 3,
         profiles = listOf(EqProfile("p1", "F-150 · first EQ", "tuning", "F-150", "F-150 driver seat", "from the stock reading", 1L, eqc.filters)),
-        systemEqOn = false, clipName = "Pink noise",
+        systemEqOn = false,
         eqPick = "run:b:8", eqChoices = listOf(
             EqChoice("suggest:a", "F-150 driver seat", TargetKind.CAR, "Next suggestion", "After Run 2, not measured yet · 6 bands"),
             EqChoice("run:a:2", "F-150 driver seat", TargetKind.CAR, "Run 2", "Measured 2.10 dB from the target · best · 5 bands"),

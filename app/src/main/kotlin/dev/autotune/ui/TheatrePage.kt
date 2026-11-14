@@ -96,7 +96,8 @@ fun TheatrePage(pick: Pickers, openId: String? = null, opened: () -> Unit = {}, 
     val u by vm.ui.collectAsState()
     LaunchedEffect(openId) { openId?.let { vm.selectTest(it); opened() } }
     // from Tune › Set up: a new home theatre once connected, never the last one measured (2.24)
-    LaunchedEffect(newName) { newName?.let { vm.startNew(it); opened() } }
+    // 2.33: the remembered device's home theatre opens when there is one; a new one is made from the list's New
+    LaunchedEffect(newName) { newName?.let { vm.fromTune(it, picked == dev.autotune.Equipment.PC); opened() } }
     DisposableEffect(Unit) { vm.start(); onDispose { vm.pause() } }
     LaunchedEffect(u.needsMic) { if (u.needsMic) { vm.micGranted(true); pick.permission() } }
     // a test can run past the screen timeout: the screen stays on until it ends (2.31)
@@ -105,38 +106,40 @@ fun TheatrePage(pick: Pickers, openId: String? = null, opened: () -> Unit = {}, 
     // the home theatres are managed on their own page over this one; Back returns
     var managing by rememberSaveable { mutableStateOf(false) }
     androidx.activity.compose.BackHandler(enabled = managing) { managing = false }
-    if (managing) { TheatresPage(u, vm) { managing = false }; return }
+    if (managing) { TheatresPage(u, vm, picked) { managing = false }; return }
 
     // titled by what is connected: PC speakers or a home theatre (2.32: "Home theatre" for a PC too)
     ScreenTitle(dev.autotune.connectTitle(if (u.tv != null) u.device else null, picked), context = u.tv ?: "not connected", contextIcon = Ic.HOME)
     if (u.tv == null) {
-        Connect(u, vm)
+        Connect(u, vm, picked)
         // the open home theatre's last results stay readable while nothing is connected; not when Tune's Set up
         // started a new one, which is made as soon as it connects
         if (u.test != null && !u.startingNew) {
-            TheatreLine(u) { managing = true }
+            TheatreLine(u, picked) { managing = true }
             LevelsResult(u)
             DistancesResult(u)
             EqResult(u)
             RunsDetails(u, vm)
         }
-    } else if (u.threeTests) ThreeTests(u, vm, sharer) { managing = true } else Connected(u, vm)
+    } else if (u.threeTests) ThreeTests(u, vm, sharer, picked) { managing = true } else Connected(u, vm)
 }
 
 @Composable
-private fun Connect(u: TheatreUi, vm: TheatreViewModel) {
+private fun Connect(u: TheatreUi, vm: TheatreViewModel, picked: dev.autotune.Equipment? = null) {
     var tvIdx by rememberSaveable { mutableIntStateOf(0) }
     val tvName = u.found.getOrNull(tvIdx.coerceAtMost((u.found.size - 1).coerceAtLeast(0)))
     var code by rememberSaveable(tvName) { mutableStateOf(tvName?.let { u.codes[it] }.orEmpty()) }
     var address by rememberSaveable { mutableStateOf("") }
-    // Simple offers the address once nothing has been found for a few seconds (2.32: a dead end before)
-    var lookingSince by androidx.compose.runtime.remember { mutableStateOf(System.currentTimeMillis()) }
-    var now by androidx.compose.runtime.remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(u.found.isEmpty()) {
-        if (u.found.isNotEmpty()) lookingSince = System.currentTimeMillis()
-        while (u.found.isEmpty()) { now = System.currentTimeMillis(); kotlinx.coroutines.delay(1000) }
+    // Simple offers the address once nothing has been found for a few seconds (2.32: a dead end before). Counted by the
+    // page's own clock, a second per tick (2.33: wall-clock time did not move with the walk harness's clock, so the
+    // field never came there; on a phone the two run together)
+    var lookingMs by androidx.compose.runtime.remember { mutableStateOf(0L) }
+    val none = u.found.isEmpty()
+    LaunchedEffect(none) {
+        lookingMs = 0L
+        while (none) { kotlinx.coroutines.delay(1000); lookingMs += 1000 }
     }
-    val showAddress = dev.autotune.offersAddress(isAdvanced(), u.found.isEmpty(), now - lookingSince)
+    val showAddress = dev.autotune.offersAddress(isAdvanced(), none, lookingMs)
     // the remembered TV or PC is connected again by itself (2.25): say so while it is
     val remembered = CompanionLink.rememberedName(androidx.compose.ui.platform.LocalContext.current)
     val sub = when {
@@ -144,11 +147,13 @@ private fun Connect(u: TheatreUi, vm: TheatreViewModel) {
         u.found.isEmpty() -> "looking on this wi-fi"
         else -> "${u.found.size} found"
     }
-    RunSheet("Find the TV or PC", sub) {
-        if (u.found.isEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Nothing found yet", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-            InfoButton("Find the TV or PC", ABOUT_TV, small = true)
-        } else DropSelect(u.found, tvIdx.coerceAtMost(u.found.size - 1), { tvIdx = it }, label = "TV or PC", icon = Ic.HOME, info = ABOUT_TV)
+    // the device by its name once known, else what Set up picked; the kind remembered must match what was picked
+    val rememberedPc = CompanionLink.rememberedKind(androidx.compose.ui.platform.LocalContext.current) == dev.autotune.link.Msg.KIND_PC
+    val device = dev.autotune.connectDevice(remembered?.takeIf { picked == null || (picked == dev.autotune.Equipment.PC) == rememberedPc }, picked)
+    RunSheet("Find ${device.removePrefix("the ")}", sub, trailing = { InfoButton("Find ${device.removePrefix("the ")}", ABOUT_TV + "\n\n" + GET_AUTOTUNE, small = true) }) {
+        // three facts that tick themselves, in place of a bare "Nothing found yet" (2.33)
+        dev.autotune.connectSteps(device, !none, code.length).forEach { (text, done) -> StatusTick(done, text) }
+        if (!none) DropSelect(u.found, tvIdx.coerceAtMost(u.found.size - 1), { tvIdx = it }, label = "TV or PC", icon = Ic.HOME)
         OutlinedTextField(
             value = code, onValueChange = { v -> code = v.filter { it.isDigit() }.take(4) },
             label = { Text("Code on its screen") }, singleLine = true,
@@ -172,6 +177,16 @@ private fun Connect(u: TheatreUi, vm: TheatreViewModel) {
         onClick = { if (byAddress) vm.connectAddress(address, code) else vm.connect(tvIdx, code) },
         sub = tvName?.lowercase() ?: "the tv or pc",
     )
+}
+
+@Composable
+private fun StatusTick(done: Boolean, text: String) {
+    Row(Modifier.heightIn(min = 28.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(18.dp), contentAlignment = Alignment.Center) {
+            if (done) AtIcon(Ic.CHECK, At.c.good, size = 18.dp) else Box(Modifier.size(8.dp).clip(CircleShape).background(At.c.line))
+        }
+        Text(text, Modifier.padding(start = 10.dp), style = MaterialTheme.typography.bodyMedium, color = if (done) At.c.text else At.c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
 }
 
 @Composable
@@ -299,7 +314,10 @@ private fun Details(r: TheatreReport, u: TheatreUi, showEq: Boolean = true) {
 // ---- the three tests (2.16): levels, distances and the EQ, each on its own, saved as runs of a named test
 
 @Composable
-private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel, sharer: Sharer?, manage: () -> Unit) {
+private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel, sharer: Sharer?, picked: dev.autotune.Equipment?, manage: () -> Unit) {
+    // before the first EQ test only the device, the speakers, the room and the three tests (2.33); the EQ key, the
+    // flavour, Refine and the runs come with the first EQ
+    val hasEq = dev.autotune.theatreShowsEq(u.test?.last(RunKind.EQ) != null, u.tvEqOn)
     val lv = u.level
     val level by LiveCapture.level.collectAsState()
     val ring = if (u.playing != null || u.allPlaying) ((level + 60f) / 50f).coerceIn(0f, 1f) else null
@@ -319,7 +337,7 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel, sharer: Sharer?, mana
             info = "The speakers your home theatre has. ${method.title} from this ${u.device} reaches up to ${method.layouts.first().title}.",
         )
     }
-    TheatreLine(u, manage)
+    TheatreLine(u, picked, manage)
     Panel(pad = 12.dp) {
         SpeakerMap(u.layout, u.playing, level = ring, all = u.allPlaying, notes = notes, silent = d?.speakers?.filter { !it.heard }?.map { it.speaker }?.toSet().orEmpty().takeIf { !u.busy }.orEmpty())
         // under the room only what is happening (the output is in the device's deck above)
@@ -327,10 +345,10 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel, sharer: Sharer?, mana
         line?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = if (u.pretend && u.status == null) At.c.signal else At.c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis) }
     }
     // whether the TV's EQ is on, as a big key you can't miss: on sends the EQ, off switches it off
-    EqKey(u, vm)
+    if (hasEq) EqKey(u, vm)
     // what plays on top of the EQ there, in both modes; never measured
     val flavours = dev.autotune.Flavour.entries
-    DropSelect(
+    if (hasEq) DropSelect(
         flavours.map { it.title }, flavours.indexOf(u.flavour), { vm.setFlavour(flavours[it]) }, label = "Flavour", enabled = !u.busy,
         details = flavours.map { it.detail }, icons = flavours.map { flavourIcon(it) },
         info = "A flavour plays on top of the EQ on the ${u.device}. It only plays: every test that plays through the ${u.device}'s EQ gets the EQ alone, and the flavour comes back after it. The widget can change it too.",
@@ -375,7 +393,7 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel, sharer: Sharer?, mana
         else -> Unit
     }
     if (lv != null || u.waitingSeat) Actions { TextAction("Stop", vm::stop, icon = Ic.STOP) }
-    if (!u.busy) RunsDetails(u, vm)
+    if (!u.busy && hasEq) RunsDetails(u, vm)
 }
 
 /**
@@ -439,7 +457,7 @@ private fun DeviceDeck(u: TheatreUi, vm: TheatreViewModel) {
 
 /** Which home theatre is open, as one line: tapping it opens the home theatres' own page. */
 @Composable
-private fun TheatreLine(u: TheatreUi, manage: () -> Unit) {
+private fun TheatreLine(u: TheatreUi, picked: dev.autotune.Equipment?, manage: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(MaterialTheme.shapes.medium)
             .clickable(enabled = !u.busy, role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Home theatres", onClick = manage)
@@ -449,37 +467,54 @@ private fun TheatreLine(u: TheatreUi, manage: () -> Unit) {
         AtIcon(Ic.HOME, At.c.muted, size = 20.dp)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text("home theatre", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
+            // what is tuned: a PC's speakers are not a home theatre (2.33)
+            Text(theatreWord(u, picked).lowercase(), style = MaterialTheme.typography.labelSmall, color = At.c.muted)
             Text(u.test?.name ?: "none yet", style = MaterialTheme.typography.titleMedium, color = At.c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         AtIcon(Ic.CHEVRON, At.c.muted, size = 18.dp)
     }
 }
 
-/** The home theatres on their own page: pick one, start a new one, rename or delete the open one. */
+/** "Home theatre" or "PC speakers": what is tuned, by the device connected, else what Set up picked (2.33). */
+private fun theatreWord(u: TheatreUi, picked: dev.autotune.Equipment?): String =
+    dev.autotune.connectTitle(if (u.tv != null) u.device else null, picked).let { if (it == "TV or PC") "Home theatre" else it }
+
+/**
+ * The home theatres on their own page: pick one, start a new one, rename or delete the open one. Connected, only that
+ * device's are listed; not connected, they are grouped under each device's name (2.33).
+ */
 @Composable
-private fun TheatresPage(u: TheatreUi, vm: TheatreViewModel, back: () -> Unit) {
+private fun TheatresPage(u: TheatreUi, vm: TheatreViewModel, picked: dev.autotune.Equipment?, back: () -> Unit) {
     var naming by rememberSaveable { mutableStateOf<String?>(null) }
     var renaming by rememberSaveable { mutableStateOf(false) }
     var deleting by rememberSaveable { mutableStateOf(false) }
-    ScreenTitle("Home theatres", context = "${u.tests.size}", contextIcon = Ic.HOME)
-    if (u.tests.isNotEmpty()) Panel(pad = 4.dp) {
-        u.tests.forEach { (id, name) ->
-            val open = id == u.test?.id
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(MaterialTheme.shapes.medium)
-                    .clickable(role = androidx.compose.ui.semantics.Role.Button) { vm.selectTest(id); back() }.padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(Modifier.size(8.dp).clip(CircleShape).background(if (open) At.c.signal else Color.Transparent))
-                Spacer(Modifier.width(12.dp))
-                Text(name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = At.c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                AtIcon(Ic.CHEVRON, At.c.muted, size = 18.dp)
+    val word = theatreWord(u, picked)
+    val groups = dev.autotune.theatreGroups(u.entries, u.tv)
+    val shown = groups.sumOf { it.second.size }
+    ScreenTitle(dev.autotune.theatreListTitle(word == "PC speakers"), context = u.tv ?: "$shown", contextIcon = Ic.HOME)
+    groups.filter { it.second.isNotEmpty() }.forEach { (device, list) ->
+        Panel(pad = 4.dp) {
+            if (device != null || u.tv == null) Text(
+                (device ?: "no tv or pc yet").lowercase(), Modifier.padding(start = 12.dp, top = 8.dp),
+                style = MaterialTheme.typography.labelSmall, color = At.c.muted,
+            )
+            list.forEach { e ->
+                val open = e.id == u.test?.id
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(MaterialTheme.shapes.medium)
+                        .clickable(role = androidx.compose.ui.semantics.Role.Button) { vm.selectTest(e.id); back() }.padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(if (open) At.c.signal else Color.Transparent))
+                    Spacer(Modifier.width(12.dp))
+                    Text(e.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = At.c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
     }
+    val one = word.lowercase()
     Actions {
-        TextAction("New home theatre", { naming = "" }, icon = Ic.PLUS)
+        TextAction("New", { naming = "" }, icon = Ic.PLUS)
         if (u.test != null) {
             TextAction("Rename ${u.test.name}", { renaming = true }, icon = Ic.EDIT)
             TextAction("Delete ${u.test.name}", { deleting = true }, icon = Ic.TRASH, danger = true)
@@ -487,13 +522,13 @@ private fun TheatresPage(u: TheatreUi, vm: TheatreViewModel, back: () -> Unit) {
         TextAction("Back", back, icon = Ic.BACK)
     }
     naming?.let { text ->
-        NameDialog("New home theatre", text, onDone = { n -> vm.newTest(n); naming = null; back() }, onCancel = { naming = null })
+        NameDialog("New: $one", text, onDone = { n -> vm.newTest(n); naming = null; back() }, onCancel = { naming = null })
     }
     if (renaming) NameDialog("Rename", u.test?.name.orEmpty(), onDone = { n -> vm.renameTest(n); renaming = false }, onCancel = { renaming = false })
     if (deleting) androidx.compose.material3.AlertDialog(
         onDismissRequest = { deleting = false },
-        title = { Text("Delete ${u.test?.name ?: "this home theatre"}?") },
-        text = { Text("Every run of it is deleted.") },
+        title = { Text("Delete ${u.test?.name ?: one}?") },
+        text = { Text("Every run of it is deleted, and its EQ if it was the last one sent.") },
         confirmButton = { DialogKey("Delete", { vm.deleteTest(); deleting = false }, danger = true) },
         dismissButton = { DialogKey("Keep it", { deleting = false }) },
     )

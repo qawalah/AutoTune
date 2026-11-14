@@ -1070,7 +1070,8 @@ fun TuningScale(needleDb: Double, stockDb: Double?, bestDb: Double? = null, pred
 fun Fold(title: String, summary: String? = null, startOpen: Boolean = false, info: String? = null, content: @Composable () -> Unit) {
     var open by rememberSaveable(title) { mutableStateOf(startOpen) }
     val inCard = LocalInCard.current
-    val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 90f else 0f, tween(motionMs(220), easing = EaseArrive), label = "chevron")
+    // a fold's arrow points down, and up once open (2.33: ">" is only for rows that open a page)
+    val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 180f else 0f, tween(motionMs(220), easing = EaseArrive), label = "chevron")
     val body: @Composable () -> Unit = {
         if (inCard) HorizontalDivider(color = At.c.line)
         Row(
@@ -1083,7 +1084,7 @@ fun Fold(title: String, summary: String? = null, startOpen: Boolean = false, inf
                 if (summary != null) Muted(summary)
             }
             if (info != null) InfoButton(title, info)
-            AtIcon(Ic.CHEVRON, At.c.muted, Modifier.graphicsLayer { rotationZ = turn }, size = 20.dp)
+            AtIcon(Ic.CHEVRON_DOWN, At.c.muted, Modifier.graphicsLayer { rotationZ = turn }, size = 20.dp)
         }
         androidx.compose.animation.AnimatedVisibility(
             visible = open,
@@ -1802,6 +1803,12 @@ fun HeaderArt(key: String, modifier: Modifier, shown: (() -> Boolean)? = null) {
 /** Set while a page is open over a tab: what its back arrow does. Null on the tabs themselves. */
 val LocalBack = androidx.compose.runtime.compositionLocalOf<(() -> Unit)?> { null }
 
+/**
+ * True while something covers the tabs (the measuring screen, the AI sheet, a full-screen graph): the tabs' own Back
+ * handlers stand down, so Back acts on what is on top (2.33).
+ */
+val LocalCovered = androidx.compose.runtime.compositionLocalOf { false }
+
 @Composable
 fun IconAction(kind: Ic, description: String, onClick: () -> Unit) {
     Box(
@@ -1874,12 +1881,13 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
 }
 
 @Composable
-fun TextAction(text: String, onClick: () -> Unit, enabled: Boolean = true, danger: Boolean = false, icon: Ic? = null, sub: String? = null, opens: Boolean = true) {
+fun TextAction(text: String, onClick: () -> Unit, enabled: Boolean = true, danger: Boolean = false, icon: Ic? = null, sub: String? = null, opens: Boolean = false) {
     // lettered in ink like the keys of a Braun panel: red stays for what is live or acted on, never a plain action
     // a key that cannot be pressed reads as off: fainter than a muted label (2.32: Flat looked live while locked)
     val tint = if (!enabled) At.c.muted.copy(alpha = 0.5f) else if (danger) At.c.bad else At.c.text
     if (LocalStacked.current) {
-        // in a stack: one full-width row per action, the label at the start and a chevron at the end
+        // in a stack: one full-width row per action, the label at the start; ">" at the end only when it opens a page,
+        // a sheet or another screen ([opens]); a key that acts at once has no arrow (2.33, CLAUDE.md)
         val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
         val pressed by src.collectIsPressedAsState()
         Row(
@@ -2309,7 +2317,11 @@ fun <T> PickField(
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun GroupedPick(label: String, choices: List<dev.autotune.EqChoice>, selectedKey: String, onPick: (String) -> Unit, emptyText: String, info: String? = null) {
+fun GroupedPick(
+    label: String, choices: List<dev.autotune.EqChoice>, selectedKey: String, onPick: (String) -> Unit, emptyText: String, info: String? = null,
+    /** A row's own actions (⋮), e.g. Rename and Delete on a saved EQ (2.33); empty for none. */
+    rowMenu: ((dev.autotune.EqChoice) -> List<RowAction>)? = null,
+) {
     var open by remember { mutableStateOf(false) }
     val sel = choices.firstOrNull { it.key == selectedKey }
     Column(Modifier.fillMaxWidth().settleIn()) {
@@ -2341,7 +2353,7 @@ fun GroupedPick(label: String, choices: List<dev.autotune.EqChoice>, selectedKey
             // the dialog radius of the shape scale (12dp), not Material's soft 28dp sheet
             shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp),
         ) {
-            EqSheet(choices, selectedKey) { key ->
+            EqSheet(choices, selectedKey, rowMenu?.let { m -> { c: dev.autotune.EqChoice -> m(c).map { a -> RowAction(a.label, a.danger) { scope.launch { sheet.hide() }.invokeOnCompletion { open = false; a.onClick() } } } } }) { key ->
                 onPick(key)
                 scope.launch { sheet.hide() }.invokeOnCompletion { open = false }
             }
@@ -2350,7 +2362,7 @@ fun GroupedPick(label: String, choices: List<dev.autotune.EqChoice>, selectedKey
 }
 
 @Composable
-private fun EqSheet(choices: List<dev.autotune.EqChoice>, selectedKey: String, onPick: (String) -> Unit) {
+private fun EqSheet(choices: List<dev.autotune.EqChoice>, selectedKey: String, rowMenu: ((dev.autotune.EqChoice) -> List<RowAction>)?, onPick: (String) -> Unit) {
     val groups = choices.groupBy { it.group }
     val selGroup = choices.firstOrNull { it.key == selectedKey }?.group ?: groups.keys.firstOrNull()
     var openGroups by remember { mutableStateOf(setOfNotNull(selGroup)) }
@@ -2364,7 +2376,7 @@ private fun EqSheet(choices: List<dev.autotune.EqChoice>, selectedKey: String, o
             val isOpen = g in openGroups
             val first = list.first()
             val bestDb = list.mapNotNull { it.db }.minOrNull()
-            val turn by androidx.compose.animation.core.animateFloatAsState(if (isOpen) 90f else 0f, tween(motionMs(220), easing = EaseArrive), label = "group")
+            val turn by androidx.compose.animation.core.animateFloatAsState(if (isOpen) 180f else 0f, tween(motionMs(220), easing = EaseArrive), label = "group")
             Row(
                 Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(MaterialTheme.shapes.large)
                     .clickable(role = Role.Button, onClickLabel = if (isOpen) "Close ${first.groupTitle}" else "Open ${first.groupTitle}") {
@@ -2380,7 +2392,7 @@ private fun EqSheet(choices: List<dev.autotune.EqChoice>, selectedKey: String, o
                     if (sub.isNotBlank()) Text(sub, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
                 if (!isOpen) Text(bestDb?.let { "best %.1f".format(it) } ?: "${list.size}", style = MaterialTheme.typography.labelMedium, color = At.c.muted)
-                AtIcon(Ic.CHEVRON, At.c.muted, Modifier.padding(start = 6.dp).graphicsLayer { rotationZ = turn }, size = 18.dp)
+                AtIcon(Ic.CHEVRON_DOWN, At.c.muted, Modifier.padding(start = 6.dp).graphicsLayer { rotationZ = turn }, size = 18.dp)
             }
             androidx.compose.animation.AnimatedVisibility(
                 visible = isOpen,
@@ -2389,7 +2401,7 @@ private fun EqSheet(choices: List<dev.autotune.EqChoice>, selectedKey: String, o
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     // the useful few first (suggested, best, kept), then the rest
-                    (list.filter { it.primary } + list.filter { !it.primary }).forEach { c -> ChoiceRow(c, c.key == selectedKey) { onPick(c.key) } }
+                    (list.filter { it.primary } + list.filter { !it.primary }).forEach { c -> ChoiceRow(c, c.key == selectedKey, rowMenu?.invoke(c).orEmpty()) { onPick(c.key) } }
                 }
             }
         }
@@ -2398,7 +2410,7 @@ private fun EqSheet(choices: List<dev.autotune.EqChoice>, selectedKey: String, o
 
 /** One choice on one line: a check when it is in use, its name, "best" on the best run, the reading at the end. */
 @Composable
-private fun ChoiceRow(c: dev.autotune.EqChoice, selected: Boolean, onClick: () -> Unit) {
+private fun ChoiceRow(c: dev.autotune.EqChoice, selected: Boolean, menu: List<RowAction> = emptyList(), onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(MaterialTheme.shapes.large)
             .background(if (selected) androidx.compose.ui.graphics.lerp(At.c.panel, At.c.signal, 0.12f) else Color.Transparent)
@@ -2422,6 +2434,27 @@ private fun ChoiceRow(c: dev.autotune.EqChoice, selected: Boolean, onClick: () -
             Text(" dB", style = MaterialTheme.typography.labelMedium, color = At.c.muted)
         } else if (c.note != null) {
             Text(c.note, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 1)
+        }
+        if (menu.isNotEmpty()) RowMenu(c.title, menu)
+    }
+}
+
+/** One action on a row's own menu (⋮). */
+class RowAction(val label: String, val danger: Boolean = false, val onClick: () -> Unit)
+
+/** A row's ⋮ and its menu. */
+@Composable
+fun RowMenu(name: String, actions: List<RowAction>) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconAction(Ic.MORE, "More for $name") { open = true }
+        AtMenu(expanded = open, onDismiss = { open = false }) {
+            actions.forEach { a ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(a.label, color = if (a.danger) At.c.bad else At.c.text) },
+                    onClick = { open = false; a.onClick() },
+                )
+            }
         }
     }
 }

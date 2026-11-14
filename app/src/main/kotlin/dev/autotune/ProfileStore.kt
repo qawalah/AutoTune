@@ -6,7 +6,8 @@ import java.io.File
 
 /**
  * A saved EQ. [kind] is "hand" (built or saved by the user) or "tuning" (came out of a tuning run: [test], [run] and
- * [device] say which one and where it was measured).
+ * [device] say which one and where it was measured). [testId] ties it to its test (2.33; empty in older files until
+ * [tieProfilesToTests] runs once). [kept]: made by Keep at the end of a tune (one per test), not saved by hand.
  */
 data class EqProfile(
     val id: String,
@@ -17,13 +18,10 @@ data class EqProfile(
     val run: String,
     val created: Long,
     val filters: List<EqFilter>,
+    val testId: String = "",
+    val kept: Boolean = false,
 ) {
     val fromTuning: Boolean get() = kind == "tuning"
-
-    /** One line saying where it came from. */
-    val origin: String
-        get() = if (fromTuning) listOfNotNull("Tuned", device.takeIf { it.isNotBlank() }, run.takeIf { it.isNotBlank() }).joinToString(" · ")
-        else "Saved by hand"
 }
 
 /** When this Bluetooth device connects, switch to [profileId]. */
@@ -39,20 +37,52 @@ object ProfileStore {
     fun load(ctx: Context): List<EqProfile> {
         val f = profilesFile(ctx)
         if (!f.exists()) return emptyList()
+        return decode(f.readText())
+    }
+
+    @Synchronized
+    fun save(ctx: Context, list: List<EqProfile>) {
+        profilesFile(ctx).writeText(encode(list))
+    }
+
+    /**
+     * One profile from its stored keys. Files before 2.33 have no `testId` or `kept`: a kept EQ is then known by the
+     * name Keep gave it ("Car · tuned (Run 1)"); older versions ignore the new keys.
+     */
+    fun profileFrom(id: String, m: Map<String, String>, filters: List<EqFilter>): EqProfile {
+        val kind = m["kind"] ?: "hand"
+        val name = m["name"].orEmpty()
+        val test = m["test"].orEmpty()
+        val kept = m["kept"]?.let { it == "1" } ?: (kind == "tuning" && test.isNotBlank() && name.startsWith("$test · tuned"))
+        return EqProfile(
+            id, name, kind, m["device"].orEmpty(), test, m["run"].orEmpty(), m["created"]?.toLongOrNull() ?: 0L, filters,
+            m["testId"].orEmpty(), kept,
+        )
+    }
+
+    /** The text of profiles.txt (pure, for the tests). */
+    fun encode(list: List<EqProfile>): String = buildString {
+        list.forEach { p ->
+            appendLine("profile")
+            appendLine("id=${p.id}"); appendLine("name=${clean(p.name)}"); appendLine("kind=${p.kind}")
+            appendLine("device=${clean(p.device)}"); appendLine("test=${clean(p.test)}"); appendLine("run=${clean(p.run)}")
+            appendLine("created=${p.created}")
+            if (p.testId.isNotBlank()) appendLine("testId=${clean(p.testId)}")
+            appendLine("kept=${if (p.kept) "1" else "0"}")
+            p.filters.forEach { appendLine("filter=${it.freqHz},${it.gainDb},${it.q}") }
+            appendLine("end")
+        }
+    }
+
+    /** profiles.txt read back (pure, for the tests): every older file loads. */
+    fun decode(text: String): List<EqProfile> {
         val out = ArrayList<EqProfile>()
         var m = HashMap<String, String>()
         var filters = ArrayList<EqFilter>()
-        fun flush() {
-            val id = m["id"] ?: return
-            out += EqProfile(
-                id, m["name"].orEmpty(), m["kind"] ?: "hand", m["device"].orEmpty(), m["test"].orEmpty(), m["run"].orEmpty(),
-                m["created"]?.toLongOrNull() ?: 0L, filters,
-            )
-        }
-        f.readLines().forEach { line ->
+        text.lines().forEach { line ->
             when {
                 line == "profile" -> { m = HashMap(); filters = ArrayList() }
-                line == "end" -> flush()
+                line == "end" -> m["id"]?.let { out += profileFrom(it, m, filters) }
                 line.startsWith("filter=") -> line.removePrefix("filter=").split(',').let { p ->
                     if (p.size == 3) runCatching { filters += EqFilter(p[0].toDouble(), p[1].toDouble(), p[2].toDouble()) }
                 }
@@ -60,20 +90,6 @@ object ProfileStore {
             }
         }
         return out
-    }
-
-    @Synchronized
-    fun save(ctx: Context, list: List<EqProfile>) {
-        profilesFile(ctx).writeText(buildString {
-            list.forEach { p ->
-                appendLine("profile")
-                appendLine("id=${p.id}"); appendLine("name=${clean(p.name)}"); appendLine("kind=${p.kind}")
-                appendLine("device=${clean(p.device)}"); appendLine("test=${clean(p.test)}"); appendLine("run=${clean(p.run)}")
-                appendLine("created=${p.created}")
-                p.filters.forEach { appendLine("filter=${it.freqHz},${it.gainDb},${it.q}") }
-                appendLine("end")
-            }
-        })
     }
 
     @Synchronized

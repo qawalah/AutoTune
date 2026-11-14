@@ -76,7 +76,7 @@ private fun playing(t: Double): Pair<String, Float> {
  * the live waveform, a line saying what is happening, the signal meter, and every check as it is done.
  */
 @Composable
-fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
+fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel, backEnabled: Boolean = true) {
     val level by LiveCapture.level.collectAsState()
     val wave by LiveCapture.wave.collectAsState()
     val clock: State<Long> = produceState(System.currentTimeMillis()) {
@@ -126,6 +126,26 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
             while (dev.autotune.countdownLeft(spotStart, System.currentTimeMillis()) > 0) kotlinx.coroutines.delay(200)
             vm.measure()
         }
+    }
+    // Back never drops measured spots without asking (2.33); with none measured it stops or closes as before
+    var askDrop by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = backEnabled) {
+        when (dev.autotune.measureBack(v.stage, s.busy, v.spot)) {
+            // the countdown waits while the question is up
+            dev.autotune.MeasureBack.ASK -> { if (v.stage == MeasureStage.SPOT_DONE) paused = true; askDrop = true }
+            dev.autotune.MeasureBack.STOP -> vm.cancel()
+            dev.autotune.MeasureBack.CLOSE -> vm.closeMeasureView()
+        }
+    }
+    if (askDrop) {
+        val n = dev.autotune.spotsMeasured(v.stage, v.spot)
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { askDrop = false },
+            title = { Text("Stop measuring?") },
+            text = { Text(dev.autotune.dropSpotsText(n)) },
+            confirmButton = { DialogKey(if (n == 1) "Stop and drop spot 1" else "Stop and drop the spots", { askDrop = false; if (s.busy) vm.cancel() else vm.closeMeasureView() }, danger = true) },
+            dismissButton = { DialogKey("Keep measuring", { askDrop = false }) },
+        )
     }
     val scroll = rememberScrollState()
     androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides At.c.text) {
@@ -226,7 +246,7 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
                 PrimaryButton("Try again", { vm.measure() }, Modifier.fillMaxWidth(), icon = Ic.AGAIN, enabled = !s.busy)
                 Actions {
                     TextAction("Check the level", vm::levelCheck, enabled = !s.busy, icon = Ic.LIVE)
-                    TextAction("Ask AI why", vm::aiExplainFailure, icon = Ic.AI)
+                    TextAction("Ask AI why", vm::aiExplainFailure, icon = Ic.AI, opens = true)
                     TextAction("Close, nothing is saved", vm::closeMeasureView, icon = Ic.CLOSE)
                 }
             }

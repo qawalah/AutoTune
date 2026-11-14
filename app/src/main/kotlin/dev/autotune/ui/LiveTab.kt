@@ -131,6 +131,6 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
             }
         } else {
         }
-        if (isAdvanced()) TextAction("Open EQ", { go(Tab.EQ) }, icon = Ic.EQ)
+        if (isAdvanced()) TextAction("Open EQ", { go(Tab.EQ) }, icon = Ic.EQ, opens = true)
     }
 }

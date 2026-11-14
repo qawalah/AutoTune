@@ -74,7 +74,7 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
         }
 
         Group("EQ files", info = "Save or share an EQ as files for other equipment: ParametricEQ.txt for Poweramp and Equalizer APO, GraphicEQ.txt for Wavelet, and the test's report and measurements. In Advanced you can also choose the folder Save uses; Share always goes through the share sheet.") {
-            Actions { TextAction("Export EQ files", { go(Tab.EXPORT) }, icon = Ic.EXPORT) }
+            Actions { TextAction("Export EQ files", { go(Tab.EXPORT) }, icon = Ic.EXPORT, opens = true) }
             if (isAdvanced()) {
                 StatusLine(true, "Saved to " + (s.exportFolder ?: "Downloads/AutoTune"))
                 Actions {
@@ -141,7 +141,7 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
         if (isAdvanced()) Group("TV screen", info = ABOUT_TV_HERE) {
             val ctx = androidx.compose.ui.platform.LocalContext.current
             Actions {
-                TextAction("Use this device as the TV", { ctx.startActivity(android.content.Intent(ctx, dev.autotune.tv.TvActivity::class.java)) }, icon = Ic.HOME)
+                TextAction("Use this device as the TV", { ctx.startActivity(android.content.Intent(ctx, dev.autotune.tv.TvActivity::class.java)) }, icon = Ic.HOME, opens = true)
             }
         }
 

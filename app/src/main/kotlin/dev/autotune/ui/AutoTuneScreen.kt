@@ -105,7 +105,6 @@ class Pickers(
     val permission: () -> Unit,
     val calibration: () -> Unit,
     val curve: () -> Unit,
-    val clip: () -> Unit,
     val notifications: () -> Unit,
     val bluetooth: () -> Unit,
     /** The system folder picker, for where saved files go. */
@@ -202,13 +201,11 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     val curvePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(vm::importTargetCurve) }
     val notifPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val btPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { vm.refreshBluetooth() }
-    val clipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(vm::pickClip) }
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri -> uri?.let(vm::setExportFolder) }
     val pick = Pickers(
         permission = { permLauncher.launch(Manifest.permission.RECORD_AUDIO) },
         calibration = { calPicker.launch(arrayOf("text/*", "application/octet-stream")) },
         curve = { curvePicker.launch(arrayOf("text/*", "application/octet-stream")) },
-        clip = { clipPicker.launch(arrayOf("audio/*")) },
         notifications = { if (Build.VERSION.SDK_INT >= 33) notifPerm.launch(Manifest.permission.POST_NOTIFICATIONS) },
         bluetooth = { if (Build.VERSION.SDK_INT >= 31) btPerm.launch(Manifest.permission.BLUETOOTH_CONNECT) else vm.refreshBluetooth() },
         exportFolder = { folderPicker.launch(null) },
@@ -238,16 +235,17 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     val openResults: () -> Unit = { overlay = OVERLAY_NONE; open(Page.RESULTS) }
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
+    // Back, app-wide (2.33, CLAUDE.md): the top thing closes first (a dialog, menu or sheet itself, the full-screen
+    // graph, the measuring screen, the AI sheet, a page); inside Tune one step back; a tab's top screen goes to Tests;
+    // Tests leaves the app. The measuring screen's own Back (MeasureOverlay) asks before measured spots are dropped.
+    val covered = s.measureView != null || ai.open || zoom.shown != null
     BackHandler(overlay != OVERLAY_NONE) { overlay = OVERLAY_NONE }
-    BackHandler(overlay == OVERLAY_NONE && page == null && tab != Tab.TESTS) { tabIdx = Tab.TESTS.ordinal }
+    BackHandler(!covered && overlay == OVERLAY_NONE && page == null && tab != Tab.TESTS) { tabIdx = Tab.TESTS.ordinal }
     // inside the Tune workflow, Back goes to the previous screen of the workflow, not to another tab
-    BackHandler(overlay == OVERLAY_NONE && page == null && tab == Tab.MEASURE && s.tuneStep != dev.autotune.TuneStep.HOME && !s.busy) { vm.tuneBack() }
+    BackHandler(!covered && overlay == OVERLAY_NONE && page == null && tab == Tab.MEASURE && s.tuneStep != dev.autotune.TuneStep.HOME && !s.busy) { vm.tuneBack() }
     // a page always goes back to where it was opened from
-    BackHandler(overlay == OVERLAY_NONE && page != null) { back() }
-    BackHandler(ai.open) { vm.aiClose() }
-    // registered last so it wins while the measuring screen is up
-    // Back on the measuring screen: stop a running measurement, otherwise close the screen
-    BackHandler(s.measureView != null) { if (s.busy) vm.cancel() else vm.closeMeasureView() }
+    BackHandler(!covered && overlay == OVERLAY_NONE && page != null) { back() }
+    BackHandler(ai.open && zoom.shown == null) { vm.aiClose() }
 
     // Only the EQ tab turns sideways (its graph and faders fill the width); every other screen stays upright, either
     // way up, so the phone's mic can point up while measuring (owner, 2026-11-11: landscape was broken elsewhere)
@@ -261,7 +259,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     val viewMode = androidx.compose.runtime.remember(s.advanced) { ViewMode(s.advanced, vm::setAdvanced) }
     AutoTuneTheme(s.themeMode, s.look, s.accent, s.palette) {
       androidx.compose.runtime.CompositionLocalProvider(
-          LocalPin provides pin, LocalViewMode provides viewMode, LocalChartZoom provides zoom,
+          LocalPin provides pin, LocalViewMode provides viewMode, LocalChartZoom provides zoom, LocalCovered provides covered,
           LocalStagger provides androidx.compose.runtime.remember { Stagger() },
       ) {
         Box(
@@ -427,7 +425,8 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
             androidx.compose.animation.AnimatedVisibility(s.measureView != null, enter = sheetIn(), exit = sheetOut()) {
                 lastMv.value?.let { mv ->
                     androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
-                        MeasureOverlay(mv, s, vm)
+                        // its Back is its own, composed after the tabs', so it wins while it is up (2.33)
+                        MeasureOverlay(mv, s, vm, backEnabled = s.measureView != null && !ai.open && zoom.shown == null)
                     }
                 }
             }

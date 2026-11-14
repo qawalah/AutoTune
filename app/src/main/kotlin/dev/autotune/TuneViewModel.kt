@@ -12,7 +12,6 @@ import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.autotune.audio.Clip
-import dev.autotune.audio.ClipDecoder
 import dev.autotune.audio.ClipPlayer
 import dev.autotune.audio.MeasurementRunner
 import dev.autotune.audio.OutChannel
@@ -448,9 +447,7 @@ data class UiState(
     val sub: SubResult? = null,
     val subDone: Set<String> = emptySet(),
     // --- listening / RTA / export
-    val clipName: String = "Pink noise",
     val playing: Boolean = false,
-    val playingWithEq: Boolean = true,
     val rtaRunning: Boolean = false,
     val rtaWithEq: Boolean = false,
     /** Phone route: play pink noise from the phone while the live RTA runs. Off = just listen (music, other device). */
@@ -461,6 +458,8 @@ data class UiState(
     // --- AutoTune as the EQ
     /** The user's own band list while editing (null = use the suggested EQ). */
     val editFilters: List<EqFilter>? = null,
+    /** Flat was just pressed: Undo puts the EQ back (2.33). */
+    val canUndoFlat: Boolean = false,
     val systemEqOn: Boolean = false,
     val systemEqMessage: String? = null,
     // --- appearance
@@ -509,7 +508,6 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     private var job: Job? = null
     private val player = ClipPlayer()
     private val rta = RtaRunner()
-    private var clip: Clip = pinkClip()
     private val prefs = app.getSharedPreferences("autotune_prefs", android.content.Context.MODE_PRIVATE)
 
     private var savedTests: List<SavedTest> = emptyList()
@@ -578,6 +576,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         TestStore.migrateLegacy(app, Target.ALL.map { it.name })
         refreshTests()
         cleanAutoProfiles()
+        tieProfiles()
         restoreOpen()
         loadSliderLayer()?.let { l -> state.update { it.copy(sliderLayer = l) } }
         val savedPick = prefs.getString("eqPick", null)
@@ -706,7 +705,6 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     private fun rebuildChoices() {
         val s = state.value
         val out = ArrayList<EqChoice>()
-        val names = savedTests.map { it.name }.toSet()
         val ordered = savedTests.filter { it.runs.isNotEmpty() }.sortedByDescending { it.id == current?.id }
         ordered.forEach { t ->
             val kind = targetKind(Target.ALL.getOrNull(t.targetIdx))
@@ -731,9 +729,10 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 val r = t.runs[i]
                 out += EqChoice("run:${t.id}:$i", t.name, kind, r.label, "Measured %.2f dB from the target · best · ${r.eq.size} bands".format(r.rmsDb), db = r.rmsDb, best = true).g()
             }
-            val kept = s.profiles.filter { it.test == t.name }
-            kept.filter { it.name.startsWith("${t.name} · tuned") }.forEach { p ->
-                out += EqChoice("profile:${p.id}", t.name, kind, "Kept: " + p.name.removePrefix("${t.name} · "), "Saved when tuning finished · ${p.filters.size} bands", note = "kept").g()
+            // tied by the test's id (2.33): a rename keeps them in their group
+            val kept = s.profiles.filter { it.testId == t.id }
+            kept.filter { it.kept }.forEach { p ->
+                out += EqChoice("profile:${p.id}", t.name, kind, "Kept EQ", savedEqLine(profileDb(p), fmtDate(p.created), p.filters.size), note = "kept").g()
             }
             // the rest, folded until asked for
             withEq.reversed().filter { it != best }.forEach { i ->
@@ -743,12 +742,14 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             aiStored(t.id)?.takeIf { it.bands.isNotEmpty() }?.let { r ->
                 out += EqChoice("ai:${t.id}", t.name, kind, "AI-adjusted EQ", "Suggestion after ${t.runs.getOrNull(r.focusRun ?: t.runs.lastIndex)?.label ?: "the last run"} + ${r.bands.size} changes from the AI review · not measured yet", primary = false, note = "AI · not measured").g()
             }
-            kept.filter { !it.name.startsWith("${t.name} · tuned") }.forEach { p ->
-                out += EqChoice("profile:${p.id}", t.name, kind, p.name.removePrefix("${t.name} · "), "Saved · ${p.filters.size} bands", primary = false, note = "saved").g()
+            kept.filter { !it.kept }.forEach { p ->
+                out += EqChoice("profile:${p.id}", t.name, kind, p.name, savedEqLine(null, fmtDate(p.created), p.filters.size), primary = false, note = "saved").g()
             }
         }
-        s.profiles.filter { it.test !in names }.forEach { p ->
-            out += EqChoice("profile:${p.id}", "Saved EQs", TargetKind.HAND, p.name, p.origin.ifBlank { "${p.filters.size} bands" }, note = "${p.filters.size} bands")
+        val ids = savedTests.map { it.id }.toSet()
+        s.profiles.filter { it.testId !in ids }.forEach { p ->
+            out += EqChoice("profile:${p.id}", "Saved EQs", TargetKind.HAND, p.name, savedEqLine(profileDb(p), fmtDate(p.created), p.filters.size), note = countText(p.filters.size, "band"),
+                name = p.name, sub = savedEqLine(profileDb(p), fmtDate(p.created), p.filters.size))
         }
         if (s.editFilters != null && s.eqPick == "own") out += EqChoice("own", "Made here", TargetKind.HAND, "Your own bands", "Edited on the EQ tab · ${s.editFilters.size} bands", note = "${s.editFilters.size} bands")
         state.update { it.copy(eqChoices = out) }
@@ -919,14 +920,58 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             current = updated
             state.update { it.copy(testName = updated.name) }
         }
+        // the EQs from this test stay tied to it by its id; the kept EQ takes the new name (2.33)
+        val ps = state.value.profiles
+        if (ps.any { it.testId == id }) storeProfiles(ps.map { p ->
+            if (p.testId != id) p else p.copy(test = updated.name, name = if (p.kept) uniqueProfileName(updated.name, p.id) else p.name)
+        })
         refreshTests()
     }
 
+    /**
+     * Deletes a test with everything that came from it (2.33): its readings, the EQ Keep made for it and the automatic
+     * switching to that EQ. When an EQ from it was the one in use, AutoTune EQ goes off and nothing of the test stays
+     * on the EQ tab. EQs saved by hand stay.
+     */
     fun deleteTest(id: String) {
         TestStore.delete(getApplication(), id)
         runCatching { aiFile(id).delete() }
-        if (current?.id == id) { newTest(); state.update { it.copy(tuneStep = TuneStep.HOME) }; rememberOpen() }
+        val (left, gone) = profilesAfterTestDelete(state.value.profiles, id)
+        val st = state.value
+        val inUse = pickFromTest(st.eqPick, id, gone) || st.activeProfileId in gone
+        if (gone.isNotEmpty()) {
+            ProfileStore.saveRules(ctx(), ProfileStore.loadRules(ctx()).filter { it.profileId !in gone })
+            if (prefs.getString("activeProfile", null) in gone) prefs.edit().remove("activeProfile").apply()
+            storeProfiles(left)
+        }
+        if (st.tunedTestId == id) state.update { it.copy(tunedTestId = null, tunedProfileId = null, tunedRuns = 0, tunedRunIdx = -1) }
+        if (current?.id == id) { newTest(); state.update { it.copy(tuneStep = TuneStep.HOME, resumeStep = null) }; rememberOpen() }
+        if (resumeTestId == id) resumeTestId = null
         refreshTests()
+        if (inUse) {
+            if (state.value.systemEqOn) setSystemEq(false)
+            state.update { it.copy(sliderLayer = emptyList(), convertMessage = null, activeProfileId = null, editFilters = null) }
+            saveSliderLayer(emptyList())
+            saveMyEq(null)
+            prefs.edit().remove("activeProfile").apply()
+            setPick(current?.id?.let { "suggest:$it" } ?: "")
+            rebuildActive()
+        }
+        buildEqChart()
+        Diag.log(ctx(), "test_deleted", mapOf("profilesRemoved" to gone.size, "eqWasInUse" to inUse))
+    }
+
+    /** How close a saved EQ from a tune came: the run it was kept from, when its test is still there. */
+    private fun profileDb(p: EqProfile): Double? {
+        val t = savedTests.firstOrNull { it.id == p.testId } ?: return null
+        return t.runs.firstOrNull { r -> p.run == "measured in ${r.label}" }?.rmsDb
+    }
+
+    /** Older profiles get their test's id once, and kept EQs the test's name (2.33, [tieProfilesToTests]). */
+    private fun tieProfiles() {
+        val all = state.value.profiles
+        val tied = tieProfilesToTests(all, savedTests.map { it.id to it.name })
+        if (tied != all) { storeProfiles(tied); Diag.log(ctx(), "profiles_tied", mapOf("count" to tied.count { it.testId.isNotBlank() })) }
     }
 
     private fun runInfos(t: SavedTest) = t.runs.mapIndexed { i, r ->
@@ -1320,7 +1365,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         player.play(viewModelScope, Clip("Test sound", Sweep.pinkNoise(fs, 2.0).let { m -> FloatArray(m.size * 2) { i -> m[i / 2] } }, fs), null) {
             state.update { it.copy(playing = false) }
         }
-        state.update { it.copy(playing = true, playingWithEq = false) }
+        state.update { it.copy(playing = true) }
     }
 
     /** Plays pink noise (or listens to the other device) and reports background, sound level and peak in plain words. */
@@ -2176,16 +2221,6 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
 
     private var resumeTestId: String? = null
 
-    /** Exit, then "Discard": an unfinished test goes away with its readings (the stock reading included). */
-    fun tuneDiscardTest() {
-        val id = current?.id
-        if (id == null) { tuneGo(TuneStep.HOME); return }
-        Diag.log(ctx(), "tune_discarded", mapOf("test" to state.value.testName, "runs" to (current?.runs?.size ?: 0)))
-        resumeTestId = null
-        deleteTest(id)
-        state.update { it.copy(resumeStep = null) }
-    }
-
     /** Leaves the workflow and remembers the step, so Continue comes back to the same place. */
     fun tuneExit() {
         val st = state.value.tuneStep
@@ -2330,12 +2365,14 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         val run = t.runs[idx]
         // the system EQ records its 31 sampled bands as applied; keep the parametric EQ that was given to it instead
         val bands = run.eq
-        // one kept EQ per test: finishing again updates it (same id, so automatic switching keeps working)
-        val old = state.value.profiles.firstOrNull { it.test == t.name && it.name.startsWith("${t.name} · tuned") }
+        // one kept EQ per test, tied by the test's id: finishing again updates it (same id, so automatic switching keeps
+        // working); it is called what the test is called (2.33: no "· tuned (Run 1)")
+        val old = keptEqOf(state.value.profiles, t.id)
         val p = EqProfile(
             old?.id ?: java.util.UUID.randomUUID().toString(),
-            uniqueProfileName("${t.name} · tuned (${run.label})", old?.id),
+            uniqueProfileName(t.name, old?.id),
             "tuning", deviceText(), t.name, "measured in ${run.label}", System.currentTimeMillis(), bands,
+            testId = t.id, kept = true,
         )
         storeProfiles(state.value.profiles.filter { it.id != p.id } + p)
         prefs.edit().putString("activeProfile", p.id).apply()
@@ -2547,7 +2584,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             for (i in mono.indices) { st[2 * i] = mono[i]; st[2 * i + 1] = mono[i] }
             Clip("Sweep", st, fs)
         }
-        else -> clip.takeIf { it.name == "Pink noise" } ?: pinkClip()
+        else -> pinkClip()
     }
 
     /** Pink noise, a repeating sweep, or nothing, played from the phone while the live spectrum runs. */
@@ -2580,39 +2617,6 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         state.update { it.copy(rtaRunning = false, liveSignal = LiveSignal.NONE, rtaNoise = false) }
     }
 
-
-    // ---------------------------------------------------------------- listening (A/B)
-
-    fun pickClip(uri: Uri) {
-        viewModelScope.launch {
-            try {
-                val ctx = getApplication<Application>()
-                val name = ctx.contentResolver.query(uri, null, null, null, null)?.use { c ->
-                    val col = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (c.moveToFirst() && col >= 0) c.getString(col) else null
-                } ?: "clip"
-                state.update { it.copy(status = "Decoding $name...") }
-                clip = ClipDecoder.decode(ctx, uri, name)
-                state.update { it.copy(clipName = name, status = "Clip ready: $name") }
-            } catch (e: Exception) {
-                state.update { it.copy(status = "Could not load that clip: ${e.message}") }
-            }
-        }
-    }
-
-    fun playClip(withEq: Boolean) {
-        val chain = activeChain()
-        if (player.isPlaying) {
-            player.setChain(if (withEq) chain else null)
-            state.update { it.copy(playingWithEq = withEq) }
-            return
-        }
-        stopRta()
-        player.play(viewModelScope, clip, if (withEq) chain else null) {
-            state.update { it.copy(playing = false) }
-        }
-        state.update { it.copy(playing = true, playingWithEq = withEq) }
-    }
 
     fun stopClip() {
         if (!state.value.rtaRunning) player.stop()
@@ -2679,6 +2683,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             run = if (fromTuning) runWording(t!!, focus) else "",
             created = System.currentTimeMillis(),
             filters = chain.filters,
+            testId = if (fromTuning) t!!.id else "",
         )
         storeProfiles(state.value.profiles + p)
         prefs.edit().putString("activeProfile", p.id).apply()
@@ -3018,7 +3023,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     /** Puts [list] in use (null = the open test's suggestion); [pick] records where it came from. */
     private fun setEdit(list: List<EqFilter>?, pick: String = "own") {
         saveMyEq(list)
-        state.update { it.copy(editFilters = list) }
+        flatUndo = null
+        state.update { it.copy(editFilters = list, canUndoFlat = false) }
         setPick(if (list == null) current?.id?.let { "suggest:$it" } ?: "" else pick)
         afterEqChange()
     }
@@ -3072,10 +3078,29 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         saveSliderLayer(emptyList())
         setEdit(null)
     }
+    /** Flat: no bands. What was in use is kept for one Undo (2.33: Flat wiped the EQ with no way back). */
     fun editClear() {
+        val st = state.value
+        val before = FlatUndo(st.editFilters, st.sliderLayer, st.eqPick)
         state.update { it.copy(sliderLayer = emptyList(), convertMessage = null) }
         saveSliderLayer(emptyList())
         setEdit(emptyList())
+        flatUndo = before
+        state.update { it.copy(canUndoFlat = true) }
+    }
+
+    private class FlatUndo(val edit: List<EqFilter>?, val sliders: List<EqFilter>, val pick: String)
+    private var flatUndo: FlatUndo? = null
+
+    /** Puts back the EQ that Flat replaced. */
+    fun undoFlat() {
+        val b = flatUndo ?: return
+        flatUndo = null
+        saveMyEq(b.edit)
+        saveSliderLayer(b.sliders)
+        state.update { it.copy(editFilters = b.edit, sliderLayer = b.sliders, canUndoFlat = false) }
+        setPick(b.pick)
+        afterEqChange()
     }
 
     /**
@@ -3093,7 +3118,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         val at = layer.indexOfFirst { abs(kotlin.math.ln(it.freqHz / c)) < 0.01 }
         if (at >= 0) layer[at] = layer[at].copy(gainDb = layer[at].gainDb + delta) else layer += EqFilter(c, delta, q)
         val next = layer.filter { abs(it.gainDb) >= 0.1 }.sortedBy { it.freqHz }
-        state.update { it.copy(sliderLayer = next, convertMessage = null) }
+        flatUndo = null
+        state.update { it.copy(sliderLayer = next, convertMessage = null, canUndoFlat = false) }
         saveSliderLayer(next)
         afterEqChange()
     }
@@ -3280,7 +3306,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 aiChainFor(t.id)?.let { c -> Triple(c, t, "${safe(t.name)}_AI") }
             }
             "profile" -> state.value.profiles.firstOrNull { it.id == p.getOrNull(1) }?.let { pr ->
-                Triple(EqChain.withSafePreamp(pr.filters), savedTests.firstOrNull { it.name == pr.test }, safe(pr.name))
+                Triple(EqChain.withSafePreamp(pr.filters), savedTests.firstOrNull { it.id == pr.testId } ?: savedTests.firstOrNull { it.name == pr.test }, safe(pr.name))
             }
             else -> null
         }
