@@ -4,6 +4,13 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.34.0] - 2026-11-14
+### Added
+- **Two more tutorial cards**, after "Keep it":
+  - **Tune a TV or PC too**: AutoTune on an Android TV or a Windows PC. In the picture the TV shows its pairing code, the phone links to it, each speaker plays in turn, and the TV's EQ comes on.
+  - **Listen live**: the Live tab. In the picture the spectrum rises with the music, each bar leaves its held peak, and the level reads beside them.
+  - The tutorial is now seven cards. It still shows once; Settings › About › "Replay the tutorial" shows the new cards on a phone that has already seen it.
+
 ## [2.33.0] - 2026-11-14
 ### Added
 - **Tone generator on Live.** "Play from the phone" gains **Tone**: one steady sine from 20 Hz to 20 kHz on a log slider, with ± one-semitone keys and the pitch in large figures. It follows the slider without clicks (a short output buffer and a gliding phase), plays quietly (−20 dBFS; the phone's volume sets how loud) and is kept for next time. The spectrum marks the bar the tone sits in. `Tone`, `ToneSynth` in `:dsp`, `TonePlayer` in `AudioIo.kt`; `LiveSignal.TONE` is appended.

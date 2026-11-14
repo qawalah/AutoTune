@@ -1818,7 +1818,10 @@ fun phoneSpeakerBlock(e: Equipment, phonePlays: Boolean, phoneSpeaker: Boolean):
 
 // ---------------------------------------------------------------- the first-start tutorial (2.9.0)
 
-/** One card of the first-start tutorial: the opening card ([step] 0), then the four steps of a tune. */
+/**
+ * One card of the first-start tutorial: the opening card, the four steps of a tune ([step] 1 to 4), then what else
+ * the app does ([step] 0): the TV or PC companion and the Live tab.
+ */
 data class TutorialCard(val key: String, val step: Int, val title: String, val text: String)
 
 /** The tutorial, in order. [TutorialCard.key] picks the card's picture in ui/Tutorial.kt. */
@@ -1828,6 +1831,8 @@ val TUTORIAL_CARDS: List<TutorialCard> = listOf(
     TutorialCard("eq", 2, "Get a suggested EQ", "It compares the reading with a target curve and fits an EQ to close the gap."),
     TutorialCard("verify", 3, "Verify it", "Measure again with the EQ on. The reading shows how close you are to the target."),
     TutorialCard("keep", 4, "Keep it", "Save the EQ. It plays on the whole phone and can switch on when your car connects."),
+    TutorialCard("tv", 0, "Tune a TV or PC too", "Pair AutoTune on an Android TV or a Windows PC. It plays each speaker and holds the EQ; the phone listens."),
+    TutorialCard("live", 0, "Listen live", "Live shows the spectrum and level as music plays, holds the peaks and can play a test tone."),
 )
 
 /** How many of the cards are steps (all but the opening card). */
@@ -1884,7 +1889,51 @@ fun tutorialPlayMs(key: String): Int = when (key) {
     "measure" -> 1900
     "eq" -> 1500
     "verify" -> 1700
+    "tv" -> 2400
+    "live" -> 1800
     else -> 1200
+}
+
+/** The pairing code the TV card's screen shows. */
+const val TUTORIAL_TV_CODE = "4821"
+
+/** How many of the code's digits the TV shows at [tMs]: one every 150 ms from 200 ms. */
+fun tutorialTvDigits(tMs: Float): Int =
+    if (tMs < 200f) 0 else (((tMs - 200f) / 150f).toInt() + 1).coerceAtMost(TUTORIAL_TV_CODE.length)
+
+/** Which speaker the TV card plays at [tMs], after the phone has paired: 0 the left, 1 the right, null none. */
+fun tutorialTvPlaying(tMs: Float): Int? = when {
+    tMs >= 1000f && tMs < 1500f -> 0
+    tMs >= 1500f && tMs < 2000f -> 1
+    else -> null
+}
+
+/** The Live card's spectrum: this many bars. */
+const val TUTORIAL_LIVE_BARS = 14
+
+/** The Live card's meter updates 25 times a second, like a real one; its bars hold still between frames. */
+private const val TUTORIAL_LIVE_FRAME_MS = 40f
+
+private fun liveBarAt(k: Int, frameMs: Float): Float {
+    val x = k / (TUTORIAL_LIVE_BARS - 1f)
+    // music's usual shape: strong bass and low mids, falling towards the treble
+    val base = 0.35f + 0.5f * bump(x, 0.22f, 0.22f) + 0.1f * bump(x, 0.7f, 0.1f)
+    val p = ((frameMs - k * 25f) / 450f).coerceIn(0f, 1f)
+    val rise = 1f - (1f - p) * (1f - p) * (1f - p)
+    val wobble = 0.82f + 0.18f * kotlin.math.sin(frameMs / 170f + k * 1.3f)
+    return (base * rise * wobble).coerceIn(0f, 1f)
+}
+
+/** Bar [k] of the Live card at [tMs], 0 to 1 of its height: it rises from nothing, then moves with the music. */
+fun tutorialLiveBar(k: Int, tMs: Float): Float =
+    liveBarAt(k, kotlin.math.floor(tMs / TUTORIAL_LIVE_FRAME_MS) * TUTORIAL_LIVE_FRAME_MS)
+
+/** The held peak of bar [k] at [tMs]: the highest it has reached so far, as with "Hold peaks" on Live. */
+fun tutorialLivePeak(k: Int, tMs: Float): Float {
+    var peak = 0f
+    var f = 0f
+    while (f <= tMs) { peak = maxOf(peak, liveBarAt(k, f)); f += TUTORIAL_LIVE_FRAME_MS }
+    return peak
 }
 
 /** The reading the Verify card shows: the stock's distance from the target, and the tuned one's. */
@@ -2068,3 +2117,4 @@ fun spotDoneText(spot: Int, spots: Int): String = "spot $spot of $spots done"
 
 /** Every check passed: Simple folds them into one line that opens the list (2.32). */
 fun allChecksPassed(states: List<Int>): Boolean = states.isNotEmpty() && states.all { it == 1 }
+

@@ -104,7 +104,7 @@ flowchart LR
   CW -->|"its name"| HT
   SH["Shortcuts, routines,<br/>autotune://profile/name"] -->|"ApplyProfileActivity"| BG
   BT["Bluetooth device connects"] -->|"rules.txt"| BG
-  FS(["First start"]) -->|"once (tutorialSeen)"| TUT["Tutorial over every screen<br/>5 cards: Skip, Next, Get started"]
+  FS(["First start"]) -->|"once (tutorialSeen)"| TUT["Tutorial over every screen<br/>7 cards: Skip, Next, Get started"]
   TUT -->|"Skip, Get started, Back on the first card"| TU
   ST -->|"About: Replay the tutorial"| TUT
 ```
