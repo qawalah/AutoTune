@@ -47,12 +47,12 @@ phone through Obtainium.
 - After every reading, show a short summary, then one recommended action pinned above the tabs (`PinAction`), then the other choices, then Details. The graph is always shown.
 - The look is a Braun device by Dieter Rams; the default is Gradient edge (`Look.GRADIENT`), the others are kept (Settings › Look); see `DESIGN.md`. Red is only for what is live or acted on.
 - Use plain, short wording. Inter is the only typeface (`AtSans`; `AtFigures` is the same family): readings large and light, labels small and lowercase; figures are tabular everywhere.
-- Results open with the display (`RunSheet` + `ReadingCells` in `ui/Kit.kt`), a short headline and one folded "notes" line; the stock is drawn dashed in charts. Don't repeat target names on lists or titles; show test names through `shortTestName`.
+- Results open with the display (`RunSheet` + `ReadingCells` in `ui/Kit.kt`) and one folded "notes" line; the stock is drawn dashed in charts. Don't repeat target names on lists or titles; show test names through `shortTestName`.
 - Tuning is five steps (Set up, Stock, Refine, Verify, Result); keep it that short. Never put a screen between a decision and its measurement: the key that decides starts the measuring (`tuneSetup`, `tuneMeasure`, `tuneMeasureStock`).
 - Five tabs: Tests, EQ, Tune (raised in the centre), Live, Settings. A test's results and Export are pages over the current tab (`Page` in `ui/AutoTuneScreen.kt`): Back returns where you were. Keep new detail screens as pages, not tabs.
 - Simple / Advanced is app-wide and Simple is the default. Advanced adds controls and sections (`Adv { }`), never paragraphs. Simple shows only each tab's core job (see the 1.26.0 entry in `CHANGELOG.md`); gate the rest with `isAdvanced()`.
 - No explanatory text on the page, in either mode: explanations go in info bubbles (`InfoButton`, `info =` on `DropSelect`, `GroupedPick`, `Group`, `Fold`, `InfoLabel`). Warnings go through `Alerts(list)`, one line that opens the full list. A line of text under a control is a fact or a status, at most one line.
-- Every result opens with the readings, a one-line headline (`resultHeadline`), the findings or alerts in one line each, and the next step.
+- Every result opens with the readings, the findings or alerts behind one notes icon, and the next step. No headline line under the readings (owner, 2026-11-09): its words are in the info bubble (`resultHeadline`); only a reading that looks wrong says so in a line.
 - Each section is a deck (`Panel`, `Group`, `Fold`: a light plate with a hairline outline on the dark body, no shadow; never nested). Stack actions one per row with `Actions { }`. Motion uses `EaseArrive`/`EaseLeave` and `motionMs()`, so "Remove animations" is respected.
 
 ## Don't break

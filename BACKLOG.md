@@ -22,7 +22,7 @@ The three held entries were built together: the name centred on the header graph
 - Check on the owner's phone: the feel of the fold under a finger and with a fling, and the folded opening after a tab jump.
 
 ## Flow review (9 Nov 2026): 1-3 done in 2.5.0, 4 and 6 in 2.6.0, leaner flow in 2.7.0, the rest open
-- **Next mic spot starts by itself** (held, asked 9 Nov): a countdown after each spot instead of "Measure spot n"; would halve the taps in a session.
+- **Next mic spot starts by itself**: done in 2.32.0 (a 5 s countdown with Pause on the measuring screen).
 From the flow maps in `FLOW.md`. Done: Set up is a draft, the EQ check decides the next move, preview tunes are measured on the phone's EQ before keeping.
 - **Level check before the stock sweep.** A short level probe as the first check on the measuring screen (reuse `levelCheck`), stopping with "turn it up/down a step" and Try again. No extra screen. (Since 2.7.0 "Check the level" is on the failed measuring screen.)
 - **Route rules out of the screens.** `onEquipment` in EqTab and the `equipment` default in ApplyStep into one pure `applyRoute(...)` in TuningLogic with FlowTest cases; later split `TuneViewModel` (tune flow, measuring) into their own classes.
@@ -52,7 +52,7 @@ Done on the working branch (see HANDOVER "Results, runs, palette and graphics, r
 - **Test details: graphics at their size, expand, animate.** Done. The results page opens with its header tall; graphics play when they come into view (they used to play on composition, before they were scrolled to); charts rise into place; the full-screen chart is a sheet over the app in the same window instead of a dialog window.
 Open follow-ups:
 - Check on the owner's phone: the pull gesture with One UI's overscroll, the full-screen chart, the dark ink by day and at night.
-- CLAUDE.md still says every result opens with a one-line headline; the owner asked for it to go. Update CLAUDE.md if the owner agrees.
+- CLAUDE.md said every result opens with a one-line headline; the owner asked for it to go. Done in 2.32.0: CLAUDE.md now matches the code.
 
 ## Gradient edge default (asked 2026-11-09): done, not released
 Done on the working branch (see HANDOVER "Gradient edge default"):

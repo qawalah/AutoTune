@@ -4,6 +4,31 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.32.0] - 2026-11-14
+### Changed
+From the second part of the audit of 13 Nov (`AUDIT-2026-11-13.md`, "Full audit of every screen and key"). Checked on the real screens with the walk-through harness (pretend car).
+- **A test with no name is called after the equipment**: "Car", then "Car 2", "Home theatre", "PC speakers", "Speakers" (or the equipment name typed in Advanced), never a date or the target. Saved tests keep their names. Refine and Result titles use the short name.
+- **Simple drops the names screen from Set up**: one screen fewer. Rename stays on Tests and the results page; Advanced keeps the screen, with "Equipment name (optional)". With AutoTune on the TV or PC, Simple's "Yes" connects at once.
+- **Tune screen**: with an unfinished test open, Continue is the big key and New test the small one; a finished tune shows its Tuned card and no Continue. The open test, its finished tune and where Continue returns are kept when the app is closed and opened again.
+- **Finished tests say "Tune further"** in the Tests ⋮ menu too. The open test's light is labelled "open".
+- **The microphone is asked for by the measuring key itself** ("Allow the mic and measure"), and the measurement starts as soon as access is given. While access is missing the screen shows one amber line and one key.
+- **The next mic spot starts by itself** after a 5-second countdown shown large on the display, with Pause and "Measure spot n now". Set up says "3 mic spots · each starts by itself" in Simple.
+- **Measuring screen**: "Spot 1 of 3 done" once; no bare dash (the mic while it opens, the countdown between spots); no cross: each stage ends with one key that says what it keeps ("Close and drop spot 1", "Close, nothing is saved"); in Simple all-green checks are one line that opens the list.
+- **Refine**: the three ways to apply in one list, the recommended one first (and pinned), each with a one-line fact; the bands and preamp figures are Advanced only; the duplicate "The EQ should bring it to…" line is gone (the reading says it; the why is in the bubble). Back from Refine asks the same as Exit.
+- **Stock is drawn dashed on every chart**, alone too. A hidden curve's name is greyed, never struck through.
+- **Result** no longer draws the next suggested EQ when the advice is to keep and finish.
+- **EQ tab**: one "on"; no "EQ updated: n bands" status in Simple; the lock says "Locked"/"Unlocked"; keys that cannot be pressed look off; the deck is "Bands"; saved EQs are called saved EQs everywhere (no "profile"); the note about another EQ app's preamp only for EQs set on other equipment; the graph shows the stock under the run and no "Predicted" curve lying on the run.
+- **Menus** (the mode key, ⋮, every drop-down) are the app's light plate with its hairline, every option readable. Dialog keys use the app's key style.
+- **Notes**: "Averaged 3 mic positions." is a fact, never a warning; each note shows once; "Bass fades out below 100 Hz." (it said "above", with no full stop).
+- **Wording**: "1 system", "dB from target"; "suggested" only under a key with other choices beside it; the route list without "(best)" or "sweep + pink"; "Test sound" has no page arrow; one output to play through is a status line, not a one-entry drop-down.
+- **Connect page**: titled "PC speakers" or "Home theatre" by what is connected (long titles drawn smaller rather than cut); in Simple the address field appears after 6 seconds with nothing found; Back returns to the Set up screen it came from with its answers.
+- **Live**: the standby plate says what Start does; the level deck shows once there is a level, so the Sound deck sits right under the spectrum.
+- **Settings**: no doubled "Mode"; no calibration warning for the phone's own mic; the AI key and Send diagnostics are reachable in Simple.
+- **Tutorial** ends on the Tune tab, with one counter (its lights). Empty Tests no longer shows the "more below" key.
+- **Set up's four picture keys are one height.**
+- **TV**: its EQ key switches the EQ back on with the bands it had (kept when switched off, as the PC does); older phones work as before. The widget says "TV or PC". The home theatre page has the Speakers choice right under the device deck.
+- **Windows**: "not on this output" is one line and one key (use the output Equalizer APO is on, else open its Configurator, then Check again); the EQ deck sits above the output once that is set, so it shows at the start size.
+
 ## [2.31.0] - 2026-11-13
 ### Fixed
 From the audit of 13 Nov (`AUDIT-2026-11-13.md`). The link stays compatible both ways: older phones, TVs and PCs ignore what is new.
