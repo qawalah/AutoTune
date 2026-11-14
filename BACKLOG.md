@@ -1,5 +1,11 @@
 # AutoTune backlog
 
+## Live: compare two held peaks (asked 2026-11-14), not built
+Hold peaks (2.33.0) keeps the highest each bar and the loudest peak have reached until Reset. Ask: keep one recording of peaks, start a new one, and compare the two.
+- Flow idea: with Hold peaks on, a **Keep** key stores the held bars (and the held level peak) as recording A and starts a fresh hold, B. The spectrum draws A as a coloured cap (the same ghost caps `RtaBars(ghosts = ...)` already draws for ticked runs) and B as the white cap; the level panel reads both ("A -3.2, B -1.8 dBFS") and the difference per bar can be shown on tap.
+- Building blocks already there: `PeakHold` (`:dsp`, `snapshot()` and `reset()`), `rtaHold`, `LevelInfo.peakMaxDb`, `RtaBars(hold =, ghosts =)`. Needs a second `PeakHold` and a stored A snapshot in the view model, a Keep key (and Clear A) in `LiveKeys`/`LiveTab`, and a test for the A/B bookkeeping.
+- Open questions: both recordings are in dB relative to the target (or to the loudest bar for a tone), so A and B are only comparable at the same room level and mic spot; say whether to level-match them, as `Rta.relativeToTarget` already does for each reading. Whether A survives leaving Live or a new Start (proposed: kept until cleared, not saved to disk). Whether Hold peaks should record only while a signal plays.
+
 ## Phone-mic calibration from the USB mic (asked 2026-10-12)
 Make the phone's own mic usable for tuning by calibrating it against the calibrated USB mic.
 - Flow: mic stand at the listening spot. Measure the same sweep with the USB mic (calibration applied), then with the phone held exactly where the USB capsule was, pointing the same way. Repeat at 2-3 spots and average.
