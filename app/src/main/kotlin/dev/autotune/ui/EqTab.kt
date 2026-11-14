@@ -642,7 +642,7 @@ internal val GRAPHIC_SETS = listOf(
     listOf(25.0, 40.0, 63.0, 100.0, 160.0, 250.0, 400.0, 630.0, 1000.0, 1600.0, 2500.0, 4000.0, 6300.0, 10000.0, 16000.0) to 2.1,
 )
 
-private fun freqLabel(f: Double): String {
+internal fun freqLabel(f: Double): String {
     fun n(v: Double) = ("%.1f".format(v)).removeSuffix(".0")
     return if (f >= 1000) n(f / 1000) + "k" else n(f)
 }
@@ -742,7 +742,7 @@ val LocalFaderHeight = androidx.compose.runtime.compositionLocalOf { 176.dp }
  * follows a drag, by how far the finger moves, so a touch in passing or a scroll over it never changes the EQ.
  */
 @Composable
-private fun VSlider(
+internal fun VSlider(
     value: Double, onChange: (Double) -> Unit, label: String, enabled: Boolean = true,
     selected: Boolean = false, onSelect: () -> Unit = {}, onTouch: () -> Unit = {},
 ) {

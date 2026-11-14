@@ -92,7 +92,7 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
                 }
             }
             // the corner key opens the spectrum full screen, which turns sideways with the phone
-            if (s.rtaRunning && live != null) Box(Modifier.align(Alignment.TopEnd)) { FullScreenKey(vm) }
+            if (s.rtaRunning && live != null) Box(Modifier.align(Alignment.TopEnd)) { FullScreenKey(vm, pick) }
         }
         if (!s.rtaRunning && s.status?.startsWith("RTA stopped") == true) Warning(s.status!!)
     }
@@ -124,12 +124,12 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
 
 /** The corner key on the spectrum: opens the spectrum full screen, with the level and the tone slider beside it. */
 @Composable
-private fun FullScreenKey(vm: TuneViewModel) {
+private fun FullScreenKey(vm: TuneViewModel, pick: Pickers) {
     val zoom = LocalChartZoom.current ?: return
     val me = remember { Any() }
     DisposableEffect(zoom, me) { onDispose { zoom.closeCustom(me) } }
     IconAction(Ic.EXPAND, "Show the spectrum full screen") {
-        zoom.showCustom(me) { close -> LiveFull(vm, close) }
+        zoom.showCustom(me) { close -> LiveFull(vm, close, pick) }
     }
 }
 
@@ -141,7 +141,7 @@ private fun FullScreenKey(vm: TuneViewModel) {
  * keeps moving while it is open.
  */
 @Composable
-fun LiveFull(vm: TuneViewModel, onClose: (() -> Unit)? = null) {
+fun LiveFull(vm: TuneViewModel, onClose: (() -> Unit)? = null, pick: Pickers? = null) {
     val s by vm.state.collectAsState()
     val live by vm.rtaBars.collectAsState()
     val level by vm.level.collectAsState()
@@ -167,7 +167,11 @@ fun LiveFull(vm: TuneViewModel, onClose: (() -> Unit)? = null) {
         val keys: @Composable (Modifier) -> Unit = { m -> LiveKeys(s, level, vm, onClose, m) }
         if (wide) {
             Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                spectrum(Modifier.weight(1.35f).fillMaxHeight())
+                // the spectrum with the equaliser under it: adjust a band and watch what it does
+                Column(Modifier.weight(1.55f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    spectrum(Modifier.weight(1f).fillMaxWidth())
+                    LiveEqStrip(s, vm, pick, Modifier.fillMaxWidth())
+                }
                 keys(Modifier.weight(1f).fillMaxHeight())
             }
         } else {

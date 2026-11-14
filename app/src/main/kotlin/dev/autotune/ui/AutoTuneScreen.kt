@@ -431,7 +431,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
             val sideways = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
             if (sideways && tab == Tab.LIVE && page == null && overlay == OVERLAY_NONE && s.measureView == null && !ai.open) {
                 androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
-                    Box(Modifier.statusBarsPadding()) { LiveFull(vm) }
+                    Box(Modifier.statusBarsPadding()) { LiveFull(vm, pick = pick) }
                 }
             }
 

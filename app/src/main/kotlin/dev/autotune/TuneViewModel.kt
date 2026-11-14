@@ -3187,6 +3187,23 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         setEdit(fl)
     }
 
+    /** Live's equaliser: edit the EQ in use as exact bands (eight flat ones when there is none), heard at once with the EQ on. */
+    fun liveEqStart() {
+        val cur = state.value.exportChain?.filters ?: emptyList()
+        state.update { it.copy(sliderLayer = emptyList(), convertMessage = null) }
+        saveSliderLayer(emptyList())
+        setEdit(liveBandsStart(cur))
+    }
+
+    /** Slides band [i] to [hz] and returns where it now stands (the bands stay in order of frequency). */
+    fun liveSlide(i: Int, hz: Double): Int {
+        val list = state.value.editFilters ?: return i
+        if (i !in list.indices) return i
+        val (next, at) = slideBand(list, i, hz)
+        setEdit(next)
+        return at
+    }
+
     fun editAdd() { val l = state.value.editFilters ?: emptyList(); setEdit((l + EqFilter(1000.0, 0.0, 1.0)).sortedBy { it.freqHz }) }
     fun editRemove(i: Int) { val l = state.value.editFilters ?: return; setEdit(l.filterIndexed { k, _ -> k != i }) }
     fun editSort() { val l = state.value.editFilters ?: return; setEdit(l.sortedBy { it.freqHz }) }

@@ -4,6 +4,10 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.35.0] - 2026-11-14
+### Added
+- **Live tune: an equaliser on Live, sideways.** Under the spectrum, one fader per band for its gain, and for the band you tap, a slider for its frequency (it slides while you listen, and the faders stay in order of frequency). The **EQ** key beside it switches AutoTune EQ on, so every change is heard at once and drawn in the spectrum above. With the tone generator on, you can play the pitch you are working on. **Tune bands** starts from the EQ in use (eight flat bands, an octave apart, when there is none); it becomes "Your own bands" on the EQ tab; the undo key goes back to the suggested EQ. Also on the maximised spectrum when held sideways. `LiveEqStrip` in `LiveEq.kt`; `liveBandsStart`, `slideBand` in `TuningLogic.kt` (tested); VM `liveEqStart`, `liveSlide`.
+
 ## [2.34.1] - 2026-11-14
 ### Changed
 - **Live turned sideways is one screen with nothing to scroll**: the spectrum on the left, and at its right the live reading (dBFS, peak or peak hold, the level bar), what is played with Start and Stop, the tone's pitch with its slider and ± keys, and Hold peaks. The tabs are hidden while it is sideways (turn the phone upright for them). It was a scrolling page under the Stop bar and the tabs, so the slider and the reading could not be seen together.

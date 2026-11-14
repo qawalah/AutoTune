@@ -831,4 +831,32 @@ class ConvergenceTest {
         assertEquals(720, staggerDelayMs(40))
         assertEquals(-1, staggerDelayMs(-1))
     }
+
+    @Test
+    fun liveEqualiserStartsFromTheEqInUseOrEightFlatBands() {
+        val own = listOf(dev.autotune.dsp.EqFilter(100.0, 3.0, 1.0), dev.autotune.dsp.EqFilter(3000.0, -2.0, 2.0))
+        org.junit.Assert.assertEquals(own, liveBandsStart(own))
+        val flat = liveBandsStart(emptyList())
+        org.junit.Assert.assertEquals(8, flat.size)
+        org.junit.Assert.assertTrue(flat.all { it.gainDb == 0.0 })
+        org.junit.Assert.assertEquals(flat.map { it.freqHz }.sorted(), flat.map { it.freqHz })
+    }
+
+    @Test
+    fun slidingABandKeepsTheBandsInOrderAndFollowsIt() {
+        val bands = listOf(100.0, 500.0, 2000.0).map { dev.autotune.dsp.EqFilter(it, 1.0, 1.0) }
+        // a small slide stays where it is
+        slideBand(bands, 1, 600.0).let { (l, at) -> org.junit.Assert.assertEquals(1, at); org.junit.Assert.assertEquals(600.0, l[1].freqHz, 0.0) }
+        // past its neighbour it changes place, and the index follows the band, not the position
+        slideBand(bands, 0, 1000.0).let { (l, at) ->
+            org.junit.Assert.assertEquals(listOf(500.0, 1000.0, 2000.0), l.map { it.freqHz })
+            org.junit.Assert.assertEquals(1, at)
+        }
+        // held to the audible range
+        org.junit.Assert.assertEquals(20000.0, slideBand(bands, 2, 90000.0).first.last().freqHz, 0.0)
+        org.junit.Assert.assertEquals(20.0, slideBand(bands, 0, 1.0).first.first().freqHz, 0.0)
+        // gain and Q travel with the band
+        val g = listOf(dev.autotune.dsp.EqFilter(100.0, 4.0, 0.7), dev.autotune.dsp.EqFilter(200.0, -3.0, 2.0))
+        slideBand(g, 0, 300.0).first.let { org.junit.Assert.assertEquals(dev.autotune.dsp.EqFilter(300.0, 4.0, 0.7), it[1]) }
+    }
 }

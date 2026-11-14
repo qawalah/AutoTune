@@ -2118,3 +2118,21 @@ fun spotDoneText(spot: Int, spots: Int): String = "spot $spot of $spots done"
 /** Every check passed: Simple folds them into one line that opens the list (2.32). */
 fun allChecksPassed(states: List<Int>): Boolean = states.isNotEmpty() && states.all { it == 1 }
 
+// ---------------------------------------------------------------- Live equaliser (2.35.0)
+
+/** Where Live's equaliser starts when there is no EQ yet: eight flat bands, an octave apart. */
+val LIVE_BAND_CENTRES = listOf(63.0, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0)
+
+/** The bands Live's equaliser edits: the EQ in use as it is, or eight flat bands when there is none. */
+fun liveBandsStart(current: List<dev.autotune.dsp.EqFilter>): List<dev.autotune.dsp.EqFilter> =
+    current.ifEmpty { LIVE_BAND_CENTRES.map { dev.autotune.dsp.EqFilter(it, 0.0, 1.4) } }
+
+/**
+ * Slides band [i] to [hz] (held to 20 Hz - 20 kHz) and keeps the bands in order of frequency, so the faders stay in
+ * order as one is dragged past its neighbour. Returns the new list and where the moved band now is.
+ */
+fun slideBand(list: List<dev.autotune.dsp.EqFilter>, i: Int, hz: Double): Pair<List<dev.autotune.dsp.EqFilter>, Int> {
+    val moved = list[i].copy(freqHz = hz.coerceIn(20.0, 20000.0))
+    val sorted = list.mapIndexed { k, f -> (if (k == i) moved else f) to (k == i) }.sortedBy { it.first.freqHz }
+    return sorted.map { it.first } to sorted.indexOfFirst { it.second }
+}
