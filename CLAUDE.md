@@ -54,6 +54,8 @@ phone through Obtainium.
 - No explanatory text on the page, in either mode: explanations go in info bubbles (`InfoButton`, `info =` on `DropSelect`, `GroupedPick`, `Group`, `Fold`, `InfoLabel`). Warnings go through `Alerts(list)`, one line that opens the full list. A line of text under a control is a fact or a status, at most one line.
 - Every result opens with the readings, the findings or alerts behind one notes icon, and the next step. No headline line under the readings (owner, 2026-11-09): its words are in the info bubble (`resultHeadline`); only a reading that looks wrong says so in a line.
 - Each section is a deck (`Panel`, `Group`, `Fold`: a light plate with a hairline outline on the dark body, no shadow; never nested). Stack actions one per row with `Actions { }`. Motion uses `EaseArrive`/`EaseLeave` and `motionMs()`, so "Remove animations" is respected.
+- Back (2.33): one screen back, and never throws a measurement away without asking (the measuring screen asks before dropping measured spots). In Tune, one step back (Result › Refine › Tune screen; Set up question by question); Exit is the only key that leaves a tune and never asks: the test is kept and Continue returns to it. Discarding a test is on its menu on Tests and in the results page's Manage test. Back on a tab's top screen goes to Tests; on Tests it leaves the app. Pages, sheets, the full-screen graph, menus and dialogs close first. A tab's own `BackHandler` stands down under `LocalCovered`.
+- Arrows (2.33), one meaning each, through the shared components in `ui/Kit.kt`: ">" only on a row that opens a page, a sheet or another screen (`TextAction(opens = true)`, list rows); the down arrow on folds and drop-downs, turning up when open; no arrow on a key that acts at once (`TextAction` default).
 
 ## Don't break
 - **Saved tests** (`TestStore` text format): keep loading every older version.
@@ -61,3 +63,14 @@ phone through Obtainium.
 - **Measurements**: use the tuned EQ with the safe preamp. Flavour and preamp mode affect playback only.
 - **Fitting**: fit from the stock run (`fitFromStock`), so EQs never stack.
 - **AI**: AI EQ changes are clamped to the app's limits, keys stay in the Keystore, and recordings are never sent.
+
+## Lessons learned
+- **Before changing screens, flow or links between devices**, read the shared lessons:
+  `https://raw.githubusercontent.com/qawalah/devstore/main/docs/lessons/LESSONS.md`
+  (or `docs/lessons/LESSONS.md` in a DevStore checkout). Follow them unless this file says otherwise.
+- **Capture.** When a bug, an audit or the owner's feedback shows something a rule would have prevented, add it to
+  this repo's `LESSONS.md` in the same change: the rule, then what went wrong, with the date.
+- **Feed back.** Mark a lesson that would help other apps with `→ DevStore`. If this session can reach
+  `qawalah/devstore` (`add_repo` with push access), add it to DevStore's `docs/lessons/LESSONS.md` under the right
+  heading with this app's name and date, push, and change the mark to `→ DevStore (sent <date>)`. If it cannot,
+  leave the mark; a DevStore session collects it later.

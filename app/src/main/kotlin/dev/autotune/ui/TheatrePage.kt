@@ -150,7 +150,7 @@ private fun Connect(u: TheatreUi, vm: TheatreViewModel, picked: dev.autotune.Equ
     // the device by its name once known, else what Set up picked; the kind remembered must match what was picked
     val rememberedPc = CompanionLink.rememberedKind(androidx.compose.ui.platform.LocalContext.current) == dev.autotune.link.Msg.KIND_PC
     val device = dev.autotune.connectDevice(remembered?.takeIf { picked == null || (picked == dev.autotune.Equipment.PC) == rememberedPc }, picked)
-    RunSheet("Find ${device.removePrefix("the ")}", sub, trailing = { InfoButton("Find ${device.removePrefix("the ")}", ABOUT_TV + "\n\n" + GET_AUTOTUNE, small = true) }) {
+    RunSheet("Find $device", sub, trailing = { InfoButton("Find $device", ABOUT_TV + "\n\n" + GET_AUTOTUNE, small = true) }) {
         // three facts that tick themselves, in place of a bare "Nothing found yet" (2.33)
         dev.autotune.connectSteps(device, !none, code.length).forEach { (text, done) -> StatusTick(done, text) }
         if (!none) DropSelect(u.found, tvIdx.coerceAtMost(u.found.size - 1), { tvIdx = it }, label = "TV or PC", icon = Ic.HOME)
@@ -175,7 +175,7 @@ private fun Connect(u: TheatreUi, vm: TheatreViewModel, picked: dev.autotune.Equ
         if (u.connecting) "Connecting" else "Connect", icon = Ic.SEND,
         enabled = !u.connecting && code.length == 4 && (byAddress || tvName != null),
         onClick = { if (byAddress) vm.connectAddress(address, code) else vm.connect(tvIdx, code) },
-        sub = tvName?.lowercase() ?: "the tv or pc",
+        sub = (tvName ?: device).lowercase(),
     )
 }
 

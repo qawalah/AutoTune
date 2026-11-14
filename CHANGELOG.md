@@ -4,6 +4,27 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.33.0] - 2026-11-14
+### Fixed
+From the second audit of 14 Nov (`AUDIT-2026-11-13.md`, "Second audit"). Checked on the real screens with the walk-through harness (pretend car).
+- **Deleting a test deletes the EQ that finishing it made**, and any automatic switching to it. If that EQ was playing, AutoTune EQ goes off, and the EQ tab no longer shows anything of the test. EQs you saved yourself stay. The question says so in one line.
+- **The kept EQ stays with its test when the test is renamed**: it is tied to the test itself, not its name, and takes the new name. Finishing again updates it instead of making a second one. Saved EQs from before are tied once, by name.
+- **Back while measuring asks before it drops a measured spot** ("Stop measuring? Spot 1 is measured and is dropped."); with nothing measured yet it stops as before. The countdown between spots waits while it asks.
+- **Back during the countdown between spots acts on the measuring screen**, never on the Set up screen under it, and a stopped reading returns to the sound screen its key was on.
+- **Refine shows the recommended way once**: pinned, with its fact as its second line; the list holds the other ways.
+- **Deleting a home theatre whose EQ was the last one sent** forgets that EQ (the widget's too) and switches it off on the TV or PC when connected. Then another home theatre of the same TV or PC opens, or none.
+- **The address field on the Connect page** counted its six seconds by the wall clock; it now counts the page's own seconds (the same on a phone; in the harness it showed after 6 s).
+### Changed
+- **Back goes one step back**: Result to Refine to the Tune screen; Set up question by question. Exit is the only key that leaves a tune, and leaving never asks: the test is kept and Continue returns to it. Discard a test from its menu on Tests or its results page.
+- **Arrows mean one thing each**: ">" only on a row that opens a page or another screen, the down arrow on folds and drop-downs (up when open), nothing on a key that acts at once.
+- **EQ tab**: "Try it" and "More" are gone. Advanced: "Edit exactly" opens the exact bands inside the Bands deck; Automatic switching is its own deck; rename and delete a saved EQ from its row in "EQ in use" (⋮); no "EQ updated" line. Flat offers Undo. Simple: the switch, the EQ in use and the flavour, then the sliders and graph under "Adjust".
+- **One name per EQ**: the kept EQ is called what the test is called ("Car"), with how close it came and the date under it.
+- **Tune on equipment used before** opens Set up on its sound screen, "car · as last time", with Change for the questions. "Is AutoTune on the TV/PC?" is skipped once that TV or PC is remembered with it (Back from the Connect page brings the question back).
+- **Result**: when the advice is to keep, the key is "Done", "keeps this EQ".
+- **The TV or PC page**: connected, the list shows that device's home theatres only (not connected, grouped by device), and never opens another's; the Connect page ticks three lines (AutoTune open on the TV, found on this Wi-Fi, code entered) and its bubble, like the question's, says how to get AutoTune for the TV or PC; before the first EQ test only the device, the speakers, the room and the three tests show; the page and list are called "PC speakers" for a PC. From Tune, the remembered device's home theatre opens instead of a new one.
+- **Tests**: after the first connection, the Connect deck is one row for that TV or PC, connected or not.
+- Docs: the Back and arrows rules in `CLAUDE.md` and `FLOW.md`; `LESSONS.md` (lessons learned, fed back to DevStore).
+
 ## [2.32.0] - 2026-11-14
 ### Changed
 From the second part of the audit of 13 Nov (`AUDIT-2026-11-13.md`, "Full audit of every screen and key"). Checked on the real screens with the walk-through harness (pretend car).
