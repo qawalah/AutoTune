@@ -479,7 +479,7 @@ private fun BandRow(i: Int, f: EqFilter, open: Boolean, onToggle: () -> Unit, vm
 }
 
 @Composable
-private fun sliderColors() = SliderDefaults.colors(
+internal fun sliderColors() = SliderDefaults.colors(
     thumbColor = At.c.signal, activeTrackColor = At.c.signal, inactiveTrackColor = At.c.line,
 )
 

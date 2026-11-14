@@ -249,13 +249,18 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     // Back on the measuring screen: stop a running measurement, otherwise close the screen
     BackHandler(s.measureView != null) { if (s.busy) vm.cancel() else vm.closeMeasureView() }
 
-    // Only the EQ tab turns sideways (its graph and faders fill the width); every other screen stays upright, either
-    // way up, so the phone's mic can point up while measuring (owner, 2026-11-11: landscape was broken elsewhere)
-    val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
+    // The app stays upright, either way up, so the phone's mic can point up while measuring (owner, 2026-11-11: landscape
+    // was broken elsewhere). It turns sideways only on a graph opened full screen (always), or on the EQ and Live tabs
+    // when the phone's own auto-rotate is on (owner, 2026-11-14). SENSOR_PORTRAIT keeps the upside-down way whatever
+    // the setting says; FULL_SENSOR follows the sensor into landscape.
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val activity = ctx as? android.app.Activity
+    val autoRotate by rememberAutoRotate()
     // the full-screen chart turns too, wherever it was opened from
-    LaunchedEffect(tab, page, s.measureView != null, zoom.shown != null) {
+    LaunchedEffect(tab, page, s.measureView != null, zoom.open, autoRotate) {
+        val free = dev.autotune.turnFor(zoom.open, dev.autotune.turnsSideways(tab.name, page != null, s.measureView != null), autoRotate) == dev.autotune.Turn.FREE
         activity?.requestedOrientation =
-            if (zoom.shown != null || dev.autotune.turnsSideways(tab.name, page != null, s.measureView != null)) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+            if (free) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
             else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
     }
     val viewMode = androidx.compose.runtime.remember(s.advanced) { ViewMode(s.advanced, vm::setAdvanced) }

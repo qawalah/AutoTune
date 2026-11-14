@@ -980,8 +980,35 @@ fun bubbleX(cx: Float, width: Float, right: Float, gap: Float): Float {
 fun cursorFreqText(f: Double): String =
     if (f >= 1000) String.format(java.util.Locale.US, "%.1f kHz", f / 1000) else String.format(java.util.Locale.US, "%.0f Hz", f)
 
-/** Whether the screen may turn sideways: only the EQ tab itself, with no page over it and nothing measuring. */
-fun turnsSideways(tab: String, pageOpen: Boolean, measuring: Boolean): Boolean = tab == "EQ" && !pageOpen && !measuring
+/** Whether the screen may turn sideways: only the EQ and Live tabs themselves, with no page over them and nothing measuring. */
+fun turnsSideways(tab: String, pageOpen: Boolean, measuring: Boolean): Boolean = (tab == "EQ" || tab == "LIVE") && !pageOpen && !measuring
+
+/** How the screen may turn: [UPRIGHT] is portrait either way up (so the mic can point up); [FREE] also allows sideways. */
+enum class Turn { UPRIGHT, FREE }
+
+/**
+ * The app stays upright, but either way up whatever the auto-rotate setting says, so the phone can be flipped to put the
+ * mic on top. It turns sideways only (a) on a graph shown full screen, always, or (b) on a screen made for it (EQ, Live)
+ * when the phone's auto-rotate is on.
+ */
+fun turnFor(zoomOpen: Boolean, sidewaysScreen: Boolean, autoRotate: Boolean): Turn =
+    if (zoomOpen || (sidewaysScreen && autoRotate)) Turn.FREE else Turn.UPRIGHT
+
+/** The half-ranges (dB either side of the target) the live bars can be drawn at. */
+val RTA_RANGES = doubleArrayOf(15.0, 30.0, 45.0, 60.0)
+
+/**
+ * The half-range for the live bars: the smallest of [RTA_RANGES] that holds [reach] (the largest distance of any bar from
+ * the target, plus 1 dB of room). It widens at once, so nothing is ever cut off, and narrows one step at a time, only once
+ * the bars would fit the smaller range with a quarter to spare, so the scale does not flicker with the music.
+ */
+fun rtaHalfRange(reach: Double, current: Double): Double {
+    val need = RTA_RANGES.firstOrNull { it >= reach + 1.0 } ?: RTA_RANGES.last()
+    if (need >= current) return need
+    val i = RTA_RANGES.indexOfFirst { it >= current }.let { if (it < 0) RTA_RANGES.size - 1 else it }
+    val lower = RTA_RANGES[(i - 1).coerceAtLeast(0)]
+    return if (reach + 1.0 <= lower * 0.75) lower.coerceAtLeast(need) else current
+}
 
 fun requestedTab(request: String): String = when (request.lowercase()) {
     "eq" -> "EQ"

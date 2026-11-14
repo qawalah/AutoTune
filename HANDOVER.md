@@ -593,3 +593,10 @@ Frequency-dependent window (Measure > Advanced: Fixed / FDW 15, 8, 5 cycles), ha
 - TV: `TvEq.kept` (pref `kept`, written whenever an EQ is set, kept when switched off); `TvViewModel.eqToggle`; `TvUi.eqKept`; the key is pressable when on or kept. No link change.
 - PC: `notOnOutput(output, withApo, configuratorOpened)` and `ApoFix` (Apo.kt, `ApoTest`); the EQ deck comes before the Output deck when Equalizer APO is ready or unknown; the EQ deck no longer repeats "not on this output".
 - Not verified: the TV key on a TV, the Windows window on Windows (renders only), the Advanced Set up names screen and the Connect page with a real TV or PC.
+
+### Live: tone, hold, sideways, scale (2.33.0)
+- `:dsp` `Tone.kt`: `Tone` (log slider scale 20 Hz-20 kHz, `bandIndex`, `text`), `ToneSynth` (phase-continuous sine, glides to the target, 20 ms fade in), `PeakHold` (highest per bar until reset). Tests in `ToneTest`.
+- `TonePlayer` (AudioIo.kt) plays the tone through `MeasurementRunner.buildTrack(fs, bufferMs = 100)`, so the slider is heard within ~0.1 s. `LiveSignal.TONE` is appended (the drop-down order is the enum order). VM: `setToneHz`/`saveToneHz` (prefs `toneHz`), `setPeakHold` (prefs `peakHold`), `resetPeaks`, `rtaHold`; `LevelInfo.peakMaxDb`. In tone mode the bars are shown against the loudest bar (no target), because a narrow line judged against a target is shoved off the scale.
+- `RtaBars`: `target` may be null (tone), `hold` draws white caps, `marker` marks a bar; the scale is `rtaHalfRange` (15/30/45/60 dB, widens at once, narrows one step at a time).
+- Turning: `turnFor(zoomOpen, sidewaysScreen, autoRotate)` (TuningLogic.kt) picks `FULL_SENSOR` or `SENSOR_PORTRAIT` (upright either way up, which ignores the phone's auto-rotate); `rememberAutoRotate()` follows `Settings.System.ACCELEROMETER_ROTATION`. `ChartZoom.open` counts a custom full-screen view (`showCustom`, used by Live's spectrum) as well as a response graph.
+- Not verified on hardware: the tone through a real speaker, Samsung's rotate button with auto-rotate off, the sideways Live layout on the S23 Ultra.
