@@ -4,6 +4,12 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.37.0] - 2026-11-14
+### Added
+- **Compare two held peak recordings on Live (A and B).** With Hold peaks on, **Keep A** saves what has been caught so far as recording A (coloured caps on the bars) and starts a fresh hold, B (white caps). Stop and Start do not drop A, so a change of EQ can be measured between the two. The reading shows both peaks ("A -3.2, B -1.8"), and a line says where they differ most ("B +4.1 dB at 63 Hz"). **Clear A** drops A; turning Hold peaks off, or changing between a tone and the other signals (their bars are drawn against different things), clears it. `PeakCompare` in `:dsp` (tested); VM `keepPeaks`, `clearKept`, `peakKept`.
+### Changed
+- **Live says less, and nothing wraps over a reading.** The LCD's side lines are one short line each ("hold -1.8", "A / B", "≈ 94 dB"; the SPL is left out with the phone's mic instead of a dash and a sentence); "Hold peaks" no longer breaks into "Hold / peak / s"; "peaks near clipping: lower the volume" is "near clipping"; "press Start" for the standby plate; "tap a band"; "turn sideways for EQ"; "Play" for the sound drop-down; shorter bubbles. The tone's pitch is set smaller so it never crowds its keys; the sideways Close key sits in the spectrum's corner; the hold keys sit under the spectrum, and the band faders are a little shorter.
+
 ## [2.36.1] - 2026-11-14
 ### Fixed
 - **A maximised graph stays sideways when the phone's auto-rotate is off.** Maximise the Live spectrum (or a graph on the EQ tab) and turn the phone: it turned for a second and went back to portrait. Turning laid the screen out again, which dropped the full-screen view, and with it the permission to turn. A full-screen graph now closes only when the screen under it changes (tab or page), or with Close or Back, and while it is open it follows the phone into landscape whatever auto-rotate says.

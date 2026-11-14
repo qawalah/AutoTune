@@ -56,6 +56,7 @@ fun RtaBars(
             if (bars[i].isFinite()) reach = maxOf(reach, abs(bars[i]))
             if (i < target.size) reach = maxOf(reach, abs(target[i]))
             if (hold != null && i < hold.size && hold[i].isFinite()) reach = maxOf(reach, abs(hold[i]))
+            for ((g, _) in ghosts) if (i < g.size && g[i].isFinite()) reach = maxOf(reach, abs(g[i]))
         }
         scale[0] = rtaHalfRange(reach, scale[0])
     }
@@ -99,7 +100,7 @@ fun RtaBars(
                 }
                 val top = y(v)
                 drawRect(color, Offset(x0, top), Size(barW, bottom - top))
-                ghosts.forEach { (g, col) -> drawRect(col, Offset(x0, y(g[i]) - 1.dp.toPx()), Size(barW, 3.dp.toPx())) }
+                ghosts.forEach { (g, col) -> if (i < g.size && g[i].isFinite()) drawRect(col, Offset(x0, y(g[i]) - 1.dp.toPx()), Size(barW, 3.dp.toPx())) }
                 if (target != null) drawLine(c.target, Offset(x0 - 1f, y(target[i])), Offset(x0 + barW + 1f, y(target[i])), 2.dp.toPx())
                 if (hold != null && i < hold.size && hold[i].isFinite()) {
                     drawRect(c.text, Offset(x0, y(hold[i]) - 1.dp.toPx()), Size(barW, 2.dp.toPx()))

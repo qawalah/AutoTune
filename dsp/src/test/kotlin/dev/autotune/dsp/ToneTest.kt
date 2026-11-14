@@ -91,4 +91,19 @@ class ToneTest {
         // after a reset the old, higher peaks are gone
         assertEquals(listOf(-20.0, -20.0, -20.0), assertNotNull(h.snapshot()).toList())
     }
+
+    @Test
+    fun comparingTwoPeakRecordingsFindsTheBiggestDifference() {
+        val a = DoubleArray(5) { -10.0 }
+        val b = doubleArrayOf(-10.0, -9.0, -14.0, -10.2, -10.0)
+        // B is 4 dB lower at bar 2: the largest difference, signed B - A
+        val (at, d) = assertNotNull(PeakCompare.largest(a, b))
+        assertEquals(2, at)
+        assertEquals(-4.0, d, 1e-9)
+        // differences under half a dB are not worth a word
+        assertNull(PeakCompare.largest(a, DoubleArray(5) { -10.3 }))
+        // bars that are missing in either are left out, and nothing to compare gives null
+        assertNull(PeakCompare.largest(doubleArrayOf(Double.NEGATIVE_INFINITY), doubleArrayOf(0.0)))
+        assertNull(PeakCompare.largest(DoubleArray(0), DoubleArray(0)))
+    }
 }

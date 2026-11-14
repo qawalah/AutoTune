@@ -38,6 +38,7 @@ import dev.autotune.LiveSignal
 import dev.autotune.Source
 import dev.autotune.TuneViewModel
 import dev.autotune.UiState
+import dev.autotune.dsp.PeakCompare
 import dev.autotune.dsp.Rta
 import dev.autotune.dsp.Target
 import dev.autotune.dsp.Tone
@@ -52,6 +53,7 @@ import kotlin.math.pow
 fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel, pick: Pickers, go: (Tab) -> Unit) {
     val ready = s.hasPermission
     val hold by vm.rtaHold.collectAsState()
+    val kept by vm.peakKept.collectAsState()
     val conf = LocalConfiguration.current
     val landscape = conf.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     if (!landscape) ScreenTitle("Live")
@@ -79,16 +81,15 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
         Box {
             when {
                 s.rtaRunning && live != null ->
-                    RtaBars(live, if (tone) null else target, height = h, caption = false, hold = if (s.peakHold) hold else null, marker = marker)
+                    RtaBars(
+                        live, if (tone) null else target, height = h, caption = false, hold = if (s.peakHold) hold else null, marker = marker,
+                        ghosts = keptGhost(s, kept),
+                    )
                 s.rtaRunning -> Box(Modifier.fillMaxWidth().height(h), contentAlignment = Alignment.Center) {
-                    Text("Listening for the first reading…", style = MaterialTheme.typography.bodyMedium, color = At.c.muted)
+                    Text("listening", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
                 }
                 else -> Box(Modifier.fillMaxWidth().height(h), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("standby", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
-                        // what Start does, in its own few words (2.32: a deck of its own said it in a sentence)
-                        Text("start reads the spectrum and level", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
-                    }
+                    Text("press Start", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
                 }
             }
             // the corner key opens the spectrum full screen, which turns sideways with the phone
@@ -96,16 +97,13 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
         }
         if (!s.rtaRunning && s.status?.startsWith("RTA stopped") == true) Warning(s.status!!)
     }
-    // hold: keep the highest bar and level reached, with a key that clears it
+    // hold: keep the highest bar and level reached; Keep A saves them and starts B, to compare two
     val holdRow: @Composable () -> Unit = {
-        SwitchRow(
-            "Hold peaks", s.peakHold, vm::setPeakHold,
-            info = "Keeps the highest each bar and the loudest peak have reached, as a white cap on each bar, until you press Reset or turn this off.",
-        )
-        if (s.peakHold) TextAction("Reset peaks", vm::resetPeaks, icon = Ic.UNDO, opens = false)
+        SwitchRow("Hold peaks", s.peakHold, vm::setPeakHold, info = HOLD_INFO)
+        if (s.peakHold) Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { HoldKeys(hold != null, kept != null, vm) }
     }
 
-    val levelPanel: @Composable () -> Unit = { LevelPanel(s, level, vm) }
+    val levelPanel: @Composable () -> Unit = { LevelPanel(s, level, kept, hold, vm) }
     val soundGroup: @Composable () -> Unit = { SoundGroup(s, vm, go) }
 
     // sideways, the shell draws [LiveFull] over the whole screen (no tabs, no scrolling): nothing to lay out here
@@ -147,6 +145,7 @@ fun LiveFull(vm: TuneViewModel, onClose: (() -> Unit)? = null, pick: Pickers? = 
     val live by vm.rtaBars.collectAsState()
     val level by vm.level.collectAsState()
     val hold by vm.rtaHold.collectAsState()
+    val kept by vm.peakKept.collectAsState()
     val tone = s.liveSignal == LiveSignal.TONE
     val target = Rta.targetBars(Target.ALL[s.targetIdx.coerceIn(0, Target.ALL.size - 1)])
     BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp)) {
@@ -158,19 +157,28 @@ fun LiveFull(vm: TuneViewModel, onClose: (() -> Unit)? = null, pick: Pickers? = 
                     RtaBars(
                         bars, if (tone) null else target, height = maxHeight, caption = false,
                         hold = if (s.peakHold) hold else null, marker = if (tone) Tone.bandIndex(s.toneHz) else null,
+                        ghosts = keptGhost(s, kept),
                     )
-                } else Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(if (s.rtaRunning) "listening" else "standby", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
-                    if (!s.rtaRunning) Text("start reads the spectrum and level", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
-                }
+                } else Text(
+                    if (s.rtaRunning) "listening" else "press Start", Modifier.align(Alignment.Center),
+                    style = MaterialTheme.typography.labelSmall, color = At.c.muted,
+                )
+                // Close sits in the spectrum's corner, out of the way of the keys
+                if (onClose != null) Box(Modifier.align(Alignment.TopEnd)) { IconAction(Ic.CLOSE, "Close", onClose) }
             }
         }
-        val keys: @Composable (Modifier) -> Unit = { m -> LiveKeys(s, level, vm, onClose, m, hint = !wide) }
+        val keys: @Composable (Modifier) -> Unit = { m -> LiveKeys(s, level, kept, hold, vm, m, hint = !wide) }
         if (wide) {
             Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 // the spectrum with the equaliser under it: adjust a band and watch what it does
                 Column(Modifier.weight(1.55f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     spectrum(Modifier.weight(1f).fillMaxWidth())
+                    // hold peaks: Keep A, Reset, Clear A, under the bars they act on
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Hold", style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
+                        LatchKey(s.peakHold, vm::setPeakHold, "Hold peaks")
+                        if (s.peakHold) HoldKeys(hold != null, kept != null, vm)
+                    }
                     LiveEqStrip(s, vm, pick, Modifier.fillMaxWidth())
                 }
                 keys(Modifier.weight(1f).fillMaxHeight())
@@ -186,7 +194,10 @@ fun LiveFull(vm: TuneViewModel, onClose: (() -> Unit)? = null, pick: Pickers? = 
 
 /** The live reading and the keys of [LiveFull], packed to fit a phone turned sideways. */
 @Composable
-private fun LiveKeys(s: UiState, level: LevelInfo?, vm: TuneViewModel, onClose: (() -> Unit)?, modifier: Modifier, hint: Boolean = false) {
+private fun LiveKeys(
+    s: UiState, level: LevelInfo?, kept: TuneViewModel.PeakKeep?, hold: DoubleArray?, vm: TuneViewModel,
+    modifier: Modifier, hint: Boolean = false,
+) {
     val ready = s.hasPermission
     val canPlay = s.source == Source.PHONE || s.testName.isBlank()
     // it fits a phone sideways as it is; a large font setting scrolls it rather than cutting a key off
@@ -194,28 +205,36 @@ private fun LiveKeys(s: UiState, level: LevelInfo?, vm: TuneViewModel, onClose: 
         // the reading: dBFS on the LCD with the peak beside it, the bar under it
         if (level != null) {
             val peak = if (s.peakHold) level.peakMaxDb else level.peakDb
+            val ab = s.peakHold && kept != null
             LcdWindow {
                 Row(verticalAlignment = Alignment.Bottom) {
-                    Text("%.1f".format(level.rmsDb), style = MaterialTheme.typography.displaySmall)
-                    Text(" dBFS", Modifier.padding(bottom = 4.dp), style = MaterialTheme.typography.labelMedium, color = At.c.muted)
+                    Text("%.1f".format(level.rmsDb), style = MaterialTheme.typography.displaySmall, maxLines = 1, softWrap = false)
+                    Text(" dBFS", Modifier.padding(bottom = 4.dp), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1, softWrap = false)
                     Box(Modifier.weight(1f))
+                    // one short line each, so nothing wraps over the reading
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            (if (s.peakHold) "peak hold " else "peak ") + "%.1f".format(peak),
-                            style = MaterialTheme.typography.labelMedium, fontFamily = AtFigures,
+                        if (ab) {
+                            Text("A %.1f".format(kept!!.levelDb), style = MaterialTheme.typography.labelMedium, fontFamily = AtFigures, maxLines = 1, softWrap = false)
+                            Text("B %.1f".format(peak), style = MaterialTheme.typography.labelMedium, fontFamily = AtFigures, maxLines = 1, softWrap = false)
+                        } else Text(
+                            (if (s.peakHold) "hold " else "peak ") + "%.1f".format(peak),
+                            style = MaterialTheme.typography.labelMedium, fontFamily = AtFigures, maxLines = 1, softWrap = false,
                         )
-                        Text(
-                            if (s.phoneMic) "no dB SPL with the phone mic" else "≈ %.0f dB SPL".format(level.splDb),
-                            style = MaterialTheme.typography.labelSmall, color = At.c.muted,
+                        // no SPL with the phone's own mic: it would mean nothing
+                        if (!s.phoneMic) Text(
+                            "≈ %.0f dB".format(level.splDb), style = MaterialTheme.typography.labelSmall, color = At.c.muted,
+                            maxLines = 1, softWrap = false,
                         )
                     }
                 }
             }
             LevelBar(level, s.peakHold)
             // a held peak that touched clipping stays flagged until reset
-            if (peak > -1.0) Text("peaks near clipping: lower the volume", style = MaterialTheme.typography.labelSmall, color = At.c.warn)
+            val diff = if (ab && hold != null) PeakCompare.largest(kept!!.bars, hold) else null
+            if (peak > -1.0) Text("near clipping", style = MaterialTheme.typography.labelSmall, color = At.c.warn, maxLines = 1)
+            else if (diff != null) Text(diffText(diff), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
         } else {
-            Text(if (s.rtaRunning) "listening" else "standby", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
+            Text(if (s.rtaRunning) "listening" else "press Start", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
         }
 
         // what is played, and the key that starts and stops it all
@@ -234,7 +253,7 @@ private fun LiveKeys(s: UiState, level: LevelInfo?, vm: TuneViewModel, onClose: 
         if (canPlay && s.liveSignal == LiveSignal.TONE) {
             val semitone = 2.0.pow(1.0 / 12.0)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(Tone.text(s.toneHz), Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium, fontFamily = AtFigures)
+                Text(Tone.text(s.toneHz), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontFamily = AtFigures, maxLines = 1, softWrap = false)
                 SecondaryButton("−", { vm.setToneHz(s.toneHz / semitone); vm.saveToneHz() })
                 Box(Modifier.padding(start = 6.dp)) { SecondaryButton("+", { vm.setToneHz(s.toneHz * semitone); vm.saveToneHz() }) }
             }
@@ -246,16 +265,37 @@ private fun LiveKeys(s: UiState, level: LevelInfo?, vm: TuneViewModel, onClose: 
             )
         }
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Hold peaks", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-            if (s.peakHold) TextAction("Reset", vm::resetPeaks, icon = Ic.UNDO, opens = false)
-            LatchKey(s.peakHold, vm::setPeakHold, "Hold peaks")
-            if (onClose != null) TextAction("Close", onClose, icon = Ic.CLOSE)
+        // held upright, the hold keys live here (sideways they sit under the spectrum) and the equaliser has no room
+        if (hint) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Hold", style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
+                LatchKey(s.peakHold, vm::setPeakHold, "Hold peaks")
+                if (s.peakHold) HoldKeys(hold != null, kept != null, vm)
+            }
+            Text("turn sideways for EQ", style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
         }
-        // held upright, the equaliser has no room: say where it is (it turns with the phone, whatever auto-rotate says)
-        if (hint) Text("turn the phone sideways for the equaliser", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
     }
 }
+
+/** Keep A saves what Hold has caught and starts B; Reset restarts B; Clear A drops A. One row, short words. */
+@Composable
+private fun HoldKeys(canKeep: Boolean, hasA: Boolean, vm: TuneViewModel) {
+    TextAction("Keep A", vm::keepPeaks, enabled = canKeep, icon = Ic.SAVE, opens = false)
+    TextAction("Reset", vm::resetPeaks, icon = Ic.UNDO, opens = false)
+    if (hasA) TextAction("Clear A", vm::clearKept, icon = Ic.CLOSE, opens = false)
+}
+
+private const val HOLD_INFO = "Keeps the highest each bar has reached (white caps) until Reset. " +
+    "Keep A saves them as A (coloured caps) and starts B, to compare two settings, for example before and after an EQ change."
+
+/** A, drawn as coloured caps on the bars, while Hold peaks is on. */
+@Composable
+private fun keptGhost(s: UiState, kept: TuneViewModel.PeakKeep?): List<Pair<DoubleArray, androidx.compose.ui.graphics.Color>> =
+    if (s.peakHold && kept != null) listOf(kept.bars to runColor(1)) else emptyList()
+
+/** "B +4.1 dB at 63 Hz": where the two recordings differ most. */
+private fun diffText(d: Pair<Int, Double>): String =
+    "B %+.1f dB at %s".format(d.second, Tone.text(Rta.CENTERS[d.first])).replace('-', '\u2212')
 
 /** The level bar: -80 dBFS (quieter than any room) to 0 (clipping), the held peak a tick on it. */
 @Composable
@@ -277,33 +317,34 @@ private fun LevelBar(level: LevelInfo, hold: Boolean) {
 
 /** The level reading: dBFS on the LCD, the bar with its held peak, and the facts under it. */
 @Composable
-private fun LevelPanel(s: UiState, level: LevelInfo?, vm: TuneViewModel) {
+private fun LevelPanel(s: UiState, level: LevelInfo?, kept: TuneViewModel.PeakKeep?, hold: DoubleArray?, vm: TuneViewModel) {
     if (level != null) {
         // the reading on the LCD in the Concept look, like every other reading
         LcdWindow {
             Row(verticalAlignment = Alignment.Bottom) {
-                Text("%.1f".format(level.rmsDb), style = MaterialTheme.typography.displayLarge)
-                Text(" dBFS", Modifier.padding(bottom = 10.dp), style = MaterialTheme.typography.bodyMedium, color = At.c.muted)
+                Text("%.1f".format(level.rmsDb), style = MaterialTheme.typography.displayLarge, maxLines = 1, softWrap = false)
+                Text(" dBFS", Modifier.padding(bottom = 10.dp), style = MaterialTheme.typography.bodyMedium, color = At.c.muted, maxLines = 1, softWrap = false)
                 Box(Modifier.weight(1f))
-                Column(horizontalAlignment = Alignment.End) {
-                    if (s.phoneMic) {
-                        // the estimate assumes a UMIK-1's gain; for a phone's own mic the number would mean nothing
-                        Text("–", style = MaterialTheme.typography.displaySmall)
-                        Muted("No dB SPL with the phone mic")
-                    } else {
-                        Text("≈ %.0f".format(level.splDb), style = MaterialTheme.typography.displaySmall)
-                        Muted("dB SPL, estimated")
-                    }
+                // the estimate assumes a UMIK-1's gain; with the phone's own mic it would mean nothing, so it is left out
+                if (!s.phoneMic) Column(horizontalAlignment = Alignment.End) {
+                    Text("≈ %.0f".format(level.splDb), style = MaterialTheme.typography.displaySmall, maxLines = 1, softWrap = false)
+                    Text("dB SPL", style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1, softWrap = false)
                 }
             }
         }
         LevelBar(level, s.peakHold)
-        if (s.peakHold) Muted("Peak hold %.1f dBFS   Leq %.1f dBFS".format(level.peakMaxDb, level.leqDb))
-        else Muted("Peak %.1f dBFS   Leq %.1f dBFS".format(level.peakDb, level.leqDb))
+        val ab = s.peakHold && kept != null
+        Muted(
+            if (ab) "peak A %.1f · B %.1f · Leq %.1f dBFS".format(kept!!.levelDb, level.peakMaxDb, level.leqDb)
+            else if (s.peakHold) "hold %.1f · Leq %.1f dBFS".format(level.peakMaxDb, level.leqDb)
+            else "peak %.1f · Leq %.1f dBFS".format(level.peakDb, level.leqDb),
+        )
+        val diff = if (ab && hold != null) PeakCompare.largest(kept!!.bars, hold) else null
+        if (diff != null) Muted(diffText(diff))
         // a held peak that touched clipping stays flagged until reset, even after the level has dropped
         val clipped = if (s.peakHold) level.peakMaxDb > -1.0 else level.peakDb > -1.0
-        if (clipped) Warning("Peaks are close to clipping. Lower the volume or move the mic away.")
-        else if (level.rmsDb < -60.0) Warning("Very quiet. Raise the volume or move the mic closer.")
+        if (clipped) Warning("Near clipping. Lower the volume.")
+        else if (level.rmsDb < -60.0) Warning("Very quiet. Raise the volume.")
     } else {
         Text("listening", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
     }
@@ -313,9 +354,9 @@ private fun LevelPanel(s: UiState, level: LevelInfo?, vm: TuneViewModel) {
         Box(Modifier.padding(start = 6.dp)) { SecondaryButton("+1", { vm.adjustSplOffset(1.0) }) }
         InfoButton(
             "Sound level",
-            "dBFS is the level the phone receives; 0 dBFS is the maximum before clipping. It is reliable.\n\n" +
-                "dB SPL is an estimate for a UMIK-1 at its default gain, using the calibration file's sensitivity. It can be off by several dB and only holds while Android's mic gain stays the same. Use the offset buttons to match a reference meter or a 94 dB calibrator.\n\n" +
-                "Peak is the loudest recent moment. Leq is the average level since you pressed Start.",
+            "dBFS is the level the phone receives; 0 is the maximum before clipping.\n\n" +
+                "dB SPL is an estimate for a UMIK-1 at its default gain. It can be off by several dB; use the offset to match a reference meter or a 94 dB calibrator.\n\n" +
+                "Peak is the loudest recent moment. Leq is the average since Start.",
         )
     }
 }
@@ -326,12 +367,12 @@ private fun SoundGroup(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit) {
     Group("Sound") {
         if (s.systemEqOn) Muted("With AutoTune EQ on")
         if (s.source == Source.PHONE || s.testName.isBlank()) {
-            Text("Play from the phone", style = MaterialTheme.typography.labelLarge)
+            Text("Play", style = MaterialTheme.typography.labelLarge)
             // the order matches LiveSignal (PINK, SWEEP, NONE, TONE): new kinds are only ever appended
             DropSelect(
                 listOf("Pink noise", "Sweep", "Off", "Tone"), s.liveSignal.ordinal,
                 { vm.setLiveSignal(LiveSignal.entries[it]) },
-                info = "Pink noise and the sweep read the whole spectrum. Tone plays one steady pitch from 20 Hz to 20 kHz: drag the slider to find a rattle, a resonance or where the speaker gives out. It is played quietly; the phone's volume sets how loud.",
+                info = "Pink noise and the sweep read the whole spectrum. Tone is one steady pitch, 20 Hz to 20 kHz: slide it to find a rattle, a resonance or where the speaker gives out. The phone's volume sets how loud.",
             )
             if (s.liveSignal == LiveSignal.TONE) ToneControl(s, vm)
             if (s.exportChain?.filters?.isNotEmpty() == true && !s.systemEqOn && isAdvanced()) {

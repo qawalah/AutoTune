@@ -502,6 +502,10 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     /** The highest each live bar has reached (null unless Hold peaks is on and a reading came in). */
     val rtaHold = MutableStateFlow<DoubleArray?>(null)
 
+    /** Recording A of the peak comparison: the bars Hold peaks had when Keep was pressed, and its loudest peak (dBFS). */
+    class PeakKeep(val bars: DoubleArray, val levelDb: Double)
+    val peakKept = MutableStateFlow<PeakKeep?>(null)
+
     /** Files ready for the share sheet. */
     val fileToShare = MutableSharedFlow<ShareFiles>(extraBufferCapacity = 1)
 
@@ -2624,7 +2628,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         val was = state.value.liveSignal
         state.update { it.copy(liveSignal = sig, rtaNoise = sig != LiveSignal.NONE) }
         // a tone's bars are drawn against their own top, not the target: held peaks from the other kind don't carry over
-        if ((was == LiveSignal.TONE) != (sig == LiveSignal.TONE)) resetPeaks()
+        if ((was == LiveSignal.TONE) != (sig == LiveSignal.TONE)) { peakKept.value = null; resetPeaks() }
         val st = state.value
         if (st.rtaRunning && st.source == Source.PHONE) {
             player.stop()
@@ -2652,8 +2656,22 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     fun setPeakHold(on: Boolean) {
         prefs.edit().putBoolean("peakHold", on).apply()
         state.update { it.copy(peakHold = on) }
+        peakKept.value = null // A and B belong to Hold peaks: off, both go
         resetPeaks()
     }
+
+    /**
+     * Keep: the bars and the loudest peak held so far become recording A, and a fresh hold B starts, so the two can be
+     * compared (for example before and after an EQ change). A stays through Stop and Start until it is cleared.
+     */
+    fun keepPeaks() {
+        val snap = peaks.snapshot() ?: return
+        peakKept.value = PeakKeep(snap, peakMax.takeIf { it.isFinite() } ?: -120.0)
+        resetPeaks()
+    }
+
+    /** Drops recording A. */
+    fun clearKept() { peakKept.value = null }
 
     /** Clears the held bars and the held peak; they start again from the next reading. */
     fun resetPeaks() {

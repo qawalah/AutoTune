@@ -80,3 +80,21 @@ class PeakHold(private val size: Int) {
         any = false
     }
 }
+
+/** Compares two held-peak recordings of the Live spectrum, A (kept) and B (the one being held now). */
+object PeakCompare {
+    /**
+     * The bar where [b] differs most from [a], as its index and the difference B - A in dB; null when nothing differs by
+     * at least [minDb] (or there is nothing to compare). Bars that are not finite in both are left out.
+     */
+    fun largest(a: DoubleArray, b: DoubleArray, minDb: Double = 0.5): Pair<Int, Double>? {
+        var best = -1
+        var bestD = 0.0
+        for (i in 0 until minOf(a.size, b.size)) {
+            if (!a[i].isFinite() || !b[i].isFinite()) continue
+            val d = b[i] - a[i]
+            if (abs(d) > abs(bestD)) { best = i; bestD = d }
+        }
+        return if (best >= 0 && abs(bestD) >= minDb) best to bestD else null
+    }
+}

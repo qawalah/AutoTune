@@ -68,7 +68,7 @@ internal fun LiveEqStrip(s: UiState, vm: TuneViewModel, pick: Pickers?, modifier
                     )
                 }
                 else -> Text(
-                    "tap a band to slide its frequency", Modifier.weight(1f),
+                    "tap a band", Modifier.weight(1f),
                     style = MaterialTheme.typography.labelSmall, color = At.c.muted,
                 )
             }
@@ -76,7 +76,7 @@ internal fun LiveEqStrip(s: UiState, vm: TuneViewModel, pick: Pickers?, modifier
         }
         if (bands != null) {
             val scroll = rememberScrollState()
-            CompositionLocalProvider(LocalFaderHeight provides 84.dp) {
+            CompositionLocalProvider(LocalFaderHeight provides 72.dp) {
                 Row(Modifier.fillMaxWidth().horizontalScroll(scroll), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     bands.forEachIndexed { i, f ->
                         Column(Modifier.width(48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
