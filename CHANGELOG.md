@@ -4,6 +4,12 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.36.1] - 2026-11-14
+### Fixed
+- **A maximised graph stays sideways when the phone's auto-rotate is off.** Maximise the Live spectrum (or a graph on the EQ tab) and turn the phone: it turned for a second and went back to portrait. Turning laid the screen out again, which dropped the full-screen view, and with it the permission to turn. A full-screen graph now closes only when the screen under it changes (tab or page), or with Close or Back, and while it is open it follows the phone into landscape whatever auto-rotate says.
+### Added
+- **A hint on the maximised spectrum held upright**: "turn the phone sideways for the equaliser".
+
 ## [2.36.0] - 2026-11-14
 ### Fixed
 From the second audit of 14 Nov (`AUDIT-2026-11-13.md`, "Second audit"). Checked on the real screens with the walk-through harness (pretend car).

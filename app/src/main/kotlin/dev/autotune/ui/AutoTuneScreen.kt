@@ -261,6 +261,8 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
             if (free) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
             else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
     }
+    // a graph shown full screen goes when the screen under it changes, not when the phone turns and lays the screen out again
+    LaunchedEffect(tab, page) { zoom.close() }
     val viewMode = androidx.compose.runtime.remember(s.advanced) { ViewMode(s.advanced, vm::setAdvanced) }
     AutoTuneTheme(s.themeMode, s.look, s.accent, s.palette) {
       androidx.compose.runtime.CompositionLocalProvider(

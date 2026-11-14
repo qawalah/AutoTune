@@ -127,7 +127,8 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
 private fun FullScreenKey(vm: TuneViewModel, pick: Pickers) {
     val zoom = LocalChartZoom.current ?: return
     val me = remember { Any() }
-    DisposableEffect(zoom, me) { onDispose { zoom.closeCustom(me) } }
+    // not closed when this key leaves the composition: turning the phone sideways lays Live out again, and that must not
+    // drop the full-screen view; the shell closes it when the tab or page changes
     IconAction(Ic.EXPAND, "Show the spectrum full screen") {
         zoom.showCustom(me) { close -> LiveFull(vm, close, pick) }
     }
@@ -164,7 +165,7 @@ fun LiveFull(vm: TuneViewModel, onClose: (() -> Unit)? = null, pick: Pickers? = 
                 }
             }
         }
-        val keys: @Composable (Modifier) -> Unit = { m -> LiveKeys(s, level, vm, onClose, m) }
+        val keys: @Composable (Modifier) -> Unit = { m -> LiveKeys(s, level, vm, onClose, m, hint = !wide) }
         if (wide) {
             Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 // the spectrum with the equaliser under it: adjust a band and watch what it does
@@ -185,7 +186,7 @@ fun LiveFull(vm: TuneViewModel, onClose: (() -> Unit)? = null, pick: Pickers? = 
 
 /** The live reading and the keys of [LiveFull], packed to fit a phone turned sideways. */
 @Composable
-private fun LiveKeys(s: UiState, level: LevelInfo?, vm: TuneViewModel, onClose: (() -> Unit)?, modifier: Modifier) {
+private fun LiveKeys(s: UiState, level: LevelInfo?, vm: TuneViewModel, onClose: (() -> Unit)?, modifier: Modifier, hint: Boolean = false) {
     val ready = s.hasPermission
     val canPlay = s.source == Source.PHONE || s.testName.isBlank()
     // it fits a phone sideways as it is; a large font setting scrolls it rather than cutting a key off
@@ -251,6 +252,8 @@ private fun LiveKeys(s: UiState, level: LevelInfo?, vm: TuneViewModel, onClose: 
             LatchKey(s.peakHold, vm::setPeakHold, "Hold peaks")
             if (onClose != null) TextAction("Close", onClose, icon = Ic.CLOSE)
         }
+        // held upright, the equaliser has no room: say where it is (it turns with the phone, whatever auto-rotate says)
+        if (hint) Text("turn the phone sideways for the equaliser", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
     }
 }
 

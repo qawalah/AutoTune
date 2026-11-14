@@ -96,7 +96,8 @@ fun ResponseChart(
     if (zoom != null) {
         // while it is open, the full-screen view follows this graph (a curve hidden, the target shown, new data)
         if (zoom.owner === me) androidx.compose.runtime.SideEffect { zoom.show(me, data, showTarget, onToggleTarget, targetLabel, hiddenState) }
-        androidx.compose.runtime.DisposableEffect(zoom, me) { onDispose { if (zoom.owner === me) zoom.close() } }
+        // not closed when this chart leaves the composition: turning the phone can lay the screen out again (the EQ tab does)
+        // and that must not drop the full-screen graph; the shell closes it when the tab or page changes
     }
     if (big && zoom == null) {
         androidx.compose.ui.window.Dialog(
