@@ -127,7 +127,7 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel, backEnabled: B
             vm.measure()
         }
     }
-    // Back never drops measured spots without asking (2.33); with none measured it stops or closes as before
+    // Back never drops measured spots without asking (2.36); with none measured it stops or closes as before
     var askDrop by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     androidx.activity.compose.BackHandler(enabled = backEnabled) {
         when (dev.autotune.measureBack(v.stage, s.busy, v.spot)) {

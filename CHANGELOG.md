@@ -4,7 +4,7 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
-## [2.33.0] - 2026-11-14
+## [2.36.0] - 2026-11-14
 ### Fixed
 From the second audit of 14 Nov (`AUDIT-2026-11-13.md`, "Second audit"). Checked on the real screens with the walk-through harness (pretend car).
 - **Deleting a test deletes the EQ that finishing it made**, and any automatic switching to it. If that EQ was playing, AutoTune EQ goes off, and the EQ tab no longer shows anything of the test. EQs you saved yourself stay. The question says so in one line.
@@ -24,6 +24,30 @@ From the second audit of 14 Nov (`AUDIT-2026-11-13.md`, "Second audit"). Checked
 - **The TV or PC page**: connected, the list shows that device's home theatres only (not connected, grouped by device), and never opens another's; the Connect page ticks three lines (AutoTune open on the TV, found on this Wi-Fi, code entered) and its bubble, like the question's, says how to get AutoTune for the TV or PC; before the first EQ test only the device, the speakers, the room and the three tests show; the page and list are called "PC speakers" for a PC. From Tune, the remembered device's home theatre opens instead of a new one.
 - **Tests**: after the first connection, the Connect deck is one row for that TV or PC, connected or not.
 - Docs: the Back and arrows rules in `CLAUDE.md` and `FLOW.md`; `LESSONS.md` (lessons learned, fed back to DevStore).
+## [2.35.0] - 2026-11-14
+### Added
+- **Live tune: an equaliser on Live, sideways.** Under the spectrum, one fader per band for its gain, and for the band you tap, a slider for its frequency (it slides while you listen, and the faders stay in order of frequency). The **EQ** key beside it switches AutoTune EQ on, so every change is heard at once and drawn in the spectrum above. With the tone generator on, you can play the pitch you are working on. **Tune bands** starts from the EQ in use (eight flat bands, an octave apart, when there is none); it becomes "Your own bands" on the EQ tab; the undo key goes back to the suggested EQ. Also on the maximised spectrum when held sideways. `LiveEqStrip` in `LiveEq.kt`; `liveBandsStart`, `slideBand` in `TuningLogic.kt` (tested); VM `liveEqStart`, `liveSlide`.
+
+## [2.34.1] - 2026-11-14
+### Changed
+- **Live turned sideways is one screen with nothing to scroll**: the spectrum on the left, and at its right the live reading (dBFS, peak or peak hold, the level bar), what is played with Start and Stop, the tone's pitch with its slider and ± keys, and Hold peaks. The tabs are hidden while it is sideways (turn the phone upright for them). It was a scrolling page under the Stop bar and the tabs, so the slider and the reading could not be seen together.
+- **The maximised spectrum shows the same**: the spectrum with the reading, the tone slider and Hold peaks beside it (above and below it when held upright). `LiveFull` in `LiveTab.kt` draws both; a large font setting scrolls its keys rather than cutting one off.
+
+## [2.34.0] - 2026-11-14
+### Added
+- **Two more tutorial cards**, after "Keep it":
+  - **Tune a TV or PC too**: AutoTune on an Android TV or a Windows PC. In the picture the TV shows its pairing code, the phone links to it, each speaker plays in turn, and the TV's EQ comes on.
+  - **Listen live**: the Live tab. In the picture the spectrum rises with the music, each bar leaves its held peak, and the level reads beside them.
+  - The tutorial is now seven cards. It still shows once; Settings › About › "Replay the tutorial" shows the new cards on a phone that has already seen it.
+
+## [2.33.0] - 2026-11-14
+### Added
+- **Tone generator on Live.** "Play from the phone" gains **Tone**: one steady sine from 20 Hz to 20 kHz on a log slider, with ± one-semitone keys and the pitch in large figures. It follows the slider without clicks (a short output buffer and a gliding phase), plays quietly (−20 dBFS; the phone's volume sets how loud) and is kept for next time. The spectrum marks the bar the tone sits in. `Tone`, `ToneSynth` in `:dsp`, `TonePlayer` in `AudioIo.kt`; `LiveSignal.TONE` is appended.
+- **Hold peaks on Live.** A switch under the spectrum keeps the highest each bar has reached as a white cap, and the loudest peak on the level bar and its reading ("Peak hold"), until **Reset peaks** or Start. A held peak that touched clipping keeps the warning up until reset. `PeakHold` in `:dsp`.
+- **Live turns sideways.** With the phone's auto-rotate on, Live fills the width: the spectrum on the left, the level, hold and sound beside it. The spectrum has a full-screen key like the other graphs.
+### Changed
+- **The live scale fits what is on screen.** The bars were cut off at ±15 dB, so a bass-heavy room, music, or a pure tone showed flat-topped bars that hid how far off they were. The scale is now ±15 dB while the bars stay close to the target, widens at once to ±30, ±45 or ±60 when a bar, a held peak or the target would be cut off, and narrows one step at a time once they settle (`rtaHalfRange`). A tone is shown against its own top bar on a fixed 0 to −60 dB scale. The level bar (−80 to 0 dBFS) and the readings were checked and are unchanged.
+- **Turning.** The app stays portrait, either way up whatever the phone's auto-rotate says (mic on top). It turns sideways only on a graph opened full screen (always) and on the EQ and Live tabs when auto-rotate is on; before, the EQ tab turned even with auto-rotate off. `turnFor`, `rememberAutoRotate`.
 
 ## [2.32.0] - 2026-11-14
 ### Changed

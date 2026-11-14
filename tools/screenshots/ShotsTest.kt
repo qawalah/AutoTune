@@ -148,6 +148,8 @@ class ShotsTest {
     @Test fun g4_tutorial_verify() = ushot("g4_tutorial_verify", 3)
     @Test fun g5_tutorial_keep() = ushot("g5_tutorial_keep", 4)
     @Test fun g6_tutorial_white() = ushot("g6_tutorial_white", 1, dark = false, look = Look.WHITE)
+    @Test fun g7_tutorial_tv() = ushot("g7_tutorial_tv", 5)
+    @Test fun g8_tutorial_live() = ushot("g8_tutorial_live", 6)
 
     @Test fun x1_settings() = settingsShot("x1_settings", dark = true)
     @Test fun x2_settings_light() = settingsShot("x2_settings_light", dark = false)

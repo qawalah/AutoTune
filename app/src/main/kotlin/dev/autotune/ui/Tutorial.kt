@@ -70,6 +70,12 @@ import dev.autotune.tutorialPlayMs
 import dev.autotune.tutorialPos
 import dev.autotune.tutorialReadingDb
 import dev.autotune.tutorialShowsSkip
+import dev.autotune.TUTORIAL_TV_CODE
+import dev.autotune.TUTORIAL_LIVE_BARS
+import dev.autotune.tutorialTvDigits
+import dev.autotune.tutorialTvPlaying
+import dev.autotune.tutorialLiveBar
+import dev.autotune.tutorialLivePeak
 import kotlinx.coroutines.launch
 
 /**
@@ -201,6 +207,8 @@ internal fun TutorialArt(key: String, ms: () -> Float, width: Dp, height: Dp) {
                 "measure" -> MeasureArt(ms)
                 "eq" -> EqArt(ms)
                 "verify" -> VerifyArt(ms)
+                "tv" -> TvArt(ms)
+                "live" -> LiveArt(ms)
                 else -> KeepArt(ms)
             }
         }
@@ -427,5 +435,108 @@ private fun KeepArt(ms: () -> Float) {
         translate(kx + (kw - eq) / 2, ky + (kh - eq) / 2) { drawIcAt(Ic.EQ, c.text, eq) }
         val word = letters.measure(if (latch >= 0.5f) "on" else "off", label)
         drawText(word, color = if (latch >= 0.5f) c.text else c.muted, topLeft = Offset(kx + kw - word.size.width - 12.dp.toPx(), ky + (kh - word.size.height) / 2))
+    }
+}
+
+/**
+ * The companion: AutoTune on a TV (or PC) between two speakers. The TV shows its pairing code, the phone at the seat
+ * links to it, then each speaker plays in turn (lit red, rings spreading) and the TV's EQ comes on.
+ */
+@Composable
+private fun TvArt(ms: () -> Float) {
+    val c = At.c
+    val letters = androidx.compose.ui.text.rememberTextMeasurer()
+    val codeStyle = MaterialTheme.typography.titleMedium.copy(letterSpacing = androidx.compose.ui.unit.TextUnit(4f, androidx.compose.ui.unit.TextUnitType.Sp))
+    val label = MaterialTheme.typography.labelSmall
+    Canvas(Modifier.fillMaxSize()) {
+        val t = ms()
+        val w = size.width; val h = size.height
+        val hair = 1.dp.toPx()
+        val screenInk = Color(0xFF161615)
+        val arrive = ease(t, 0, 400)
+        // the TV: a dark screen on a thin foot
+        val tvL = w * 0.3f; val tvT = h * 0.1f + (1f - arrive) * 10.dp.toPx(); val tvW = w * 0.4f; val tvH = h * 0.36f
+        drawRoundRect(screenInk.copy(alpha = arrive), Offset(tvL, tvT), Size(tvW, tvH), CornerRadius(3.dp.toPx()))
+        drawLine(c.muted.copy(alpha = arrive), Offset(w * 0.5f, tvT + tvH), Offset(w * 0.5f, tvT + tvH + h * 0.05f), 2.dp.toPx())
+        drawLine(c.muted.copy(alpha = arrive), Offset(w * 0.44f, tvT + tvH + h * 0.05f), Offset(w * 0.56f, tvT + tvH + h * 0.05f), 2.dp.toPx())
+        // its pairing code, a digit at a time; once paired the screen shows the link's pilot
+        val digits = tutorialTvDigits(t)
+        if (digits > 0 && t < 1000f) {
+            val code = letters.measure(TUTORIAL_TV_CODE.take(digits).padEnd(TUTORIAL_TV_CODE.length, ' '), codeStyle)
+            drawText(code, color = Color(0xFFECEAE4), topLeft = Offset(tvL + (tvW - code.size.width) / 2, tvT + (tvH - code.size.height) / 2))
+        }
+        val eqOn = playPhase(t, 2000, 200)
+        if (t >= 1000f) {
+            val word = letters.measure("eq", label)
+            val wx = tvL + (tvW - word.size.width) / 2 + 6.dp.toPx(); val wy = tvT + (tvH - word.size.height) / 2
+            drawCircle(lerp(Color(0xFF5E5C57), c.signal, eqOn), 4.dp.toPx(), Offset(wx - 9.dp.toPx(), tvT + tvH / 2))
+            drawText(word, color = Color(0xFFA3A19A), topLeft = Offset(wx, wy))
+        }
+        // two speaker cabinets, each with a dot grille and its pilot; the playing one is lit with rings
+        val playing = tutorialTvPlaying(t)
+        listOf(w * 0.12f, w * 0.88f).forEachIndexed { k, cx ->
+            val sw = w * 0.13f; val sh = h * 0.5f; val top = h * 0.14f
+            val left = cx - sw / 2
+            if (playing == k) {
+                val since = t - (1000f + 500f * k)
+                for (ring in 0..1) {
+                    val p = (((since - ring * 200f) / 500f)).coerceIn(0f, 1f)
+                    if (p > 0f && p < 1f) drawCircle(c.signal.copy(alpha = 0.5f * (1f - p)), sw * (0.6f + 1.4f * p), Offset(cx, top + sh * 0.55f), style = Stroke(1.5.dp.toPx()))
+                }
+            }
+            drawRoundRect(c.panelHigh.copy(alpha = arrive), Offset(left, top), Size(sw, sh), CornerRadius(4.dp.toPx()))
+            drawRoundRect(c.line.copy(alpha = arrive), Offset(left, top), Size(sw, sh), CornerRadius(4.dp.toPx()), style = Stroke(hair))
+            for (row in 0..5) for (col in 0..2) {
+                drawCircle(c.text.copy(alpha = 0.35f * arrive), sw * 0.05f, Offset(left + sw * (0.28f + 0.22f * col), top + sh * (0.3f + 0.11f * row)))
+            }
+            drawCircle(if (playing == k) c.signal else c.muted.copy(alpha = 0.4f * arrive), sw * 0.07f, Offset(cx, top + sh * 0.13f))
+        }
+        // the phone at the seat, linking to the TV once the code is typed
+        val link = ease(t, 800, 200)
+        val pw = w * 0.07f; val ph = h * 0.2f; val px = w * 0.5f - pw / 2; val py = h * 0.74f
+        drawRoundRect(c.text.copy(alpha = arrive), Offset(px, py), Size(pw, ph), CornerRadius(3.dp.toPx()))
+        drawCircle(c.panel, pw * 0.12f, Offset(w * 0.5f, py + ph * 0.15f))
+        if (link > 0f) {
+            val from = py - 4.dp.toPx(); val to = tvT + tvH + h * 0.08f
+            drawLine(
+                c.muted, Offset(w * 0.5f, from), Offset(w * 0.5f, from + (to - from) * link), 2.dp.toPx(), StrokeCap.Round,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 5.dp.toPx())),
+            )
+        }
+    }
+}
+
+/** Live: the spectrum's bars rise and move with the music, each leaving its held peak as a cap; the level beside them. */
+@Composable
+private fun LiveArt(ms: () -> Float) {
+    val c = At.c
+    Canvas(Modifier.fillMaxSize()) {
+        val t = ms()
+        val w = size.width; val h = size.height
+        val pad = 14.dp.toPx()
+        val top = h * 0.12f; val bottom = h * 0.86f
+        val levelW = w * 0.06f
+        val area = w - 2 * pad - levelW - 12.dp.toPx()
+        val n = TUTORIAL_LIVE_BARS
+        val step = area / n; val bw = step * 0.62f
+        val r2 = CornerRadius(1.5.dp.toPx())
+        for (y in listOf(0.25f, 0.5f, 0.75f)) drawLine(c.line.copy(alpha = 0.5f), Offset(pad, top + (bottom - top) * y), Offset(pad + area, top + (bottom - top) * y), 1.dp.toPx())
+        var loud = 0f
+        for (k in 0 until n) {
+            val x = pad + step * k + (step - bw) / 2
+            val v = tutorialLiveBar(k, t); val peak = tutorialLivePeak(k, t)
+            loud = maxOf(loud, v)
+            val bh = (bottom - top) * v
+            drawRoundRect(c.text.copy(alpha = 0.8f), Offset(x, bottom - bh), Size(bw, bh), r2)
+            if (peak > 0f) {
+                val py = bottom - (bottom - top) * peak
+                drawRect(c.signal, Offset(x, py - 2.dp.toPx()), Size(bw, 2.dp.toPx()))
+            }
+        }
+        // the level: one bar at the end, the loudest band's reach
+        val lx = w - pad - levelW
+        drawRoundRect(c.line.copy(alpha = 0.6f), Offset(lx, top), Size(levelW, bottom - top), r2)
+        val lh = (bottom - top) * loud
+        drawRoundRect(c.signal, Offset(lx, bottom - lh), Size(levelW, lh), r2)
     }
 }

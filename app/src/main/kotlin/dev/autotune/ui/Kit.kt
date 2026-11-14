@@ -1070,7 +1070,7 @@ fun TuningScale(needleDb: Double, stockDb: Double?, bestDb: Double? = null, pred
 fun Fold(title: String, summary: String? = null, startOpen: Boolean = false, info: String? = null, content: @Composable () -> Unit) {
     var open by rememberSaveable(title) { mutableStateOf(startOpen) }
     val inCard = LocalInCard.current
-    // a fold's arrow points down, and up once open (2.33: ">" is only for rows that open a page)
+    // a fold's arrow points down, and up once open (2.36: ">" is only for rows that open a page)
     val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 180f else 0f, tween(motionMs(220), easing = EaseArrive), label = "chevron")
     val body: @Composable () -> Unit = {
         if (inCard) HorizontalDivider(color = At.c.line)
@@ -1805,7 +1805,7 @@ val LocalBack = androidx.compose.runtime.compositionLocalOf<(() -> Unit)?> { nul
 
 /**
  * True while something covers the tabs (the measuring screen, the AI sheet, a full-screen graph): the tabs' own Back
- * handlers stand down, so Back acts on what is on top (2.33).
+ * handlers stand down, so Back acts on what is on top (2.36).
  */
 val LocalCovered = androidx.compose.runtime.compositionLocalOf { false }
 
@@ -1887,7 +1887,7 @@ fun TextAction(text: String, onClick: () -> Unit, enabled: Boolean = true, dange
     val tint = if (!enabled) At.c.muted.copy(alpha = 0.5f) else if (danger) At.c.bad else At.c.text
     if (LocalStacked.current) {
         // in a stack: one full-width row per action, the label at the start; ">" at the end only when it opens a page,
-        // a sheet or another screen ([opens]); a key that acts at once has no arrow (2.33, CLAUDE.md)
+        // a sheet or another screen ([opens]); a key that acts at once has no arrow (2.36, CLAUDE.md)
         val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
         val pressed by src.collectIsPressedAsState()
         Row(
@@ -2319,7 +2319,7 @@ fun <T> PickField(
 @Composable
 fun GroupedPick(
     label: String, choices: List<dev.autotune.EqChoice>, selectedKey: String, onPick: (String) -> Unit, emptyText: String, info: String? = null,
-    /** A row's own actions (⋮), e.g. Rename and Delete on a saved EQ (2.33); empty for none. */
+    /** A row's own actions (⋮), e.g. Rename and Delete on a saved EQ (2.36); empty for none. */
     rowMenu: ((dev.autotune.EqChoice) -> List<RowAction>)? = null,
 ) {
     var open by remember { mutableStateOf(false) }

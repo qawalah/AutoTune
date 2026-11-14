@@ -61,7 +61,7 @@ class FlowTest {
         assertEquals(TuneStep.SETUP, previousStep(TuneStep.STOCK, 0))
         assertEquals(TuneStep.APPLY, previousStep(TuneStep.STOCK, 1))
         assertEquals(TuneStep.HOME, previousStep(TuneStep.APPLY, 1))
-        // 2.33: one step back, Result -> Refine -> the Tune screen, whatever the round
+        // 2.36: one step back, Result -> Refine -> the Tune screen, whatever the round
         assertEquals(TuneStep.HOME, previousStep(TuneStep.APPLY, 3))
         assertEquals(TuneStep.APPLY, previousStep(TuneStep.VERIFY, 2))
         assertEquals(TuneStep.APPLY, previousStep(TuneStep.RESULT, 2))
@@ -401,7 +401,7 @@ class FlowTest {
         assertTrue(testFinished(keptEq = true, resumeStep = null))
         assertFalse(testFinished(keptEq = true, resumeStep = TuneStep.RESULT)) // a round was left half done
         assertFalse(testFinished(keptEq = false, resumeStep = null))
-        // tied by the test's id (2.33), so a rename keeps it
+        // tied by the test's id (2.36), so a rename keeps it
         val p = EqProfile("1", "Truck", "tuning", "", "Truck", "measured in Run 1", 0L, emptyList(), testId = "t1", kept = true)
         assertTrue(hasKeptEq(listOf(p), "t1"))
         assertFalse(hasKeptEq(listOf(p), "t2"))

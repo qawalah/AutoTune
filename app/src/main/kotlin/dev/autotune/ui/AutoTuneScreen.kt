@@ -235,10 +235,10 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     val openResults: () -> Unit = { overlay = OVERLAY_NONE; open(Page.RESULTS) }
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
-    // Back, app-wide (2.33, CLAUDE.md): the top thing closes first (a dialog, menu or sheet itself, the full-screen
+    // Back, app-wide (2.36, CLAUDE.md): the top thing closes first (a dialog, menu or sheet itself, the full-screen
     // graph, the measuring screen, the AI sheet, a page); inside Tune one step back; a tab's top screen goes to Tests;
     // Tests leaves the app. The measuring screen's own Back (MeasureOverlay) asks before measured spots are dropped.
-    val covered = s.measureView != null || ai.open || zoom.shown != null
+    val covered = s.measureView != null || ai.open || zoom.shown != null || zoom.custom != null
     BackHandler(overlay != OVERLAY_NONE) { overlay = OVERLAY_NONE }
     BackHandler(!covered && overlay == OVERLAY_NONE && page == null && tab != Tab.TESTS) { tabIdx = Tab.TESTS.ordinal }
     // inside the Tune workflow, Back goes to the previous screen of the workflow, not to another tab
@@ -247,13 +247,18 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     BackHandler(!covered && overlay == OVERLAY_NONE && page != null) { back() }
     BackHandler(ai.open && zoom.shown == null) { vm.aiClose() }
 
-    // Only the EQ tab turns sideways (its graph and faders fill the width); every other screen stays upright, either
-    // way up, so the phone's mic can point up while measuring (owner, 2026-11-11: landscape was broken elsewhere)
-    val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
+    // The app stays upright, either way up, so the phone's mic can point up while measuring (owner, 2026-11-11: landscape
+    // was broken elsewhere). It turns sideways only on a graph opened full screen (always), or on the EQ and Live tabs
+    // when the phone's own auto-rotate is on (owner, 2026-11-14). SENSOR_PORTRAIT keeps the upside-down way whatever
+    // the setting says; FULL_SENSOR follows the sensor into landscape.
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val activity = ctx as? android.app.Activity
+    val autoRotate by rememberAutoRotate()
     // the full-screen chart turns too, wherever it was opened from
-    LaunchedEffect(tab, page, s.measureView != null, zoom.shown != null) {
+    LaunchedEffect(tab, page, s.measureView != null, zoom.open, autoRotate) {
+        val free = dev.autotune.turnFor(zoom.open, dev.autotune.turnsSideways(tab.name, page != null, s.measureView != null), autoRotate) == dev.autotune.Turn.FREE
         activity?.requestedOrientation =
-            if (zoom.shown != null || dev.autotune.turnsSideways(tab.name, page != null, s.measureView != null)) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+            if (free) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
             else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
     }
     val viewMode = androidx.compose.runtime.remember(s.advanced) { ViewMode(s.advanced, vm::setAdvanced) }
@@ -419,13 +424,22 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                 }
             }
 
+            // Live turned sideways takes the whole screen: the spectrum, the live reading and the tone slider together,
+            // with no tabs and nothing to scroll (owner, 2026-11-14). Turn the phone upright for the tabs.
+            val sideways = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            if (sideways && tab == Tab.LIVE && page == null && overlay == OVERLAY_NONE && s.measureView == null && !ai.open) {
+                androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
+                    Box(Modifier.statusBarsPadding()) { LiveFull(vm, pick = pick) }
+                }
+            }
+
             // measuring takes the whole screen: the instrument, what is happening, and the checks
             val lastMv = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(s.measureView) }
             if (s.measureView != null) lastMv.value = s.measureView
             androidx.compose.animation.AnimatedVisibility(s.measureView != null, enter = sheetIn(), exit = sheetOut()) {
                 lastMv.value?.let { mv ->
                     androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
-                        // its Back is its own, composed after the tabs', so it wins while it is up (2.33)
+                        // its Back is its own, composed after the tabs', so it wins while it is up (2.36)
                         MeasureOverlay(mv, s, vm, backEnabled = s.measureView != null && !ai.open && zoom.shown == null)
                     }
                 }

@@ -6,7 +6,7 @@ import java.io.File
 
 /**
  * A saved EQ. [kind] is "hand" (built or saved by the user) or "tuning" (came out of a tuning run: [test], [run] and
- * [device] say which one and where it was measured). [testId] ties it to its test (2.33; empty in older files until
+ * [device] say which one and where it was measured). [testId] ties it to its test (2.36; empty in older files until
  * [tieProfilesToTests] runs once). [kept]: made by Keep at the end of a tune (one per test), not saved by hand.
  */
 data class EqProfile(
@@ -46,7 +46,7 @@ object ProfileStore {
     }
 
     /**
-     * One profile from its stored keys. Files before 2.33 have no `testId` or `kept`: a kept EQ is then known by the
+     * One profile from its stored keys. Files before 2.36 have no `testId` or `kept`: a kept EQ is then known by the
      * name Keep gave it ("Car · tuned (Run 1)"); older versions ignore the new keys.
      */
     fun profileFrom(id: String, m: Map<String, String>, filters: List<EqFilter>): EqProfile {

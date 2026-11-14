@@ -372,7 +372,7 @@ private fun baseRecommendationRaw(runs: List<SavedRun>, eqMayNotBeApplied: Boole
 fun previousStep(step: TuneStep, runCount: Int): TuneStep = when (step) {
     TuneStep.HOME, TuneStep.FRESH, TuneStep.SETUP, TuneStep.DONE -> TuneStep.HOME
     TuneStep.STOCK -> if (runCount > 0) TuneStep.APPLY else TuneStep.SETUP
-    // one step back (2.33): Result goes to Refine, Refine to the Tune screen (the test is kept: Continue returns)
+    // one step back (2.36): Result goes to Refine, Refine to the Tune screen (the test is kept: Continue returns)
     TuneStep.STOCK_RESULT, TuneStep.APPLY -> TuneStep.HOME
     TuneStep.VERIFY -> TuneStep.APPLY
     TuneStep.RESULT -> if (runCount > 0) TuneStep.APPLY else TuneStep.HOME
@@ -575,7 +575,7 @@ fun setupPages(e: Equipment, viaCompanion: Boolean = false, askNames: Boolean = 
     val companion = e.companion != null
     return SetupPage.entries.filter {
         when (it) {
-            // asked unless the TV or PC is remembered as having AutoTune (2.33)
+            // asked unless the TV or PC is remembered as having AutoTune (2.36)
             SetupPage.COMPANION -> companion && askCompanion
             SetupPage.SOUND -> !(companion && viaCompanion)
             SetupPage.NAMES -> askNames
@@ -657,7 +657,7 @@ fun tunedRunIndex(rmsDbs: List<Double>, keptIdx: Int): Int? =
     keptIdx.takeIf { it in 1 until rmsDbs.size }
         ?: (1 until rmsDbs.size).minByOrNull { rmsDbs[it] }
 
-/** True when Keep put an EQ in use for the test: its kept EQ is tied to the test's id (2.33; it was the name, which a rename broke). */
+/** True when Keep put an EQ in use for the test: its kept EQ is tied to the test's id (2.36; it was the name, which a rename broke). */
 fun hasKeptEq(profiles: List<EqProfile>, testId: String?): Boolean =
     !testId.isNullOrBlank() && profiles.any { it.kept && it.testId == testId }
 
@@ -976,8 +976,35 @@ fun bubbleX(cx: Float, width: Float, right: Float, gap: Float): Float {
 fun cursorFreqText(f: Double): String =
     if (f >= 1000) String.format(java.util.Locale.US, "%.1f kHz", f / 1000) else String.format(java.util.Locale.US, "%.0f Hz", f)
 
-/** Whether the screen may turn sideways: only the EQ tab itself, with no page over it and nothing measuring. */
-fun turnsSideways(tab: String, pageOpen: Boolean, measuring: Boolean): Boolean = tab == "EQ" && !pageOpen && !measuring
+/** Whether the screen may turn sideways: only the EQ and Live tabs themselves, with no page over them and nothing measuring. */
+fun turnsSideways(tab: String, pageOpen: Boolean, measuring: Boolean): Boolean = (tab == "EQ" || tab == "LIVE") && !pageOpen && !measuring
+
+/** How the screen may turn: [UPRIGHT] is portrait either way up (so the mic can point up); [FREE] also allows sideways. */
+enum class Turn { UPRIGHT, FREE }
+
+/**
+ * The app stays upright, but either way up whatever the auto-rotate setting says, so the phone can be flipped to put the
+ * mic on top. It turns sideways only (a) on a graph shown full screen, always, or (b) on a screen made for it (EQ, Live)
+ * when the phone's auto-rotate is on.
+ */
+fun turnFor(zoomOpen: Boolean, sidewaysScreen: Boolean, autoRotate: Boolean): Turn =
+    if (zoomOpen || (sidewaysScreen && autoRotate)) Turn.FREE else Turn.UPRIGHT
+
+/** The half-ranges (dB either side of the target) the live bars can be drawn at. */
+val RTA_RANGES = doubleArrayOf(15.0, 30.0, 45.0, 60.0)
+
+/**
+ * The half-range for the live bars: the smallest of [RTA_RANGES] that holds [reach] (the largest distance of any bar from
+ * the target, plus 1 dB of room). It widens at once, so nothing is ever cut off, and narrows one step at a time, only once
+ * the bars would fit the smaller range with a quarter to spare, so the scale does not flicker with the music.
+ */
+fun rtaHalfRange(reach: Double, current: Double): Double {
+    val need = RTA_RANGES.firstOrNull { it >= reach + 1.0 } ?: RTA_RANGES.last()
+    if (need >= current) return need
+    val i = RTA_RANGES.indexOfFirst { it >= current }.let { if (it < 0) RTA_RANGES.size - 1 else it }
+    val lower = RTA_RANGES[(i - 1).coerceAtLeast(0)]
+    return if (reach + 1.0 <= lower * 0.75) lower.coerceAtLeast(need) else current
+}
 
 fun requestedTab(request: String): String = when (request.lowercase()) {
     "eq" -> "EQ"
@@ -1787,7 +1814,10 @@ fun phoneSpeakerBlock(e: Equipment, phonePlays: Boolean, phoneSpeaker: Boolean):
 
 // ---------------------------------------------------------------- the first-start tutorial (2.9.0)
 
-/** One card of the first-start tutorial: the opening card ([step] 0), then the four steps of a tune. */
+/**
+ * One card of the first-start tutorial: the opening card, the four steps of a tune ([step] 1 to 4), then what else
+ * the app does ([step] 0): the TV or PC companion and the Live tab.
+ */
 data class TutorialCard(val key: String, val step: Int, val title: String, val text: String)
 
 /** The tutorial, in order. [TutorialCard.key] picks the card's picture in ui/Tutorial.kt. */
@@ -1797,6 +1827,8 @@ val TUTORIAL_CARDS: List<TutorialCard> = listOf(
     TutorialCard("eq", 2, "Get a suggested EQ", "It compares the reading with a target curve and fits an EQ to close the gap."),
     TutorialCard("verify", 3, "Verify it", "Measure again with the EQ on. The reading shows how close you are to the target."),
     TutorialCard("keep", 4, "Keep it", "Save the EQ. It plays on the whole phone and can switch on when your car connects."),
+    TutorialCard("tv", 0, "Tune a TV or PC too", "Pair AutoTune on an Android TV or a Windows PC. It plays each speaker and holds the EQ; the phone listens."),
+    TutorialCard("live", 0, "Listen live", "Live shows the spectrum and level as music plays, holds the peaks and can play a test tone."),
 )
 
 /** How many of the cards are steps (all but the opening card). */
@@ -1853,7 +1885,51 @@ fun tutorialPlayMs(key: String): Int = when (key) {
     "measure" -> 1900
     "eq" -> 1500
     "verify" -> 1700
+    "tv" -> 2400
+    "live" -> 1800
     else -> 1200
+}
+
+/** The pairing code the TV card's screen shows. */
+const val TUTORIAL_TV_CODE = "4821"
+
+/** How many of the code's digits the TV shows at [tMs]: one every 150 ms from 200 ms. */
+fun tutorialTvDigits(tMs: Float): Int =
+    if (tMs < 200f) 0 else (((tMs - 200f) / 150f).toInt() + 1).coerceAtMost(TUTORIAL_TV_CODE.length)
+
+/** Which speaker the TV card plays at [tMs], after the phone has paired: 0 the left, 1 the right, null none. */
+fun tutorialTvPlaying(tMs: Float): Int? = when {
+    tMs >= 1000f && tMs < 1500f -> 0
+    tMs >= 1500f && tMs < 2000f -> 1
+    else -> null
+}
+
+/** The Live card's spectrum: this many bars. */
+const val TUTORIAL_LIVE_BARS = 14
+
+/** The Live card's meter updates 25 times a second, like a real one; its bars hold still between frames. */
+private const val TUTORIAL_LIVE_FRAME_MS = 40f
+
+private fun liveBarAt(k: Int, frameMs: Float): Float {
+    val x = k / (TUTORIAL_LIVE_BARS - 1f)
+    // music's usual shape: strong bass and low mids, falling towards the treble
+    val base = 0.35f + 0.5f * bump(x, 0.22f, 0.22f) + 0.1f * bump(x, 0.7f, 0.1f)
+    val p = ((frameMs - k * 25f) / 450f).coerceIn(0f, 1f)
+    val rise = 1f - (1f - p) * (1f - p) * (1f - p)
+    val wobble = 0.82f + 0.18f * kotlin.math.sin(frameMs / 170f + k * 1.3f)
+    return (base * rise * wobble).coerceIn(0f, 1f)
+}
+
+/** Bar [k] of the Live card at [tMs], 0 to 1 of its height: it rises from nothing, then moves with the music. */
+fun tutorialLiveBar(k: Int, tMs: Float): Float =
+    liveBarAt(k, kotlin.math.floor(tMs / TUTORIAL_LIVE_FRAME_MS) * TUTORIAL_LIVE_FRAME_MS)
+
+/** The held peak of bar [k] at [tMs]: the highest it has reached so far, as with "Hold peaks" on Live. */
+fun tutorialLivePeak(k: Int, tMs: Float): Float {
+    var peak = 0f
+    var f = 0f
+    while (f <= tMs) { peak = maxOf(peak, liveBarAt(k, f)); f += TUTORIAL_LIVE_FRAME_MS }
+    return peak
 }
 
 /** The reading the Verify card shows: the stock's distance from the target, and the tuned one's. */
@@ -2038,13 +2114,31 @@ fun spotDoneText(spot: Int, spots: Int): String = "spot $spot of $spots done"
 /** Every check passed: Simple folds them into one line that opens the list (2.32). */
 fun allChecksPassed(states: List<Int>): Boolean = states.isNotEmpty() && states.all { it == 1 }
 
-// ---------------------------------------------------------------- the second audit (2.33): leftover EQs, Back, the TV or PC page
+// ---------------------------------------------------------------- Live equaliser (2.35.0)
+
+/** Where Live's equaliser starts when there is no EQ yet: eight flat bands, an octave apart. */
+val LIVE_BAND_CENTRES = listOf(63.0, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0)
+
+/** The bands Live's equaliser edits: the EQ in use as it is, or eight flat bands when there is none. */
+fun liveBandsStart(current: List<dev.autotune.dsp.EqFilter>): List<dev.autotune.dsp.EqFilter> =
+    current.ifEmpty { LIVE_BAND_CENTRES.map { dev.autotune.dsp.EqFilter(it, 0.0, 1.4) } }
+
+/**
+ * Slides band [i] to [hz] (held to 20 Hz - 20 kHz) and keeps the bands in order of frequency, so the faders stay in
+ * order as one is dragged past its neighbour. Returns the new list and where the moved band now is.
+ */
+fun slideBand(list: List<dev.autotune.dsp.EqFilter>, i: Int, hz: Double): Pair<List<dev.autotune.dsp.EqFilter>, Int> {
+    val moved = list[i].copy(freqHz = hz.coerceIn(20.0, 20000.0))
+    val sorted = list.mapIndexed { k, f -> (if (k == i) moved else f) to (k == i) }.sortedBy { it.first.freqHz }
+    return sorted.map { it.first } to sorted.indexOfFirst { it.second }
+}
+// ---------------------------------------------------------------- the second audit (2.36): leftover EQs, Back, the TV or PC page
 
 /** The EQ Keep made for test [testId], if any (one per test). */
 fun keptEqOf(profiles: List<EqProfile>, testId: String): EqProfile? = profiles.firstOrNull { it.kept && it.testId == testId }
 
 /**
- * Ties older profiles to their tests by id, once (2.33): a profile from a tune that has no test id takes the id of the
+ * Ties older profiles to their tests by id, once (2.36): a profile from a tune that has no test id takes the id of the
  * test with its test name; a kept EQ takes the test's name as its own ("Car", not "Car · tuned (Run 1)"), numbered
  * when another saved EQ has it. Ids never change, so automatic switching and the widgets keep working. Unmatched
  * profiles stay as they are (their test is gone).
@@ -2077,15 +2171,15 @@ fun pickFromTest(pick: String, testId: String, removed: Set<String>): Boolean {
     }
 }
 
-/** A saved EQ's second line (2.33): how close it came and when, never "Tuned · Connected to my phone · measured in Run 1". */
+/** A saved EQ's second line (2.36): how close it came and when, never "Tuned · Connected to my phone · measured in Run 1". */
 fun savedEqLine(db: Double?, date: String, bands: Int): String =
     (if (db != null) "%.1f dB from target".format(db) else countText(bands, "band")) + " · " + date
 
-/** The status under the EQ's switch: a problem only; "EQ updated", "On: …" and "EQ off." are not shown (2.33). */
+/** The status under the EQ's switch: a problem only; "EQ updated", "On: …" and "EQ off." are not shown (2.36). */
 fun eqStatusShown(msg: String?): String? =
     msg?.takeIf { it.isNotBlank() && !it.startsWith("EQ updated") && !it.startsWith("On:") && !it.startsWith("On,") && it != "EQ off." }
 
-/** What Back does on the measuring screen (2.33): ask before measured spots are dropped, else stop or close. */
+/** What Back does on the measuring screen (2.36): ask before measured spots are dropped, else stop or close. */
 enum class MeasureBack { ASK, STOP, CLOSE }
 
 /** Spots measured and not yet saved: [spot] is the one measuring, or the one just done between spots. */
@@ -2101,7 +2195,7 @@ fun measureBack(stage: MeasureStage, busy: Boolean, spot: Int): MeasureBack = wh
 fun dropSpotsText(n: Int): String = if (n == 1) "Spot 1 is measured and is dropped." else "Spots 1-$n are measured and are dropped."
 
 /**
- * Set up on equipment used before goes straight to its sound screen, "as last time" (2.33): when the phone measures
+ * Set up on equipment used before goes straight to its sound screen, "as last time" (2.36): when the phone measures
  * it ([installed] false for a TV or PC). First time, or with AutoTune on the TV or PC, Set up asks as before.
  */
 fun setupStartsAtSound(usedBefore: Boolean, e: Equipment, installed: Boolean): Boolean =
@@ -2110,7 +2204,7 @@ fun setupStartsAtSound(usedBefore: Boolean, e: Equipment, installed: Boolean): B
 /** The fact on the sound screen when Set up started there: "car · as last time". */
 fun asLastTime(e: Equipment): String = equipmentName(e).lowercase() + " · as last time"
 
-/** The Result key when the advice is to keep (2.33): "Done", and what it keeps on its second line; null otherwise. */
+/** The Result key when the advice is to keep (2.36): "Done", and what it keeps on its second line; null otherwise. */
 fun keepKey(move: NextMove?, bestLabel: String?): Pair<String, String>? = when (move) {
     NextMove.KEEP_LATEST -> "Done" to "keeps this EQ"
     NextMove.KEEP_BEST -> "Done" to "keeps the EQ of ${bestLabel ?: "the best run"}"
@@ -2124,21 +2218,21 @@ fun connectDevice(remembered: String?, picked: Equipment?): String = remembered?
     else -> "the TV or PC"
 }
 
-/** The Connect page's three status lines, each ticked when done (2.33): open there, found on this Wi-Fi, code entered. */
+/** The Connect page's three status lines, each ticked when done (2.36): open there, found on this Wi-Fi, code entered. */
 fun connectSteps(device: String, found: Boolean, codeLength: Int): List<Pair<String, Boolean>> = listOf(
     "AutoTune open on $device" to found,
     "found on this Wi-Fi" to found,
     "code entered" to (codeLength == 4),
 )
 
-/** The home theatres' list title by what is tuned (2.33): a PC's speakers are not a home theatre. */
+/** The home theatres' list title by what is tuned (2.36): a PC's speakers are not a home theatre. */
 fun theatreListTitle(pc: Boolean): String = if (pc) "PC speakers" else "Home theatres"
 
 /** One home theatre in the list: what it is called and the TV or PC it belongs to (null before its first run). */
 data class TheatreEntry(val id: String, val name: String, val owner: String?)
 
 /**
- * The home theatres to list (2.33): connected, only that device's (never another's results); not connected, grouped
+ * The home theatres to list (2.36): connected, only that device's (never another's results); not connected, grouped
  * under each device's name, newest group first as listed, those with no device last.
  */
 fun theatreGroups(all: List<TheatreEntry>, connected: String?): List<Pair<String?, List<TheatreEntry>>> {
@@ -2149,11 +2243,11 @@ fun theatreGroups(all: List<TheatreEntry>, connected: String?): List<Pair<String
     return byOwner.entries.map { it.key to it.value.toList() }
 }
 
-/** Whether [owner]'s home theatre may open while [connected] is the device on the link (2.33). */
+/** Whether [owner]'s home theatre may open while [connected] is the device on the link (2.36). */
 fun theatreMayOpen(owner: String?, connected: String?): Boolean = connected == null || owner == null || owner.equals(connected, true)
 
 /**
- * After deleting a home theatre, the one that opens (2.33): another of the same device, newest first, else none.
+ * After deleting a home theatre, the one that opens (2.36): another of the same device, newest first, else none.
  * [rest] is in list order (newest first).
  */
 fun theatreAfterDelete(rest: List<TheatreEntry>, owner: String?): TheatreEntry? =
@@ -2161,17 +2255,17 @@ fun theatreAfterDelete(rest: List<TheatreEntry>, owner: String?): TheatreEntry? 
 
 /**
  * Deleting home theatre [deletedId] clears the EQ remembered for the TV or PC (the widget's) when it is the one last
- * sent: by the id kept with it (2.33), or for an EQ sent before that, when the deleted one belongs to the remembered device.
+ * sent: by the id kept with it (2.36), or for an EQ sent before that, when the deleted one belongs to the remembered device.
  */
 fun clearsCompanionEq(deletedId: String, deletedOwner: String?, baseTestId: String?, rememberedName: String?, hasBase: Boolean): Boolean =
     hasBase && (if (!baseTestId.isNullOrBlank()) baseTestId == deletedId else deletedOwner != null && deletedOwner.equals(rememberedName, true))
 
 /**
- * Tune › Home theatre or PC › Yes (2.33): the home theatre to open instead of making a new one, the newest of the
+ * Tune › Home theatre or PC › Yes (2.36): the home theatre to open instead of making a new one, the newest of the
  * remembered device when it is the kind picked ([pickedPc]); null makes a new one.
  */
 fun theatreFromTune(all: List<TheatreEntry>, remembered: String?, rememberedPc: Boolean, pickedPc: Boolean): TheatreEntry? =
     if (remembered == null || rememberedPc != pickedPc) null else all.firstOrNull { it.owner.equals(remembered, true) }
 
-/** Connected, the EQ key, the flavour, Refine and the runs show once the home theatre has an EQ (2.33). */
+/** Connected, the EQ key, the flavour, Refine and the runs show once the home theatre has an EQ (2.36). */
 fun theatreShowsEq(hasEqRun: Boolean, eqOn: Boolean): Boolean = hasEqRun || eqOn

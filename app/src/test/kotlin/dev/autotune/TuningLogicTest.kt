@@ -697,11 +697,49 @@ class ConvergenceTest {
     }
 
     @Test
-    fun onlyTheEqTabTurnsSideways() {
-        org.junit.Assert.assertTrue(turnsSideways("EQ", pageOpen = false, measuring = false))
-        org.junit.Assert.assertFalse(turnsSideways("EQ", pageOpen = true, measuring = false))
-        org.junit.Assert.assertFalse(turnsSideways("EQ", pageOpen = false, measuring = true))
-        for (t in listOf("TESTS", "MEASURE", "LIVE", "SETTINGS")) org.junit.Assert.assertFalse(turnsSideways(t, false, false))
+    fun onlyTheEqAndLiveTabsTurnSideways() {
+        for (t in listOf("EQ", "LIVE")) {
+            org.junit.Assert.assertTrue(turnsSideways(t, pageOpen = false, measuring = false))
+            org.junit.Assert.assertFalse(turnsSideways(t, pageOpen = true, measuring = false))
+            org.junit.Assert.assertFalse(turnsSideways(t, pageOpen = false, measuring = true))
+        }
+        for (t in listOf("TESTS", "MEASURE", "SETTINGS")) org.junit.Assert.assertFalse(turnsSideways(t, false, false))
+    }
+
+    @Test
+    fun theScreenTurnsSidewaysOnlyWhenAskedOrAutoRotateIsOn() {
+        // a graph shown full screen turns with the phone whatever the setting is
+        org.junit.Assert.assertEquals(Turn.FREE, turnFor(zoomOpen = true, sidewaysScreen = false, autoRotate = false))
+        org.junit.Assert.assertEquals(Turn.FREE, turnFor(zoomOpen = true, sidewaysScreen = true, autoRotate = false))
+        // EQ and Live turn only with auto-rotate on
+        org.junit.Assert.assertEquals(Turn.FREE, turnFor(zoomOpen = false, sidewaysScreen = true, autoRotate = true))
+        org.junit.Assert.assertEquals(Turn.UPRIGHT, turnFor(zoomOpen = false, sidewaysScreen = true, autoRotate = false))
+        // everything else stays upright (portrait either way up) even with auto-rotate on
+        org.junit.Assert.assertEquals(Turn.UPRIGHT, turnFor(zoomOpen = false, sidewaysScreen = false, autoRotate = true))
+        org.junit.Assert.assertEquals(Turn.UPRIGHT, turnFor(zoomOpen = false, sidewaysScreen = false, autoRotate = false))
+    }
+
+    @Test
+    fun theLiveBarsWidenAtOnceAndNarrowOneStepAtATime() {
+        // a calm signal fits the usual +-15 dB
+        org.junit.Assert.assertEquals(15.0, rtaHalfRange(8.0, 15.0), 0.0)
+        // a bar 14 dB out needs a dB of room, so the scale widens rather than cutting it off
+        org.junit.Assert.assertEquals(30.0, rtaHalfRange(14.5, 15.0), 0.0)
+        org.junit.Assert.assertEquals(30.0, rtaHalfRange(15.5, 15.0), 0.0)
+        // a pure tone, 70 dB above the others, is held at the widest scale, not drawn off the edge
+        org.junit.Assert.assertEquals(60.0, rtaHalfRange(70.0, 15.0), 0.0)
+        // it widens straight to what is needed, not step by step
+        org.junit.Assert.assertEquals(45.0, rtaHalfRange(40.0, 15.0), 0.0)
+        // narrowing waits until the bars are well inside the smaller scale ...
+        org.junit.Assert.assertEquals(30.0, rtaHalfRange(14.0, 30.0), 0.0)
+        // ... and then goes down one step only
+        org.junit.Assert.assertEquals(45.0, rtaHalfRange(10.0, 60.0), 0.0)
+        org.junit.Assert.assertEquals(15.0, rtaHalfRange(5.0, 30.0), 0.0)
+        // it never drops below what the bars need
+        for (r in listOf(0.0, 3.0, 14.0, 20.0, 29.0, 44.0, 59.0, 200.0)) for (cur in RTA_RANGES) {
+            val h = rtaHalfRange(r, cur)
+            org.junit.Assert.assertTrue("reach $r on $cur gave $h", h >= minOf(r + 1.0, RTA_RANGES.last()))
+        }
     }
 
     @Test
@@ -792,5 +830,33 @@ class ConvergenceTest {
         assertEquals(90, staggerDelayMs(1))
         assertEquals(720, staggerDelayMs(40))
         assertEquals(-1, staggerDelayMs(-1))
+    }
+
+    @Test
+    fun liveEqualiserStartsFromTheEqInUseOrEightFlatBands() {
+        val own = listOf(dev.autotune.dsp.EqFilter(100.0, 3.0, 1.0), dev.autotune.dsp.EqFilter(3000.0, -2.0, 2.0))
+        org.junit.Assert.assertEquals(own, liveBandsStart(own))
+        val flat = liveBandsStart(emptyList())
+        org.junit.Assert.assertEquals(8, flat.size)
+        org.junit.Assert.assertTrue(flat.all { it.gainDb == 0.0 })
+        org.junit.Assert.assertEquals(flat.map { it.freqHz }.sorted(), flat.map { it.freqHz })
+    }
+
+    @Test
+    fun slidingABandKeepsTheBandsInOrderAndFollowsIt() {
+        val bands = listOf(100.0, 500.0, 2000.0).map { dev.autotune.dsp.EqFilter(it, 1.0, 1.0) }
+        // a small slide stays where it is
+        slideBand(bands, 1, 600.0).let { (l, at) -> org.junit.Assert.assertEquals(1, at); org.junit.Assert.assertEquals(600.0, l[1].freqHz, 0.0) }
+        // past its neighbour it changes place, and the index follows the band, not the position
+        slideBand(bands, 0, 1000.0).let { (l, at) ->
+            org.junit.Assert.assertEquals(listOf(500.0, 1000.0, 2000.0), l.map { it.freqHz })
+            org.junit.Assert.assertEquals(1, at)
+        }
+        // held to the audible range
+        org.junit.Assert.assertEquals(20000.0, slideBand(bands, 2, 90000.0).first.last().freqHz, 0.0)
+        org.junit.Assert.assertEquals(20.0, slideBand(bands, 0, 1.0).first.first().freqHz, 0.0)
+        // gain and Q travel with the band
+        val g = listOf(dev.autotune.dsp.EqFilter(100.0, 4.0, 0.7), dev.autotune.dsp.EqFilter(200.0, -3.0, 2.0))
+        slideBand(g, 0, 300.0).first.let { org.junit.Assert.assertEquals(dev.autotune.dsp.EqFilter(300.0, 4.0, 0.7), it[1]) }
     }
 }

@@ -96,7 +96,7 @@ fun TheatrePage(pick: Pickers, openId: String? = null, opened: () -> Unit = {}, 
     val u by vm.ui.collectAsState()
     LaunchedEffect(openId) { openId?.let { vm.selectTest(it); opened() } }
     // from Tune › Set up: a new home theatre once connected, never the last one measured (2.24)
-    // 2.33: the remembered device's home theatre opens when there is one; a new one is made from the list's New
+    // 2.36: the remembered device's home theatre opens when there is one; a new one is made from the list's New
     LaunchedEffect(newName) { newName?.let { vm.fromTune(it, picked == dev.autotune.Equipment.PC); opened() } }
     DisposableEffect(Unit) { vm.start(); onDispose { vm.pause() } }
     LaunchedEffect(u.needsMic) { if (u.needsMic) { vm.micGranted(true); pick.permission() } }
@@ -131,7 +131,7 @@ private fun Connect(u: TheatreUi, vm: TheatreViewModel, picked: dev.autotune.Equ
     var code by rememberSaveable(tvName) { mutableStateOf(tvName?.let { u.codes[it] }.orEmpty()) }
     var address by rememberSaveable { mutableStateOf("") }
     // Simple offers the address once nothing has been found for a few seconds (2.32: a dead end before). Counted by the
-    // page's own clock, a second per tick (2.33: wall-clock time did not move with the walk harness's clock, so the
+    // page's own clock, a second per tick (2.36: wall-clock time did not move with the walk harness's clock, so the
     // field never came there; on a phone the two run together)
     var lookingMs by androidx.compose.runtime.remember { mutableStateOf(0L) }
     val none = u.found.isEmpty()
@@ -151,7 +151,7 @@ private fun Connect(u: TheatreUi, vm: TheatreViewModel, picked: dev.autotune.Equ
     val rememberedPc = CompanionLink.rememberedKind(androidx.compose.ui.platform.LocalContext.current) == dev.autotune.link.Msg.KIND_PC
     val device = dev.autotune.connectDevice(remembered?.takeIf { picked == null || (picked == dev.autotune.Equipment.PC) == rememberedPc }, picked)
     RunSheet("Find $device", sub, trailing = { InfoButton("Find $device", ABOUT_TV + "\n\n" + GET_AUTOTUNE, small = true) }) {
-        // three facts that tick themselves, in place of a bare "Nothing found yet" (2.33)
+        // three facts that tick themselves, in place of a bare "Nothing found yet" (2.36)
         dev.autotune.connectSteps(device, !none, code.length).forEach { (text, done) -> StatusTick(done, text) }
         if (!none) DropSelect(u.found, tvIdx.coerceAtMost(u.found.size - 1), { tvIdx = it }, label = "TV or PC", icon = Ic.HOME)
         OutlinedTextField(
@@ -315,7 +315,7 @@ private fun Details(r: TheatreReport, u: TheatreUi, showEq: Boolean = true) {
 
 @Composable
 private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel, sharer: Sharer?, picked: dev.autotune.Equipment?, manage: () -> Unit) {
-    // before the first EQ test only the device, the speakers, the room and the three tests (2.33); the EQ key, the
+    // before the first EQ test only the device, the speakers, the room and the three tests (2.36); the EQ key, the
     // flavour, Refine and the runs come with the first EQ
     val hasEq = dev.autotune.theatreShowsEq(u.test?.last(RunKind.EQ) != null, u.tvEqOn)
     val lv = u.level
@@ -467,7 +467,7 @@ private fun TheatreLine(u: TheatreUi, picked: dev.autotune.Equipment?, manage: (
         AtIcon(Ic.HOME, At.c.muted, size = 20.dp)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            // what is tuned: a PC's speakers are not a home theatre (2.33)
+            // what is tuned: a PC's speakers are not a home theatre (2.36)
             Text(theatreWord(u, picked).lowercase(), style = MaterialTheme.typography.labelSmall, color = At.c.muted)
             Text(u.test?.name ?: "none yet", style = MaterialTheme.typography.titleMedium, color = At.c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -475,13 +475,13 @@ private fun TheatreLine(u: TheatreUi, picked: dev.autotune.Equipment?, manage: (
     }
 }
 
-/** "Home theatre" or "PC speakers": what is tuned, by the device connected, else what Set up picked (2.33). */
+/** "Home theatre" or "PC speakers": what is tuned, by the device connected, else what Set up picked (2.36). */
 private fun theatreWord(u: TheatreUi, picked: dev.autotune.Equipment?): String =
     dev.autotune.connectTitle(if (u.tv != null) u.device else null, picked).let { if (it == "TV or PC") "Home theatre" else it }
 
 /**
  * The home theatres on their own page: pick one, start a new one, rename or delete the open one. Connected, only that
- * device's are listed; not connected, they are grouped under each device's name (2.33).
+ * device's are listed; not connected, they are grouped under each device's name (2.36).
  */
 @Composable
 private fun TheatresPage(u: TheatreUi, vm: TheatreViewModel, picked: dev.autotune.Equipment?, back: () -> Unit) {

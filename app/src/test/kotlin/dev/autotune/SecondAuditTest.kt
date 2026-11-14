@@ -7,7 +7,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The second audit (2.33): leftover EQs, Back, the TV or PC page and the shorter flow, as pure rules. */
+/** The second audit (2.36): leftover EQs, Back, the TV or PC page and the shorter flow, as pure rules. */
 class SecondAuditTest {
     private fun prof(id: String, name: String, test: String = "", testId: String = "", kept: Boolean = false, kind: String = if (test.isBlank()) "hand" else "tuning") =
         EqProfile(id, name, kind, "", test, "measured in Run 1", 0L, listOf(EqFilter(100.0, -3.0, 1.0)), testId, kept)
@@ -23,7 +23,7 @@ class SecondAuditTest {
         assertTrue(l[0].kept); assertFalse(l[1].kept); assertFalse(l[2].kept)
         assertEquals("", l[0].testId)
         assertEquals(1, l[0].filters.size)
-        // and what 2.33 writes comes back the same
+        // and what 2.36 writes comes back the same
         val now = listOf(l[0].copy(testId = "t1", name = "Car"), l[1])
         assertEquals(now, ProfileStore.decode(ProfileStore.encode(now)))
     }
@@ -184,7 +184,7 @@ class SecondAuditTest {
         assertEquals("3", theatreAfterDelete(rest, "LG TV")?.id)
         assertNull(theatreAfterDelete(rest.filter { it.id != "3" }, "LG TV"))
         assertNull(theatreAfterDelete(rest, null))
-        // its EQ is the one last sent: by the id kept with it, else (sent before 2.33) by the remembered device
+        // its EQ is the one last sent: by the id kept with it, else (sent before 2.36) by the remembered device
         assertTrue(clearsCompanionEq("1", "LG TV", "1", "LG TV", hasBase = true))
         assertFalse(clearsCompanionEq("1", "LG TV", "3", "LG TV", hasBase = true))
         assertTrue(clearsCompanionEq("1", "LG TV", null, "lg tv", hasBase = true))

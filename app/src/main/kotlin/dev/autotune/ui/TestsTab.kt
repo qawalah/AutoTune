@@ -61,7 +61,7 @@ fun TestsTab(
     var deleteId by remember { mutableStateOf<String?>(null) }
     ScreenTitle("Tests", context = if (s.tests.isEmpty()) null else dev.autotune.countText(s.tests.size, "system") + " · " + dev.autotune.countText(readingCount, "reading"))
     // the second way to AutoTune on a TV or a PC, beside Tune › Set up (owner, 2026-11-12); after the first connection
-    // it is one row for the remembered TV or PC, connected or not (2.33)
+    // it is one row for the remembered TV or PC, connected or not (2.36)
     dev.autotune.theatre.CompanionLink.init(ctx)
     val linkOpen by dev.autotune.theatre.CompanionLink.link.open.collectAsState()
     val remembered = dev.autotune.theatre.CompanionLink.rememberedName(ctx)
@@ -130,7 +130,7 @@ fun TestsTab(
     }
 }
 
-/** What deleting a test takes with it, in one line (2.33): the kept EQ goes too; EQs saved by hand stay. */
+/** What deleting a test takes with it, in one line (2.36): the kept EQ goes too; EQs saved by hand stay. */
 private const val DELETE_TEST_TEXT = "Its readings and its EQ are deleted. EQs you saved yourself stay."
 
 /** The home theatres, one row each: its name, its runs and when it was last tested. Opens on the Home theatre page. */

@@ -7,7 +7,7 @@ Add a lesson in the same change that fixes the mistake: the rule first, then wha
 Mark a lesson that would help other apps with `→ DevStore`; once it has been added to DevStore's list, change the
 mark to `→ DevStore (sent <date>)`. See DevStore `docs/lessons/README.md`.
 
-From `AUDIT-2026-11-13.md` (all three parts) and the 2.33.0 work that answered it.
+From `AUDIT-2026-11-13.md` (all three parts) and the 2.36.0 work that answered it.
 
 ## Back, Exit and leaving
 

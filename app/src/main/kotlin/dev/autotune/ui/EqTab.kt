@@ -117,7 +117,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
 
     val testKind = s.tests.firstOrNull { it.id == s.currentTestId }?.kind
     var locked by rememberSaveable { mutableStateOf(true) }
-    // Advanced: the exact bands open in place in the Bands deck (2.33: they were a deck inside the "More" deck)
+    // Advanced: the exact bands open in place in the Bands deck (2.36: they were a deck inside the "More" deck)
     var exact by rememberSaveable { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<dev.autotune.EqProfile?>(null) }
     var deleting by remember { mutableStateOf<dev.autotune.EqProfile?>(null) }
@@ -140,7 +140,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
             )
             PowerToggle(s.systemEqOn, { if (it) pick.notifications(); vm.setSystemEq(it) }, "AutoTune EQ")
         }
-        // the saved EQs are managed right here, on their rows (Advanced: rename, delete); no second list (2.33)
+        // the saved EQs are managed right here, on their rows (Advanced: rename, delete); no second list (2.36)
         val advanced = isAdvanced()
         GroupedPick(
             "EQ in use", s.eqChoices, s.eqPick, vm::selectEq, if (bandCount > 0) "Your own bands" else "No EQ yet",
@@ -150,18 +150,18 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
             },
         )
         if (s.sliderLayer.isNotEmpty()) Muted("+ your slider changes")
-        // only a problem shows here; "EQ updated", "On: …" are not status lines (2.33)
+        // only a problem shows here; "EQ updated", "On: …" are not status lines (2.36)
         dev.autotune.eqStatusShown(s.systemEqMessage)?.let { Muted(it) }
         // Simple: on/off, which EQ and the flavour (owner, 2026-11-12: "I don't see flavour/genre"); the preamp waits in Advanced
         FlavourAndPreamp(s, vm, preamp = isAdvanced())
     }
 
-    // ---- equaliser: classic sliders, then the graph of what they shape. Simple folds both under "Adjust" (2.33)
+    // ---- equaliser: classic sliders, then the graph of what they shape. Simple folds both under "Adjust" (2.36)
     val keys: @Composable () -> Unit = {
         Row(verticalAlignment = Alignment.CenterVertically) {
             // the lock says what it is (2.32: a bare padlock)
             TextAction(if (locked) "Locked" else "Unlocked", { locked = !locked }, icon = if (locked) Ic.LOCK else Ic.UNLOCK)
-            // Flat offers Undo right where it was pressed (2.33)
+            // Flat offers Undo right where it was pressed (2.36)
             if (s.canUndoFlat) TextAction("Undo", vm::undoFlat, icon = Ic.UNDO)
             else TextAction("Flat", { vm.editClear() }, enabled = bandCount > 0 && !locked, icon = Ic.UNDO)
             TextAction("Save", { saveDialog = true }, enabled = bandCount > 0, icon = Ic.SAVE)
@@ -233,7 +233,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
                 }, enabled = bandCount > 0, icon = Ic.MEASURE)
             }
             if (!isAdvanced()) return@Actions
-            // it measures at once: a key, not a row that opens something (2.33)
+            // it measures at once: a key, not a row that opens something (2.36)
             if (bandCount > 0 && s.eqCheck == null) TextAction("Check the EQ reaches the speakers", vm::eqCheck, enabled = !s.busy && s.hasPermission, icon = Ic.CHECK)
             if (hasTest && s.runs.isNotEmpty() && !s.systemEqOn && s.source == Source.PHONE) {
                 val onEquipment = s.applyWay == ApplyWay.EQUIPMENT && s.runs.size > 1
@@ -244,7 +244,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
         }
     }
 
-    // ---- automatic switching: its own deck (2.33: it was folded inside "More")
+    // ---- automatic switching: its own deck (2.36: it was folded inside "More")
     if (isAdvanced()) Fold(
         "Automatic switching",
         summary = if (s.automationOn && s.rules.isNotEmpty()) "On · ${s.rules.size} ${if (s.rules.size == 1) "device" else "devices"}" else "Off",
@@ -277,7 +277,7 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
     }
 }
 
-/** Advanced: the exact bands, opened in place in the Bands deck (2.33). */
+/** Advanced: the exact bands, opened in place in the Bands deck (2.36). */
 @Composable
 private fun ExactBands(s: UiState, vm: TuneViewModel, mine: Boolean, bandCount: Int, expanded: Int, setExpanded: (Int) -> Unit) {
     if (!mine) {
@@ -447,7 +447,7 @@ private fun BandRow(i: Int, f: EqFilter, open: Boolean, onToggle: () -> Unit, vm
 }
 
 @Composable
-private fun sliderColors() = SliderDefaults.colors(
+internal fun sliderColors() = SliderDefaults.colors(
     thumbColor = At.c.signal, activeTrackColor = At.c.signal, inactiveTrackColor = At.c.line,
 )
 
@@ -610,7 +610,7 @@ internal val GRAPHIC_SETS = listOf(
     listOf(25.0, 40.0, 63.0, 100.0, 160.0, 250.0, 400.0, 630.0, 1000.0, 1600.0, 2500.0, 4000.0, 6300.0, 10000.0, 16000.0) to 2.1,
 )
 
-private fun freqLabel(f: Double): String {
+internal fun freqLabel(f: Double): String {
     fun n(v: Double) = ("%.1f".format(v)).removeSuffix(".0")
     return if (f >= 1000) n(f / 1000) + "k" else n(f)
 }
@@ -710,7 +710,7 @@ val LocalFaderHeight = androidx.compose.runtime.compositionLocalOf { 176.dp }
  * follows a drag, by how far the finger moves, so a touch in passing or a scroll over it never changes the EQ.
  */
 @Composable
-private fun VSlider(
+internal fun VSlider(
     value: Double, onChange: (Double) -> Unit, label: String, enabled: Boolean = true,
     selected: Boolean = false, onSelect: () -> Unit = {}, onTouch: () -> Unit = {},
 ) {
@@ -908,5 +908,5 @@ fun LoudEqFold(s: UiState, vm: TuneViewModel, startOpen: Boolean = false) {
     }
 }
 
-/** A saved EQ's second line where its run is not known here: bands and date (2.33). */
+/** A saved EQ's second line where its run is not known here: bands and date (2.36). */
 private fun savedLine(db: Double?, date: String, bands: Int) = dev.autotune.savedEqLine(db, date, bands)

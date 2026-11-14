@@ -17,6 +17,8 @@ import dev.autotune.dsp.Calibration
 import dev.autotune.dsp.EqChain
 import dev.autotune.dsp.EqProcessor
 import dev.autotune.dsp.RtaAnalyzer
+import dev.autotune.dsp.Tone
+import dev.autotune.dsp.ToneSynth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -354,7 +356,8 @@ object MeasurementRunner {
         error("Could not open the microphone")
     }
 
-    fun buildTrack(fs: Int): AudioTrack {
+    /** [bufferMs] is the most the output can run ahead of what is generated: short for a tone that follows a slider. */
+    fun buildTrack(fs: Int, bufferMs: Int = 500): AudioTrack {
         val min = AudioTrack.getMinBufferSize(fs, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_FLOAT)
         return AudioTrack.Builder()
             .setAudioAttributes(
@@ -370,7 +373,7 @@ object MeasurementRunner {
                     .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
                     .build(),
             )
-            .setBufferSizeInBytes(maxOf(min, fs * 2 * 4 / 2))
+            .setBufferSizeInBytes(maxOf(min, fs * 2 * 4 * bufferMs / 1000))
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
     }
@@ -438,6 +441,64 @@ class ClipPlayer {
     fun stop() {
         job?.cancel()
         job = null
+    }
+}
+
+/**
+ * The Live tab's tone generator: a steady sine on both channels at the frequency the slider says, optionally through the
+ * EQ. The pitch can change while it plays (the phase carries on, so there are no clicks). Quiet by design: -20 dBFS.
+ */
+class TonePlayer {
+    @Volatile var output: AudioDeviceInfo? = null
+
+    private var job: Job? = null
+    private var synth: ToneSynth? = null
+    @Volatile private var procs: Array<EqProcessor>? = null
+    private val fs = 48000
+
+    val isPlaying: Boolean get() = job?.isActive == true
+
+    var hz: Double
+        get() = synth?.targetHz ?: Tone.DEFAULT_HZ
+        set(v) { synth?.targetHz = v }
+
+    fun setChain(c: EqChain?) {
+        procs = c?.let { arrayOf(EqProcessor(it, fs), EqProcessor(it, fs)) }
+    }
+
+    fun play(scope: CoroutineScope, startHz: Double, c: EqChain?) {
+        stop()
+        setChain(c)
+        val s = ToneSynth(fs, level = 0.1).also { it.targetHz = startHz }
+        synth = s
+        job = scope.launch(Dispatchers.IO) {
+            val track = MeasurementRunner.buildTrack(fs, bufferMs = 100)
+            output?.let { track.preferredDevice = it }
+            try {
+                track.play()
+                val frames = 512
+                val mono = FloatArray(frames)
+                val buf = FloatArray(frames * 2)
+                while (isActive) {
+                    s.fill(mono, frames)
+                    val p = procs
+                    for (i in 0 until frames) {
+                        buf[2 * i] = (if (p != null) p[0].process(mono[i]) else mono[i]).coerceIn(-1f, 1f)
+                        buf[2 * i + 1] = (if (p != null) p[1].process(mono[i]) else mono[i]).coerceIn(-1f, 1f)
+                    }
+                    if (track.write(buf, 0, buf.size, AudioTrack.WRITE_BLOCKING) < 0) break
+                }
+            } finally {
+                runCatching { track.stop() }
+                track.release()
+            }
+        }
+    }
+
+    fun stop() {
+        job?.cancel()
+        job = null
+        synth = null
     }
 }
 

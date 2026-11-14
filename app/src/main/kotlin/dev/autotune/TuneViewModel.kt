@@ -95,7 +95,7 @@ enum class Source(val title: String, val desc: String) {
 enum class ThemeMode(val title: String) { SYSTEM("System"), LIGHT("Light"), DARK("Dark") }
 
 /** Where the open test is in the tuning loop. The Tune tab always shows the one thing to do next. */
-enum class LiveSignal { PINK, SWEEP, NONE }
+enum class LiveSignal { PINK, SWEEP, NONE, TONE }
 /** Where the Tune workflow is: the big button, the fresh-start question, set-up, stock reading, apply, verify, result, done. */
 enum class TuneStep { HOME, FRESH, SETUP, STOCK, STOCK_RESULT, APPLY, VERIFY, RESULT, DONE }
 
@@ -160,7 +160,11 @@ data class RunInfo(
 class LrInfo(val result: LrResult, val chart: ChartData)
 
 /** Broadband level from the live meter. [splDb] is an estimate (see the live panel). */
-class LevelInfo(val rmsDb: Double, val peakDb: Double, val leqDb: Double, val splDb: Double)
+class LevelInfo(
+    val rmsDb: Double, val peakDb: Double, val leqDb: Double, val splDb: Double,
+    /** The highest peak since Start (or the last reset): kept while Hold peaks is on. */
+    val peakMaxDb: Double = peakDb,
+)
 
 /** A paired Bluetooth device, with enough detail to tell identical names apart. */
 data class BtDevice(val address: String, val name: String, val kind: String, val lastSeen: Long)
@@ -269,6 +273,10 @@ data class UiState(
     val phoneMic: Boolean = false,
     /** Live starts silent: noise only when asked for. */
     val liveSignal: LiveSignal = LiveSignal.NONE,
+    /** Live keeps the highest bar and level reached until reset. */
+    val peakHold: Boolean = false,
+    /** The tone generator's frequency (Hz), kept between visits. */
+    val toneHz: Double = dev.autotune.dsp.Tone.DEFAULT_HZ,
     val calibrationName: String? = null,
     val calibrationInfo: String? = null,
     /** Warnings of the focus run (and about mixed calibrations) shown at the top of Results. */
@@ -458,7 +466,7 @@ data class UiState(
     // --- AutoTune as the EQ
     /** The user's own band list while editing (null = use the suggested EQ). */
     val editFilters: List<EqFilter>? = null,
-    /** Flat was just pressed: Undo puts the EQ back (2.33). */
+    /** Flat was just pressed: Undo puts the EQ back (2.36). */
     val canUndoFlat: Boolean = false,
     val systemEqOn: Boolean = false,
     val systemEqMessage: String? = null,
@@ -491,6 +499,9 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     /** Live sound level (updated about 20 times a second while the live meter runs). */
     val level = MutableStateFlow<LevelInfo?>(null)
 
+    /** The highest each live bar has reached (null unless Hold peaks is on and a reading came in). */
+    val rtaHold = MutableStateFlow<DoubleArray?>(null)
+
     /** Files ready for the share sheet. */
     val fileToShare = MutableSharedFlow<ShareFiles>(extraBufferCapacity = 1)
 
@@ -507,6 +518,9 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     private var calibration: Calibration? = null
     private var job: Job? = null
     private val player = ClipPlayer()
+    private val tonePlayer = dev.autotune.audio.TonePlayer()
+    private val peaks = dev.autotune.dsp.PeakHold(Rta.CENTERS.size)
+    private var peakMax = Double.NEGATIVE_INFINITY
     private val rta = RtaRunner()
     private val prefs = app.getSharedPreferences("autotune_prefs", android.content.Context.MODE_PRIVATE)
 
@@ -536,6 +550,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 targetNames = Target.ALL.map { t -> t.name },
                 customTargets = Target.ALL.drop(Target.BUILT_IN.size).map { t -> t.name },
                 splOffsetDb = prefs.getFloat("splOffset", 0f).toDouble(),
+                toneHz = prefs.getFloat("toneHz", dev.autotune.dsp.Tone.DEFAULT_HZ.toFloat()).toDouble().coerceIn(dev.autotune.dsp.Tone.MIN_HZ, dev.autotune.dsp.Tone.MAX_HZ),
+                peakHold = prefs.getBoolean("peakHold", false),
                 themeMode = runCatching { ThemeMode.valueOf(prefs.getString("theme", "SYSTEM")!!) }.getOrDefault(ThemeMode.SYSTEM),
                 advanced = prefs.getBoolean("advanced", false),
                 showTutorial = !prefs.getBoolean("tutorialSeen", false),
@@ -729,7 +745,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 val r = t.runs[i]
                 out += EqChoice("run:${t.id}:$i", t.name, kind, r.label, "Measured %.2f dB from the target · best · ${r.eq.size} bands".format(r.rmsDb), db = r.rmsDb, best = true).g()
             }
-            // tied by the test's id (2.33): a rename keeps them in their group
+            // tied by the test's id (2.36): a rename keeps them in their group
             val kept = s.profiles.filter { it.testId == t.id }
             kept.filter { it.kept }.forEach { p ->
                 out += EqChoice("profile:${p.id}", t.name, kind, "Kept EQ", savedEqLine(profileDb(p), fmtDate(p.created), p.filters.size), note = "kept").g()
@@ -920,7 +936,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             current = updated
             state.update { it.copy(testName = updated.name) }
         }
-        // the EQs from this test stay tied to it by its id; the kept EQ takes the new name (2.33)
+        // the EQs from this test stay tied to it by its id; the kept EQ takes the new name (2.36)
         val ps = state.value.profiles
         if (ps.any { it.testId == id }) storeProfiles(ps.map { p ->
             if (p.testId != id) p else p.copy(test = updated.name, name = if (p.kept) uniqueProfileName(updated.name, p.id) else p.name)
@@ -929,7 +945,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Deletes a test with everything that came from it (2.33): its readings, the EQ Keep made for it and the automatic
+     * Deletes a test with everything that came from it (2.36): its readings, the EQ Keep made for it and the automatic
      * switching to that EQ. When an EQ from it was the one in use, AutoTune EQ goes off and nothing of the test stays
      * on the EQ tab. EQs saved by hand stay.
      */
@@ -967,7 +983,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         return t.runs.firstOrNull { r -> p.run == "measured in ${r.label}" }?.rmsDb
     }
 
-    /** Older profiles get their test's id once, and kept EQs the test's name (2.33, [tieProfilesToTests]). */
+    /** Older profiles get their test's id once, and kept EQs the test's name (2.36, [tieProfilesToTests]). */
     private fun tieProfiles() {
         val all = state.value.profiles
         val tied = tieProfilesToTests(all, savedTests.map { it.id to it.name })
@@ -2366,7 +2382,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         // the system EQ records its 31 sampled bands as applied; keep the parametric EQ that was given to it instead
         val bands = run.eq
         // one kept EQ per test, tied by the test's id: finishing again updates it (same id, so automatic switching keeps
-        // working); it is called what the test is called (2.33: no "· tuned (Run 1)")
+        // working); it is called what the test is called (2.36: no "· tuned (Run 1)")
         val old = keptEqOf(state.value.profiles, t.id)
         val p = EqProfile(
             old?.id ?: java.util.UUID.randomUUID().toString(),
@@ -2540,18 +2556,32 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         val target = targetAt(state.value.targetIdx)
         val tgt = Rta.targetBars(target)
         val chain = activeChain()
-        if (state.value.source == Source.PHONE && state.value.liveSignal != LiveSignal.NONE) {
-            player.play(viewModelScope, liveClip(state.value.liveSignal), if (withEq) chain else null) { }
+        if (state.value.source == Source.PHONE) {
+            when (state.value.liveSignal) {
+                LiveSignal.NONE -> Unit
+                LiveSignal.TONE -> tonePlayer.play(viewModelScope, state.value.toneHz, if (withEq) chain else null)
+                else -> player.play(viewModelScope, liveClip(state.value.liveSignal), if (withEq) chain else null) { }
+            }
         }
         rtaBars.value = null
         level.value = null
+        resetPeaks()
         leqEnergy = 0.0
         leqBlocks = 0
         // the loud EQ's level meter gives the mic to the analyser until it stops
         dev.autotune.audio.LevelMeter.paused = true
         rta.start(
             viewModelScope, UsbMic.find(getApplication()), fs, calibration,
-            onBars = { rtaBars.value = Rta.relativeToTarget(it, tgt) },
+            onBars = { raw ->
+                // A tone is one narrow line: judged against a target it would be shoved off the scale, so its bars are
+                // shown against the loudest bar (0 dB at the top) instead.
+                val bars = if (state.value.liveSignal == LiveSignal.TONE) {
+                    val top = raw.max()
+                    DoubleArray(raw.size) { raw[it] - top }
+                } else Rta.relativeToTarget(raw, tgt)
+                rtaBars.value = bars
+                if (state.value.peakHold) { peaks.update(bars); rtaHold.value = peaks.snapshot() }
+            },
             onLevel = { rms, peak ->
                 leqEnergy += Math.pow(10.0, rms / 10.0)
                 leqBlocks++
@@ -2561,11 +2591,13 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 // Estimate for a UMIK-1 at its default gain: 0 dBFS is about 112 dB SPL, adjusted by the calibration file's
                 // sensitivity factor and the user's offset. Reliable only if Android's mic gain is unchanged.
                 val spl = smooth + 112.0 - (calibration?.sensFactorDb ?: 0.0) + state.value.splOffsetDb
-                level.value = LevelInfo(smooth, hold, 10.0 * log10(leqEnergy / leqBlocks), spl)
+                if (peak > peakMax) peakMax = peak
+                level.value = LevelInfo(smooth, hold, 10.0 * log10(leqEnergy / leqBlocks), spl, peakMax)
             },
             onStopped = { err ->
                 dev.autotune.audio.LevelMeter.paused = false
                 player.stop()
+                tonePlayer.stop()
                 state.update { s -> s.copy(rtaRunning = false, status = err?.let { e -> "RTA stopped: $e" } ?: s.status) }
             },
         )
@@ -2589,12 +2621,46 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Pink noise, a repeating sweep, or nothing, played from the phone while the live spectrum runs. */
     fun setLiveSignal(sig: LiveSignal) {
+        val was = state.value.liveSignal
         state.update { it.copy(liveSignal = sig, rtaNoise = sig != LiveSignal.NONE) }
+        // a tone's bars are drawn against their own top, not the target: held peaks from the other kind don't carry over
+        if ((was == LiveSignal.TONE) != (sig == LiveSignal.TONE)) resetPeaks()
         val st = state.value
         if (st.rtaRunning && st.source == Source.PHONE) {
             player.stop()
-            if (sig != LiveSignal.NONE) player.play(viewModelScope, liveClip(sig), if (st.rtaWithEq) activeChain() else null) { }
+            tonePlayer.stop()
+            val chain = if (st.rtaWithEq) activeChain() else null
+            when (sig) {
+                LiveSignal.NONE -> Unit
+                LiveSignal.TONE -> tonePlayer.play(viewModelScope, st.toneHz, chain)
+                else -> player.play(viewModelScope, liveClip(sig), chain) { }
+            }
         }
+    }
+
+    /** The tone generator's slider: the pitch follows at once while it plays, and is kept for next time. */
+    fun setToneHz(hz: Double) {
+        val v = hz.coerceIn(dev.autotune.dsp.Tone.MIN_HZ, dev.autotune.dsp.Tone.MAX_HZ)
+        tonePlayer.hz = v
+        state.update { it.copy(toneHz = v) }
+    }
+
+    /** Saves the tone frequency once the slider is let go. */
+    fun saveToneHz() = prefs.edit().putFloat("toneHz", state.value.toneHz.toFloat()).apply()
+
+    /** Hold peaks: the bars and the peak reading keep the highest they reach until reset. */
+    fun setPeakHold(on: Boolean) {
+        prefs.edit().putBoolean("peakHold", on).apply()
+        state.update { it.copy(peakHold = on) }
+        resetPeaks()
+    }
+
+    /** Clears the held bars and the held peak; they start again from the next reading. */
+    fun resetPeaks() {
+        peaks.reset()
+        peakMax = Double.NEGATIVE_INFINITY
+        rtaHold.value = null
+        level.value?.let { l -> level.value = LevelInfo(l.rmsDb, l.peakDb, l.leqDb, l.splDb, l.peakDb) }
     }
 
     /** Fine-tune the SPL estimate against a reference meter or calibrator. */
@@ -2606,13 +2672,14 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setRtaEq(withEq: Boolean) {
         player.setChain(if (withEq) activeChain() else null)
+        tonePlayer.setChain(if (withEq) activeChain() else null)
         state.update { it.copy(rtaWithEq = withEq) }
     }
 
     fun stopRta() {
         rta.stop()
         dev.autotune.audio.LevelMeter.paused = false
-        if (state.value.rtaRunning) player.stop()
+        if (state.value.rtaRunning) { player.stop(); tonePlayer.stop() }
         // Stop puts "Play from the phone" back to Off, so the next Start is silent unless it is picked again (2.30.1)
         state.update { it.copy(rtaRunning = false, liveSignal = LiveSignal.NONE, rtaNoise = false) }
     }
@@ -3078,7 +3145,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         saveSliderLayer(emptyList())
         setEdit(null)
     }
-    /** Flat: no bands. What was in use is kept for one Undo (2.33: Flat wiped the EQ with no way back). */
+    /** Flat: no bands. What was in use is kept for one Undo (2.36: Flat wiped the EQ with no way back). */
     fun editClear() {
         val st = state.value
         val before = FlatUndo(st.editFilters, st.sliderLayer, st.eqPick)
@@ -3144,6 +3211,23 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         state.update { it.copy(sliderLayer = emptyList(), convertMessage = "Converted to ${centres.size} bands. The converted EQ differs from the tuned one by %.1f dB RMS between 30 Hz and 12 kHz.".format(rmsDiff)) }
         saveSliderLayer(emptyList())
         setEdit(fl)
+    }
+
+    /** Live's equaliser: edit the EQ in use as exact bands (eight flat ones when there is none), heard at once with the EQ on. */
+    fun liveEqStart() {
+        val cur = state.value.exportChain?.filters ?: emptyList()
+        state.update { it.copy(sliderLayer = emptyList(), convertMessage = null) }
+        saveSliderLayer(emptyList())
+        setEdit(liveBandsStart(cur))
+    }
+
+    /** Slides band [i] to [hz] and returns where it now stands (the bands stay in order of frequency). */
+    fun liveSlide(i: Int, hz: Double): Int {
+        val list = state.value.editFilters ?: return i
+        if (i !in list.indices) return i
+        val (next, at) = slideBand(list, i, hz)
+        setEdit(next)
+        return at
     }
 
     fun editAdd() { val l = state.value.editFilters ?: emptyList(); setEdit((l + EqFilter(1000.0, 0.0, 1.0)).sortedBy { it.freqHz }) }
@@ -3622,6 +3706,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         dev.autotune.audio.LevelMeter.paused = false
         // the EQ keeps running in its service while the user has it switched on
         player.stop()
+        tonePlayer.stop()
         super.onCleared()
     }
 }

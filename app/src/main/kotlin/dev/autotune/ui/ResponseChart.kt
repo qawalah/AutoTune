@@ -138,7 +138,23 @@ class ChartZoom {
         } else cur.onToggleTarget = onToggleTarget
     }
 
-    fun close() { owner = null; shown = null }
+    /** Something other than a response graph shown full screen (the Live spectrum); it draws itself and is given Close. */
+    var custom by androidx.compose.runtime.mutableStateOf<(@Composable (onClose: () -> Unit) -> Unit)?>(null)
+        private set
+    private var customOwner: Any? = null
+
+    /** A full-screen view is open, of either kind: the screen may then turn sideways whatever the auto-rotate setting. */
+    val open: Boolean get() = shown != null || custom != null
+
+    fun showCustom(who: Any, content: @Composable (onClose: () -> Unit) -> Unit) {
+        customOwner = who
+        custom = content
+    }
+
+    /** Closes the custom view if [who] opened it (a screen going away takes its own view with it). */
+    fun closeCustom(who: Any) { if (customOwner === who) { customOwner = null; custom = null } }
+
+    fun close() { owner = null; shown = null; customOwner = null; custom = null }
 }
 
 val LocalChartZoom = androidx.compose.runtime.staticCompositionLocalOf<ChartZoom?> { null }
@@ -149,10 +165,24 @@ fun ChartZoomLayer(zoom: ChartZoom) {
     val z = zoom.shown
     val last = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<ZoomedChart?>(null) }
     if (z != null) last.value = z
+    val custom = zoom.custom
+    val lastCustom = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<(@Composable (() -> Unit) -> Unit)?>(null) }
+    if (custom != null) lastCustom.value = custom
+    // which kind was shown last, so the sheet keeps its content while it drops away
+    val wasCustom = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (custom != null) wasCustom.value = true else if (z != null) wasCustom.value = false
     // composed only while open, so it is the newest Back handler and closes the chart before anything else
-    if (z != null) androidx.activity.compose.BackHandler { zoom.close() }
-    androidx.compose.animation.AnimatedVisibility(z != null, enter = sheetIn(), exit = sheetOut()) {
-        last.value?.let { shown ->
+    if (z != null || custom != null) androidx.activity.compose.BackHandler { zoom.close() }
+    androidx.compose.animation.AnimatedVisibility(z != null || custom != null, enter = sheetIn(), exit = sheetOut()) {
+        if (wasCustom.value) {
+            lastCustom.value?.let { content ->
+                DeckColors {
+                    androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.panel, contentColor = At.c.text) {
+                        Box(Modifier.statusBarsPadding().navigationBarsPadding()) { content { zoom.close() } }
+                    }
+                }
+            }
+        } else last.value?.let { shown ->
             DeckColors {
                 androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.panel, contentColor = At.c.text) {
                     Box(Modifier.statusBarsPadding().navigationBarsPadding()) {

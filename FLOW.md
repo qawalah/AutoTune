@@ -1,4 +1,4 @@
-# AutoTune flow maps (2.33.0)
+# AutoTune flow maps (2.36.0)
 
 How a tuning session flows and how you move around the app, drawn from the code. Update this file whenever a Tune step, a pinned action or a link between screens changes (see CLAUDE.md). Code names in brackets point at where each decision lives.
 
@@ -54,9 +54,9 @@ flowchart TD
   R -.->|"Ask AI to review, Measure it"| E
 ```
 
-Every measurement starts the moment its key is pressed. Stock and Verify are measuring phases with no page: a closed, stopped or failed measurement returns to the step it started from. Tune is three screens (Set up, EQ, Result) plus the measuring screen. While Stock or Verify measures, the measuring screen shows the step bar with that step lit. Back follows `previousStep` (one step back); Exit leaves and remembers the step for Continue, never asking (2.33): the test is kept as it is. Discarding a test is on its ⋮ on Tests and in the results page's Manage test, and takes the EQ Keep made for it.
+Every measurement starts the moment its key is pressed. Stock and Verify are measuring phases with no page: a closed, stopped or failed measurement returns to the step it started from. Tune is three screens (Set up, EQ, Result) plus the measuring screen. While Stock or Verify measures, the measuring screen shows the step bar with that step lit. Back follows `previousStep` (one step back); Exit leaves and remembers the step for Continue, never asking (2.36): the test is kept as it is. Discarding a test is on its ⋮ on Tests and in the results page's Manage test, and takes the EQ Keep made for it.
 
-## Back (2.33, the rule in CLAUDE.md)
+## Back (2.36, the rule in CLAUDE.md)
 
 | Where | Back does |
 |---|---|
@@ -123,7 +123,7 @@ flowchart LR
   CW -->|"its name"| HT
   SH["Shortcuts, routines,<br/>autotune://profile/name"] -->|"ApplyProfileActivity"| BG
   BT["Bluetooth device connects"] -->|"rules.txt"| BG
-  FS(["First start"]) -->|"once (tutorialSeen)"| TUT["Tutorial over every screen<br/>5 cards: Skip, Next, Get started"]
+  FS(["First start"]) -->|"once (tutorialSeen)"| TUT["Tutorial over every screen<br/>7 cards: Skip, Next, Get started"]
   TUT -->|"Skip, Get started, Back on the first card"| TU
   ST -->|"About: Replay the tutorial"| TUT
 ```

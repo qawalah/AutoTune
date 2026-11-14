@@ -77,7 +77,7 @@ data class TheatreUi(
     val threeTests: Boolean = false,
     /** The home theatres measured on this phone (id, name), and the one open. */
     val tests: List<Pair<String, String>> = emptyList(),
-    /** The same list with the TV or PC each belongs to, for the list grouped by device (2.33). */
+    /** The same list with the TV or PC each belongs to, for the list grouped by device (2.36). */
     val entries: List<dev.autotune.TheatreEntry> = emptyList(),
     val test: TheatreTest? = null,
     /** The last distances and EQ results of the open test. */
@@ -605,7 +605,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
         _ui.update { it.copy(tests = all.map { r -> r.id to r.name }, entries = all.map(::entry)) }
     }
 
-    /** Opens a home theatre; while a TV or PC is connected, only one of its own (2.33: never another device's results). */
+    /** Opens a home theatre; while a TV or PC is connected, only one of its own (2.36: never another device's results). */
     fun selectTest(id: String) {
         if (_ui.value.busy) return
         val t = TheatreTests.load(ctx.filesDir, id) ?: return
@@ -614,7 +614,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Tune › Home theatre or PC speakers › Yes (2.33): the remembered device's home theatre when there is one of the kind
+     * Tune › Home theatre or PC speakers › Yes (2.36): the remembered device's home theatre when there is one of the kind
      * picked, else a new one named [name] ([startNew]). A new one is otherwise made from the list's own New.
      */
     fun fromTune(name: String, pickedPc: Boolean) {
@@ -644,7 +644,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Deletes the open home theatre (2.33): when its EQ is the one last sent, the EQ remembered for the widget goes too
+     * Deletes the open home theatre (2.36): when its EQ is the one last sent, the EQ remembered for the widget goes too
      * and, connected to that device, its EQ is switched off. Then another home theatre of the same device opens, or none.
      */
     fun deleteTest() {
@@ -897,7 +897,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
             sendEq(Msg.eq(u0.layout.speakers.associateWith { chain }))
             prefs.edit().putString(CompanionLink.PREF_BASE, dev.autotune.filtersText(eq))
                 .putString(CompanionLink.PREF_SPEAKERS, u0.layout.speakers.joinToString(",") { it.code })
-                // whose EQ it is, so deleting that home theatre clears it (2.33)
+                // whose EQ it is, so deleting that home theatre clears it (2.36)
                 .putString(PREF_BASE_TEST, u0.test?.id.orEmpty()).apply()
             Diag.log(ctx, "theatre_eq_sent", mapOf("speakers" to u0.layout.speakers.size, "preampDb" to chain.preampDb, "one" to true, "flavour" to u0.flavour.name))
             return
@@ -942,7 +942,7 @@ class TheatreViewModel(app: Application) : AndroidViewModel(app) {
     }
 }
 
-/** The home theatre whose EQ [CompanionLink.PREF_BASE] holds (2.33). */
+/** The home theatre whose EQ [CompanionLink.PREF_BASE] holds (2.36). */
 private const val PREF_BASE_TEST = "companionBaseTest"
 
 /** A home theatre's target by name (Home theatre when the name is unknown), with the taste on top. */

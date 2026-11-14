@@ -10,9 +10,10 @@ import kotlin.math.abs
 /** The first-start tutorial (2.9.0): its cards, the keys round them, how a card moves as you swipe, and its pictures. */
 class TutorialTest {
     @Test
-    fun fiveCardsAnOpeningThenTheFourSteps() {
-        assertEquals(listOf("hello", "measure", "eq", "verify", "keep"), TUTORIAL_CARDS.map { it.key })
-        assertEquals(listOf(0, 1, 2, 3, 4), TUTORIAL_CARDS.map { it.step })
+    fun sevenCardsTheFourStepsThenTheTvAndLive() {
+        assertEquals(listOf("hello", "measure", "eq", "verify", "keep", "tv", "live"), TUTORIAL_CARDS.map { it.key })
+        // the TV or PC companion and the Live tab are not steps of a tune
+        assertEquals(listOf(0, 1, 2, 3, 4, 0, 0), TUTORIAL_CARDS.map { it.step })
         assertEquals(4, TUTORIAL_STEPS)
         TUTORIAL_CARDS.forEach {
             assertTrue(it.title.isNotBlank())
@@ -24,21 +25,22 @@ class TutorialTest {
     @Test
     fun oneCounterTheLights() {
         // the lights count the cards, the opening card included; no "step n of 4" beside them (2.32)
-        assertEquals("Card 1 of 5", tutorialCounter(0))
-        assertEquals("Card 5 of 5", tutorialCounter(4))
+        assertEquals("Card 1 of 7", tutorialCounter(0))
+        assertEquals("Card 7 of 7", tutorialCounter(6))
     }
 
     @Test
     fun theKeyReadsNextUntilTheLastCard() {
         assertEquals("Next", tutorialKeyLabel(0))
-        assertEquals("Next", tutorialKeyLabel(3))
-        assertEquals("Get started", tutorialKeyLabel(4))
+        assertEquals("Next", tutorialKeyLabel(4))
+        assertEquals("Next", tutorialKeyLabel(5))
+        assertEquals("Get started", tutorialKeyLabel(6))
     }
 
     @Test
     fun skipShowsOnEveryCardButTheLast() {
-        (0..3).forEach { assertTrue(tutorialShowsSkip(it)) }
-        assertFalse(tutorialShowsSkip(4))
+        (0..5).forEach { assertTrue(tutorialShowsSkip(it)) }
+        assertFalse(tutorialShowsSkip(6))
     }
 
     @Test
@@ -139,5 +141,41 @@ class TutorialTest {
         // centres run from bass to treble across the strip
         centres.zipWithNext().forEach { (a, b) -> assertTrue(b > a) }
         assertTrue(centres.first() > 0f && centres.last() < 1f)
+    }
+
+    @Test
+    fun theTvShowsItsCodeThenEachSpeakerPlaysInTurn() {
+        assertEquals(4, TUTORIAL_TV_CODE.length)
+        assertTrue(TUTORIAL_TV_CODE.all { it.isDigit() })
+        // nothing plays while the TV pairs, then the left speaker, then the right, then both are still
+        assertNull(tutorialTvPlaying(0f))
+        assertNull(tutorialTvPlaying(800f))
+        assertEquals(0, tutorialTvPlaying(1200f))
+        assertEquals(1, tutorialTvPlaying(1700f))
+        assertNull(tutorialTvPlaying(tutorialPlayMs("tv").toFloat()))
+        // the code's digits come up one by one
+        assertEquals(0, tutorialTvDigits(0f))
+        assertEquals(4, tutorialTvDigits(900f))
+        val shown = (0..10).map { tutorialTvDigits(it * 100f) }
+        shown.zipWithNext().forEach { (a, b) -> assertTrue(b >= a) }
+    }
+
+    @Test
+    fun liveBarsRiseAndTheirPeaksHold() {
+        assertEquals(TUTORIAL_LIVE_BARS, (0 until TUTORIAL_LIVE_BARS).count())
+        for (k in 0 until TUTORIAL_LIVE_BARS) {
+            assertEquals(0f, tutorialLiveBar(k, 0f), 1e-6f)
+            var lastPeak = 0f
+            var t = 0f
+            while (t <= tutorialPlayMs("live")) {
+                val bar = tutorialLiveBar(k, t); val peak = tutorialLivePeak(k, t)
+                assertTrue(bar in 0f..1f)
+                // a held peak is never below the bar, and never falls
+                assertTrue(peak >= bar - 1e-6f)
+                assertTrue(peak >= lastPeak - 1e-6f)
+                lastPeak = peak; t += 37f
+            }
+            assertTrue(tutorialLiveBar(k, tutorialPlayMs("live").toFloat()) > 0.1f)
+        }
     }
 }

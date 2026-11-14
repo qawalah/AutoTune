@@ -59,7 +59,7 @@ fun TuneTab(
     /** Opens the home-theatre page to connect AutoTune on the TV or the PC and start a new home theatre named this. */
     openCompanion: (String, dev.autotune.Equipment) -> Unit = { _, _ -> go(Tab.THEATRE) },
 ) {
-    // Exit is the only key that leaves a tune, and it never asks (2.33): the test is saved as it is and Continue returns
+    // Exit is the only key that leaves a tune, and it never asks (2.36): the test is saved as it is and Continue returns
     // to it; Back goes one step back ([dev.autotune.previousStep]). Discarding a test lives on its menu on Tests.
     val exit: () -> Unit = vm::tuneExit
     val anim = animationsOn()
@@ -160,14 +160,14 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
     var equipment by rememberSaveable(out) {
         mutableStateOf(draft?.equipment ?: dev.autotune.startEquipment(mem?.equipment, s.lastEquipment, s.carMode, kinds.getOrElse(defIdx) { dev.autotune.TargetKind.CAR }))
     }
-    // equipment used before: straight to the sound screen, "as last time", with Change for the questions (2.33)
+    // equipment used before: straight to the sound screen, "as last time", with Change for the questions (2.36)
     var asLast by rememberSaveable {
         mutableStateOf(draft == null && dev.autotune.setupStartsAtSound(s.lastEquipment != null, equipment, equipment in s.companionInstalled))
     }
     var pageState by rememberSaveable { mutableStateOf(draft?.page ?: if (asLast) dev.autotune.SetupPage.SOUND else dev.autotune.SetupPage.EQUIPMENT) }
     // the answer on the AutoTune screen; with it the names screen is the last and its key connects
     var viaCompanion by rememberSaveable(equipment) { mutableStateOf(draft?.takeIf { it.equipment == equipment }?.viaCompanion ?: (equipment.companion != null && equipment in s.companionInstalled)) }
-    // the question is skipped when the TV or PC is remembered as having AutoTune (2.33); Back from the Connect page
+    // the question is skipped when the TV or PC is remembered as having AutoTune (2.36); Back from the Connect page
     // brings it back, so the answer can be changed
     var askCompanion by rememberSaveable { mutableStateOf(draft?.page == dev.autotune.SetupPage.COMPANION) }
     val skipQuestion = !askCompanion && equipment.companion != null && equipment in s.companionInstalled
@@ -203,7 +203,7 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
         prev?.let { pageState = it } ?: vm.tuneBack()
     }
     // the phone's Back walks the screens too; on the first it is the Tune screen's own Back. Never while the measuring
-    // screen (or a sheet) covers Set up: its Back wins then (2.33: Back between spots moved this screen)
+    // screen (or a sheet) covers Set up: its Back wins then (2.36: Back between spots moved this screen)
     val covered = LocalCovered.current
     androidx.activity.compose.BackHandler(enabled = page != dev.autotune.SetupPage.EQUIPMENT && !s.busy && !covered && s.measureView == null) { back() }
 
@@ -225,7 +225,7 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
                 // a key picks and moves on: the next question follows from it
                 EquipmentTiles(equipment, { e ->
                     equipment = e
-                    // a TV or PC remembered with AutoTune on it: the question is skipped and Simple connects at once (2.33)
+                    // a TV or PC remembered with AutoTune on it: the question is skipped and Simple connects at once (2.36)
                     val skip = !askCompanion && e.companion != null && e in s.companionInstalled
                     val via = if (e.companion != null) e in s.companionInstalled else false
                     viaCompanion = via
@@ -284,7 +284,7 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
         dev.autotune.SetupPage.SOUND -> {
             Panel {
                 CardTitle(pg.title, count, info = dev.autotune.stockChecklist(equipment))
-                // started here on equipment used before: one fact, and Change for the questions (2.33)
+                // started here on equipment used before: one fact, and Change for the questions (2.36)
                 if (asLast) Row(verticalAlignment = Alignment.CenterVertically) {
                     Muted(dev.autotune.asLastTime(equipment), Modifier.weight(1f))
                     TextAction("Change", { asLast = false; pageState = dev.autotune.SetupPage.EQUIPMENT }, enabled = !s.busy)
@@ -337,7 +337,7 @@ private fun SetupStep(s: UiState, vm: TuneViewModel, sharer: Sharer, pick: Picke
     } }
 }
 
-/** Where AutoTune for the TV or the PC comes from, for the info bubbles (2.33). */
+/** Where AutoTune for the TV or the PC comes from, for the info bubbles (2.36). */
 internal const val GET_AUTOTUNE =
     "No AutoTune there yet? On an Android TV or Google TV: install Obtainium on the TV and add AutoTune's releases " +
         "(filter by ^Android), the same way as on this phone. On a Windows PC: install AutoTune from DevStore, or download " +
@@ -449,7 +449,7 @@ private fun ApplyStep(s: UiState, vm: TuneViewModel, pick: Pickers, exit: () -> 
                 }
                 fun icon(w: ApplyWay) = when (w) { ApplyWay.AUTOTUNE_EQ -> Ic.POWER; ApplyWay.IN_APP -> Ic.PLAY; else -> Ic.EDIT }
                 if (s.systemEqSuspect) Alerts(listOf("The phone's EQ damaged the treble on this phone before. Preview inside the app, or set it on your equipment."), "The phone's EQ")
-                // the recommended way once, pinned, with its fact as its second line; the list holds the others (2.33)
+                // the recommended way once, pinned, with its fact as its second line; the list holds the others (2.36)
                 val (firstKey, firstFact) = dev.autotune.applyWayText(ways.first(), device)
                 PinAction(firstKey, { run(ways.first()) }, icon = icon(ways.first()), sub = firstFact)
                 Actions {
@@ -535,7 +535,7 @@ private fun ResultStep(s: UiState, vm: TuneViewModel, pick: Pickers, openResults
         dev.autotune.NextMove.CHECK_EQ ->
             if (phoneEq) PinAction("Check the EQ reaches the speakers", vm::eqCheck, icon = Ic.CHECK, hint = rec?.why)
             else PinAction("Apply the EQ again", { vm.tuneGo(TuneStep.APPLY) }, icon = Ic.POWER, hint = rec?.why)
-        // keeping is finishing: "Done", with what it keeps on its second line (2.33)
+        // keeping is finishing: "Done", with what it keeps on its second line (2.36)
         dev.autotune.NextMove.KEEP_LATEST, dev.autotune.NextMove.KEEP_BEST -> {
             val best = rec?.move == dev.autotune.NextMove.KEEP_BEST
             val (k, sub) = dev.autotune.keepKey(rec?.move, bestRun?.label) ?: ("Done" to "keeps this EQ")
