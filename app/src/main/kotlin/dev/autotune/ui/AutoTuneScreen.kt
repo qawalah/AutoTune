@@ -426,6 +426,15 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                 }
             }
 
+            // Live turned sideways takes the whole screen: the spectrum, the live reading and the tone slider together,
+            // with no tabs and nothing to scroll (owner, 2026-11-14). Turn the phone upright for the tabs.
+            val sideways = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            if (sideways && tab == Tab.LIVE && page == null && overlay == OVERLAY_NONE && s.measureView == null && !ai.open) {
+                androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
+                    Box(Modifier.statusBarsPadding()) { LiveFull(vm) }
+                }
+            }
+
             // measuring takes the whole screen: the instrument, what is happening, and the checks
             val lastMv = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(s.measureView) }
             if (s.measureView != null) lastMv.value = s.measureView
