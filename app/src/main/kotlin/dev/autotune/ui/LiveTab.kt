@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -90,7 +92,7 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
                 }
             }
             // the corner key opens the spectrum full screen, which turns sideways with the phone
-            if (s.rtaRunning && live != null) Box(Modifier.align(Alignment.TopEnd)) { FullScreenKey(s, live, level, vm) }
+            if (s.rtaRunning && live != null) Box(Modifier.align(Alignment.TopEnd)) { FullScreenKey(vm) }
         }
         if (!s.rtaRunning && s.status?.startsWith("RTA stopped") == true) Warning(s.status!!)
     }
@@ -106,21 +108,8 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
     val levelPanel: @Composable () -> Unit = { LevelPanel(s, level, vm) }
     val soundGroup: @Composable () -> Unit = { SoundGroup(s, vm, go) }
 
-    if (landscape) {
-        // sideways: the spectrum fills the left; level, hold and sound sit beside it
-        val h = (conf.screenHeightDp - 160).coerceAtLeast(180).dp
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.weight(1.5f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Panel(pad = 10.dp) { spectrum(h) }
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (level != null || s.rtaRunning) Panel { levelPanel() }
-                Panel(pad = 10.dp) { holdRow() }
-                soundGroup()
-            }
-        }
-        return
-    }
+    // sideways, the shell draws [LiveFull] over the whole screen (no tabs, no scrolling): nothing to lay out here
+    if (landscape) return
 
     // Simple: the spectrum needs no title
     if (isAdvanced()) Group("Spectrum", divider = false) { spectrum(248.dp) } else Panel(pad = 12.dp) { spectrum(248.dp) }
@@ -133,49 +122,147 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
     soundGroup()
 }
 
-/** The corner key on the spectrum: opens it full screen. Nothing else on the page is needed there. */
+/** The corner key on the spectrum: opens the spectrum full screen, with the level and the tone slider beside it. */
 @Composable
-private fun FullScreenKey(s: UiState, live: DoubleArray, level: LevelInfo?, vm: TuneViewModel) {
+private fun FullScreenKey(vm: TuneViewModel) {
     val zoom = LocalChartZoom.current ?: return
     val me = remember { Any() }
-    // what the full-screen view draws is read from these as it changes, so it keeps moving while it is open
-    val liveNow by rememberUpdatedState(live)
-    val levelNow by rememberUpdatedState(level)
-    val holdNow by vm.rtaHold.collectAsState()
-    val liveFlow by vm.rtaBars.collectAsState()
-    val levelFlow by vm.level.collectAsState()
-    val stateFlow by vm.state.collectAsState()
     DisposableEffect(zoom, me) { onDispose { zoom.closeCustom(me) } }
     IconAction(Ic.EXPAND, "Show the spectrum full screen") {
-        zoom.showCustom(me) { close ->
-            // the flows, not the values captured when it opened, so the bars keep moving
-            val st = stateFlow
-            val bars = liveFlow ?: liveNow
-            val lv = levelFlow ?: levelNow
-            val tone = st.liveSignal == LiveSignal.TONE
-            val tgt = Rta.targetBars(Target.ALL[st.targetIdx.coerceIn(0, Target.ALL.size - 1)])
-            Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Spectrum", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
-                    if (lv != null) Text(
-                        if (st.peakHold) "%.1f dBFS   peak hold %.1f".format(lv.rmsDb, lv.peakMaxDb) else "%.1f dBFS   peak %.1f".format(lv.rmsDb, lv.peakDb),
-                        style = MaterialTheme.typography.labelMedium, color = At.c.muted, fontFamily = AtFigures,
+        zoom.showCustom(me) { close -> LiveFull(vm, close) }
+    }
+}
+
+/**
+ * Everything Live shows, on one screen with no scrolling: the spectrum, the live reading, what is played (with the tone's
+ * slider) and Hold peaks. Sideways it is the spectrum on the left and the readings and keys at its right; upright, the
+ * spectrum above and the keys below. It is the whole Live tab when the phone is turned sideways and the full-screen view
+ * of the spectrum ([onClose] is its Close key; null on the tab itself). It reads the view model's flows itself, so it
+ * keeps moving while it is open.
+ */
+@Composable
+fun LiveFull(vm: TuneViewModel, onClose: (() -> Unit)? = null) {
+    val s by vm.state.collectAsState()
+    val live by vm.rtaBars.collectAsState()
+    val level by vm.level.collectAsState()
+    val hold by vm.rtaHold.collectAsState()
+    val tone = s.liveSignal == LiveSignal.TONE
+    val target = Rta.targetBars(Target.ALL[s.targetIdx.coerceIn(0, Target.ALL.size - 1)])
+    BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp)) {
+        val wide = maxWidth > maxHeight
+        val spectrum: @Composable (Modifier) -> Unit = { m ->
+            BoxWithConstraints(m) {
+                val bars = live
+                if (s.rtaRunning && bars != null) {
+                    RtaBars(
+                        bars, if (tone) null else target, height = maxHeight, caption = false,
+                        hold = if (s.peakHold) hold else null, marker = if (tone) Tone.bandIndex(s.toneHz) else null,
                     )
-                    TextAction("Close", close, icon = Ic.CLOSE)
+                } else Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(if (s.rtaRunning) "listening" else "standby", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
+                    if (!s.rtaRunning) Text("start reads the spectrum and level", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
                 }
-                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                    if (st.rtaRunning && bars != null) {
-                        RtaBars(
-                            bars, if (tone) null else tgt, height = maxHeight, caption = false,
-                            hold = if (st.peakHold) holdNow else null, marker = if (tone) Tone.bandIndex(st.toneHz) else null,
+            }
+        }
+        val keys: @Composable (Modifier) -> Unit = { m -> LiveKeys(s, level, vm, onClose, m) }
+        if (wide) {
+            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                spectrum(Modifier.weight(1.35f).fillMaxHeight())
+                keys(Modifier.weight(1f).fillMaxHeight())
+            }
+        } else {
+            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                spectrum(Modifier.weight(1f).fillMaxWidth())
+                keys(Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
+/** The live reading and the keys of [LiveFull], packed to fit a phone turned sideways. */
+@Composable
+private fun LiveKeys(s: UiState, level: LevelInfo?, vm: TuneViewModel, onClose: (() -> Unit)?, modifier: Modifier) {
+    val ready = s.hasPermission
+    val canPlay = s.source == Source.PHONE || s.testName.isBlank()
+    // it fits a phone sideways as it is; a large font setting scrolls it rather than cutting a key off
+    Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        // the reading: dBFS on the LCD with the peak beside it, the bar under it
+        if (level != null) {
+            val peak = if (s.peakHold) level.peakMaxDb else level.peakDb
+            LcdWindow {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text("%.1f".format(level.rmsDb), style = MaterialTheme.typography.displaySmall)
+                    Text(" dBFS", Modifier.padding(bottom = 4.dp), style = MaterialTheme.typography.labelMedium, color = At.c.muted)
+                    Box(Modifier.weight(1f))
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            (if (s.peakHold) "peak hold " else "peak ") + "%.1f".format(peak),
+                            style = MaterialTheme.typography.labelMedium, fontFamily = AtFigures,
                         )
-                    } else Text("Press Start to read the spectrum", Modifier.align(Alignment.Center), style = MaterialTheme.typography.bodyMedium, color = At.c.muted)
+                        Text(
+                            if (s.phoneMic) "no dB SPL with the phone mic" else "≈ %.0f dB SPL".format(level.splDb),
+                            style = MaterialTheme.typography.labelSmall, color = At.c.muted,
+                        )
+                    }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Hold peaks", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                    if (st.peakHold) TextAction("Reset", vm::resetPeaks, icon = Ic.UNDO, opens = false)
-                    LatchKey(st.peakHold, vm::setPeakHold, "Hold peaks")
-                }
+            }
+            LevelBar(level, s.peakHold)
+            // a held peak that touched clipping stays flagged until reset
+            if (peak > -1.0) Text("peaks near clipping: lower the volume", style = MaterialTheme.typography.labelSmall, color = At.c.warn)
+        } else {
+            Text(if (s.rtaRunning) "listening" else "standby", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
+        }
+
+        // what is played, and the key that starts and stops it all
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (canPlay) Box(Modifier.weight(1f)) {
+                DropSelect(
+                    listOf("Pink noise", "Sweep", "Off", "Tone"), s.liveSignal.ordinal,
+                    { vm.setLiveSignal(LiveSignal.entries[it]) }, icon = Ic.SPEAKER,
+                )
+            } else Box(Modifier.weight(1f))
+            if (!s.rtaRunning) PrimaryButton("Start", { vm.startRta(s.rtaWithEq) }, enabled = ready && !s.busy, icon = Ic.PLAY)
+            else PrimaryButton("Stop", vm::stopRta, icon = Ic.STOP)
+        }
+
+        // the tone's pitch: readout, steps and the slider, always in view
+        if (canPlay && s.liveSignal == LiveSignal.TONE) {
+            val semitone = 2.0.pow(1.0 / 12.0)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(Tone.text(s.toneHz), Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium, fontFamily = AtFigures)
+                SecondaryButton("−", { vm.setToneHz(s.toneHz / semitone); vm.saveToneHz() })
+                Box(Modifier.padding(start = 6.dp)) { SecondaryButton("+", { vm.setToneHz(s.toneHz * semitone); vm.saveToneHz() }) }
+            }
+            Slider(
+                value = Tone.fractionOf(s.toneHz).toFloat(),
+                onValueChange = { vm.setToneHz(Tone.freqAt(it.toDouble())) },
+                onValueChangeFinished = { vm.saveToneHz() },
+                colors = sliderColors(),
+            )
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Hold peaks", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            if (s.peakHold) TextAction("Reset", vm::resetPeaks, icon = Ic.UNDO, opens = false)
+            LatchKey(s.peakHold, vm::setPeakHold, "Hold peaks")
+            if (onClose != null) TextAction("Close", onClose, icon = Ic.CLOSE)
+        }
+    }
+}
+
+/** The level bar: -80 dBFS (quieter than any room) to 0 (clipping), the held peak a tick on it. */
+@Composable
+private fun LevelBar(level: LevelInfo, hold: Boolean) {
+    Box(Modifier.fillMaxWidth().height(8.dp).fieldFace(MaterialTheme.shapes.extraSmall)) {
+        val frac = ((level.rmsDb + 80.0) / 80.0).toFloat().coerceIn(0f, 1f)
+        Box(
+            Modifier.fillMaxWidth(frac).height(8.dp).clip(MaterialTheme.shapes.extraSmall)
+                .background(if (level.peakDb > -1.0) At.c.bad else At.c.signal),
+        )
+        if (hold) {
+            val pf = ((level.peakMaxDb + 80.0) / 80.0).toFloat().coerceIn(0f, 1f)
+            if (pf > 0f) Box(Modifier.fillMaxWidth(pf).height(8.dp), contentAlignment = Alignment.CenterEnd) {
+                Box(Modifier.width(2.dp).fillMaxHeight().background(At.c.text))
             }
         }
     }
@@ -203,20 +290,7 @@ private fun LevelPanel(s: UiState, level: LevelInfo?, vm: TuneViewModel) {
                 }
             }
         }
-        // the bar runs from -80 dBFS (quieter than any room) to 0 (clipping); the held peak is a tick on it
-        Box(Modifier.fillMaxWidth().height(8.dp).fieldFace(MaterialTheme.shapes.extraSmall)) {
-            val frac = ((level.rmsDb + 80.0) / 80.0).toFloat().coerceIn(0f, 1f)
-            Box(
-                Modifier.fillMaxWidth(frac).height(8.dp).clip(MaterialTheme.shapes.extraSmall)
-                    .background(if (level.peakDb > -1.0) At.c.bad else At.c.signal),
-            )
-            if (s.peakHold) {
-                val pf = ((level.peakMaxDb + 80.0) / 80.0).toFloat().coerceIn(0f, 1f)
-                if (pf > 0f) Box(Modifier.fillMaxWidth(pf).height(8.dp), contentAlignment = Alignment.CenterEnd) {
-                    Box(Modifier.width(2.dp).fillMaxHeight().background(At.c.text))
-                }
-            }
-        }
+        LevelBar(level, s.peakHold)
         if (s.peakHold) Muted("Peak hold %.1f dBFS   Leq %.1f dBFS".format(level.peakMaxDb, level.leqDb))
         else Muted("Peak %.1f dBFS   Leq %.1f dBFS".format(level.peakDb, level.leqDb))
         // a held peak that touched clipping stays flagged until reset, even after the level has dropped

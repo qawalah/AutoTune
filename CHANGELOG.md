@@ -4,6 +4,11 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.33.1] - 2026-11-14
+### Changed
+- **Live turned sideways is one screen with nothing to scroll**: the spectrum on the left, and at its right the live reading (dBFS, peak or peak hold, the level bar), what is played with Start and Stop, the tone's pitch with its slider and ± keys, and Hold peaks. The tabs are hidden while it is sideways (turn the phone upright for them). It was a scrolling page under the Stop bar and the tabs, so the slider and the reading could not be seen together.
+- **The maximised spectrum shows the same**: the spectrum with the reading, the tone slider and Hold peaks beside it (above and below it when held upright). `LiveFull` in `LiveTab.kt` draws both; a large font setting scrolls its keys rather than cutting one off.
+
 ## [2.33.0] - 2026-11-14
 ### Added
 - **Tone generator on Live.** "Play from the phone" gains **Tone**: one steady sine from 20 Hz to 20 kHz on a log slider, with ± one-semitone keys and the pitch in large figures. It follows the slider without clicks (a short output buffer and a gliding phase), plays quietly (−20 dBFS; the phone's volume sets how loud) and is kept for next time. The spectrum marks the bar the tone sits in. `Tone`, `ToneSynth` in `:dsp`, `TonePlayer` in `AudioIo.kt`; `LiveSignal.TONE` is appended.
