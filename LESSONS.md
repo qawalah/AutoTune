@@ -23,7 +23,7 @@ From `AUDIT-2026-11-13.md` (all three parts) and the 2.36.0 work that answered i
 - **Deleting a thing deletes what the app made for it, and switches it off if in use.** *Deleting a finished test left its kept EQ saved, playing, and called "Your own bands", with the test's curves still on the EQ graph.* (2026-11-14) → DevStore (sent 2026-11-14)
 - **Tie things together by id, never by name.** *Renaming a test orphaned its kept EQ; finishing again made a second one.* (2026-11-14) → DevStore (sent 2026-11-14)
 - **After a delete, nothing of it stays, here or on the other device.** *A deleted home theatre's EQ stayed on the TV and in the widget, and the page then opened another device's home theatre.* (2026-11-14) → DevStore (sent 2026-11-14)
-- **Moving from name links to id links: tie the old records once by name and write the id; never match by name again.** *Matching by name at every load would hand an old kept EQ to a new test that happens to take the deleted test's name.* (2026-11-14) → DevStore
+- **Moving from name links to id links: tie the old records once by name and write the id; never match by name again.** *Matching by name at every load would hand an old kept EQ to a new test that happens to take the deleted test's name.* (2026-11-14) → DevStore (sent 2026-11-14)
 
 ## Names and words
 
@@ -39,7 +39,7 @@ From `AUDIT-2026-11-13.md` (all three parts) and the 2.36.0 work that answered i
 - **A key that needs permission does its job once allowed.** *Measure asked for the mic, then did nothing.* (2026-11-13) → DevStore (sent 2026-11-14)
 - **Remove what does nothing useful.** *"Try it: with EQ / without" repeated the EQ's own switch.* (2026-11-14) → DevStore (sent 2026-11-14)
 - **No decks inside decks.** *"More" folded Exact bands, Try it and Automatic switching inside a fold.* (2026-11-14) → DevStore (sent 2026-11-14)
-- **A destructive key offers Undo or asks.** *Flat wiped the EQ in one press once unlocked.* (2026-11-14) → DevStore
+- **A destructive key offers Undo or asks.** *Flat wiped the EQ in one press once unlocked.* (2026-11-14) → DevStore (sent 2026-11-14)
 
 ## Flow
 
@@ -62,7 +62,7 @@ From `AUDIT-2026-11-13.md` (all three parts) and the 2.36.0 work that answered i
 ## Auditing and testing
 
 - **Run the real screens, in every mode, and do the destructive things.** *Two audits walked Simple only, never deleted anything and never pressed Back while measuring.* (2026-11-14) → DevStore (sent 2026-11-14)
-- **Time a wait on screen by the UI's own clock (its delays or frame time), not the wall clock.** *Connect's "offer the address after 6 s" read `System.currentTimeMillis()`, so in the walk harness, whose clock runs faster than the wall, the field never came; on a phone the two agree, so nobody noticed.* (2026-11-14) → DevStore
+- **Time a wait on screen by the UI's own clock (its delays or frame time), not the wall clock.** *Connect's "offer the address after 6 s" read `System.currentTimeMillis()`, so in the walk harness, whose clock runs faster than the wall, the field never came; on a phone the two agree, so nobody noticed.* (2026-11-14) → DevStore (sent 2026-11-14)
 
 ## This app only
 
