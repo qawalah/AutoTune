@@ -58,7 +58,7 @@ fun TestsTab(
     var renameId by remember { mutableStateOf<String?>(null) }
     var renameText by remember { mutableStateOf("") }
     var deleteId by remember { mutableStateOf<String?>(null) }
-    ScreenTitle("Tests", context = if (s.tests.isEmpty()) null else "${s.tests.size} systems · $readingCount readings")
+    ScreenTitle("Tests", context = if (s.tests.isEmpty()) null else dev.autotune.countText(s.tests.size, "system") + " · " + dev.autotune.countText(readingCount, "reading"))
     // the second way to AutoTune on a TV or a PC, beside Tune › Set up (owner, 2026-11-12)
     Panel(pad = 6.dp) { Actions { TextAction("Connect to AutoTune on a TV or PC", openCompanion, icon = Ic.HOME) } }
     if (theatres.isNotEmpty()) TheatreList(theatres, openTheatre)
@@ -78,6 +78,8 @@ fun TestsTab(
                 if (i > 0) HorizontalDivider(color = At.c.line, modifier = Modifier.padding(start = 90.dp))
                 TestRow(
                     t, t.id == s.currentTestId, onOpen = { openResults(t.id) },
+                    // a finished test is tuned further, not continued (2.32)
+                    finished = dev.autotune.testFinished(dev.autotune.hasKeptEq(s.profiles, t.name), if (t.id == s.currentTestId) s.resumeStep else null),
                     onContinue = { continueTest(t.id) },
                     onRename = { renameId = t.id; renameText = t.name },
                     onDelete = { deleteId = t.id },
@@ -92,8 +94,8 @@ fun TestsTab(
             text = {
                 OutlinedTextField(value = renameText, onValueChange = { renameText = it }, singleLine = true, modifier = Modifier.fillMaxWidth(), colors = atFieldColors(), shape = atFieldShape())
             },
-            confirmButton = { TextButton(onClick = { vm.renameTest(id, renameText); renameId = null }) { Text("Save") } },
-            dismissButton = { TextButton(onClick = { renameId = null }) { Text("Cancel") } },
+            confirmButton = { DialogKey("Save", { vm.renameTest(id, renameText); renameId = null }) },
+            dismissButton = { DialogKey("Cancel", { renameId = null }) },
         )
     }
     deleteId?.let { id ->
@@ -102,8 +104,8 @@ fun TestsTab(
             onDismissRequest = { deleteId = null },
             title = { Text("Delete $name?") },
             text = { Text("Every reading of this test is deleted. Saved EQs stay.") },
-            confirmButton = { TextButton(onClick = { vm.deleteTest(id); deleteId = null }) { Text("Delete", color = At.c.bad) } },
-            dismissButton = { TextButton(onClick = { deleteId = null }) { Text("Keep it") } },
+            confirmButton = { DialogKey("Delete", { vm.deleteTest(id); deleteId = null }, danger = true) },
+            dismissButton = { DialogKey("Keep it", { deleteId = null }) },
         )
     }
 }
@@ -138,7 +140,7 @@ private fun TheatreList(theatres: List<dev.autotune.theatre.TheatreTest>, open: 
 }
 
 @Composable
-private fun TestRow(t: TestSummary, isOpen: Boolean, onOpen: () -> Unit, onContinue: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
+private fun TestRow(t: TestSummary, isOpen: Boolean, onOpen: () -> Unit, onContinue: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit, finished: Boolean = false) {
     Row(
         Modifier.fillMaxWidth().settleIn().heightIn(min = 76.dp).clickable(onClickLabel = "Open the results of ${t.name}", onClick = onOpen)
             .padding(start = 14.dp, end = 2.dp, top = 12.dp, bottom = 12.dp),
@@ -152,7 +154,9 @@ private fun TestRow(t: TestSummary, isOpen: Boolean, onOpen: () -> Unit, onConti
                 val shown = dev.autotune.shortTestName(t.name, t.target).first
                 Text(shown, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 if (isOpen) {
-                    Box(Modifier.padding(start = 8.dp).size(8.dp).clip(CircleShape).background(At.c.signal).semantics { contentDescription = "open now" })
+                    // the pilot light says what it marks (2.32)
+                    Box(Modifier.padding(start = 8.dp).size(8.dp).clip(CircleShape).background(At.c.signal))
+                    Text("open", Modifier.padding(start = 4.dp), style = MaterialTheme.typography.labelSmall, color = At.c.muted, maxLines = 1)
                 }
             }
             val auto = dev.autotune.shortTestName(t.name, t.target).first != t.name
@@ -169,7 +173,7 @@ private fun TestRow(t: TestSummary, isOpen: Boolean, onOpen: () -> Unit, onConti
                         style = MaterialTheme.typography.displaySmall.copy(fontSize = 28.sp, lineHeight = 32.sp), color = if (better) At.c.good else At.c.text,
                     )
                 }
-                Text("db from target", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
+                Text("dB from target", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
                 if (t.runCount > 1) {
                     val change = t.stockRms - t.latestRms
                     Text(
@@ -190,7 +194,7 @@ private fun TestRow(t: TestSummary, isOpen: Boolean, onOpen: () -> Unit, onConti
             IconAction(Ic.MORE, "Actions for ${t.name}") { menu = true }
             AtMenu(expanded = menu, onDismiss = { menu = false }) {
                 androidx.compose.material3.DropdownMenuItem(text = { Text("Open results") }, leadingIcon = { AtIcon(Ic.TESTS, At.c.muted) }, onClick = { menu = false; onOpen() })
-                androidx.compose.material3.DropdownMenuItem(text = { Text("Continue tuning") }, leadingIcon = { AtIcon(Ic.TUNE, At.c.muted) }, onClick = { menu = false; onContinue() })
+                androidx.compose.material3.DropdownMenuItem(text = { Text(if (finished) "Tune further" else "Continue tuning") }, leadingIcon = { AtIcon(Ic.TUNE, At.c.muted) }, onClick = { menu = false; onContinue() })
                 androidx.compose.material3.DropdownMenuItem(text = { Text("Rename") }, leadingIcon = { AtIcon(Ic.EDIT, At.c.muted) }, onClick = { menu = false; onRename() })
                 androidx.compose.material3.DropdownMenuItem(text = { Text("Delete", color = At.c.bad) }, leadingIcon = { AtIcon(Ic.TRASH, At.c.bad) }, onClick = { menu = false; onDelete() })
             }
@@ -362,8 +366,8 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
             onDismissRequest = { discard = false },
             title = { Text("Discard ${last?.label ?: "the latest run"}?") },
             text = { Text("The reading is deleted and the suggested EQ goes back to the run before it. The stock run is never deleted.") },
-            confirmButton = { TextButton(onClick = { discard = false; vm.discardLastRun() }) { Text("Discard", color = At.c.bad) } },
-            dismissButton = { TextButton(onClick = { discard = false }) { Text("Keep it") } },
+            confirmButton = { DialogKey("Discard", { discard = false; vm.discardLastRun() }, danger = true) },
+            dismissButton = { DialogKey("Keep it", { discard = false }) },
         )
     }
 
@@ -372,8 +376,8 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
             onDismissRequest = { rename = false },
             title = { Text("Rename test") },
             text = { OutlinedTextField(value = renameText, onValueChange = { renameText = it }, singleLine = true, modifier = Modifier.fillMaxWidth(), colors = atFieldColors(), shape = atFieldShape()) },
-            confirmButton = { TextButton(onClick = { s.currentTestId?.let { id -> vm.renameTest(id, renameText) }; rename = false }) { Text("Save") } },
-            dismissButton = { TextButton(onClick = { rename = false }) { Text("Cancel") } },
+            confirmButton = { DialogKey("Save", { s.currentTestId?.let { id -> vm.renameTest(id, renameText) }; rename = false }) },
+            dismissButton = { DialogKey("Cancel", { rename = false }) },
         )
     }
     if (delete) {
@@ -381,8 +385,8 @@ fun ResultsPage(s: UiState, vm: TuneViewModel, back: () -> Unit, go: (Tab) -> Un
             onDismissRequest = { delete = false },
             title = { Text("Delete this test?") },
             text = { Text("The stock reading and every run are removed. This can't be undone.") },
-            confirmButton = { TextButton(onClick = { delete = false; back(); s.currentTestId?.let { id -> vm.deleteTest(id) } }) { Text("Delete", color = At.c.bad) } },
-            dismissButton = { TextButton(onClick = { delete = false }) { Text("Cancel") } },
+            confirmButton = { DialogKey("Delete", { delete = false; back(); s.currentTestId?.let { id -> vm.deleteTest(id) } }, danger = true) },
+            dismissButton = { DialogKey("Cancel", { delete = false }) },
         )
     }
 }
@@ -578,8 +582,8 @@ private fun RunsDeck(s: UiState, vm: TuneViewModel) {
             onDismissRequest = { confirm = null },
             title = { Text("Delete $label?") },
             text = { Text("The reading is deleted. The suggestion is rebuilt from the runs that are left.") },
-            confirmButton = { TextButton(onClick = { confirm = null; vm.deleteRun(i) }) { Text("Delete", color = At.c.bad) } },
-            dismissButton = { TextButton(onClick = { confirm = null }) { Text("Keep it") } },
+            confirmButton = { DialogKey("Delete", { confirm = null; vm.deleteRun(i) }, danger = true) },
+            dismissButton = { DialogKey("Keep it", { confirm = null }) },
         )
     }
 }

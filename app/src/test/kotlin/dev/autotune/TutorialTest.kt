@@ -22,10 +22,10 @@ class TutorialTest {
     }
 
     @Test
-    fun stepLabelsAreSmallAndLowercase() {
-        assertNull(tutorialStepLabel(TUTORIAL_CARDS[0]))
-        assertEquals("step 1 of 4", tutorialStepLabel(TUTORIAL_CARDS[1]))
-        assertEquals("step 4 of 4", tutorialStepLabel(TUTORIAL_CARDS[4]))
+    fun oneCounterTheLights() {
+        // the lights count the cards, the opening card included; no "step n of 4" beside them (2.32)
+        assertEquals("Card 1 of 5", tutorialCounter(0))
+        assertEquals("Card 5 of 5", tutorialCounter(4))
     }
 
     @Test

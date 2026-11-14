@@ -578,6 +578,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         TestStore.migrateLegacy(app, Target.ALL.map { it.name })
         refreshTests()
         cleanAutoProfiles()
+        restoreOpen()
         loadSliderLayer()?.let { l -> state.update { it.copy(sliderLayer = l) } }
         val savedPick = prefs.getString("eqPick", null)
         loadMyEq()?.let { mine -> setEdit(mine, savedPick ?: "own") } ?: rebuildActive()
@@ -839,7 +840,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         val idx = targetIdx.coerceIn(0, Target.ALL.size - 1)
         pendingPositions.clear()
         newDevice = equipName.trim().replace('\n', ' ')
-        val nm = uniqueName(newTestName(name, equipName, Target.ALL[idx].name, fmtDate(System.currentTimeMillis())))
+        // nothing typed: named after the equipment ("Car", "Car 2"), never a date or the target (2.32)
+        val nm = newTestName(name, equipName, equipment, savedTests.map { it.name }.toSet()).let { if (name.isNotBlank()) uniqueName(it) else it }
         state.update {
             it.copy(
                 testName = nm, targetIdx = idx, source = source, equipment = equipment,
@@ -849,6 +851,35 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                 positions = if (targetKind(Target.ALL[idx]) == TargetKind.CAR) 3 else 1,
             )
         }
+    }
+
+    /** Keeps the open test, where Continue returns and the finished tune, for the next start of the app (2.32). */
+    private fun rememberOpen() {
+        val st = state.value
+        val id = current?.id
+        val ed = prefs.edit()
+        if (id == null) ed.remove("openTest")
+        else ed.putString("openTest", OpenTestMemory(
+            id, st.resumeStep.takeIf { resumeTestId == id }, st.tunedRuns, st.tunedRunIdx, st.tunedProfileId, st.tunedTestId == id,
+        ).toText())
+        ed.apply()
+    }
+
+    /** Opens the test that was open when the app was closed, with its finished tune or its place for Continue. */
+    private fun restoreOpen() {
+        val m = OpenTestMemory.fromText(prefs.getString("openTest", null)) ?: return
+        if (savedTests.none { it.id == m.testId }) { prefs.edit().remove("openTest").apply(); return }
+        openTest(m.testId)
+        if (m.resumeStep != null) resumeTestId = m.testId
+        state.update {
+            it.copy(
+                resumeStep = m.resumeStep,
+                tunedTestId = if (m.tuned) m.testId else null, tunedRuns = if (m.tuned) m.tunedRuns else 0,
+                tunedRunIdx = if (m.tuned) m.tunedRunIdx else -1,
+                tunedProfileId = m.tunedProfileId?.takeIf { id -> it.profiles.any { p -> p.id == id } },
+            )
+        }
+        rememberOpen()
     }
 
     /** Opens a saved test exactly as it was. Returns the wizard step to continue at (0-based). */
@@ -874,6 +905,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         }
         resetChecks()
         refreshView()
+        rememberOpen()
         return 0
     }
 
@@ -893,7 +925,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteTest(id: String) {
         TestStore.delete(getApplication(), id)
         runCatching { aiFile(id).delete() }
-        if (current?.id == id) { newTest(); state.update { it.copy(tuneStep = TuneStep.HOME) } }
+        if (current?.id == id) { newTest(); state.update { it.copy(tuneStep = TuneStep.HOME) }; rememberOpen() }
         refreshTests()
     }
 
@@ -1039,13 +1071,15 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
             val sel = state.value.selectedRuns.filter { it in t.runs.indices }.sorted().ifEmpty { listOf(t.runs.lastIndex) }
             val focus = sel.last()
             val base = normalized(t.runs[focus].magDb, grid, target)
-            curves = listOf(Curve(t.runs[focus].label, base, focus))
+            // the stock, dashed, under a later run, so the EQ's work shows (2.32)
+            curves = (if (focus > 0) listOf(Curve(t.runs[0].label, normalized(t.runs[0].magDb, grid, target), 0)) else emptyList()) +
+                Curve(t.runs[focus].label, base, focus)
             if (eqCurve != null) {
                 // the focus run already contains whatever was applied for it, so only the change since then is predicted
                 val already = t.runs[focus].applied.takeIf { it.isNotEmpty() }?.let { EqChain(it, 0.0) }
                 predicted = DoubleArray(grid.size) { i ->
                     base[i] + eqCurve[i] - (already?.responseDb(grid.freqs[i]) ?: 0.0)
-                }
+                }.takeIf { p -> predictionDiffers(base, p) }
             }
         }
         state.update {
@@ -1106,7 +1140,16 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------------------------------------------------------- setup
 
-    fun setPermission(granted: Boolean) = state.update { it.copy(hasPermission = granted) }
+    fun setPermission(granted: Boolean) {
+        state.update { it.copy(hasPermission = granted) }
+        // the key that asked for the microphone measures as soon as access is given (2.32: it needed a second press)
+        val then = afterMic
+        afterMic = null
+        if (granted && then != null) { state.update { it.copy(status = null) }; then() }
+    }
+
+    /** What to measure once microphone access is given; set by a measuring key pressed without it. */
+    private var afterMic: (() -> Unit)? = null
 
     fun refreshMic() {
         val ctx = getApplication<Application>()
@@ -1336,7 +1379,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
                     status = "Position ${pendingPositions.size} of $n measured. Move the mic to the next position, then tap again.",
                     measureView = it.measureView?.copy(
                         stage = MeasureStage.SPOT_DONE,
-                        message = "Spot ${pendingPositions.size} of $n done. Move the mic a hand's width to the next spot, then measure again.",
+                        message = "Move the mic a hand's width to the next spot.",
                     ),
                 )
             }
@@ -1750,7 +1793,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         val ctx = getApplication<Application>()
         val now = System.currentTimeMillis()
         val cur = current
-        val name = cur?.name ?: state.value.testName.trim().ifBlank { "${targetAt(targetIdx).name} test, ${fmtDate(now)}" }
+        val name = cur?.name ?: state.value.testName.trim().ifBlank { newTestName("", newDevice, state.value.equipment, savedTests.map { it.name }.toSet()) }
         val t = SavedTest(
             id = cur?.id ?: UUID.randomUUID().toString(),
             name = name,
@@ -1769,6 +1812,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         current = t
         refreshTests()
         state.update { it.copy(currentTestId = t.id, testName = t.name, selectedRuns = setOf(0)) }
+        rememberOpen()
         runDone.tryEmit(Unit)
         current?.let { t -> showSaved(t) }
     }
@@ -1949,8 +1993,9 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** No microphone access: ask for it instead of starting, and stay where we are. */
-    private fun micMissing(): Boolean {
+    private fun micMissing(then: (() -> Unit)? = null): Boolean {
         if (state.value.hasPermission) return false
+        afterMic = then
         state.update { it.copy(status = "Allow microphone access first.") }
         askMic.tryEmit(Unit)
         return true
@@ -2112,7 +2157,15 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
      * Fresh start: Set up for a new test. It is a draft: the open test and AutoTune EQ stay as they are until Set up's
      * key starts the stock reading ([tuneSetup]), so Back from Set up changes nothing.
      */
-    fun tuneFresh() = tuneGo(TuneStep.SETUP)
+    fun tuneFresh() { setupDraft = null; tuneGo(TuneStep.SETUP) }
+
+    /** Set up's answers while the Connect page is open over it: Back returns to them (2.32). */
+    private var setupDraft: SetupDraft? = null
+
+    fun keepSetupDraft(d: SetupDraft) { setupDraft = d }
+
+    /** The kept answers, once: Set up starts from them when it comes back. */
+    fun takeSetupDraft(): SetupDraft? = setupDraft.also { setupDraft = null }
 
     /** Carry on with the open test where it stopped. */
     fun tuneContinue() {
@@ -2139,6 +2192,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         val t = current
         if (t != null && st in RESUMABLE) { resumeTestId = t.id; state.update { it.copy(resumeStep = st) } }
         tuneGo(TuneStep.HOME)
+        rememberOpen()
     }
 
     /**
@@ -2146,7 +2200,8 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
      * microphone access the Stock screen is shown instead, where the permission can be given.
      */
     fun tuneSetup(name: String, targetIdx: Int, source: Source, positions: Int, gateMs: Int?, equipment: Equipment, equipName: String = "") {
-        if (micMissing()) return
+        if (micMissing { tuneSetup(name, targetIdx, source, positions, gateMs, equipment, equipName) }) return
+        setupDraft = null
         // the stock reference is measured with no EQ at all: AutoTune EQ off, the new test's suggestion in use
         if (state.value.systemEqOn) setSystemEq(false)
         // a new test takes the taste set in Settings › Defaults for new tests (owner, 2026-11-11: the defaults did not
@@ -2196,14 +2251,14 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Measure the stock system again (replacing the stock reading), straight away. */
     fun tuneMeasureStock() {
-        if (micMissing()) return
+        if (micMissing(::tuneMeasureStock)) return
         startMeasuring(TuneStep.STOCK)
         stockRun()
     }
 
     /** Measure with the EQ as it is now, straight away; a closed or failed run returns to where it started. */
     fun tuneMeasure() {
-        if (micMissing()) return
+        if (micMissing(::tuneMeasure)) return
         startMeasuring(TuneStep.VERIFY)
         measure()
     }
@@ -2299,6 +2354,7 @@ class TuneViewModel(app: Application) : AndroidViewModel(app) {
         // Done is the Tune screen showing the finished tune
         state.update { it.copy(tunedTestId = t.id, tunedRuns = t.runs.size, tunedRunIdx = idx, resumeStep = null) }
         tuneGo(TuneStep.HOME)
+        rememberOpen()
     }
 
     /** Apply the EQ by switching on AutoTune's own EQ for this phone's audio, then measure. */

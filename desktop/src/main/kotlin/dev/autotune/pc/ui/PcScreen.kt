@@ -104,8 +104,9 @@ fun PcScreen(u: PcUi, pc: PcEndpoint?) {
             }
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 PhoneDeck(u)
-                OutputDeck(u, pc)
-                EqDeck(u, pc)
+                // the EQ is the deck used every day: above the output once that is set, so it shows at the start size (2.32)
+                if (u.apo.state == ApoState.READY || u.apo.state == ApoState.UNKNOWN) { EqDeck(u, pc); OutputDeck(u, pc) }
+                else { OutputDeck(u, pc); EqDeck(u, pc) }
             }
         }
     }
@@ -240,20 +241,21 @@ private fun OutputDeck(u: PcUi, pc: PcEndpoint?) {
             ApoState.UNKNOWN -> Pc.muted
             else -> Pc.warn
         }
-        StatusLine(st.line, tint)
+        // not on this output: one line and one key (2.32: three keys and two lines)
+        var opened by remember { mutableStateOf(false) }
+        val fix = if (st == ApoState.NOT_ON_OUTPUT) dev.autotune.pc.notOnOutput(u.output, u.apo.withApo, opened) else null
+        StatusLine(fix?.first ?: st.line, tint)
         when (st) {
             ApoState.MISSING -> {
                 ActionKey("Get Equalizer APO", Ic.DOWNLOAD, { open("https://sourceforge.net/projects/equalizerapo/") }, main = true)
                 ActionKey("Check again", Ic.AGAIN, { pc?.recheck() }, enabled = !u.checking)
             }
             ApoState.NEEDS_SETUP -> ActionKey("Allow AutoTune", Ic.SHIELD, { pc?.allow() }, main = true, enabled = !u.checking)
-            ApoState.NOT_ON_OUTPUT -> {
-                // the outputs Equalizer APO is already on: one press switches to it
-                val elsewhere = u.apo.withApo.filter { a -> !a.equals(u.output, ignoreCase = true) }
-                if (elsewhere.isNotEmpty()) StatusLine("equalizer apo is on: " + elsewhere.joinToString(", "))
-                elsewhere.take(2).forEach { a -> ActionKey("Use $a", Ic.SPEAKER, { pc?.useApoOutput(a) }, main = elsewhere.first() == a) }
-                ActionKey("Open Equalizer APO's Configurator", Ic.OPEN, { pc?.openConfigurator() }, main = elsewhere.isEmpty())
-                ActionKey("Check again", Ic.AGAIN, { pc?.recheck() }, enabled = !u.checking)
+            ApoState.NOT_ON_OUTPUT -> when (fix?.second) {
+                // an output Equalizer APO is already on: one press switches to it
+                dev.autotune.pc.ApoFix.USE_OTHER -> ActionKey("Use ${fix.third}", Ic.SPEAKER, { fix.third?.let { pc?.useApoOutput(it) } }, main = true)
+                dev.autotune.pc.ApoFix.CHECK_AGAIN -> ActionKey("Check again", Ic.AGAIN, { pc?.recheck(); opened = false }, main = true, enabled = !u.checking)
+                else -> ActionKey("Open Equalizer APO's Configurator", Ic.OPEN, { pc?.openConfigurator(); opened = true }, main = true)
             }
             else -> Unit
         }
@@ -274,7 +276,8 @@ private fun EqDeck(u: PcUi, pc: PcEndpoint?) {
         val pre = u.chains.values.minOfOrNull { it.preampDb }
         BigLatch(u.eqOn, { pc?.setEqOn(it) }, if (!u.hasEq) "none yet · the phone sends it, or edit one" else "preamp %.1f db".format(pre ?: 0.0), enabled = u.hasEq)
         if (u.hasEq && !editing) EqCurve(u.chains, u.eqOn)
-        val problem = u.error ?: if (u.hasEq) u.apo.problem(u.output) else null
+        // the Output deck already says "not on this output"; the EQ deck does not say it again
+        val problem = u.error ?: if (u.hasEq && u.apo.state != ApoState.NOT_ON_OUTPUT) u.apo.problem(u.output) else null
         Alerts(listOfNotNull(problem))
         if (editing) EqEditor(u, onDone = { c -> pc?.setChains(c); editing = false }, onCancel = { editing = false })
         else ActionKey(if (u.hasEq) "Edit the EQ" else "Make an EQ here", Ic.EDIT, { editing = true }, enabled = u.playing == null)

@@ -262,7 +262,7 @@ object SystemJudge {
         cats += Category("Tonal balance", tonal.toInt(), us("%.1f dB RMS from the %s target", rms, target.name), true) to 0.35
         cats += Category("Smoothness", smooth.toInt(), us("Largest deviation %.1f dB", maxAbs), true) to 0.20
         cats += Category("Bass extension", bass.toInt(),
-            if (lowHz >= 100.0) "Bass fades out above 100 Hz" else us("Reaches %.0f Hz (within 6 dB of the target)", lowHz), false) to 0.15
+            if (lowHz >= 100.0) "Bass fades out below 100 Hz" else us("Reaches %.0f Hz (within 6 dB of the target)", lowHz), false) to 0.15
         cats += Category("Treble extension", treble.toInt(),
             if (highHz <= 6000.0) "Treble drops off below 6 kHz" else us("Reaches %.1f kHz (within 6 dB of the target)", highHz / 1000.0), false) to 0.10
         cats += Category("Resonances", res.toInt(),

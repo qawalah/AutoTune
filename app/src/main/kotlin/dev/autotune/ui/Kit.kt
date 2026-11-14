@@ -590,7 +590,7 @@ private fun NotesDialog(items: List<String>, title: String, onClose: () -> Unit)
                 items.forEach { Warning(it) }
             }
         },
-        confirmButton = { TextButton(onClick = onClose) { Text("Got it") } },
+        confirmButton = { DialogKey("Got it", onClose) },
     )
 }
 
@@ -798,7 +798,13 @@ fun AtMenu(
 ) {
     val c = At.c
     if (!c.soft) {
-        androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, modifier = modifier, content = content)
+        // the app's light plate with its hairline, in the deck's colours, so every option reads (2.32: the mode menu was
+        // dark on a light screen and "Advanced" looked switched off)
+        val d = deckColors
+        androidx.compose.material3.DropdownMenu(
+            expanded = expanded, onDismissRequest = onDismiss, modifier = modifier,
+            shape = CardShape, containerColor = d.panel, tonalElevation = 0.dp, shadowElevation = 6.dp, border = BorderStroke(1.dp, d.line),
+        ) { DeckColors { Column { content() } } }
         return
     }
     val w = with(androidx.compose.ui.platform.LocalDensity.current) { fieldWidthPx.toDp() }
@@ -1125,7 +1131,7 @@ fun InfoButton(title: String, text: String, small: Boolean = false) {
             onDismissRequest = { open = false },
             title = { Text(title) },
             text = { Text(text, Modifier.verticalScroll(rememberScrollState()), style = MaterialTheme.typography.bodyMedium) },
-            confirmButton = { TextButton(onClick = { open = false }) { Text("Got it") } },
+            confirmButton = { DialogKey("Got it", { open = false }) },
         )
     }
 }
@@ -1208,19 +1214,24 @@ fun ScreenHeader(slot: TitleSlot, scroll: androidx.compose.foundation.ScrollStat
  * so even a short screen can open compact, and its top still reveals the full header.
  */
 @Composable
-fun Modifier.scrollWithHeaderRoom(scroll: androidx.compose.foundation.ScrollState, roomPx: Int): Modifier {
+fun Modifier.scrollWithHeaderRoom(scroll: androidx.compose.foundation.ScrollState, roomPx: Int, sizes: IntArray? = null): Modifier {
     val viewport = remember { IntArray(1) }
     return this
         .layout { m, c ->
             viewport[0] = if (c.hasBoundedHeight) c.maxHeight else 0
+            sizes?.set(1, viewport[0])
             val p = m.measure(c)
             layout(p.width, p.height) { p.place(0, 0) }
         }
         .verticalScroll(scroll)
         .layout { m, c ->
             val min = if (roomPx > 0 && viewport[0] > 0) maxOf(c.minHeight, viewport[0] + roomPx) else c.minHeight
-            val p = m.measure(c.copy(minHeight = if (c.hasBoundedHeight) min.coerceAtMost(c.maxHeight) else min))
-            layout(p.width, p.height) { p.place(0, 0) }
+            // the content at its own height, with the header's room left empty under it; [sizes] keeps that height,
+            // so "more below" knows what is really there (2.32)
+            val p = m.measure(c)
+            sizes?.set(0, p.height)
+            val h = maxOf(p.height, if (c.hasBoundedHeight) min.coerceAtMost(c.maxHeight) else min)
+            layout(p.width, h) { p.place(0, 0) }
         }
 }
 
@@ -1360,7 +1371,8 @@ private fun HeaderFace(spec: HeaderSpec, scrollPx: () -> Float, modifier: Modifi
                     if (back == null) Wordmark(fixedSize = true, modifier = Modifier.fitWidth().graphicsLayer { alpha = 1f - (if (anim) ramp(phase(), 0.3f, 0.6f) else phase()) })
                     Text(
                         spec.title, style = slimStyle, color = c.text, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        modifier = Modifier.graphicsLayer { alpha = if (anim) ramp(phase(), 0.86f, 1f) else phase() }
+                        // drawn a little smaller rather than cut where the mode key leaves too little room (2.32: "Home th…")
+                        modifier = Modifier.fitWidth(minScale = 0.72f).graphicsLayer { alpha = if (anim) ramp(phase(), 0.86f, 1f) else phase() }
                             .clearAndSetSemantics { },
                     )
                 }
@@ -1378,6 +1390,25 @@ private fun Modifier.fitWidth(): Modifier = this.layout { m, c ->
         p.placeWithLayer(0, 0) { scaleX = k; scaleY = k; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f) }
     }
 }
+
+/**
+ * Text that does not fit is drawn smaller, down to [minScale] of its size; past that it is cut with its ellipsis at
+ * that size. Measured once (its natural width from the intrinsics), so it can sit in any layout.
+ */
+private fun Modifier.fitWidth(minScale: Float): Modifier = this.layout { m, c ->
+    if (!c.hasBoundedWidth) { val p = m.measure(c); return@layout layout(p.width, p.height) { p.place(0, 0) } }
+    val natural = m.maxIntrinsicWidth(if (c.hasBoundedHeight) c.maxHeight else androidx.compose.ui.unit.Constraints.Infinity)
+    val k = if (natural > c.maxWidth) maxOf(minScale, c.maxWidth.toFloat() / natural) else 1f
+    val p = m.measure(c.copy(minWidth = 0, maxWidth = (c.maxWidth / k).toInt()))
+    layout(minOf((p.width * k).toInt(), c.maxWidth), p.height) {
+        p.placeWithLayer(0, 0) { scaleX = k; scaleY = k; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f) }
+    }
+}
+
+/** A dialog's key in the app's own style: lettered in ink like a panel key, red only for what deletes (2.32). */
+@Composable
+fun DialogKey(text: String, onClick: () -> Unit, danger: Boolean = false, enabled: Boolean = true) =
+    TextAction(text, onClick, enabled = enabled, danger = danger)
 
 /** The header's measures in pixels, worked out once per size. */
 private class HeaderPx(
@@ -1843,9 +1874,10 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
 }
 
 @Composable
-fun TextAction(text: String, onClick: () -> Unit, enabled: Boolean = true, danger: Boolean = false, icon: Ic? = null) {
+fun TextAction(text: String, onClick: () -> Unit, enabled: Boolean = true, danger: Boolean = false, icon: Ic? = null, sub: String? = null, opens: Boolean = true) {
     // lettered in ink like the keys of a Braun panel: red stays for what is live or acted on, never a plain action
-    val tint = if (!enabled) At.c.muted else if (danger) At.c.bad else At.c.text
+    // a key that cannot be pressed reads as off: fainter than a muted label (2.32: Flat looked live while locked)
+    val tint = if (!enabled) At.c.muted.copy(alpha = 0.5f) else if (danger) At.c.bad else At.c.text
     if (LocalStacked.current) {
         // in a stack: one full-width row per action, the label at the start and a chevron at the end
         val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
@@ -1857,8 +1889,13 @@ fun TextAction(text: String, onClick: () -> Unit, enabled: Boolean = true, dange
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (icon != null) { AtIcon(icon, tint, size = 20.dp); androidx.compose.foundation.layout.Spacer(Modifier.width(12.dp)) }
-            Text(text, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = if (!enabled) At.c.muted else if (danger) At.c.bad else At.c.text, maxLines = 2)
-            AtIcon(Ic.CHEVRON, At.c.muted, size = 18.dp)
+            Column(Modifier.weight(1f).padding(vertical = if (sub != null) 8.dp else 0.dp)) {
+                Text(text, style = MaterialTheme.typography.labelLarge, color = if (!enabled) At.c.muted else if (danger) At.c.bad else At.c.text, maxLines = 2)
+                // one line of fact under the key's name (Refine's three ways, 2.32)
+                if (sub != null) Text(sub, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+            // the chevron only on a key that goes somewhere; one that plays or switches has none (2.32)
+            if (opens) AtIcon(Ic.CHEVRON, At.c.muted, size = 18.dp)
         }
         return
     }
@@ -2392,7 +2429,7 @@ private fun ChoiceRow(c: dev.autotune.EqChoice, selected: Boolean, onClick: () -
 // ---------------------------------------------------------------- the pinned action
 
 /** The screen's one recommended action, shown big above the tabs so it never scrolls away. */
-class PinnedAction(val text: String, val icon: Ic?, val enabled: Boolean, val hint: String?, val onClick: () -> Unit, val sub: String? = null)
+class PinnedAction(val text: String, val icon: Ic?, val enabled: Boolean, val hint: String?, val onClick: () -> Unit, val sub: String? = null, val suggested: Boolean = true)
 
 /** Set by the app shell; a screen pins its action with [PinAction]. */
 class PinSlot {
@@ -2408,12 +2445,12 @@ val LocalPin = androidx.compose.runtime.staticCompositionLocalOf { PinSlot() }
  * shown); leaving it clears the pin.
  */
 @Composable
-fun PinAction(text: String, onClick: () -> Unit, icon: Ic? = null, enabled: Boolean = true, hint: String? = null, sub: String? = null) {
+fun PinAction(text: String, onClick: () -> Unit, icon: Ic? = null, enabled: Boolean = true, hint: String? = null, sub: String? = null, suggested: Boolean = true) {
     val slot = LocalPin.current
     val me = remember { Any() }
     androidx.compose.runtime.SideEffect {
         slot.owner = me
-        slot.action = PinnedAction(text, icon, enabled, hint, onClick, sub)
+        slot.action = PinnedAction(text, icon, enabled, hint, onClick, sub, suggested)
     }
     androidx.compose.runtime.DisposableEffect(slot) {
         onDispose { if (slot.owner === me) { slot.owner = null; slot.action = null } }
@@ -2434,8 +2471,9 @@ fun BigActionBar(a: PinnedAction) {
     ) {
         a.hint?.takeIf { isAdvanced() || !a.enabled }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = At.c.muted, maxLines = 2) }
         MainKey(
-            a.text, a.onClick, sub = a.sub ?: "suggested", enabled = a.enabled,
-            description = "Suggested: ${a.text}" + (a.sub?.let { ", $it" } ?: ""),
+            // "suggested" only where the screen has other choices; a screen's only key needs no word under it (2.32)
+            a.text, a.onClick, sub = a.sub ?: if (a.suggested) "suggested" else null, enabled = a.enabled,
+            description = (if (a.suggested) "Suggested: " else "") + a.text + (a.sub?.let { ", $it" } ?: ""),
         )
     }
 }
@@ -2496,10 +2534,11 @@ fun MainKey(text: String, onClick: () -> Unit, sub: String? = null, enabled: Boo
  * the scrolling content, aligned to the bottom.
  */
 @Composable
-fun MoreBelow(state: androidx.compose.foundation.ScrollState, modifier: Modifier = Modifier) {
+fun MoreBelow(state: androidx.compose.foundation.ScrollState, modifier: Modifier = Modifier, sizes: IntArray? = null) {
     val density = androidx.compose.ui.platform.LocalDensity.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val show = state.maxValue - state.value > with(density) { 48.dp.toPx() }
+    // the room kept for the header to fold hides nothing: only content past the edge counts (2.32)
+    val show = dev.autotune.showsMoreBelow(state.value, state.maxValue, sizes?.get(0) ?: -1, sizes?.get(1) ?: -1, with(density) { 48.dp.toPx() }.toInt())
     androidx.compose.animation.AnimatedVisibility(
         show, modifier.fillMaxWidth(),
         enter = androidx.compose.animation.fadeIn(tween(motionMs(200), easing = EaseArrive)),

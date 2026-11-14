@@ -114,9 +114,22 @@ fun mixedCalibrationWarning(runs: List<SavedRun>): String? {
     return if (known.size > 1) "These runs used different microphone calibrations (${known.joinToString(", ")}). Differences between them may come from the calibration, not from the EQ." else null
 }
 
-/** Latest run's own measurement warnings, plus the test-wide ones. */
+/** Latest run's own measurement warnings, plus the test-wide ones; a plain fact ([isInfoNote]) is not a warning. */
 fun resultWarnings(runs: List<SavedRun>, focus: Int): List<String> =
-    (runs.getOrNull(focus)?.warnings.orEmpty() + listOfNotNull(mixedCalibrationWarning(runs))).distinct()
+    (runs.getOrNull(focus)?.warnings.orEmpty().filter { !isInfoNote(it) } + listOfNotNull(mixedCalibrationWarning(runs))).distinct()
+
+/** A note saved with a run that states a fact, not a problem ("Averaged 3 mic positions."): never shown as a warning (2.32). */
+fun isInfoNote(w: String): Boolean = w.startsWith("Averaged ") && w.endsWith(" mic positions.")
+
+/** [t] as a sentence: with its full stop. */
+fun sentence(t: String): String = t.trim().let { if (it.isEmpty() || it.endsWith(".") || it.endsWith("!") || it.endsWith("?")) it else "$it." }
+
+/**
+ * The notes behind the stock reading's warning icon: the reading's warnings, then the findings worth a look. A finding
+ * that repeats a warning ("Measurement") is left out, so each note shows once (2.32).
+ */
+fun stockNotes(warnings: List<String>, findings: List<Finding>): List<String> =
+    (warnings + findings.filter { it.severity > 0 && !(it.title == "Measurement" && it.detail in warnings) }.map { "${it.title}: ${it.detail}" }).distinct()
 
 /** In the 2–8 kHz band a run is 12 dB or more below the stock run: the system EQ (or something else) is eating the treble. */
 fun trebleCollapsed(stockMag: DoubleArray, newMag: DoubleArray, freqs: DoubleArray, dropDb: Double = 12.0): Boolean {
@@ -181,7 +194,7 @@ fun analyzeStock(
     // the stock reading is every run's reference: a clipped one, or one whose timing moved, is measured again first (2.23)
     val badReading = warnings.any { "barely heard" in it || "far too quiet" in it || "clipped" in it || "timing moved" in it }
     val suspicious = rmsDb > 12.0 || badReading
-    warnings.forEach { w ->
+    warnings.filter { !isInfoNote(it) }.forEach { w ->
         val bad = "barely heard" in w || "signal-to-noise" in w.lowercase() || "far too quiet" in w || "clipped" in w || "timing moved" in w
         out += Finding(if (bad) 2 else 1, "Measurement", w)
     }
@@ -203,7 +216,7 @@ fun analyzeStock(
         )
     }
     report?.categories?.filter { !it.eqFixable && it.score < 60 }?.forEach { c ->
-        out += Finding(1, c.name, c.detail + " EQ cannot add what the speakers do not play.")
+        out += Finding(1, c.name, sentence(c.detail) + " EQ cannot add what the speakers do not play.")
     }
     val verdict = when {
         suspicious -> "Further off than a real system usually is, or the reading was too weak. This looks like a measuring problem, not something to EQ."
@@ -483,9 +496,10 @@ fun routeLabel(e: Equipment, s: Source): String {
             Equipment.PC -> "This phone plays it (into the PC's speakers)"
             Equipment.OTHER -> "This phone plays it (Bluetooth, aux or USB)"
         }
-        Source.COMBINED -> "$player plays our sweep + pink file (best)"
-        Source.TEST_FILE -> "$player plays our sweep file"
-        Source.YOUTUBE -> "$player plays pink noise"
+        // plain words, no "best" beside a route that is not the default (2.32)
+        Source.COMBINED -> "$player plays our test file"
+        Source.TEST_FILE -> "$player plays our short test file"
+        Source.YOUTUBE -> "$player plays noise from the web"
     }
 }
 
@@ -556,24 +570,35 @@ enum class SetupPage(val title: String) {
  * The screens Set up shows for [e], in order: the companion question only where there can be one, and the sound
  * screen only when this phone measures alone ([viaCompanion] false).
  */
-fun setupPages(e: Equipment, viaCompanion: Boolean = false): List<SetupPage> {
+fun setupPages(e: Equipment, viaCompanion: Boolean = false, askNames: Boolean = true): List<SetupPage> {
     val companion = e.companion != null
     return SetupPage.entries.filter {
         when (it) {
             SetupPage.COMPANION -> companion
             SetupPage.SOUND -> !(companion && viaCompanion)
+            SetupPage.NAMES -> askNames
             else -> true
         }
     }
 }
 
-/** The screen after [page] for [e]; null on the last. */
-fun nextSetupPage(e: Equipment, page: SetupPage, viaCompanion: Boolean = false): SetupPage? =
-    setupPages(e, viaCompanion).let { p -> p.getOrNull(p.indexOf(page) + 1) }
+/** The screen after [page] for [e]; null on the last. [askNames] false is Simple (2.32): the test is named after the equipment. */
+fun nextSetupPage(e: Equipment, page: SetupPage, viaCompanion: Boolean = false, askNames: Boolean = true): SetupPage? =
+    setupPages(e, viaCompanion, askNames).let { p -> p.indexOf(page).takeIf { it >= 0 }?.let { p.getOrNull(it + 1) } }
 
 /** The screen before [page] for [e]; null on the first (Back then leaves Set up). */
-fun previousSetupPage(e: Equipment, page: SetupPage, viaCompanion: Boolean = false): SetupPage? =
-    setupPages(e, viaCompanion).let { p -> p.getOrNull(p.indexOf(page) - 1) }
+fun previousSetupPage(e: Equipment, page: SetupPage, viaCompanion: Boolean = false, askNames: Boolean = true): SetupPage? =
+    setupPages(e, viaCompanion, askNames).let { p -> p.indexOf(page).takeIf { it >= 0 }?.let { p.getOrNull(it - 1) } }
+
+/** The screen Set up shows: [page], or the first one shown when [page] is not among them (the names in Simple). */
+fun shownSetupPage(e: Equipment, page: SetupPage, viaCompanion: Boolean = false, askNames: Boolean = true): SetupPage =
+    setupPages(e, viaCompanion, askNames).let { p -> if (page in p) page else p.lastOrNull { it.ordinal < page.ordinal } ?: p.first() }
+
+/**
+ * Set up's answers kept while the Connect page is open over it (2.32), so Back returns to the screen it came from with
+ * them: the screen, the equipment, whether AutoTune is on it, and the names typed.
+ */
+data class SetupDraft(val page: SetupPage, val equipment: Equipment, val viaCompanion: Boolean, val name: String, val equipName: String)
 
 /**
  * The name of the new home theatre Set up starts on the companion's page: the equipment's name, with the test's after
@@ -590,13 +615,29 @@ fun simpleTarget(e: Equipment): dev.autotune.dsp.Target =
     if (e == Equipment.CAR) dev.autotune.dsp.Target.HARMAN_CAR else dev.autotune.dsp.Target.HOME_THEATER
 
 /**
- * A new test's name: the one typed, else the equipment's name and the date ("F-150, 12 Nov"), else the target's
- * ("Car test, 12 Nov"), as before 2.21.
+ * A new test's name: the one typed, else the equipment's name typed on Set up ("F-150"), else the equipment picked
+ * ("Car"), numbered when another test has it ("Car 2"). Never the date or the target (2.32; saved tests keep their names).
  */
-fun newTestName(typed: String, equipName: String, targetName: String, date: String): String = when {
-    typed.isNotBlank() -> typed.trim()
-    equipName.isNotBlank() -> "${equipName.trim()}, $date"
-    else -> "$targetName test, $date"
+fun newTestName(typed: String, equipName: String, equipment: Equipment, taken: Set<String>): String {
+    if (typed.isNotBlank()) return typed.trim()
+    return numberedName(equipName.trim().ifEmpty { equipmentName(equipment) }, taken)
+}
+
+/** What a test is called when nothing is typed (2.32): the equipment picked, never a date or the target. */
+fun equipmentName(e: Equipment): String = when (e) {
+    Equipment.CAR -> "Car"
+    Equipment.HOME -> "Home theatre"
+    Equipment.PC -> "PC speakers"
+    Equipment.OTHER -> "Speakers"
+}
+
+/** [base], or "base 2", "base 3"... when [taken] (any case) already has it. */
+fun numberedName(base: String, taken: Set<String>): String {
+    val low = taken.map { it.lowercase() }.toSet()
+    if (base.lowercase() !in low) return base
+    var n = 2
+    while ("$base $n".lowercase() in low) n++
+    return "$base $n"
 }
 
 /** The Tune screen shows a finished tune while the test it finished is open and has no run after it. */
@@ -1765,8 +1806,8 @@ val TUTORIAL_CARDS: List<TutorialCard> = listOf(
 /** How many of the cards are steps (all but the opening card). */
 val TUTORIAL_STEPS: Int = TUTORIAL_CARDS.count { it.step > 0 }
 
-/** The small label over a step's title ("step 1 of 4"); none on the opening card. */
-fun tutorialStepLabel(card: TutorialCard): String? = if (card.step > 0) "step ${card.step} of $TUTORIAL_STEPS" else null
+/** The tutorial's one counter is its lights, one per card (2.32: a "step n of 4" label over them counted differently). */
+fun tutorialCounter(page: Int): String = "Card ${page + 1} of ${TUTORIAL_CARDS.size}"
 
 /** The main key under card [page]: Next, and Get started on the last card. */
 fun tutorialKeyLabel(page: Int): String = if (page >= TUTORIAL_CARDS.lastIndex) "Get started" else "Next"
@@ -1863,3 +1904,140 @@ fun tutorialFaderX(k: Int): Float = 0.08f + 0.84f * k / (TUTORIAL_FADERS - 1)
 
 /** Fader [k]'s gain: the stock's error at its centre turned round, cuts to -6 dB and boosts kept gentle (+3 dB). */
 fun tutorialFaderDb(k: Int): Float = (-tutorialCurveDb(tutorialFaderX(k), 0f)).coerceIn(-6f, 3f)
+
+// ---------------------------------------------------------------- the 2.32 audit: every screen and key
+
+/** What the Tune screen offers, by the open test: a new test only; Continue as the main key; or the finished tune. */
+enum class TuneHome { NEW_TEST, CONTINUE, TUNED }
+
+/**
+ * The Tune screen's keys (2.32): with an unfinished test open, Continue is the main key and a new test the smaller
+ * one; a finished tune shows its Tuned card and no Continue; with no test open, the big key starts one.
+ */
+fun tuneHome(runCount: Int, finished: Boolean): TuneHome = when {
+    runCount == 0 -> TuneHome.NEW_TEST
+    finished -> TuneHome.TUNED
+    else -> TuneHome.CONTINUE
+}
+
+/**
+ * The open test and its finished tune, kept across an app restart (pref `openTest`, 2.32): the test, the step Continue
+ * returns to, and what the last Keep put in use. Null for anything this version cannot read.
+ */
+data class OpenTestMemory(
+    val testId: String, val resumeStep: TuneStep?, val tunedRuns: Int, val tunedRunIdx: Int, val tunedProfileId: String?, val tuned: Boolean,
+) {
+    fun toText(): String = listOf("1", testId, resumeStep?.name.orEmpty(), "$tunedRuns", "$tunedRunIdx", tunedProfileId.orEmpty(), if (tuned) "1" else "0").joinToString(";")
+
+    companion object {
+        fun fromText(text: String?): OpenTestMemory? {
+            val p = text?.split(';') ?: return null
+            if (p.size < 7 || p[0] != "1" || p[1].isBlank()) return null
+            return runCatching {
+                OpenTestMemory(
+                    p[1], TuneStep.entries.firstOrNull { it.name == p[2] }?.takeIf { it in RESUMABLE },
+                    p[3].toInt(), p[4].toInt(), p[5].ifBlank { null }, p[6] == "1",
+                )
+            }.getOrNull()
+        }
+    }
+}
+
+/** "1 system", "2 systems". */
+fun countText(n: Int, one: String, many: String = one + "s"): String = "$n ${if (n == 1) one else many}"
+
+/**
+ * Whether the round "more below" key shows: more than [thresholdPx] of content lies past the bottom edge. With the
+ * content's own height ([contentPx]) and the viewport's known, the room kept for the header to fold, which hides
+ * nothing, does not count (2.32: an empty Tests list showed the key with nothing below); unknown (-1), the scroll left.
+ */
+fun showsMoreBelow(scrollPx: Int, maxPx: Int, contentPx: Int, viewportPx: Int, thresholdPx: Int): Boolean {
+    val left = maxPx - scrollPx
+    if (contentPx < 0 || viewportPx <= 0) return left > thresholdPx
+    return minOf(left, contentPx - viewportPx - scrollPx) > thresholdPx
+}
+
+/** The prediction is drawn only when it differs from the run it starts from by more than [tolDb] RMS (2.32: after Keep the two lay on each other). */
+fun predictionDiffers(base: DoubleArray, predicted: DoubleArray, tolDb: Double = 1.0): Boolean {
+    val n = minOf(base.size, predicted.size)
+    if (n == 0) return false
+    val rms = kotlin.math.sqrt((0 until n).sumOf { (predicted[it] - base[it]).let { d -> d * d } } / n)
+    return rms > tolDb
+}
+
+/** Result draws the next suggested EQ only when the advice is to go on with it, not when it is to keep and finish (2.32). */
+fun drawsNextEq(move: NextMove?): Boolean = move != NextMove.KEEP_LATEST && move != NextMove.KEEP_BEST
+
+/**
+ * The ways to apply the suggested EQ on Refine, the recommended one first (2.32: one list, the first pinned):
+ * a phone route offers the phone's EQ, the app's preview and the equipment; the phone's EQ goes after the preview when
+ * it damaged the treble before ([systemEqSuspect]); the equipment comes first when [equipmentFirst] (another device
+ * plays the test sound, a round already applied there, or the phone's EQ does not reach this output).
+ */
+fun applyWays(phoneRoute: Boolean, equipmentFirst: Boolean, systemEqSuspect: Boolean): List<ApplyWay> {
+    if (!phoneRoute) return listOf(ApplyWay.EQUIPMENT)
+    val phone = if (systemEqSuspect) listOf(ApplyWay.IN_APP, ApplyWay.AUTOTUNE_EQ) else listOf(ApplyWay.AUTOTUNE_EQ, ApplyWay.IN_APP)
+    return if (equipmentFirst) listOf(ApplyWay.EQUIPMENT) + phone else phone + ApplyWay.EQUIPMENT
+}
+
+/** The key for one way to apply, and its one-line fact (2.32). [device] names the equipment ("the head unit"). */
+fun applyWayText(way: ApplyWay, device: String): Pair<String, String> = when (way) {
+    ApplyWay.AUTOTUNE_EQ -> "Use the phone's EQ and measure" to "every app, kept after tuning"
+    ApplyWay.IN_APP -> "Preview in the app and measure" to "this measurement only"
+    ApplyWay.EQUIPMENT -> "Set it on $device" to "you enter the bands there"
+    ApplyWay.NONE -> "Measure again" to "nothing changes"
+}
+
+/** What a device the EQ is set on is called on Refine. */
+fun equipmentDevice(e: Equipment): String = when (e) {
+    Equipment.CAR -> "the head unit"
+    Equipment.HOME -> "the home theatre"
+    Equipment.PC -> "the PC"
+    Equipment.OTHER -> "the speaker"
+}
+
+/**
+ * The EQ tab's notes on the EQ: the one about another EQ app's preamp only when the EQ goes to other equipment
+ * ([forOtherEquipment]), never while AutoTune's own EQ plays it (2.32).
+ */
+fun eqTabNotes(warnings: List<String>, forOtherEquipment: Boolean): List<String> =
+    if (forOtherEquipment) warnings else warnings.filter { !it.startsWith("If your EQ app has no preamp") }
+
+/** Settings › Microphone's calibration line, or null for the phone's own mic, which has no file to load (2.32). */
+fun calibrationLine(phoneMic: Boolean, name: String?, info: String?): Pair<Boolean, String>? = when {
+    name != null -> true to "$name (${info ?: ""})".replace(" ()", "")
+    phoneMic -> null
+    else -> false to "No calibration loaded"
+}
+
+/** How long Connect waits with nothing found before it offers the address in Simple (2.32). */
+const val OFFER_ADDRESS_AFTER_MS = 6000L
+
+/** The address field shows in Advanced, or in Simple once nothing has been found for [OFFER_ADDRESS_AFTER_MS]. */
+fun offersAddress(advanced: Boolean, foundNone: Boolean, lookingMs: Long): Boolean =
+    advanced || (foundNone && lookingMs >= OFFER_ADDRESS_AFTER_MS)
+
+/** The Connect page's title (2.32): what is connected, by the TV or PC once known, else by what Set up picked. */
+fun connectTitle(connectedKind: String?, picked: Equipment?): String = when {
+    connectedKind == "PC" -> "PC speakers"
+    connectedKind != null -> "Home theatre"
+    picked == Equipment.PC -> "PC speakers"
+    picked == Equipment.HOME -> "Home theatre"
+    else -> "TV or PC"
+}
+
+/** Seconds the measuring screen counts down before the next mic spot starts by itself (2.32). */
+const val NEXT_SPOT_SECONDS = 5
+
+/** Whole seconds left of the countdown that started at [startMs]; 0 when it is time to measure. */
+fun countdownLeft(startMs: Long, nowMs: Long, seconds: Int = NEXT_SPOT_SECONDS): Int =
+    (seconds - ((nowMs - startMs).coerceAtLeast(0) / 1000).toInt()).coerceAtLeast(0)
+
+/** Set up's line about the mic spots in Simple, said before measuring (2.32): "3 mic spots: move the mic between them". */
+fun spotsLine(spots: Int): String? = if (spots <= 1) null else "$spots mic spots · each starts by itself"
+
+/** The measuring screen's line between spots, said once: "spot 1 of 3 done". */
+fun spotDoneText(spot: Int, spots: Int): String = "spot $spot of $spots done"
+
+/** Every check passed: Simple folds them into one line that opens the list (2.32). */
+fun allChecksPassed(states: List<Int>): Boolean = states.isNotEmpty() && states.all { it == 1 }

@@ -61,7 +61,7 @@ internal fun chartRange(series: List<DoubleArray>, freqs: DoubleArray): Pair<Dou
 
 /**
  * Frequency response on chart paper, log axis, around the target. Plotter-pen lines = measured runs (the stock dashed
- * as the baseline), thin faint line = target, solid in the accent colour =
+ * as the baseline, on every chart, alone too), thin faint line = target, solid in the accent colour =
  * the EQ, dotted text colour = predicted with the EQ. Tap a name in the legend to hide or show its curve; the corner
  * button opens the graph full screen. The range grows to fit the curves, so nothing is cut off at the edge.
  * The graph is drawn still (since 2.30.0). Touching it reads each measured curve, the target and the prediction at
@@ -258,7 +258,7 @@ private fun ChartCanvas(data: ChartData, modifier: Modifier, showTarget: Boolean
         // the stock reading is the baseline, drawn dashed like the base run on a dyno sheet; the latest run is the heaviest
         data.curves.forEachIndexed { i, cv ->
             if ("run:" + cv.label !in hidden) {
-                curve(cv.values, runCols[i], if (i == data.curves.lastIndex) 3.dp.toPx() else 2.dp.toPx(), dashed = cv.colorIdx == 0 && data.curves.size > 1)
+                curve(cv.values, runCols[i], if (i == data.curves.lastIndex) 3.dp.toPx() else 2.dp.toPx(), dashed = cv.colorIdx == 0)
             }
         }
         data.predicted?.let { if ("predicted" !in hidden) curve(it, c.text, 2.5.dp.toPx(), dotted = true) }
@@ -295,7 +295,7 @@ private fun Legend(data: ChartData, showTarget: Boolean, onToggleTarget: (() -> 
     val c = At.c
     FlowRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
         data.curves.forEach { cv ->
-            Key(cv.label, runColor(cv.colorIdx), on = "run:" + cv.label !in hidden, dashed = cv.colorIdx == 0 && data.curves.size > 1) { toggle("run:" + cv.label) }
+            Key(cv.label, runColor(cv.colorIdx), on = "run:" + cv.label !in hidden, dashed = cv.colorIdx == 0) { toggle("run:" + cv.label) }
         }
         // the target's visibility is a saved setting where the screen offers one
         val targetOn = showTarget && "target" !in hidden
@@ -325,9 +325,7 @@ private fun Key(text: String, color: Color, on: Boolean = true, dashed: Boolean 
                 },
             )
         }
-        Text(
-            "  $text", style = MaterialTheme.typography.bodySmall, color = if (on) At.c.text else At.c.muted,
-            textDecoration = if (on) null else androidx.compose.ui.text.style.TextDecoration.LineThrough,
-        )
+        // a hidden curve's name is greyed with its stroke, never struck through (2.32)
+        Text("  $text", style = MaterialTheme.typography.bodySmall, color = if (on) At.c.text else At.c.muted.copy(alpha = 0.7f))
     }
 }

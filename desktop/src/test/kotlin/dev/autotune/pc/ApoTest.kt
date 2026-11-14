@@ -179,4 +179,18 @@ HKEY_LOCAL_MACHINE\SOFTWARE\EqualizerAPO
         assertTrue(ApoStatus(ApoState.NOT_ON_OUTPUT).problem("Speakers")!!.contains("Speakers"))
         assertTrue(ApoStatus(ApoState.MISSING).problem(null)!!.contains("not installed"))
     }
+
+    /** Not on this output: one line and one key (2.32). */
+    @Test
+    fun notOnThisOutputIsOneLineAndOneKey() {
+        val use = notOnOutput("Speakers", listOf("speakers", "Headphones"), false)
+        assertEquals(ApoFix.USE_OTHER, use.second)
+        assertEquals("Headphones", use.third)
+        assertEquals("equalizer apo is on headphones, not this output", use.first)
+        val open = notOnOutput("Speakers", emptyList(), false)
+        assertEquals(ApoFix.OPEN_CONFIGURATOR, open.second)
+        assertEquals(ApoState.NOT_ON_OUTPUT.line, open.first)
+        assertNull(open.third)
+        assertEquals(ApoFix.CHECK_AGAIN, notOnOutput("Speakers", listOf("SPEAKERS"), true).second)
+    }
 }

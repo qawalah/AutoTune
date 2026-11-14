@@ -41,7 +41,8 @@ fun ResultSummary(s: UiState, namesTest: Boolean = true) {
     val c = deckColors
     val targets = dev.autotune.dsp.Target.ALL
     val target = targets[s.targetIdx.coerceIn(0, targets.size - 1)].name + dev.autotune.dsp.Target.tasteSuffix(s.bassDb, s.trebleDb)
-    val name = s.testName.ifBlank { "This test" }
+    // the test's short name, never the long automatic one with its target (2.32)
+    val name = dev.autotune.shortTestName(s.testName, targets[s.targetIdx.coerceIn(0, targets.size - 1)].name).first.ifBlank { "This test" }
     val about = "The figures are the distance from the target, in dB (RMS over the audible range). Lower is better; 0 would match the target exactly. " +
         "The score beside a figure (0-100) rates the system itself, as on the report card; it shows where it is already worked out for that run.\n\nTarget: $target."
     fun db(v: Double) = "%.1f".format(v)
@@ -53,12 +54,17 @@ fun ResultSummary(s: UiState, namesTest: Boolean = true) {
         val a = s.stock
         val suspicious = a?.suspicious == true
         // every warning and finding behind one icon in the display's corner
-        val notes = s.resultWarnings + (a?.findings?.filter { it.severity > 0 }?.map { "${it.title}: ${it.detail}" } ?: emptyList())
+        // each note once: a finding that repeats a warning is left out (2.32)
+        val notes = dev.autotune.stockNotes(s.resultWarnings, a?.findings.orEmpty())
         // on a page already titled with the test, the sheet names the reading instead
         RunSheet(
             if (namesTest) name else "Stock reading",
             if (namesTest) "Stock reading · ${stock.whenText}" else stock.whenText,
-            trailing = { AlertsIcon(notes) },
+            trailing = {
+                // the prediction is the "with the eq" reading; its why is in the bubble, not said again in a line (2.32)
+                if (!suspicious) InfoButton("About this result", about + (a?.verdict?.let { "\n\n$it" } ?: ""), small = true)
+                AlertsIcon(notes)
+            },
         ) {
             ReadingCells(
                 listOfNotNull(
@@ -66,16 +72,8 @@ fun ResultSummary(s: UiState, namesTest: Boolean = true) {
                     a?.predictedDb?.takeIf { !suspicious }?.let { Reading("≈" + db(it), "dB", "with the eq", c.signal) },
                 ),
             )
-            // the summary in a few words, the why in its bubble
-            val pred = a?.predictedDb?.takeIf { !suspicious }
-            Headline(
-                when {
-                    suspicious -> "This reading looks wrong."
-                    pred != null -> "The EQ should bring it to ≈%.1f dB.".format(pred)
-                    else -> "Stock reading saved."
-                },
-                about + (a?.verdict?.let { "\n\n$it" } ?: ""),
-            )
+            // a reading that looks wrong says so in a line, the why in its bubble
+            if (suspicious) Headline("This reading looks wrong.", about + (a?.verdict?.let { "\n\n$it" } ?: ""))
         }
     } else {
         val better = latest.rmsDb < stock.rmsDb - 0.3

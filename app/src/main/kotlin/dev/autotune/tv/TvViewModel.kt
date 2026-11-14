@@ -58,6 +58,8 @@ data class TvUi(
     val rows: List<ShownRow> = emptyList(),
     val headline: String? = null,
     val eqOn: Boolean = false,
+    /** An EQ is kept from before it was switched off: the key can switch it back on. */
+    val eqKept: Boolean = false,
     val error: String? = null,
     /** A phone or tablet standing in for this bigger system (it plays every speaker from its own two); null = itself. */
     val pretend: Layout? = null,
@@ -120,7 +122,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         val pretend = Layout.of(prefs.getString("pretend", null))?.takeIf { probe?.method == PlayMethod.STEREO }
         val layout = pretend ?: probe?.method?.layouts?.first() ?: Layout.L20
         TvEq.restore(ctx)
-        _ui.update { it.copy(code = code, tvName = deviceName(), address = ipAddress(), probe = probe, layout = layout, eqOn = TvEq.on, pretend = pretend) }
+        _ui.update { it.copy(code = code, tvName = deviceName(), address = ipAddress(), probe = probe, layout = layout, eqOn = TvEq.on, eqKept = TvEq.kept(ctx).isNotEmpty(), pretend = pretend) }
         startServer()
         watchNetwork()
     }
@@ -312,7 +314,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun setEq(c: Map<dev.autotune.dsp.Speaker, dev.autotune.dsp.EqChain>) {
         val err = TvEq.set(ctx, c, _ui.value.probe?.method ?: PlayMethod.STEREO)
-        _ui.update { it.copy(eqOn = TvEq.on && err == null, error = err) }
+        _ui.update { it.copy(eqOn = TvEq.on && err == null, eqKept = TvEq.kept(ctx).isNotEmpty(), error = err) }
         send(Msg.eqState(TvEq.on && err == null, err))
     }
 
@@ -347,6 +349,13 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     fun setLayout(l: Layout) = _ui.update { it.copy(layout = l) }
 
     fun eqOff() { viewModelScope.launch(Dispatchers.IO) { setEq(emptyMap()) } }
+
+    /** The TV's EQ key: off when it is on; on again with the kept bands when it is off (2.32: it could only switch off). */
+    fun eqToggle() {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (TvEq.on) setEq(emptyMap()) else TvEq.kept(ctx).takeIf { it.isNotEmpty() }?.let { setEq(it) }
+        }
+    }
 
     override fun onCleared() {
         runCatching { netCallback?.let { ctx.getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(it) } }

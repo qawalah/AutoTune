@@ -41,7 +41,7 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
     }
 
     // Start and Stop are the screen's main key, at the bottom within reach
-    if (!s.rtaRunning) PinAction("Start", { vm.startRta(s.rtaWithEq) }, icon = Ic.PLAY, enabled = ready && !s.busy)
+    if (!s.rtaRunning) PinAction("Start", { vm.startRta(s.rtaWithEq) }, icon = Ic.PLAY, enabled = ready && !s.busy, suggested = false)
     else PinAction("Stop", vm::stopRta, icon = Ic.STOP)
 
     // The spectrum is the primary live instrument. Never draw a synthetic target-shaped
@@ -60,6 +60,8 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
                 Box(Modifier.fillMaxWidth().height(248.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("standby", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
+                        // what Start does, in its own few words (2.32: a deck of its own said it in a sentence)
+                        Text("start reads the spectrum and level", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
                     }
                 }
             }
@@ -68,8 +70,8 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
     }
     if (isAdvanced()) Group("Spectrum", divider = false) { spectrum() } else Panel(pad = 12.dp) { spectrum() }
 
-    // ---- level
-    Panel {
+    // ---- level: only once there is one to read, so the Sound deck sits right under the spectrum
+    if (level != null || s.rtaRunning) Panel {
         if (level != null) {
             // the reading on the LCD in the Concept look, like every other reading
             LcdWindow {
@@ -100,7 +102,7 @@ fun LiveTab(s: UiState, live: DoubleArray?, level: LevelInfo?, vm: TuneViewModel
             if (level.peakDb > -1.0) Warning("Peaks are close to clipping. Lower the volume or move the mic away.")
             else if (level.rmsDb < -60.0) Warning("Very quiet. Raise the volume or move the mic closer.")
         } else {
-            Text(if (s.rtaRunning) "Listening…" else "Press Start to read the level.", style = MaterialTheme.typography.bodyMedium, color = At.c.muted)
+            Text("listening", style = MaterialTheme.typography.labelSmall, color = At.c.muted)
         }
         if (isAdvanced()) Row(verticalAlignment = Alignment.CenterVertically) {
             Text("SPL offset %+.1f dB".format(s.splOffsetDb), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = At.c.muted)

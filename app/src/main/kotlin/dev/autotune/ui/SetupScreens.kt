@@ -56,14 +56,16 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
         ScreenTitle("Settings")
         Group("Mode", divider = false, info = "Simple keeps each screen to the essentials and the main choices. Advanced adds the explanations, extra checks and every option. The switch at the top of each screen changes the same setting.") {
             DropSelect(
-                listOf("Simple", "Advanced"), if (s.advanced) 1 else 0, { vm.setAdvanced(it == 1) }, label = "Mode",
+                // the deck is titled Mode; the drop-down needs no second "Mode" (2.32)
+                listOf("Simple", "Advanced"), if (s.advanced) 1 else 0, { vm.setAdvanced(it == 1) },
                 details = listOf("Less text, the main choices (default)", "Every option and explanation"),
             )
         }
         Group("Microphone", divider = false, info = "The calibration file removes the microphone's own frequency response from the measurement. For a UMIK-1 use the file for your serial number from miniDSP (a .txt file). Without it, results include the mic's own response (small for a UMIK-1, but not zero).") {
             StatusLine(true, if (s.phoneMic) "Phone microphone (plug in a USB mic for better accuracy)" else "USB microphone: ${s.micName}")
             StatusLine(s.hasPermission, if (s.hasPermission) "Microphone access allowed" else "Microphone access needed")
-            StatusLine(s.calibrationName != null, if (s.calibrationName != null) "${s.calibrationName} (${s.calibrationInfo})" else "No calibration loaded")
+            // the phone's own mic has no file to load: no warning for it (2.32)
+            dev.autotune.calibrationLine(s.phoneMic, s.calibrationName, s.calibrationInfo)?.let { (ok, line) -> StatusLine(ok, line) }
             Actions {
                 if (!s.hasPermission) TextAction("Allow microphone", pick.permission, icon = Ic.MIC)
                 TextAction(if (s.calibrationName == null) "Import calibration" else "Replace calibration", pick.calibration, icon = Ic.FILE)
@@ -119,16 +121,18 @@ fun SettingsTab(s: UiState, ai: dev.autotune.AiUi, vm: TuneViewModel, pick: Pick
             )
         }
 
-        if (isAdvanced()) Group("AI assistant", info = "Claude (Anthropic) or Gemini (Google) reviews a test on request: what limits the result, what to check, what to do next, and optional EQ changes that the app holds to its own limits. It needs your own API key for the one you pick; each review costs a few cents on that key's account. ${aiPrivacy(ai.provider)}") {
+        // in both modes, so the AI review on a test's results can be set up from Simple too (2.32)
+        Group("AI assistant", info = "Claude (Anthropic) or Gemini (Google) reviews a test on request: what limits the result, what to check, what to do next, and optional EQ changes that the app holds to its own limits. It needs your own API key for the one you pick; each review costs a few cents on that key's account. ${aiPrivacy(ai.provider)}") {
             AiKeySetup(ai, vm)
         }
 
-        if (isAdvanced()) Group("Diagnostics", info = "A record of every measurement (levels, the EQ in effect, how it was applied, warnings), every EQ change and every failure, plus the last recordings. Send it when something sounds wrong, so the cause can be found. It stays on this phone until you share it.") {
-            SwitchRow("Keep the last 12 recordings", s.keepRecordings, vm::setKeepRecordings)
+        // Send is in both modes, so a Simple user with a problem can send it; Advanced adds the rest (2.32)
+        Group("Diagnostics", info = "A record of every measurement (levels, the EQ in effect, how it was applied, warnings), every EQ change and every failure, plus the last recordings. Send it when something sounds wrong, so the cause can be found. It stays on this phone until you share it.") {
+            if (isAdvanced()) SwitchRow("Keep the last 12 recordings", s.keepRecordings, vm::setKeepRecordings)
             Actions {
-                TextAction("Save diagnostics", vm::saveDiagnostics, icon = Ic.SAVE)
+                if (isAdvanced()) TextAction("Save diagnostics", vm::saveDiagnostics, icon = Ic.SAVE)
                 TextAction("Send diagnostics", vm::shareDiagnostics, icon = Ic.DIAG)
-                TextAction("Clear", vm::clearDiagnostics, danger = true, icon = Ic.TRASH)
+                if (isAdvanced()) TextAction("Clear", vm::clearDiagnostics, danger = true, icon = Ic.TRASH)
             }
             s.diagSaved?.let { Muted(it) }
         }
@@ -230,7 +234,7 @@ private fun HexColourDialog(title: String, start: Long?, onUse: (Long) -> Unit, 
                 Swatch(parsed?.let { androidx.compose.ui.graphics.Color(it) } ?: At.c.panelHigh, 40.dp)
             }
         },
-        confirmButton = { androidx.compose.material3.TextButton(onClick = { parsed?.let(onUse) }, enabled = parsed != null) { Text("Use") } },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { DialogKey("Use", { parsed?.let(onUse) }, enabled = parsed != null) },
+        dismissButton = { DialogKey("Cancel", onDismiss) },
     )
 }

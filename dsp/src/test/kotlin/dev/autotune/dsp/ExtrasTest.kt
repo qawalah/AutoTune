@@ -68,6 +68,9 @@ class ExtrasTest {
         println("judge: flat ${good.overall}, rough ${bad.overall}, potential ${bad.potential}: ${bad.verdict}")
         assertTrue(bad.overall < good.overall - 20)
         assertTrue(bad.potential >= bad.overall)
+        // bass that fades out under 100 Hz says so the right way round (2.32: it said "above")
+        val thin = SystemJudge.judge(DoubleArray(g.size) { i -> if (g.freqs[i] < 160) -20.0 else 0.0 }, g, Target.FLAT, emptyList())
+        assertEquals("Bass fades out below 100 Hz", thin.categories.first { it.name == "Bass extension" }.detail)
     }
 
     @Test

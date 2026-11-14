@@ -37,6 +37,22 @@ data class ApoStatus(
     }
 }
 
+/** What the Output deck does when Equalizer APO is not on the chosen output: one status line and one main key (2.32). */
+enum class ApoFix { USE_OTHER, OPEN_CONFIGURATOR, CHECK_AGAIN }
+
+/**
+ * One line and one key for "not on this output": switch to an output Equalizer APO is already on when there is one,
+ * else open its Configurator, and once that was opened, check again. Returns the line, the key and the output to use.
+ */
+fun notOnOutput(output: String?, withApo: List<String>, configuratorOpened: Boolean): Triple<String, ApoFix, String?> {
+    val other = withApo.firstOrNull { !it.equals(output, ignoreCase = true) }
+    return when {
+        other != null -> Triple("equalizer apo is on ${other.lowercase()}, not this output", ApoFix.USE_OTHER, other)
+        configuratorOpened -> Triple("tick this output in the configurator, restart, then check", ApoFix.CHECK_AGAIN, null)
+        else -> Triple(ApoState.NOT_ON_OUTPUT.line, ApoFix.OPEN_CONFIGURATOR, null)
+    }
+}
+
 /** The text AutoTune keeps in Equalizer APO's config folder, and the line that brings it into config.txt. */
 object ApoText {
     const val FILE = "autotune.txt"

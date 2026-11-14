@@ -70,7 +70,6 @@ import dev.autotune.tutorialPlayMs
 import dev.autotune.tutorialPos
 import dev.autotune.tutorialReadingDb
 import dev.autotune.tutorialShowsSkip
-import dev.autotune.tutorialStepLabel
 import kotlinx.coroutines.launch
 
 /**
@@ -132,10 +131,7 @@ fun Tutorial(onDone: () -> Unit, start: Int = 0) {
                             },
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            tutorialStepLabel(card)?.let {
-                                Text(it, style = MaterialTheme.typography.labelSmall, color = c.muted)
-                                Spacer(Modifier.height(8.dp))
-                            }
+                            // one counter: the lights under the cards (2.32: "step 3 of 4" sat over card 4 of 5)
                             Text(card.title, style = MaterialTheme.typography.headlineMedium, color = c.text, textAlign = TextAlign.Center)
                             Spacer(Modifier.height(10.dp))
                             Text(card.text, style = MaterialTheme.typography.bodyLarge, color = c.muted, textAlign = TextAlign.Center)
@@ -157,7 +153,7 @@ private fun PageLights(pager: PagerState, goTo: (Int) -> Unit) {
     val c = At.c
     val off = c.muted.copy(alpha = 0.4f)
     Row(
-        Modifier.fillMaxWidth().semantics { contentDescription = "Card ${pager.currentPage + 1} of ${pager.pageCount}" },
+        Modifier.fillMaxWidth().semantics { contentDescription = dev.autotune.tutorialCounter(pager.currentPage) },
         horizontalArrangement = Arrangement.Center,
     ) {
         repeat(pager.pageCount) { i ->

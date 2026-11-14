@@ -280,9 +280,15 @@ class FlowTest {
     /** Set up names the equipment, then the test (owner, 2026-11-12); both carry over to a new home theatre. */
     @Test
     fun setUpNamesTheEquipmentThenTheTest() {
-        assertEquals("Driver seat", newTestName(" Driver seat ", "F-150", "Car", "12 Nov"))
-        assertEquals("F-150, 12 Nov", newTestName("", " F-150 ", "Car", "12 Nov"))
-        assertEquals("Car test, 12 Nov", newTestName(" ", "", "Car", "12 Nov"))
+        assertEquals("Driver seat", newTestName(" Driver seat ", "F-150", Equipment.CAR, emptySet()))
+        // nothing typed: the equipment's name, never a date or the target (2.32)
+        assertEquals("F-150", newTestName("", " F-150 ", Equipment.CAR, emptySet()))
+        assertEquals("Car", newTestName(" ", "", Equipment.CAR, emptySet()))
+        assertEquals("Car 2", newTestName("", "", Equipment.CAR, setOf("car")))
+        assertEquals("Car 3", newTestName("", "", Equipment.CAR, setOf("Car", "Car 2")))
+        assertEquals("Home theatre", newTestName("", "", Equipment.HOME, setOf("Car")))
+        assertEquals("PC speakers", newTestName("", "", Equipment.PC, emptySet()))
+        assertEquals("Speakers 2", newTestName("", "", Equipment.OTHER, setOf("Speakers")))
     }
 
     /** One question per screen; the companion question only for a TV or a PC. */
@@ -335,8 +341,9 @@ class FlowTest {
         assertEquals(Source.COMBINED, equipmentRoutes(Equipment.PC).first())
         assertEquals(Source.TEST_FILE, equipmentRoute(Equipment.HOME, Source.TEST_FILE))
         assertEquals(Source.COMBINED, equipmentRoute(Equipment.PC, null))
-        assertEquals("The head unit plays our sweep file", routeLabel(Equipment.CAR, Source.TEST_FILE))
-        assertEquals("The TV plays pink noise", routeLabel(Equipment.HOME, Source.YOUTUBE))
+        assertEquals("The head unit plays our short test file", routeLabel(Equipment.CAR, Source.TEST_FILE))
+        assertEquals("The PC plays our test file", routeLabel(Equipment.PC, Source.COMBINED))
+        assertEquals("The TV plays noise from the web", routeLabel(Equipment.HOME, Source.YOUTUBE))
         Equipment.entries.forEach { e -> assertEquals(Source.entries.toSet(), equipmentRoutes(e).toSet()) }
         // the checklist and the place the EQ goes name the equipment's own controls
         assertTrue(stockChecklist(Equipment.CAR).contains("head unit"))

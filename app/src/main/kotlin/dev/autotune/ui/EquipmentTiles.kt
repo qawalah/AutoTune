@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -42,8 +43,9 @@ import dev.autotune.Equipment
 fun EquipmentTiles(selected: Equipment, onPick: (Equipment) -> Unit, enabled: Boolean = true) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Equipment.entries.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                row.forEach { e -> EquipmentTile(e, e == selected, { onPick(e) }, enabled, Modifier.weight(1f)) }
+            // the four keys one height, the two-line name's (2.32)
+            Row(Modifier.height(androidx.compose.foundation.layout.IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { e -> EquipmentTile(e, e == selected, { onPick(e) }, enabled, Modifier.weight(1f).fillMaxHeight()) }
             }
         }
     }
@@ -51,7 +53,7 @@ fun EquipmentTiles(selected: Equipment, onPick: (Equipment) -> Unit, enabled: Bo
 
 @Composable
 private fun EquipmentTile(e: Equipment, on: Boolean, onClick: () -> Unit, enabled: Boolean, modifier: Modifier) =
-    PictureKey(e.title, on, onClick, enabled, modifier) { drawEquipment(e, it) }
+    PictureKey(e.title, on, onClick, enabled, modifier, minHeight = 132.dp) { drawEquipment(e, it) }
 
 /**
  * A big key with a line drawing over its words, the Set up picture keys' shape. [on] gives it the accent edge and

@@ -121,12 +121,9 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
     // ---- on / off
     Panel {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // the switch says on or off; no second "On" beside it (2.32)
             Column(Modifier.weight(1f)) {
                 Text("AutoTune EQ", style = MaterialTheme.typography.titleLarge)
-                Text(
-                    if (s.systemEqOn) "On" else "Off",
-                    style = MaterialTheme.typography.bodyMedium, color = if (s.systemEqOn) At.c.signal else At.c.muted, maxLines = 2,
-                )
             }
             InfoButton(
                 "What the AutoTune EQ can and can't do",
@@ -143,17 +140,19 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
             info = "Whatever is picked here is what plays when AutoTune EQ is on. “Suggested EQ” entries are AutoTune's proposals from tuning, not measured yet; runs show how far each was from the target.\n\nAutoTune EQ affects only this phone's audio, and how well it works depends on the phone.",
         )
         if (s.sliderLayer.isNotEmpty()) Muted("+ your slider changes")
-        s.systemEqMessage?.let { Muted(it) }
+        // the bands and preamp it was given are a technical status: Advanced only; a problem shows in both (2.32)
+        s.systemEqMessage?.takeIf { isAdvanced() || !it.startsWith("EQ updated") }?.let { Muted(it) }
         // Simple: on/off, which EQ and the flavour (owner, 2026-11-12: "I don't see flavour/genre"); the preamp waits in Advanced
         FlavourAndPreamp(s, vm, preamp = isAdvanced())
     }
 
     // ---- equaliser: classic sliders
     Group(
-        "Adjust bands",
+        "Bands",
         trailing = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconAction(if (locked) Ic.LOCK else Ic.UNLOCK, if (locked) "Unlock the sliders" else "Lock the sliders") { locked = !locked }
+                // the lock says what it is (2.32: a bare padlock)
+                TextAction(if (locked) "Locked" else "Unlocked", { locked = !locked }, icon = if (locked) Ic.LOCK else Ic.UNLOCK)
                 TextAction("Flat", { vm.editClear() }, enabled = bandCount > 0 && !locked, icon = Ic.UNDO)
                 TextAction("Save", { saveDialog = true }, enabled = bandCount > 0, icon = Ic.SAVE)
             }
@@ -163,8 +162,10 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
         GraphicSliders(s, vm, centres, qOf, locked)
         if (isAdvanced()) chain?.let { c -> if (c.filters.isNotEmpty()) Muted("Preamp %.1f dB".format(c.preampDb)) }
         // big boosts from the sliders are easy to make by accident and AutoTune's own EQ never makes them
+        // the note on another EQ app's preamp only when the EQ goes to other equipment (2.32)
+        val forOther = s.source != Source.PHONE || s.applyWay == ApplyWay.EQUIPMENT
         Alerts(
-            s.exportWarnings + listOfNotNull(
+            dev.autotune.eqTabNotes(s.exportWarnings, forOther) + listOfNotNull(
                 s.sliderLayer.maxByOrNull { it.gainDb }?.takeIf { it.gainDb > 6.0 }?.let { b ->
                     "Your sliders boost %+.0f dB at %s. AutoTune's own EQ never boosts more than 3 dB; boosts this big often distort."
                         .format(b.gainDb, if (b.freqHz >= 1000) "%.1f kHz".format(b.freqHz / 1000) else "%.0f Hz".format(b.freqHz))
@@ -310,9 +311,9 @@ fun EqTab(s: UiState, vm: TuneViewModel, go: (Tab) -> Unit, pick: Pickers) {
         AlertDialog(
             onDismissRequest = { confirmSuggested = false },
             title = { Text("Go back to the tuning EQ?") },
-            text = { Text("Your own bands are removed. The tuning EQ is calculated from the latest results. Save your bands as a profile first if you want to keep them.") },
-            confirmButton = { TextButton(onClick = { confirmSuggested = false; expanded = -1; vm.editReset() }) { Text("Use tuning EQ", color = At.c.bad) } },
-            dismissButton = { TextButton(onClick = { confirmSuggested = false }) { Text("Keep mine") } },
+            text = { Text("Your own bands are removed. The tuning EQ is calculated from the latest results. Save your bands as a saved EQ first if you want to keep them.") },
+            confirmButton = { DialogKey("Use tuning EQ", { confirmSuggested = false; expanded = -1; vm.editReset() }, danger = true) },
+            dismissButton = { DialogKey("Keep mine", { confirmSuggested = false }) },
         )
     }
 }
@@ -345,25 +346,25 @@ private fun ProfileRow(p: dev.autotune.EqProfile, active: Boolean, edited: Boole
             }
         }
     }
-    if (rename) SaveProfileDialog(title = "Rename profile", suggested = p.name, onDismiss = { rename = false }, onSave = { rename = false; vm.renameProfile(p.id, it) })
+    if (rename) SaveProfileDialog(title = "Rename the saved EQ", suggested = p.name, onDismiss = { rename = false }, onSave = { rename = false; vm.renameProfile(p.id, it) })
     if (delete) AlertDialog(
         onDismissRequest = { delete = false },
         title = { Text("Delete “${p.name}”?") },
         text = { Text("Automatic switching that uses it is removed too.") },
-        confirmButton = { TextButton(onClick = { delete = false; vm.deleteProfile(p.id) }) { Text("Delete", color = At.c.bad) } },
-        dismissButton = { TextButton(onClick = { delete = false }) { Text("Keep") } },
+        confirmButton = { DialogKey("Delete", { delete = false; vm.deleteProfile(p.id) }, danger = true) },
+        dismissButton = { DialogKey("Keep", { delete = false }) },
     )
 }
 
 @Composable
-private fun SaveProfileDialog(suggested: String, onDismiss: () -> Unit, onSave: (String) -> Unit, title: String = "Save as a profile") {
+private fun SaveProfileDialog(suggested: String, onDismiss: () -> Unit, onSave: (String) -> Unit, title: String = "Save as a saved EQ") {
     var name by remember { mutableStateOf(suggested) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("Name") }, colors = atFieldColors(), shape = atFieldShape()) },
-        confirmButton = { TextButton(onClick = { onSave(name) }) { Text("Save", color = At.c.signal) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { DialogKey("Save", { onSave(name) }) },
+        dismissButton = { DialogKey("Cancel", onDismiss) },
     )
 }
 
@@ -373,14 +374,14 @@ fun AutomationSection(s: UiState, vm: TuneViewModel, pick: Pickers) {
     var prof by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { vm.refreshBluetooth() }
 
-    SwitchRow("Switch profile when a Bluetooth device connects", s.automationOn, { on ->
+    SwitchRow("Switch the saved EQ when a Bluetooth device connects", s.automationOn, { on ->
         if (on) { pick.notifications(); if (!s.btPermission) pick.bluetooth() }
         vm.setAutomation(on)
     })
-    if (s.profiles.isEmpty()) Muted("Save a profile first, then choose when it should switch on.")
+    if (s.profiles.isEmpty()) Muted("Save an EQ first, then choose when it should switch on.")
 
     s.rules.forEach { r ->
-        val name = s.profiles.firstOrNull { it.id == r.profileId }?.name ?: "(deleted profile)"
+        val name = s.profiles.firstOrNull { it.id == r.profileId }?.name ?: "(deleted EQ)"
         Row(Modifier.fillMaxWidth().heightIn(min = 52.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(r.deviceName, style = MaterialTheme.typography.titleSmall)
@@ -412,7 +413,7 @@ fun AutomationSection(s: UiState, vm: TuneViewModel, pick: Pickers) {
                 "Choose a Bluetooth device", s.btDevices, { it.name }, { detail(it) }, { dev = it.address },
             )
             PickField(
-                "Switch to this profile", s.profiles.firstOrNull { it.id == prof }?.name, "Choose a profile",
+                "Switch to this saved EQ", s.profiles.firstOrNull { it.id == prof }?.name, "Choose a saved EQ",
                 s.profiles, { it.name }, { it.origin }, { prof = it.id },
             )
             Actions {
@@ -430,11 +431,11 @@ fun AutomationSection(s: UiState, vm: TuneViewModel, pick: Pickers) {
         Text("Samsung Modes and Routines", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
         InfoButton(
             "Using AutoTune from Samsung Routines",
-            "Routines can open an app, but it cannot hand the app a setting such as which profile to use. So the most dependable way is the Bluetooth switching above: AutoTune watches for the device itself. " +
+            "Routines can open an app, but it cannot hand the app a setting such as which saved EQ to use. So the most dependable way is the Bluetooth switching above: AutoTune watches for the device itself. " +
                 "Samsung may stop background apps; in Settings, Battery, set AutoTune to Unrestricted so it keeps watching.\n\n" +
-                "To start a profile from a routine anyway:\n" +
-                "• Long-press the AutoTune icon: there is a shortcut for each profile (up to four) and one for EQ off. Where your One UI lets a routine's Open app action pick an app shortcut, choose one of those.\n" +
-                "• Tasker, MacroDroid and similar apps can send the intent dev.autotune.action.APPLY_PROFILE with the extra profile set to the profile's name (or EQ_OFF to switch it off), or open the link autotune://profile/NAME.",
+                "To start a saved EQ from a routine anyway:\n" +
+                "• Long-press the AutoTune icon: there is a shortcut for each saved EQ (up to four) and one for EQ off. Where your One UI lets a routine's Open app action pick an app shortcut, choose one of those.\n" +
+                "• Tasker, MacroDroid and similar apps can send the intent dev.autotune.action.APPLY_PROFILE with the extra profile set to the saved EQ's name (or EQ_OFF to switch it off), or open the link autotune://profile/NAME.",
         )
     }
 }

@@ -91,7 +91,7 @@ private const val ABOUT_EQ =
 
 /** Tune a home theatre (or a PC's speakers) with the TV or PC playing each speaker and the phone listening. A page over the current tab. */
 @Composable
-fun TheatrePage(pick: Pickers, openId: String? = null, opened: () -> Unit = {}, newName: String? = null, sharer: Sharer? = null) {
+fun TheatrePage(pick: Pickers, openId: String? = null, opened: () -> Unit = {}, newName: String? = null, sharer: Sharer? = null, picked: dev.autotune.Equipment? = null) {
     val vm: TheatreViewModel = viewModel()
     val u by vm.ui.collectAsState()
     LaunchedEffect(openId) { openId?.let { vm.selectTest(it); opened() } }
@@ -107,7 +107,8 @@ fun TheatrePage(pick: Pickers, openId: String? = null, opened: () -> Unit = {}, 
     androidx.activity.compose.BackHandler(enabled = managing) { managing = false }
     if (managing) { TheatresPage(u, vm) { managing = false }; return }
 
-    ScreenTitle("Home theatre", context = u.tv ?: "not connected", contextIcon = Ic.HOME)
+    // titled by what is connected: PC speakers or a home theatre (2.32: "Home theatre" for a PC too)
+    ScreenTitle(dev.autotune.connectTitle(if (u.tv != null) u.device else null, picked), context = u.tv ?: "not connected", contextIcon = Ic.HOME)
     if (u.tv == null) {
         Connect(u, vm)
         // the open home theatre's last results stay readable while nothing is connected; not when Tune's Set up
@@ -128,6 +129,14 @@ private fun Connect(u: TheatreUi, vm: TheatreViewModel) {
     val tvName = u.found.getOrNull(tvIdx.coerceAtMost((u.found.size - 1).coerceAtLeast(0)))
     var code by rememberSaveable(tvName) { mutableStateOf(tvName?.let { u.codes[it] }.orEmpty()) }
     var address by rememberSaveable { mutableStateOf("") }
+    // Simple offers the address once nothing has been found for a few seconds (2.32: a dead end before)
+    var lookingSince by androidx.compose.runtime.remember { mutableStateOf(System.currentTimeMillis()) }
+    var now by androidx.compose.runtime.remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(u.found.isEmpty()) {
+        if (u.found.isNotEmpty()) lookingSince = System.currentTimeMillis()
+        while (u.found.isEmpty()) { now = System.currentTimeMillis(); kotlinx.coroutines.delay(1000) }
+    }
+    val showAddress = dev.autotune.offersAddress(isAdvanced(), u.found.isEmpty(), now - lookingSince)
     // the remembered TV or PC is connected again by itself (2.25): say so while it is
     val remembered = CompanionLink.rememberedName(androidx.compose.ui.platform.LocalContext.current)
     val sub = when {
@@ -146,7 +155,7 @@ private fun Connect(u: TheatreUi, vm: TheatreViewModel) {
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
             modifier = Modifier.fillMaxWidth().settleIn().bringIntoViewOnFocus(), colors = atFieldColors(), shape = atFieldShape(),
         )
-        Adv {
+        if (showAddress) {
             OutlinedTextField(
                 value = address, onValueChange = { address = it.trim() },
                 label = { Text("Address (when it is not found)") }, placeholder = { Text("192.168.1.20") }, singleLine = true,
@@ -156,7 +165,7 @@ private fun Connect(u: TheatreUi, vm: TheatreViewModel) {
         }
     }
     u.error?.let { Alerts(listOf(it), title = "Connecting") }
-    val byAddress = address.isNotBlank() && isAdvanced()
+    val byAddress = address.isNotBlank() && showAddress
     PinAction(
         if (u.connecting) "Connecting" else "Connect", icon = Ic.SEND,
         enabled = !u.connecting && code.length == 4 && (byAddress || tvName != null),
@@ -301,6 +310,15 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel, sharer: Sharer?, mana
         if (lv == null) d?.speakers?.forEach { r -> put(r.speaker, listOfNotNull(this[r.speaker], TheatreJudge.distanceText(r.distanceM)).joinToString("\n")) }
     }
     DeviceDeck(u, vm)
+    // the speakers decide every test: chosen up here, beside the device (2.32: it sat near the bottom)
+    val method = u.method
+    if (method != null && method.layouts.size > 1 && !u.busy) {
+        DropSelect(
+            method.layouts.map { it.title }, method.layouts.indexOf(u.layout).coerceAtLeast(0), { vm.setLayout(method.layouts[it]) },
+            label = "Speakers", icon = Ic.SPEAKER,
+            info = "The speakers your home theatre has. ${method.title} from this ${u.device} reaches up to ${method.layouts.first().title}.",
+        )
+    }
     TheatreLine(u, manage)
     Panel(pad = 12.dp) {
         SpeakerMap(u.layout, u.playing, level = ring, all = u.allPlaying, notes = notes, silent = d?.speakers?.filter { !it.heard }?.map { it.speaker }?.toSet().orEmpty().takeIf { !u.busy }.orEmpty())
@@ -344,15 +362,6 @@ private fun ThreeTests(u: TheatreUi, vm: TheatreViewModel, sharer: Sharer?, mana
             // what the phone's Refine step offers, once there is an EQ to refine
             if (u.eq?.eq?.isNotEmpty() == true) RefineDeck(u, vm, sharer)
         }
-    }
-
-    val method = u.method
-    if (method != null && method.layouts.size > 1 && !u.busy) {
-        DropSelect(
-            method.layouts.map { it.title }, method.layouts.indexOf(u.layout).coerceAtLeast(0), { vm.setLayout(method.layouts[it]) },
-            label = "Speakers", icon = Ic.SPEAKER,
-            info = "The speakers your home theatre has. ${method.title} from this ${u.device} reaches up to ${method.layouts.first().title}.",
-        )
     }
 
     // a key is pinned only while a test runs: next speaker or next seat while it waits, stop while it plays
@@ -485,8 +494,8 @@ private fun TheatresPage(u: TheatreUi, vm: TheatreViewModel, back: () -> Unit) {
         onDismissRequest = { deleting = false },
         title = { Text("Delete ${u.test?.name ?: "this home theatre"}?") },
         text = { Text("Every run of it is deleted.") },
-        confirmButton = { androidx.compose.material3.TextButton(onClick = { vm.deleteTest(); deleting = false }) { Text("Delete", color = At.c.bad) } },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = { deleting = false }) { Text("Keep it") } },
+        confirmButton = { DialogKey("Delete", { vm.deleteTest(); deleting = false }, danger = true) },
+        dismissButton = { DialogKey("Keep it", { deleting = false }) },
     )
 }
 
@@ -497,8 +506,8 @@ private fun NameDialog(title: String, start: String, onDone: (String) -> Unit, o
         onDismissRequest = onCancel,
         title = { Text(title) },
         text = { OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true, placeholder = { Text("Living room 5.1") }, modifier = Modifier.fillMaxWidth(), colors = atFieldColors(), shape = atFieldShape()) },
-        confirmButton = { androidx.compose.material3.TextButton(onClick = { onDone(text) }) { Text("Save") } },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onCancel) { Text("Cancel") } },
+        confirmButton = { DialogKey("Save", { onDone(text) }) },
+        dismissButton = { DialogKey("Cancel", onCancel) },
     )
 }
 

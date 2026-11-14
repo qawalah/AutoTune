@@ -217,6 +217,8 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
     var theatreOpen by rememberSaveable { mutableStateOf<String?>(null) }
     // a new home theatre to start once connected, named on Tune's Set up ("" = after the TV or PC) (2.24)
     var theatreNew by rememberSaveable { mutableStateOf<String?>(null) }
+    // what Set up was connecting (a home theatre or PC speakers), for the Connect page's title (2.32)
+    var theatreKind by rememberSaveable { mutableStateOf<String?>(null) }
     // a tab replaces whatever was open over it; Export opens as a page over the current tab
     val go: (Tab) -> Unit = { t ->
         // pressing the tab you are on plays its graphics again
@@ -337,6 +339,8 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                     val key = d.page?.name ?: d.tab.name
                     val titleSlot = titleSlots.getOrPut(key) { TitleSlot() }
                     val sc = scrollFor(key)
+                    // the content's own height and the viewport's, for "more below"
+                    val sizes = androidx.compose.runtime.remember(key) { intArrayOf(-1, -1) }
                     // A screen that does not open tall opens with its header folded into the slim bar (content high),
                     // or where it was left if that is further down. Its header's room stays at its top, so scrolling
                     // all the way up brings the full header back. Decided as the screen arrives.
@@ -375,7 +379,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                         LocalTitleSlot provides titleSlot, LocalBack provides (if (d.page != null) back else null), LocalReplay provides (replays[key] ?: 0),
                     ) {
                     Column(
-                        Modifier.fillMaxSize().imePadding().nestedScroll(pullWatch).scrollWithHeaderRoom(sc, if (hasHeader) rangePx else 0)
+                        Modifier.fillMaxSize().imePadding().nestedScroll(pullWatch).scrollWithHeaderRoom(sc, if (hasHeader) rangePx else 0, sizes)
                             .padding(horizontal = 16.dp).padding(bottom = 96.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
@@ -385,16 +389,16 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                                     Page.RESULTS -> ResultsPage(s, vm, back, go)
                                     Page.LIVE -> LiveTab(s, live, level, vm, pick, go)
                                     Page.EXPORT -> ExportTab(s, vm, go)
-                                    Page.THEATRE -> TheatrePage(pick, theatreOpen, opened = { theatreOpen = null; theatreNew = null }, newName = theatreNew, sharer = sharer)
+                                    Page.THEATRE -> TheatrePage(pick, theatreOpen, opened = { theatreOpen = null; theatreNew = null }, newName = theatreNew, sharer = sharer, picked = dev.autotune.Equipment.orNull(theatreKind))
                                 }
                             }
                         } else when (d.tab) {
                             Tab.TESTS -> TestsTab(
                                 s, vm, { id -> vm.openTest(id); vm.selectBestRun(); openResults() }, continueTest = { id -> vm.openTest(id); vm.tuneContinue(); go(Tab.MEASURE) },
-                                openTheatre = { id -> theatreOpen = id; go(Tab.THEATRE) },
-                                openCompanion = { go(Tab.THEATRE) },
+                                openTheatre = { id -> theatreOpen = id; theatreKind = null; go(Tab.THEATRE) },
+                                openCompanion = { theatreKind = null; go(Tab.THEATRE) },
                             )
-                            Tab.MEASURE -> TuneTab(s, vm, sharer, go, openResults, pick, openCompanion = { n -> theatreNew = n; go(Tab.THEATRE) })
+                            Tab.MEASURE -> TuneTab(s, vm, sharer, go, openResults, pick, openCompanion = { n, e -> theatreNew = n; theatreKind = e.name; go(Tab.THEATRE) })
                             Tab.EQ -> EqTab(s, vm, go, pick)
                             Tab.LIVE -> LiveTab(s, live, level, vm, pick, go)
                             Tab.SETTINGS -> SettingsTab(s, ai, vm, pick, go)
@@ -403,7 +407,7 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                         }
                     }
                     // more of the screen below the edge: a fade and a key that scrolls on
-                    MoreBelow(sc, Modifier.align(Alignment.BottomCenter))
+                    MoreBelow(sc, Modifier.align(Alignment.BottomCenter), sizes)
                     ScreenHeader(titleSlot, sc, Modifier.align(Alignment.TopCenter))
                     }
                     }
@@ -438,7 +442,10 @@ fun AutoTuneScreen(vm: TuneViewModel, sharer: Sharer) {
                 exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(motionMs(260), easing = EaseLeave)) +
                     androidx.compose.animation.scaleOut(androidx.compose.animation.core.tween(motionMs(260), easing = EaseLeave), targetScale = 1.04f),
             ) {
-                androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) { Tutorial(vm::tutorialDone) }
+                androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = At.c.bg, contentColor = At.c.text) {
+                    // it ends on the Tune tab, its key under the thumb (2.32: it ended on an empty Tests list)
+                    Tutorial({ vm.tutorialDone(); tabIdx = Tab.MEASURE.ordinal; pages = emptyList() })
+                }
             }
 
             // the teak cheeks of a Braun SK 4, down both edges, over every screen

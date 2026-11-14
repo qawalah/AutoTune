@@ -28,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
@@ -98,7 +99,7 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
             if (start > 0) playing((clock.value - start) / 1000.0).let { it.first to it.second as Float? } else "Opening the microphone" to null
         } else (s.status?.removeSuffix("...") ?: "Listening") to s.progress
         MeasureStage.ANALYSING -> "Analysing" to null
-        MeasureStage.SPOT_DONE -> "Spot ${v.spot} of ${v.spots} done" to 1f
+        MeasureStage.SPOT_DONE -> dev.autotune.spotDoneText(v.spot, v.spots).replaceFirstChar { it.uppercase() } to 1f
         MeasureStage.SAVED -> v.message to 1f
         MeasureStage.FAILED -> "Measurement failed" to 0f
     }
@@ -116,6 +117,16 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
         else -> v.message.takeIf { it.isNotBlank() }
     }
 
+    // between spots the next one starts by itself after a short countdown; Pause holds it (2.32, BACKLOG)
+    var paused by androidx.compose.runtime.remember(v.spot, v.stage) { androidx.compose.runtime.mutableStateOf(false) }
+    val spotStart = androidx.compose.runtime.remember(v.spot, v.stage) { System.currentTimeMillis() }
+    val left = if (v.stage == MeasureStage.SPOT_DONE && !paused) dev.autotune.countdownLeft(spotStart, clock.value) else null
+    LaunchedEffect(v.stage, v.spot, paused) {
+        if (v.stage == MeasureStage.SPOT_DONE && !paused) {
+            while (dev.autotune.countdownLeft(spotStart, System.currentTimeMillis()) > 0) kotlinx.coroutines.delay(200)
+            vm.measure()
+        }
+    }
     val scroll = rememberScrollState()
     androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides At.c.text) {
     Box(Modifier.fillMaxSize().background(At.c.bg).statusBarsPadding().navigationBarsPadding()) {
@@ -126,11 +137,12 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
         // the device header: the wordmark and what is being measured
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
             Wordmark(large = true)
+            // the spot is named here while it is measured; once done the headline says it, once (2.32)
             Text(
-                "  " + v.title.lowercase() + if (v.spots > 1) " · spot ${v.spot} of ${v.spots}" else "", Modifier.weight(1f),
+                "  " + v.title.lowercase() + if (v.spots > 1 && v.stage != MeasureStage.SPOT_DONE) " · spot ${v.spot} of ${v.spots}" else "", Modifier.weight(1f),
                 style = MaterialTheme.typography.titleMedium, color = At.c.muted, maxLines = 1,
             )
-            if (!busy) IconAction(Ic.CLOSE, "Close") { vm.closeMeasureView() }
+            // no cross: each stage ends with one key that says what it does (Stop, Close, See the result)
         }
         HairRule()
         // Stock and Verify have no page: they light on the step bar while this screen measures them
@@ -148,11 +160,24 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
                 Column(Modifier.weight(1f)) {
                     when {
                         hasLevel -> Text("%.0f".format(level).replace('-', '−'), style = MaterialTheme.typography.displayLarge, color = At.c.text)
+                        // between spots: the seconds to the next one, large, as the reading would be
+                        left != null -> Text("$left", style = MaterialTheme.typography.displayLarge, color = At.c.text)
                         v.stage == MeasureStage.SAVED -> AtIcon(if (allGood) Ic.DONE else Ic.ALERT, accent, size = 56.dp)
                         v.stage == MeasureStage.FAILED -> AtIcon(Ic.ALERT, accent, size = 56.dp)
-                        else -> Text("−", style = MaterialTheme.typography.displayLarge, color = At.c.muted)
+                        v.stage == MeasureStage.SPOT_DONE -> AtIcon(Ic.DONE, At.c.good, size = 56.dp)
+                        // never a bare dash (2.32): the mic, waiting
+                        else -> AtIcon(Ic.MIC, At.c.muted, size = 56.dp)
                     }
-                    Text(if (hasLevel) "dbfs · mic level" else v.stage.name.lowercase().replace('_', ' '), style = MaterialTheme.typography.labelSmall, color = At.c.muted)
+                    Text(
+                        when {
+                            hasLevel -> "dbfs · mic level"
+                            left != null -> "s to spot ${v.spot + 1}"
+                            v.stage == MeasureStage.SPOT_DONE -> "paused"
+                            v.stage == MeasureStage.MEASURING -> "opening the mic"
+                            else -> v.stage.name.lowercase().replace('_', ' ')
+                        },
+                        style = MaterialTheme.typography.labelSmall, color = At.c.muted,
+                    )
                 }
                 Pilot(accent, blink = busy, modifier = Modifier.padding(bottom = 10.dp))
             }
@@ -173,20 +198,27 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
             }
         }
 
-        Group("Checks", divider = false) {
+        val rows: @Composable () -> Unit = {
             v.checks.forEachIndexed { i, c ->
                 // the first unfinished check is the one being worked on
                 val current = c.state == 0 && v.checks.take(i).all { it.state != 0 } && busy
                 CheckRow(c, current)
             }
         }
+        // Simple: every check green is one line that opens the list (2.32)
+        if (!isAdvanced() && dev.autotune.allChecksPassed(v.checks.map { it.state })) Fold("Checks", summary = "all ${v.checks.size} passed") { rows() }
+        else Group("Checks", divider = false) { rows() }
 
         when {
             busy -> SecondaryButton("Stop", vm::cancel, Modifier.fillMaxWidth(), icon = Ic.STOP)
             // one graphite key for the move; the other choices stacked under it, one per row, as everywhere else
             v.stage == MeasureStage.SPOT_DONE -> {
-                PrimaryButton("Measure spot ${v.spot + 1}", { vm.measure() }, Modifier.fillMaxWidth(), icon = Ic.MEASURE)
-                Actions { TextAction("Close", vm::closeMeasureView, icon = Ic.CLOSE) }
+                PrimaryButton(if (paused) "Measure spot ${v.spot + 1}" else "Measure spot ${v.spot + 1} now", { vm.measure() }, Modifier.fillMaxWidth(), icon = Ic.MEASURE)
+                Actions {
+                    if (!paused) TextAction("Pause", { paused = true }, icon = Ic.STOP)
+                    // what Close does to the spots already measured, in its own words
+                    TextAction(if (v.spot > 1) "Close and drop spots 1-${v.spot}" else "Close and drop spot 1", vm::closeMeasureView, icon = Ic.CLOSE)
+                }
             }
             v.stage == MeasureStage.FAILED -> {
                 // what the Stock and Verify pages used to offer after a failure lives here now
@@ -195,7 +227,7 @@ fun MeasureOverlay(v: MeasureView, s: UiState, vm: TuneViewModel) {
                 Actions {
                     TextAction("Check the level", vm::levelCheck, enabled = !s.busy, icon = Ic.LIVE)
                     TextAction("Ask AI why", vm::aiExplainFailure, icon = Ic.AI)
-                    TextAction("Close", vm::closeMeasureView, icon = Ic.CLOSE)
+                    TextAction("Close, nothing is saved", vm::closeMeasureView, icon = Ic.CLOSE)
                 }
             }
             else -> PrimaryButton("See the result", vm::closeMeasureView, Modifier.fillMaxWidth(), icon = Ic.NEXT)

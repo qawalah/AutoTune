@@ -66,7 +66,7 @@ class TvActivity : ComponentActivity() {
 @Composable
 fun TvScreen(vm: TvViewModel) {
     val u by vm.ui.collectAsState()
-    TvScreen(u, vm::playEach, vm::setLayout, vm::eqOff, vm::setPretend)
+    TvScreen(u, vm::playEach, vm::setLayout, vm::eqToggle, vm::setPretend)
 }
 
 @Composable
@@ -109,7 +109,7 @@ fun TvScreen(
                 result != null && result.response.size == dev.autotune.dsp.Rta.CENTERS.size -> Box(Modifier.fillMaxWidth().weight(1f).deckPlate().padding(12.dp)) {
                     dev.autotune.ui.ResponseChart(
                         dev.autotune.ChartData(
-                            dev.autotune.dsp.Rta.CENTERS, listOf(dev.autotune.Curve("System", result.response.toDoubleArray(), 0)),
+                            dev.autotune.dsp.Rta.CENTERS, listOf(dev.autotune.Curve("System", result.response.toDoubleArray(), 1)),
                             result.target.takeIf { it.size == result.response.size }?.toDoubleArray() ?: DoubleArray(result.response.size), null, "",
                         ),
                         height = 260.dp, targetLabel = "Target",
@@ -159,7 +159,7 @@ fun TvScreen(
             u.error?.let { TvDeck { Text(it, style = MaterialTheme.typography.bodyLarge, color = c.warn, maxLines = 3) } }
             Spacer(Modifier.weight(1f))
             // the EQ's state, large: lit while it plays; the key switches it off
-            TvEqKey(u.eqOn, eqOff, note = if (u.eqOn && u.probe?.method == dev.autotune.dsp.PlayMethod.DOLBY_51) "stereo · dolby from apps passes by it" else null)
+            TvEqKey(u.eqOn, u.eqOn || u.eqKept, eqOff, note = if (u.eqOn && u.probe?.method == dev.autotune.dsp.PlayMethod.DOLBY_51) "stereo · dolby from apps passes by it" else null)
             // the speakers: one line on the output, then the keys
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 u.probe?.let { p ->
@@ -195,9 +195,9 @@ private fun TvDeck(accent: Boolean = false, content: @Composable () -> Unit) {
     ) { dev.autotune.ui.DeckColors { content() } }
 }
 
-/** The TV's EQ as one big latching key: "EQ on" with the pilot lit, or "EQ off". Pressing it switches it off. */
+/** The TV's EQ as one big latching key: "EQ on" with the pilot lit, or "EQ off". Pressing it switches it off, and back on. */
 @Composable
-private fun TvEqKey(on: Boolean, off: () -> Unit, note: String?) {
+private fun TvEqKey(on: Boolean, canPress: Boolean, off: () -> Unit, note: String?) {
     var focused by remember { mutableStateOf(false) }
     val c = At.c
     Row(
@@ -205,7 +205,7 @@ private fun TvEqKey(on: Boolean, off: () -> Unit, note: String?) {
             .background(if (on) androidx.compose.ui.graphics.lerp(c.panelHigh, c.signal, 0.12f) else c.panelHigh)
             .border(3.dp, if (focused) c.signal else if (on) c.signal.copy(alpha = 0.6f) else c.line, MaterialTheme.shapes.medium)
             .onFocusChanged { focused = it.isFocused }
-            .clickable(enabled = on, role = Role.Switch, onClick = off)
+            .clickable(enabled = canPress, role = Role.Switch, onClick = off)
             .padding(horizontal = 24.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -213,7 +213,7 @@ private fun TvEqKey(on: Boolean, off: () -> Unit, note: String?) {
         Spacer(Modifier.width(18.dp))
         Column(Modifier.weight(1f)) {
             Text(if (on) "EQ on" else "EQ off", style = MaterialTheme.typography.headlineMedium, color = c.text)
-            Text(note ?: if (on) "press to switch it off" else "the phone sends it", style = MaterialTheme.typography.titleSmall, color = c.muted, maxLines = 1)
+            Text(note ?: if (on) "press to switch it off" else if (canPress) "press to switch it on" else "the phone sends it", style = MaterialTheme.typography.titleSmall, color = c.muted, maxLines = 1)
         }
     }
 }

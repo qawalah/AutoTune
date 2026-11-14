@@ -37,10 +37,16 @@ object TvEq {
     /** True when an EQ was set and not switched off: after a reboot or an update it should come back. */
     fun wanted(ctx: Context): Boolean = prefs(ctx).getString("chains", null) != null
 
+    /** The last EQ that was on, kept when it is switched off, so the TV's key can switch it back on (2.32, as the PC does). */
+    fun kept(ctx: Context): Map<Speaker, EqChain> = Msg.chains(prefs(ctx).getString("kept", null))
+
     /** Sets the EQ per speaker (empty = off) and remembers it. Returns an error in words, or null. */
     @Synchronized
     fun set(ctx: Context, c: Map<Speaker, EqChain>, method: PlayMethod): String? {
-        prefs(ctx).edit().putString("chains", if (c.isEmpty()) null else Msg.chainsText(c)).putString("method", method.name).apply()
+        val ed = prefs(ctx).edit().putString("chains", if (c.isEmpty()) null else Msg.chainsText(c)).putString("method", method.name)
+        // off keeps the bands; a new EQ replaces them
+        if (c.isNotEmpty()) ed.putString("kept", Msg.chainsText(c))
+        ed.apply()
         chains = c
         val err = apply(method)
         if (c.isEmpty()) ctx.stopService(Intent(ctx, TvEqService::class.java))
