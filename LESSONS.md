@@ -64,6 +64,8 @@ From `AUDIT-2026-11-13.md` (all three parts) and the 2.36.0 work that answered i
 - **Run the real screens, in every mode, and do the destructive things.** *Two audits walked Simple only, never deleted anything and never pressed Back while measuring.* (2026-11-14) → DevStore (sent 2026-11-14)
 - **Time a wait on screen by the UI's own clock (its delays or frame time), not the wall clock.** *Connect's "offer the address after 6 s" read `System.currentTimeMillis()`, so in the walk harness, whose clock runs faster than the wall, the field never came; on a phone the two agree, so nobody noticed.* (2026-11-14) → DevStore
 
+- **Never force a tool call (`tool_choice` "tool" or "any") on an AI API.** *The Claude review sent a forced `report` tool; the current Claude models answer 400 "not supported for this model", so every review failed for users with a valid key. Use `auto`, ask for the tool in the prompt, and show the API's own error text so the cause is visible at once.* (2026-11-22) → DevStore
+
 ## This app only
 
 - **The walk harness (`tools/walk/`)**: menus and dialogs open in their own window, so their position on the screenshot is not where they are on a phone; `wait N` advances the phone's clock by N s but real time by about a quarter of that, so anything timed by the wall clock (the countdown between spots) runs slow there; `type` adds to what a field holds. (2026-11-14)

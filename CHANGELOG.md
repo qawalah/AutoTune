@@ -4,6 +4,10 @@ Format: [Semantic Versioning](https://semver.org). Version lives in `gradle.prop
 (`APP_VERSION_NAME`, `APP_VERSION_CODE`); release by bumping both, adding an entry here, committing and tagging `vX.Y.Z`.
 Everything below is untested on a real device and microphone unless stated.
 
+## [2.37.1] - 2026-11-22
+### Fixed
+- **The AI review failed with Claude: "tool_choice: type "tool" and "any" are not supported for this model".** The current Claude models refuse a forced tool call. The review now sends `tool_choice: auto` and asks, in the request, to answer only through the report tool; the reply is read the same way as before. Gemini is unchanged.
+
 ## [2.37.0] - 2026-11-14
 ### Added
 - **Compare two held peak recordings on Live (A and B).** With Hold peaks on, **Keep A** saves what has been caught so far as recording A (coloured caps on the bars) and starts a fresh hold, B (white caps). Stop and Start do not drop A, so a change of EQ can be measured between the two. The reading shows both peaks ("A -3.2, B -1.8"), and a line says where they differ most ("B +4.1 dB at 63 Hz"). **Clear A** drops A; turning Hold peaks off, or changing between a tone and the other signals (their bars are drawn against different things), clears it. `PeakCompare` in `:dsp` (tested); VM `keepPeaks`, `clearKept`, `peakKept`.

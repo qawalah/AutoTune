@@ -107,7 +107,7 @@ abstract class AiClient(protected val key: String, protected val model: AiModel)
     }
 }
 
-/** Anthropic Messages API; the review is a forced tool call. */
+/** Anthropic Messages API; the review is a tool call the prompt asks for (forced tool_choice is not supported by current models). */
 class ClaudeClient(key: String, model: AiModel) : AiClient(key, model) {
     override fun url() = "https://api.anthropic.com/v1/messages"
     override fun headers() = mapOf("x-api-key" to key, "anthropic-version" to "2023-06-01")
@@ -118,8 +118,9 @@ class ClaudeClient(key: String, model: AiModel) : AiClient(key, model) {
             "max_tokens" to 3000,
             "system" to AiPrompt.SYSTEM,
             "tools" to listOf(AiPrompt.TOOL),
-            "tool_choice" to mapOf("type" to "tool", "name" to "report"),
-            "messages" to listOf(mapOf("role" to "user", "content" to "Test data:\n$context\n\n$ask")),
+            // Forcing a tool ("tool" / "any") is refused by the current Claude models, so ask for it in the prompt instead.
+            "tool_choice" to mapOf("type" to "auto"),
+            "messages" to listOf(mapOf("role" to "user", "content" to "Test data:\n$context\n\n$ask\n\nAnswer only by calling the report tool.")),
         ),
     )
 

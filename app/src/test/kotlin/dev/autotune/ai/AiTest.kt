@@ -144,15 +144,16 @@ class AiTest {
     }
 
     @Test
-    fun requestBodyIsValidJsonAndForcesTheReportTool() {
+    fun requestBodyIsValidJsonAndAsksForTheReportTool() {
         val ctxText = "{\"notes\":\"tab\there, bell\u0007 and \\\"quotes\\\"\"}"
         val body = Json.parse(AiClient.of("sk-ant-test", AiModel.HAIKU).reviewBody(ctxText + "\u0001", "Review this test."))!!.obj()!!
         assertEquals("claude-haiku-5-5", body["model"])
-        assertEquals("report", body["tool_choice"].obj()!!["name"])
+        // "tool" and "any" are rejected by current Claude models ("not supported for this model")
+        assertEquals("auto", body["tool_choice"].obj()!!["type"])
         assertEquals("report", body["tools"].list()[0].obj()!!["name"])
         val content = body["messages"].list()[0].obj()!!["content"] as String
         assertTrue(content.contains("bell\u0007"))
-        assertTrue(content.endsWith("Review this test."))
+        assertTrue(content.endsWith("Answer only by calling the report tool."))
     }
 
     @Test
